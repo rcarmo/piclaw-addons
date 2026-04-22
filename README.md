@@ -46,7 +46,7 @@ Workspace setup scripts for persistent tool installation across container restar
 | [install-pwsh.sh](scripts/install-pwsh.sh) | PowerShell 7 (standalone) | ~70MB | `curl` |
 | [install-dotnet-pwsh.sh](scripts/install-dotnet-pwsh.sh) | .NET SDK 10 + PowerShell 7 | ~235MB | `curl` |
 | [install-psscriptanalyzer.sh](scripts/install-psscriptanalyzer.sh) | PSScriptAnalyzer module | ~5MB | `pwsh`, `python3` |
-| [add-validator-bicep.sh](scripts/add-validator-bicep.sh) | Bicep validator entry | — | [`az`](scripts/install-az.sh), `python3` |
+| [add-validator-bicep.sh](scripts/add-validator-bicep.sh) | Bicep validator (`az bicep build`) | — | [`az`](scripts/install-az.sh), `python3` |
 | [lib/env-helper.sh](scripts/lib/env-helper.sh) | Shared `.env.sh` helper | — | — |
 
 ### Usage
