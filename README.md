@@ -34,14 +34,17 @@ Then restart PiClaw to load the extensions.
 
 Workspace setup scripts for persistent tool installation across container restarts.
 
-| Script | Description |
-|---|---|
-| [install-gh.sh](scripts/install-gh.sh) | Install GitHub CLI (`gh`) to `/workspace/.local/bin/` with persistent PATH via `.env.sh` |
-| [install-az.sh](scripts/install-az.sh) | Install Azure CLI (`az`) via `uv tool` to `/workspace/.local/bin/` with persistent config |
-| [install-uv.sh](scripts/install-uv.sh) | Install uv — fast Python package manager with `uvx` for one-off tool execution |
-| [install-dotnet-pwsh.sh](scripts/install-dotnet-pwsh.sh) | Install .NET SDK 10 + PowerShell 7 as .NET global tool. Uses invariant globalization (no libicu) |
-| [install-pwsh.sh](scripts/install-pwsh.sh) | Install PowerShell 7 standalone (~70MB, bundled .NET runtime, no SDK needed) |
-| [lib/env-helper.sh](scripts/lib/env-helper.sh) | Shared helper for idempotent `.env.sh` line management |
+### Tool installers
+
+| Script | Tool | Size | Dependencies |
+|---|---|---|---|
+| [install-gh.sh](scripts/install-gh.sh) | GitHub CLI (`gh`) | ~15MB | `curl`, `jq` |
+| [install-az.sh](scripts/install-az.sh) | Azure CLI (`az`) | ~50MB | `curl`, `python3` |
+| [install-uv.sh](scripts/install-uv.sh) | uv (Python package manager) | ~15MB | `curl` |
+| [install-pwsh.sh](scripts/install-pwsh.sh) | PowerShell 7 (standalone) | ~70MB | `curl` |
+| [install-dotnet-pwsh.sh](scripts/install-dotnet-pwsh.sh) | .NET SDK 10 + PowerShell 7 | ~235MB | `curl` |
+| [install-psscriptanalyzer.sh](scripts/install-psscriptanalyzer.sh) | PSScriptAnalyzer module | ~5MB | `pwsh`, `python3` |
+| [lib/env-helper.sh](scripts/lib/env-helper.sh) | Shared `.env.sh` helper | — | — |
 
 ### Usage
 
@@ -55,17 +58,34 @@ bash scripts/install-az.sh
 # Install uv (Python package manager)
 bash scripts/install-uv.sh
 
+# Install PowerShell standalone (lighter, no SDK)
+bash scripts/install-pwsh.sh
+
 # Install .NET SDK 10 + PowerShell (when you need dotnet SDK)
 bash scripts/install-dotnet-pwsh.sh
 
-# Install PowerShell standalone (lighter, no SDK)
-bash scripts/install-pwsh.sh
+# Install PSScriptAnalyzer (requires pwsh — run install-pwsh.sh first)
+bash scripts/install-psscriptanalyzer.sh
 ```
 
-Both scripts:
-- Install binaries to `/workspace/.local/bin/` (persists across container restarts)
+### How they work
+
+All scripts:
+- Install to `/workspace/.local/` (persists across container restarts)
 - Add PATH and config env vars to `/workspace/.env.sh`
 - Are idempotent — safe to run multiple times
+- Require no `apt install` or root access
+
+### Script dependencies
+
+```
+install-gh.sh           (standalone)
+install-az.sh           → requires install-uv.sh
+install-uv.sh           (standalone)
+install-pwsh.sh         (standalone)
+install-dotnet-pwsh.sh  (standalone)
+install-psscriptanalyzer.sh → requires install-pwsh.sh OR install-dotnet-pwsh.sh
+```
 
 ### Environment persistence
 
@@ -75,6 +95,71 @@ Scripts use `/workspace/.env.sh` as the persistent env hook, sourced from `~/.ba
 # Add to ~/.bashrc (done automatically by bootstrap-container skill)
 [ -f /workspace/.env.sh ] && . /workspace/.env.sh
 ```
+
+## validators.json
+
+The `code-validator.ts` extension uses `.pi/validators.json` to define custom file validators. The `diagnostics` tool runs matching validators when asked to check a file.
+
+### Schema
+
+```json
+{
+  "<file-extension>": [
+    {
+      "cmd": ["command", "arg1", "arg2", "$FILE"],
+      "env": { "ENV_VAR": "value" }
+    }
+  ]
+}
+```
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| Key (e.g. `".ps1"`) | string | ✅ | File extension including the dot |
+| `cmd` | string[] | ✅ | Command and arguments. `$FILE` is replaced with the absolute file path |
+| `env` | object | ❌ | Environment variables set for the validator process |
+
+Multiple validators per extension are supported — they run in sequence.
+
+### Built-in validators (in code-validator.ts)
+
+| Extension | Validator | Command |
+|---|---|---|
+| `.ts`, `.tsx`, `.js`, `.jsx` | oxlint | `bunx oxlint $FILE` |
+| `.py` | py_compile | `python3 -m py_compile $FILE` |
+| `.json` | jq | `jq . $FILE` |
+
+### Custom validators (via .pi/validators.json)
+
+Entries in `validators.json` are merged with built-ins. Example with PowerShell:
+
+```json
+{
+  ".ps1": [
+    {
+      "cmd": ["pwsh", "-NoProfile", "-Command",
+        "$env:PSModulePath='/workspace/.local/pwsh-modules'; Invoke-ScriptAnalyzer -Path $FILE -Severity Error,Warning | Format-List RuleName,Severity,Line,Message"],
+      "env": { "DOTNET_SYSTEM_GLOBALIZATION_INVARIANT": "1" }
+    }
+  ],
+  ".sh": [
+    {
+      "cmd": ["shellcheck", "$FILE"]
+    }
+  ]
+}
+```
+
+### Validator output
+
+The validator's stdout and stderr are captured and returned to the agent. Exit code 0 = pass, non-zero = issues found. Format the output as human-readable text (the agent interprets it).
+
+### Adding a new validator
+
+1. Ensure the tool is installed (via an install script or already in PATH)
+2. Add an entry to `.pi/validators.json`
+3. Use `/restart` to reload the extension
+4. Ask the agent: "validate myfile.ps1" or "run diagnostics on script.sh"
 
 ## Requirements
 
