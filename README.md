@@ -41,6 +41,10 @@ Workspace setup scripts for persistent tool installation across container restar
 | [install-gh.sh](scripts/install-gh.sh) | GitHub CLI (`gh`) | ~15MB | `curl`, `jq` |
 | [install-az.sh](scripts/install-az.sh) | Azure CLI (`az`) | ~50MB | `curl`, `python3` |
 | [install-uv.sh](scripts/install-uv.sh) | uv (Python package manager) | ~15MB | `curl` |
+| [install-biome.sh](scripts/install-biome.sh) | Biome (linter + formatter) | ~30MB | `curl`, `python3` |
+| [install-shellcheck.sh](scripts/install-shellcheck.sh) | ShellCheck (shell linter) | ~10MB | `curl`, `python3` |
+| [install-terraform.sh](scripts/install-terraform.sh) | Terraform (IaC provisioning) | ~80MB | `curl`, `python3` |
+| [install-tflint.sh](scripts/install-tflint.sh) | tflint (Terraform linter) | ~30MB | `curl`, `python3` |
 | [install-pwsh.sh](scripts/install-pwsh.sh) | PowerShell 7 (standalone) | ~70MB | `curl` |
 | [install-dotnet-pwsh.sh](scripts/install-dotnet-pwsh.sh) | .NET SDK 10 + PowerShell 7 | ~235MB | `curl` |
 | [install-psscriptanalyzer.sh](scripts/install-psscriptanalyzer.sh) | PSScriptAnalyzer module | ~5MB | `pwsh`, `python3` |
@@ -57,6 +61,18 @@ bash scripts/install-az.sh
 
 # Install uv (Python package manager)
 bash scripts/install-uv.sh
+
+# Install Biome (JS/TS/JSON/JSONC/CSS linter)
+bash scripts/install-biome.sh
+
+# Install ShellCheck (shell linter)
+bash scripts/install-shellcheck.sh
+
+# Install Terraform
+bash scripts/install-terraform.sh
+
+# Install tflint (Terraform linter)
+bash scripts/install-tflint.sh
 
 # Install PowerShell standalone (lighter, no SDK)
 bash scripts/install-pwsh.sh
@@ -82,6 +98,10 @@ All scripts:
 install-gh.sh           (standalone)
 install-az.sh           → requires install-uv.sh
 install-uv.sh           (standalone)
+install-biome.sh        (standalone)
+install-shellcheck.sh   (standalone)
+install-terraform.sh    (standalone)
+install-tflint.sh       (standalone, plugins via tflint --init)
 install-pwsh.sh         (standalone)
 install-dotnet-pwsh.sh  (standalone)
 install-psscriptanalyzer.sh → requires install-pwsh.sh OR install-dotnet-pwsh.sh
