@@ -46,6 +46,8 @@ Workspace setup scripts for persistent tool installation across container restar
 | [install-pwsh.sh](scripts/install-pwsh.sh) | PowerShell 7 (standalone) | ~70MB | `curl` |
 | [install-dotnet-pwsh.sh](scripts/install-dotnet-pwsh.sh) | .NET SDK 10 + PowerShell 7 | ~235MB | `curl` |
 | [install-psscriptanalyzer.sh](scripts/install-psscriptanalyzer.sh) | PSScriptAnalyzer module | ~5MB | `pwsh`, `python3` |
+add-validator-bicep.sh    → requires install-az.sh
+| [add-validator-bicep.sh](scripts/add-validator-bicep.sh) | Bicep validator entry | — | `az`, `python3` |
 | [lib/env-helper.sh](scripts/lib/env-helper.sh) | Shared `.env.sh` helper | — | — |
 
 ### Usage
@@ -78,6 +80,11 @@ bash scripts/install-dotnet-pwsh.sh
 
 # Install PSScriptAnalyzer (requires pwsh — run install-pwsh.sh first)
 bash scripts/install-psscriptanalyzer.sh
+add-validator-bicep.sh    → requires install-az.sh
+
+# Add Bicep validator (requires az cli — run install-az.sh first)
+bash scripts/add-validator-bicep.sh
+| [add-validator-bicep.sh](scripts/add-validator-bicep.sh) | Bicep validator entry | — | `az`, `python3` |
 ```
 
 ### How they work
@@ -99,6 +106,8 @@ install-shellcheck.sh   (standalone)
 install-pwsh.sh         (standalone)
 install-dotnet-pwsh.sh  (standalone)
 install-psscriptanalyzer.sh → requires install-pwsh.sh OR install-dotnet-pwsh.sh
+add-validator-bicep.sh    → requires install-az.sh
+| [add-validator-bicep.sh](scripts/add-validator-bicep.sh) | Bicep validator entry | — | `az`, `python3` |
 ```
 
 ### Environment persistence
@@ -170,8 +179,11 @@ Entries in `validators.json` are merged with built-ins. Example with PowerShell:
 |---|---|---|
 | `.sh` | `install-shellcheck.sh` | `shellcheck $FILE` |
 | `.ps1` | `install-psscriptanalyzer.sh` | `Invoke-ScriptAnalyzer -Path $FILE` |
+add-validator-bicep.sh    → requires install-az.sh
+| [add-validator-bicep.sh](scripts/add-validator-bicep.sh) | Bicep validator entry | — | `az`, `python3` |
 | `.jsonc`, `.css` | `install-biome.sh` | `biome check $FILE` (new coverage) |
 | `.ts`, `.tsx`, `.js`, `.jsx`, `.json` | `install-biome.sh` | `biome check $FILE` (alongside built-in oxlint/jq) |
+| `.bicep` | `add-validator-bicep.sh` | `az bicep build --file $FILE` (requires `install-az.sh`) |
 
 ### Validator output
 
