@@ -188,6 +188,18 @@ The validator's stdout and stderr are captured and returned to the agent. Exit c
 3. Use `/restart` to reload the extension
 4. Ask the agent: "validate myfile.ps1" or "run diagnostics on script.sh"
 
+## Skills
+
+Drop into `.pi/skills/` to teach the agent how to use specific tools.
+
+| Skill | Description |
+|---|---|
+| [diagnostics](skills/diagnostics/SKILL.md) | How to use the `diagnostics` tool — supported file types, when to validate, output interpretation |
+
+```bash
+cp -r /tmp/piclaw-addons/skills/diagnostics .pi/skills/
+```
+
 ## Requirements
 
 - [PiClaw](https://github.com/rcarmo/piclaw) container environment
