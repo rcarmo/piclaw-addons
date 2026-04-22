@@ -7,9 +7,11 @@ set -euo pipefail
 # Layout:
 #   /workspace/.local/pwsh-modules/PSScriptAnalyzer/  — module files
 #
+# Merges .ps1 validator into existing .pi/validators.json if present.
+#
 # Requires: pwsh (install via install-pwsh.sh or install-dotnet-pwsh.sh first)
 #
-# Prerequisites: pwsh
+# Prerequisites: pwsh, python3
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/env-helper.sh"
@@ -42,8 +44,9 @@ else
 	echo "PSScriptAnalyzer installed: $VERSION"
 fi
 
-# ── Create validators.json if not present ─────────────────────
+# ── Ensure .ps1 validator in validators.json ──────────────────
 VALIDATORS_FILE="/workspace/.pi/validators.json"
+
 if [ ! -f "$VALIDATORS_FILE" ]; then
 	cat > "$VALIDATORS_FILE" << 'VJSON'
 {
@@ -56,9 +59,26 @@ if [ ! -f "$VALIDATORS_FILE" ]; then
 }
 VJSON
 	echo "Created $VALIDATORS_FILE with .ps1 validator"
+elif grep -q '\.ps1' "$VALIDATORS_FILE"; then
+	echo ".ps1 validator already configured in $VALIDATORS_FILE"
 else
-	echo "Validators config already exists at $VALIDATORS_FILE"
-	echo "Add .ps1 entry manually if needed."
+	python3 << 'PYEOF'
+import json, os
+vf = os.environ.get("VALIDATORS_FILE", "/workspace/.pi/validators.json")
+with open(vf) as f:
+    data = json.load(f)
+data[".ps1"] = [{
+    "cmd": ["pwsh", "-NoProfile", "-Command",
+            "$env:PSModulePath='/workspace/.local/pwsh-modules'; "
+            "Invoke-ScriptAnalyzer -Path $FILE -Severity Error,Warning | "
+            "Format-List RuleName,Severity,Line,Message"],
+    "env": {"DOTNET_SYSTEM_GLOBALIZATION_INVARIANT": "1"}
+}]
+with open(vf, "w") as f:
+    json.dump(data, f, indent=2)
+    f.write("\n")
+PYEOF
+	echo "Added .ps1 validator to existing $VALIDATORS_FILE"
 fi
 
 # ── Persist environment in .env.sh ────────────────────────────
