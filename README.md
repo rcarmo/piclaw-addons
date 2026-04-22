@@ -150,6 +150,15 @@ Entries in `validators.json` are merged with built-ins. Example with PowerShell:
 }
 ```
 
+### Auto-added by install scripts
+
+| Extension | Script | Command |
+|---|---|---|
+| `.sh` | `install-shellcheck.sh` | `shellcheck $FILE` |
+| `.ps1` | `install-psscriptanalyzer.sh` | `Invoke-ScriptAnalyzer -Path $FILE` |
+| `.jsonc`, `.css` | `install-biome.sh` | `biome check $FILE` (new coverage) |
+| `.ts`, `.tsx`, `.js`, `.jsx`, `.json` | `install-biome.sh` | `biome check $FILE` (alongside built-in oxlint/jq) |
+
 ### Validator output
 
 The validator's stdout and stderr are captured and returned to the agent. Exit code 0 = pass, non-zero = issues found. Format the output as human-readable text (the agent interprets it).
