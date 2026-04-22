@@ -38,6 +38,8 @@ Workspace setup scripts for persistent tool installation across container restar
 |---|---|
 | [install-gh.sh](scripts/install-gh.sh) | Install GitHub CLI (`gh`) to `/workspace/.local/bin/` with persistent PATH via `.env.sh` |
 | [install-az.sh](scripts/install-az.sh) | Install Azure CLI (`az`) via `uv tool` to `/workspace/.local/bin/` with persistent config |
+| [install-dotnet-pwsh.sh](scripts/install-dotnet-pwsh.sh) | Install .NET SDK 10 + PowerShell 7 as .NET global tool. Uses invariant globalization (no libicu) |
+| [install-pwsh.sh](scripts/install-pwsh.sh) | Install PowerShell 7 standalone (~70MB, bundled .NET runtime, no SDK needed) |
 | [lib/env-helper.sh](scripts/lib/env-helper.sh) | Shared helper for idempotent `.env.sh` line management |
 
 ### Usage
@@ -48,6 +50,12 @@ bash scripts/install-gh.sh
 
 # Install Azure CLI
 bash scripts/install-az.sh
+
+# Install .NET SDK 10 + PowerShell (when you need dotnet SDK)
+bash scripts/install-dotnet-pwsh.sh
+
+# Install PowerShell standalone (lighter, no SDK)
+bash scripts/install-pwsh.sh
 ```
 
 Both scripts:
