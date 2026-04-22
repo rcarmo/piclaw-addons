@@ -195,6 +195,7 @@ Drop into `.pi/skills/` to teach the agent how to use specific tools.
 | Skill | Description |
 |---|---|
 | [diagnostics](skills/diagnostics/SKILL.md) | How to use the `diagnostics` tool — supported file types, when to validate, output interpretation |
+| [dev-tools](skills/dev-tools/SKILL.md) | How to use `git_history` and `json_query` tools — modes, query syntax, when to prefer over raw commands |
 
 ```bash
 cp -r /tmp/piclaw-addons/skills/diagnostics .pi/skills/
