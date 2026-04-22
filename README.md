@@ -1,6 +1,6 @@
 # piclaw-addons
 
-Extensions, tools, and scripts for [PiClaw](https://github.com/mariozechner/piclaw) workspaces.
+Extensions, tools, and scripts for [PiClaw](https://github.com/rcarmo/piclaw) workspaces.
 
 ## Extensions
 
@@ -46,8 +46,7 @@ Workspace setup scripts for persistent tool installation across container restar
 | [install-pwsh.sh](scripts/install-pwsh.sh) | PowerShell 7 (standalone) | ~70MB | `curl` |
 | [install-dotnet-pwsh.sh](scripts/install-dotnet-pwsh.sh) | .NET SDK 10 + PowerShell 7 | ~235MB | `curl` |
 | [install-psscriptanalyzer.sh](scripts/install-psscriptanalyzer.sh) | PSScriptAnalyzer module | ~5MB | `pwsh`, `python3` |
-add-validator-bicep.sh    → requires install-az.sh
-| [add-validator-bicep.sh](scripts/add-validator-bicep.sh) | Bicep validator entry | — | `az`, `python3` |
+| [add-validator-bicep.sh](scripts/add-validator-bicep.sh) | Bicep validator entry | — | [`az`](scripts/install-az.sh), `python3` |
 | [lib/env-helper.sh](scripts/lib/env-helper.sh) | Shared `.env.sh` helper | — | — |
 
 ### Usage
@@ -68,10 +67,6 @@ bash scripts/install-biome.sh
 # Install ShellCheck (shell linter)
 bash scripts/install-shellcheck.sh
 
-# Install Terraform
-
-# Install tflint (Terraform linter)
-
 # Install PowerShell standalone (lighter, no SDK)
 bash scripts/install-pwsh.sh
 
@@ -80,11 +75,9 @@ bash scripts/install-dotnet-pwsh.sh
 
 # Install PSScriptAnalyzer (requires pwsh — run install-pwsh.sh first)
 bash scripts/install-psscriptanalyzer.sh
-add-validator-bicep.sh    → requires install-az.sh
 
 # Add Bicep validator (requires az cli — run install-az.sh first)
 bash scripts/add-validator-bicep.sh
-| [add-validator-bicep.sh](scripts/add-validator-bicep.sh) | Bicep validator entry | — | `az`, `python3` |
 ```
 
 ### How they work
@@ -98,16 +91,15 @@ All scripts:
 ### Script dependencies
 
 ```
-install-gh.sh           (standalone)
-install-az.sh           → requires install-uv.sh
-install-uv.sh           (standalone)
-install-biome.sh        (standalone)
-install-shellcheck.sh   (standalone)
-install-pwsh.sh         (standalone)
-install-dotnet-pwsh.sh  (standalone)
+install-gh.sh               (standalone)
+install-az.sh               → requires install-uv.sh
+install-uv.sh               (standalone)
+install-biome.sh            (standalone)
+install-shellcheck.sh       (standalone)
+install-pwsh.sh             (standalone)
+install-dotnet-pwsh.sh      (standalone)
 install-psscriptanalyzer.sh → requires install-pwsh.sh OR install-dotnet-pwsh.sh
-add-validator-bicep.sh    → requires install-az.sh
-| [add-validator-bicep.sh](scripts/add-validator-bicep.sh) | Bicep validator entry | — | `az`, `python3` |
+add-validator-bicep.sh      → requires install-az.sh
 ```
 
 ### Environment persistence
@@ -152,9 +144,17 @@ Multiple validators per extension are supported — they run in sequence.
 | `.py` | py_compile | `python3 -m py_compile $FILE` |
 | `.json` | jq | `jq . $FILE` |
 
-### Custom validators (via .pi/validators.json)
+### Auto-added by scripts
 
-Entries in `validators.json` are merged with built-ins. Example with PowerShell:
+| Extension | Script | Command |
+|---|---|---|
+| `.sh` | `install-shellcheck.sh` | `shellcheck $FILE` |
+| `.ps1` | `install-psscriptanalyzer.sh` | `Invoke-ScriptAnalyzer -Path $FILE` |
+| `.jsonc`, `.css` | `install-biome.sh` | `biome check $FILE` (new coverage) |
+| `.ts`, `.tsx`, `.js`, `.jsx`, `.json` | `install-biome.sh` | `biome check $FILE` (alongside built-in oxlint/jq) |
+| `.bicep` | `add-validator-bicep.sh` | `az bicep build --file $FILE` (requires [`install-az.sh`](scripts/install-az.sh)) |
+
+### Custom example
 
 ```json
 {
@@ -166,24 +166,16 @@ Entries in `validators.json` are merged with built-ins. Example with PowerShell:
     }
   ],
   ".sh": [
+    { "cmd": ["shellcheck", "$FILE"] }
+  ],
+  ".bicep": [
     {
-      "cmd": ["shellcheck", "$FILE"]
+      "cmd": ["az", "bicep", "build", "--file", "$FILE", "--stdout"],
+      "env": { "DOTNET_SYSTEM_GLOBALIZATION_INVARIANT": "1" }
     }
   ]
 }
 ```
-
-### Auto-added by install scripts
-
-| Extension | Script | Command |
-|---|---|---|
-| `.sh` | `install-shellcheck.sh` | `shellcheck $FILE` |
-| `.ps1` | `install-psscriptanalyzer.sh` | `Invoke-ScriptAnalyzer -Path $FILE` |
-add-validator-bicep.sh    → requires install-az.sh
-| [add-validator-bicep.sh](scripts/add-validator-bicep.sh) | Bicep validator entry | — | `az`, `python3` |
-| `.jsonc`, `.css` | `install-biome.sh` | `biome check $FILE` (new coverage) |
-| `.ts`, `.tsx`, `.js`, `.jsx`, `.json` | `install-biome.sh` | `biome check $FILE` (alongside built-in oxlint/jq) |
-| `.bicep` | `add-validator-bicep.sh` | `az bicep build --file $FILE` (requires `install-az.sh`) |
 
 ### Validator output
 
@@ -198,7 +190,7 @@ The validator's stdout and stderr are captured and returned to the agent. Exit c
 
 ## Requirements
 
-- [PiClaw](https://github.com/mariozechner/piclaw) container environment
+- [PiClaw](https://github.com/rcarmo/piclaw) container environment
 - Extensions require Bun runtime (included in PiClaw)
 - Scripts require bash and standard Unix tools
 
