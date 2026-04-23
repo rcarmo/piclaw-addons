@@ -1,57 +1,32 @@
 # piclaw-addons
 
-Add-ons, extensions, tools, and scripts for [PiClaw](https://github.com/rcarmo/piclaw) workspaces.
+Community add-ons for [piclaw](https://github.com/rcarmo/piclaw) — extensions, skills, and widgets.
 
-## Add-ons
-
-Each add-on lives in `addons/<slug>/` with a standard `package.json` manifest.
-
-| Add-on | Description |
-|---|---|
-| [code-validator](addons/code-validator/) | `diagnostics` tool — code validation for Python, JS/TS, JSON with extensible validators via `.pi/validators.json` |
-| [dev-tools](addons/dev-tools/) | `git_history` + `json_query` tools — git log exploration and jq-style JSON querying |
-| [kanban-board-widget](addons/kanban-board-widget/) | `/board` slash command — interactive kanban board widget with drag & drop and workitem management |
-
-### Installing an add-on
-
-From inside your PiClaw workspace:
+## Install
 
 ```bash
-# Install a single add-on
+# From the .pi/extensions directory:
+cd /workspace/.pi/extensions
+bun add github:rcarmo/piclaw-addons/addons/<slug>
+
+# Example:
 bun add github:rcarmo/piclaw-addons/addons/code-validator
-
-# Or install directly into the extensions directory
-cd .pi/extensions
-bun add github:rcarmo/piclaw-addons/addons/dev-tools
 ```
 
-After installing, restart PiClaw (`exit_process` from the agent or container restart).
+After installing, restart piclaw to load the extension.
 
-### Manual installation
+## Available Add-ons
 
-If you prefer not to use `bun add`, you can copy the extension file directly:
+| Add-on | Type | Version | Description | Skills |
+|--------|------|---------|-------------|--------|
+| [autoresearch](addons/autoresearch) | extension | 0.1.0 | Autonomous experiment loop sub-agent | autoresearch-create |
+| [code-validator](addons/code-validator) | extension | 0.1.0 | Diagnostics tool for code validation | — |
+| [dev-tools](addons/dev-tools) | extension | 0.1.0 | Developer tools for workspace diagnostics | — |
+| [kanban-board-widget](addons/kanban-board-widget) | extension | 0.1.0 | Interactive kanban board widget | — |
 
-```bash
-# Copy a single extension into .pi/extensions/
-curl -sL https://raw.githubusercontent.com/rcarmo/piclaw-addons/main/addons/code-validator/index.ts \
-  -o .pi/extensions/code-validator.ts
-```
+## Add-on Manifest Format
 
-### Prerequisites
-
-Workspace extensions import packages from PiClaw's global install (`@sinclair/typebox`, `@mariozechner/pi-coding-agent`, etc.). PiClaw automatically creates a `node_modules` symlink in `.pi/extensions/` on startup. If it's missing, create it manually:
-
-```bash
-ln -sf /usr/local/lib/bun/install/global/node_modules .pi/extensions/node_modules
-```
-
-## Catalog
-
-The [`catalog.json`](catalog.json) file provides a machine-readable index of all available add-ons. PiClaw's built-in Settings pane (`/settings` → Add-ons) fetches this file to display the available add-on list.
-
-### Manifest format
-
-Each add-on has a `package.json` following the NPM package format with a `piclaw` extension field:
+Each add-on is a directory under `addons/<slug>/` with a `package.json`:
 
 ```json
 {
@@ -63,54 +38,66 @@ Each add-on has a `package.json` following the NPM package format with a `piclaw
   "piclaw": {
     "type": "extension",
     "compatibleVersions": ">=1.8.0",
-    "tags": ["category1", "category2"]
+    "tags": ["category"],
+    "skills": ["skills/my-skill"]
   },
-  "license": "MIT"
+  "agents": {
+    "skills": [
+      { "name": "my-skill", "path": "./skills/my-skill" }
+    ]
+  }
 }
 ```
 
-| Field | Required | Description |
-|---|---|---|
-| `name` | yes | NPM-style package name (`piclaw-addon-*` convention) |
-| `version` | yes | Semver version |
-| `description` | yes | Human-readable description |
-| `main` | yes | Extension entrypoint (TypeScript file) |
-| `piclaw.type` | yes | Always `"extension"` for now |
-| `piclaw.compatibleVersions` | yes | Semver range for compatible PiClaw versions |
-| `piclaw.tags` | no | Array of category tags for filtering |
+### Dual manifest pattern
 
-## Legacy extensions
+Add-ons can bundle **both** extensions and skills:
 
-The original single-file extensions are still available in `extensions/` for backward compatibility:
+- **`piclaw`** field — piclaw-specific metadata: extension type, compatible versions, tags, and skill paths relative to the package root
+- **`agents`** field — [agentskills.io](https://agentskills.io) compatible skill declarations, discoverable by `npx skills`, `npm-agentskills`, and 45+ coding agents
 
-| Extension | Description |
-|---|---|
-| [kanban-board-widget.ts](extensions/kanban-board-widget.ts) | Interactive kanban board widget |
-| [dev-tools.ts](extensions/dev-tools.ts) | Git history + JSON query tools |
-| [code-validator.ts](extensions/code-validator.ts) | Code validation diagnostics |
+This means a piclaw add-on's skills are also installable by Claude Code, Cursor, Codex, Gemini CLI, etc. via:
 
-## Scripts
+```bash
+npx skills add rcarmo/piclaw-addons --skill autoresearch-create
+```
 
-Helper scripts for installing common development tools into a PiClaw workspace:
+### Skill format
 
-| Script | Description |
-|---|---|
-| [install-gh.sh](scripts/install-gh.sh) | GitHub CLI |
-| [install-uv.sh](scripts/install-uv.sh) | uv (Python package manager) |
-| [install-shellcheck.sh](scripts/install-shellcheck.sh) | ShellCheck |
-| [install-biome.sh](scripts/install-biome.sh) | Biome (JS/TS linter) |
-| [install-pwsh.sh](scripts/install-pwsh.sh) | PowerShell |
-| [install-dotnet-pwsh.sh](scripts/install-dotnet-pwsh.sh) | .NET + PowerShell |
-| [install-az.sh](scripts/install-az.sh) | Azure CLI |
+Skills follow the [Agent Skills standard](https://agentskills.io/specification):
 
-## Skills
+```
+skills/my-skill/
+├── SKILL.md           # YAML frontmatter (name, description) + instructions
+├── scripts/           # Optional executable helpers
+└── references/        # Optional reference docs
+```
 
-| Skill | Description |
-|---|---|
-| [dev-tools](skills/dev-tools/) | Developer tool guidance |
-| [diagnostics](skills/diagnostics/) | Diagnostic workflow guidance |
-| [install-addons](skills/install-addons/) | Add-on installation helper |
+### Extension entry point
 
-## Licence
+The `main` field (default `index.ts`) must export an `ExtensionFactory`:
+
+```typescript
+import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+
+export default function (pi: ExtensionAPI) {
+  pi.registerTool({ name: "my-tool", ... });
+}
+```
+
+## Catalog
+
+The machine-readable catalog is at [`catalog.json`](catalog.json). The piclaw settings UI fetches it to show available add-ons with install/upgrade/remove buttons.
+
+## Contributing
+
+1. Create `addons/<your-slug>/`
+2. Add `package.json` with the manifest fields above
+3. Add `index.ts` exporting an `ExtensionFactory`
+4. Optionally add `skills/<skill-name>/SKILL.md`
+5. Update `catalog.json`
+6. Open a PR
+
+## License
 
 MIT

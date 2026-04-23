@@ -7,7 +7,13 @@
   "piclaw": {
     "type": "extension",
     "compatibleVersions": ">=1.8.0",
-    "tags": ["experiments", "research", "automation"]
+    "tags": ["experiments", "research", "automation"],
+    "skills": ["skills/autoresearch-create"]
+  },
+  "agents": {
+    "skills": [
+      { "name": "autoresearch-create", "path": "./skills/autoresearch-create" }
+    ]
   },
   "peerDependencies": {
     "@mariozechner/pi-coding-agent": ">=0.1.0",
