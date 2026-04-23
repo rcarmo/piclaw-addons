@@ -1,0 +1,13 @@
+{
+  "name": "piclaw-addon-code-validator",
+  "version": "0.1.0",
+  "description": "Diagnostics tool for code validation (Python, JS/TS, JSON, extensible via validators.json)",
+  "type": "module",
+  "main": "index.ts",
+  "piclaw": {
+    "type": "extension",
+    "compatibleVersions": ">=1.8.0",
+    "tags": ["diagnostics", "validation", "linting"]
+  },
+  "license": "MIT"
+}

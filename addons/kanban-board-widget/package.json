@@ -1,0 +1,13 @@
+{
+  "name": "piclaw-addon-kanban-board-widget",
+  "version": "0.1.0",
+  "description": "Interactive kanban board dashboard widget for the web timeline",
+  "type": "module",
+  "main": "index.ts",
+  "piclaw": {
+    "type": "extension",
+    "compatibleVersions": ">=1.8.0",
+    "tags": ["ui", "kanban", "widget", "dashboard"]
+  },
+  "license": "MIT"
+}

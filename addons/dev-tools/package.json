@@ -1,0 +1,13 @@
+{
+  "name": "piclaw-addon-dev-tools",
+  "version": "0.1.0",
+  "description": "Developer tools for workspace diagnostics and environment inspection",
+  "type": "module",
+  "main": "index.ts",
+  "piclaw": {
+    "type": "extension",
+    "compatibleVersions": ">=1.8.0",
+    "tags": ["developer", "diagnostics", "environment"]
+  },
+  "license": "MIT"
+}
