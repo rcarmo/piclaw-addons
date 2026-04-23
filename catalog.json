@@ -5,6 +5,7 @@
     {
       "slug": "code-validator",
       "name": "piclaw-addon-code-validator",
+      "version": "0.1.0",
       "description": "Diagnostics tool for code validation (Python, JS/TS, JSON, extensible via validators.json)",
       "path": "addons/code-validator",
       "tags": ["diagnostics", "validation", "linting"]
@@ -12,6 +13,7 @@
     {
       "slug": "dev-tools",
       "name": "piclaw-addon-dev-tools",
+      "version": "0.1.0",
       "description": "Developer tools for workspace diagnostics and environment inspection",
       "path": "addons/dev-tools",
       "tags": ["developer", "diagnostics", "environment"]
@@ -19,6 +21,7 @@
     {
       "slug": "kanban-board-widget",
       "name": "piclaw-addon-kanban-board-widget",
+      "version": "0.1.0",
       "description": "Interactive kanban board dashboard widget for the web timeline",
       "path": "addons/kanban-board-widget",
       "tags": ["ui", "kanban", "widget", "dashboard"]
