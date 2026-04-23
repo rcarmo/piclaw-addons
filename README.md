@@ -11,6 +11,18 @@ Drop any `.ts` file into your `.pi/extensions/` directory and restart PiClaw (`e
 | [kanban-board-widget.ts](extensions/kanban-board-widget.ts) | `/board` slash command — interactive kanban board widget with drag & drop, ticket detail views, and workitem management |
 | [dev-tools.ts](extensions/dev-tools.ts) | `git_history` + `json_query` tools — git log exploration and jq-style JSON querying |
 | [code-validator.ts](extensions/code-validator.ts) | `diagnostics` tool — code validation for Python, JS/TS, JSON with extensible validators via `.pi/validators.json` |
+| [delegate.ts](extensions/delegate.ts) | `delegate` tool — send tasks to a cheaper/faster model in a fresh context with auto model selection, tool access, and MCP support |
+
+### Prerequisites
+
+Workspace extensions import packages from PiClaw's global install (`@sinclair/typebox`, `@mariozechner/pi-coding-agent`, etc.). A `node_modules` symlink is required so the TypeScript resolver can find them:
+
+```bash
+# Run once after creating .pi/extensions/
+ln -sf /usr/local/lib/bun/install/global/node_modules .pi/extensions/node_modules
+```
+
+Without this symlink, extensions will fail to load with "module not found" errors.
 
 ### Installation
 
@@ -19,6 +31,10 @@ Drop any `.ts` file into your `.pi/extensions/` directory and restart PiClaw (`e
 curl -sL https://raw.githubusercontent.com/rcarmo/piclaw-addons/main/extensions/kanban-board-widget.ts -o .pi/extensions/kanban-board-widget.ts
 curl -sL https://raw.githubusercontent.com/rcarmo/piclaw-addons/main/extensions/dev-tools.ts -o .pi/extensions/dev-tools.ts
 curl -sL https://raw.githubusercontent.com/rcarmo/piclaw-addons/main/extensions/code-validator.ts -o .pi/extensions/code-validator.ts
+curl -sL https://raw.githubusercontent.com/rcarmo/piclaw-addons/main/extensions/delegate.ts -o .pi/extensions/delegate.ts
+
+# Required: symlink node_modules (run once)
+ln -sf /usr/local/lib/bun/install/global/node_modules .pi/extensions/node_modules
 ```
 
 Or clone and copy:
@@ -26,6 +42,9 @@ Or clone and copy:
 ```bash
 git clone https://github.com/rcarmo/piclaw-addons.git /tmp/piclaw-addons
 cp /tmp/piclaw-addons/extensions/*.ts .pi/extensions/
+
+# Required: symlink node_modules (run once)
+ln -sf /usr/local/lib/bun/install/global/node_modules .pi/extensions/node_modules
 ```
 
 Then restart PiClaw to load the extensions.
