@@ -16,7 +16,12 @@
     ]
   },
   "peerDependencies": {
-    "@mariozechner/pi-coding-agent": ">=0.1.0",
+    "@mariozechner/pi-coding-agent": ">=0.1.0"
+  },
+  "peerDependenciesMeta": {
+    "@mariozechner/pi-coding-agent": { "optional": true }
+  },
+  "dependencies": {
     "@sinclair/typebox": ">=0.30.0"
   },
   "license": "MIT"
