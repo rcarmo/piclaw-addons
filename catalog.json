@@ -3,6 +3,14 @@
   "source": "github:rcarmo/piclaw-addons",
   "addons": [
     {
+      "slug": "autoresearch",
+      "name": "piclaw-addon-autoresearch",
+      "version": "0.1.0",
+      "description": "Autonomous experiment loop sub-agent (start/stop/status tools via tmux)",
+      "path": "addons/autoresearch",
+      "tags": ["experiments", "research", "automation"]
+    },
+    {
       "slug": "code-validator",
       "name": "piclaw-addon-code-validator",
       "version": "0.1.0",
