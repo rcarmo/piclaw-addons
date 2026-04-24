@@ -31,7 +31,7 @@ const EXT_DIR = typeof import.meta.dir === "string"
   ? import.meta.dir
   : dirname(new URL(import.meta.url).pathname);
 const ROUTE_PREFIX = "/drawio";
-const WORKSPACE_ROOT = "/workspace";
+const DEFAULT_WORKSPACE_ROOT = "/workspace";
 const DRAWIO_VERSION = "v29.6.1";
 
 export function getDrawioVendorDirCandidates(baseDir = EXT_DIR, cwd = process.cwd()): string[] {
@@ -605,12 +605,38 @@ function getMimeType(path: string): string {
   return MIME_TYPES[ext] || "application/octet-stream";
 }
 
+function getWorkspaceRoot(): string {
+  return process.env.PICLAW_WORKSPACE || DEFAULT_WORKSPACE_ROOT;
+}
+
+function normalizeWorkspaceRelativePath(input: string): string {
+  const trimmed = String(input || "").trim().replace(/^@/, "").replace(/\\+/g, "/");
+  if (!trimmed) throw new Error("Missing path");
+  const stripped = trimmed.replace(/^\/workspace\//, "").replace(/^\/+/, "");
+  const normalized = stripped
+    .split("/")
+    .filter((segment) => segment && segment !== ".")
+    .reduce<string[]>((parts, segment) => {
+      if (segment === "..") {
+        if (parts.length === 0) throw new Error("Forbidden path");
+        parts.pop();
+        return parts;
+      }
+      parts.push(segment);
+      return parts;
+    }, [])
+    .join("/");
+  if (!normalized) throw new Error("Missing path");
+  return normalized;
+}
+
 function resolveWorkspacePath(path: string): string {
-  const relative = String(path || "").replace(/^@/, "").replace(/^\/+/, "");
-  const fullPath = resolve(WORKSPACE_ROOT, relative);
-  const realRoot = realpathSync(WORKSPACE_ROOT);
+  const workspaceRoot = getWorkspaceRoot();
+  const relative = normalizeWorkspaceRelativePath(path);
+  const fullPath = resolve(workspaceRoot, relative);
+  const realRoot = realpathSync(workspaceRoot);
   const parentDir = resolve(fullPath, "..");
-  const realParent = existsSync(parentDir) ? realpathSync(parentDir) : realpathSync(WORKSPACE_ROOT);
+  const realParent = existsSync(parentDir) ? realpathSync(parentDir) : realpathSync(workspaceRoot);
   if (!fullPath.startsWith(realRoot) || !realParent.startsWith(realRoot)) {
     throw new Error("Forbidden path");
   }
@@ -786,9 +812,9 @@ export default function drawioEditor(pi: any) {
     name: "open_drawio_editor",
     label: "Open Draw.io Editor",
     description:
-      "Open a .drawio diagram file in the self-hosted draw.io editor. " +
-      "Returns a URL the user can open to edit the diagram in their browser.",
-    promptSnippet: "open_drawio_editor: open/create a draw.io file in the hosted editor tab.",
+      "Open or create a .drawio diagram file in the web UI draw.io pane when available. " +
+      "Returns a fallback URL when direct pane opening is unavailable.",
+    promptSnippet: "open_drawio_editor: open/create a draw.io file in the web UI draw.io pane.",
     parameters: {
       type: "object",
       properties: {
@@ -799,8 +825,8 @@ export default function drawioEditor(pi: any) {
       },
       required: ["path"],
     },
-    async execute(_toolCallId: string, params: { path: string }) {
-      const filePath = params.path.replace(/^@/, "");
+    async execute(_toolCallId: string, params: { path: string }, _signal: AbortSignal | undefined, _onUpdate: unknown, ctx: any) {
+      const filePath = normalizeWorkspaceRelativePath(params.path || "");
 
       // Validate extension
       const hasValidExt = DRAWIO_EXTENSIONS.some(ext => filePath.toLowerCase().endsWith(ext));
@@ -810,7 +836,77 @@ export default function drawioEditor(pi: any) {
         );
       }
 
+      const absolutePath = resolveWorkspacePath(filePath);
+      if (!existsSync(absolutePath)) {
+        mkdirSync(dirname(absolutePath), { recursive: true });
+        writeFileSync(absolutePath, DEFAULT_DRAWIO_XML, "utf8");
+      } else {
+        const stat = statSync(absolutePath);
+        if (!stat.isFile()) {
+          throw new Error(`Not a file: ${filePath}`);
+        }
+      }
+
       const editorUrl = `${ROUTE_PREFIX}/edit?path=${encodeURIComponent(filePath)}`;
+      const label = filePath.split("/").pop() || "diagram.drawio";
+
+      if (ctx?.hasUI && typeof ctx?.ui?.custom === "function") {
+        try {
+          const outcome = await ctx.ui.custom(
+            () => null,
+            {
+              timeout: 15000,
+              action: "open_workspace_file",
+              path: filePath,
+              label,
+              target: "tab",
+            },
+          ) as { ok?: boolean; opened?: boolean; target?: string; detail?: string; reason?: string } | undefined;
+
+          if (outcome?.ok !== false && outcome?.opened !== false) {
+            return {
+              content: [
+                {
+                  type: "text" as const,
+                  text: `Opened ${filePath} in the Draw.io editor pane.`,
+                },
+              ],
+              details: { ok: true, opened: true, path: filePath, target: outcome?.target || "tab", editorUrl },
+            };
+          }
+
+          const detail = typeof outcome?.detail === "string" && outcome.detail.trim()
+            ? outcome.detail.trim()
+            : "The web UI did not open the Draw.io pane directly.";
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `${detail}\n\nFallback URL: ${editorUrl}`,
+              },
+            ],
+            details: {
+              ok: false,
+              opened: false,
+              reason: outcome?.reason || "ui_open_failed",
+              path: filePath,
+              target: "tab",
+              editorUrl,
+            },
+          };
+        } catch (error) {
+          const detail = error instanceof Error ? error.message : String(error || "Unknown UI error");
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Could not open the Draw.io pane directly.\n\nFallback URL: ${editorUrl}\n\nReason: ${detail}`,
+              },
+            ],
+            details: { ok: false, opened: false, reason: "ui_open_failed", path: filePath, target: "tab", editorUrl },
+          };
+        }
+      }
 
       return {
         content: [
