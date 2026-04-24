@@ -47,6 +47,16 @@
       "skills": []
     },
     {
+      "slug": "drawio-editor",
+      "name": "piclaw-addon-drawio-editor",
+      "version": "0.1.0",
+      "type": "extension",
+      "description": "Self-hosted draw.io diagram editor with workspace file integration",
+      "path": "addons/drawio-editor",
+      "tags": ["diagrams", "editor", "drawio"],
+      "skills": []
+    },
+    {
       "slug": "kanban-board-widget",
       "name": "piclaw-addon-kanban-board-widget",
       "version": "0.1.0",

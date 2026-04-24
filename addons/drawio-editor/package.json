@@ -1,0 +1,18 @@
+{
+  "name": "piclaw-addon-drawio-editor",
+  "version": "0.1.0",
+  "description": "Self-hosted draw.io diagram editor with workspace file integration",
+  "type": "module",
+  "main": "index.ts",
+  "piclaw": {
+    "type": "extension",
+    "compatibleVersions": ">=1.8.0",
+    "tags": ["diagrams", "editor", "drawio"],
+    "vendorUrl": "https://github.com/jgraph/drawio/releases"
+  },
+  "agents": {},
+  "scripts": {
+    "postinstall": "echo 'draw.io addon installed. Vendor files must be provided separately — see README.'"
+  },
+  "license": "MIT"
+}
