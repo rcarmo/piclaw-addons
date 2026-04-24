@@ -106,7 +106,7 @@
       "name": "piclaw-addon-eml-viewer",
       "version": "0.1.0",
       "type": "extension",
-      "description": "Email message (.eml) previewer for the workspace file viewer",
+      "description": "Attachment preview route for email message (.eml) files in the web timeline",
       "path": "addons/eml-viewer",
       "tags": [
         "email",
