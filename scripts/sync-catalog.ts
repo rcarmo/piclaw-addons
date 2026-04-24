@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 import { existsSync } from 'node:fs';
 import { readdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { basename, join, relative } from 'node:path';
+import { join, relative } from 'node:path';
 
 interface AgentSkillEntry {
   name?: string;
@@ -14,6 +14,7 @@ interface AddonPackage {
   description?: string;
   keywords?: string[];
   main?: string;
+  peerDependencies?: Record<string, string>;
   pi?: {
     extensions?: string[];
     skills?: string[];
@@ -32,6 +33,13 @@ interface AddonPackage {
     skills?: AgentSkillEntry[];
   };
 }
+
+const CORE_PEER_DEPENDENCIES = [
+  '@mariozechner/pi-coding-agent',
+  '@sinclair/typebox',
+] as const;
+
+type CorePeerDependency = (typeof CORE_PEER_DEPENDENCIES)[number];
 
 interface CatalogEntry {
   slug: string;
@@ -75,6 +83,37 @@ function dedupeSorted(values: string[]): string[] {
   return [...new Set(values)].sort();
 }
 
+async function listSourceFiles(dir: string): Promise<string[]> {
+  const out: string[] = [];
+  const entries = await readdir(dir, { withFileTypes: true });
+  for (const entry of entries) {
+    if (entry.name === 'node_modules' || entry.name === 'vendor' || entry.name.startsWith('.')) continue;
+    const fullPath = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      out.push(...await listSourceFiles(fullPath));
+      continue;
+    }
+    if (/\.(ts|tsx|js|jsx|mts|cts)$/.test(entry.name)) out.push(fullPath);
+  }
+  return out;
+}
+
+async function validateCorePeerDependencies(addonRoot: string, slug: string, pkg: AddonPackage): Promise<void> {
+  const files = await listSourceFiles(addonRoot);
+  const imported = new Set<CorePeerDependency>();
+  for (const file of files) {
+    const content = await readFile(file, 'utf8');
+    for (const dep of CORE_PEER_DEPENDENCIES) {
+      if (content.includes(`"${dep}"`) || content.includes(`'${dep}'`)) imported.add(dep);
+    }
+  }
+  for (const dep of imported) {
+    if (pkg.peerDependencies?.[dep] !== '*') {
+      throw new Error(`addons/${slug}/package.json: ${dep} must be declared in peerDependencies with "*"`);
+    }
+  }
+}
+
 async function buildMetadata() {
   const slugs = await listAddonSlugs();
   const catalogEntries: CatalogEntry[] = [];
@@ -94,6 +133,8 @@ async function buildMetadata() {
     if (!(pkg.keywords || []).includes('pi-package')) {
       throw new Error(`addons/${slug}/package.json: keywords must include "pi-package"`);
     }
+
+    await validateCorePeerDependencies(addonRoot, slug, pkg);
 
     for (const ext of pkg.pi.extensions) {
       const rel = join('addons', slug, ext).replaceAll('\\', '/');
