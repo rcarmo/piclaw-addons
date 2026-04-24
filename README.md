@@ -34,6 +34,7 @@ No duplicate wrapper extensions or copied skill directories are needed.
 ## Metadata sync
 
 The addon catalog and root package metadata are generated from the addon manifests.
+The catalog also emits per-addon package install specs so piclaw Settings can do package-first installs (`bun add <spec>`) instead of downloading raw files.
 
 ```bash
 bun run check:catalog   # validate metadata is in sync
@@ -45,7 +46,7 @@ bun run sync:catalog    # regenerate catalog.json + root package metadata
 - root `pi.extensions`
 - root `pi.skills`
 - root `agents.skills`
-- `catalog.json`
+- `catalog.json` (including per-addon `install.kind/spec/piSource`)
 
 from each `addons/<slug>/package.json`.
 

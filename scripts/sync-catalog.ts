@@ -42,6 +42,11 @@ interface CatalogEntry {
   path: string;
   tags: string[];
   skills: string[];
+  install: {
+    kind: 'npm';
+    spec: string;
+    piSource: string;
+  };
 }
 
 const repoRoot = '/workspace/piclaw-addons';
@@ -127,6 +132,11 @@ async function buildMetadata() {
       path: `addons/${slug}`,
       tags: dedupeSorted(pkg.piclaw?.tags || []),
       skills: dedupeSorted(addonSkillNames),
+      install: {
+        kind: 'npm',
+        spec: `${pkg.name}@${pkg.version}`,
+        piSource: `npm:${pkg.name}@${pkg.version}`,
+      },
     });
   }
 

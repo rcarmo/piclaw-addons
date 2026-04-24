@@ -16,7 +16,12 @@
       ],
       "skills": [
         "autoresearch-create"
-      ]
+      ],
+      "install": {
+        "kind": "npm",
+        "spec": "piclaw-addon-autoresearch@0.1.0",
+        "piSource": "npm:piclaw-addon-autoresearch@0.1.0"
+      }
     },
     {
       "slug": "code-validator",
@@ -30,7 +35,12 @@
         "linting",
         "validation"
       ],
-      "skills": []
+      "skills": [],
+      "install": {
+        "kind": "npm",
+        "spec": "piclaw-addon-code-validator@0.1.0",
+        "piSource": "npm:piclaw-addon-code-validator@0.1.0"
+      }
     },
     {
       "slug": "delegate",
@@ -46,7 +56,12 @@
       ],
       "skills": [
         "delegate"
-      ]
+      ],
+      "install": {
+        "kind": "npm",
+        "spec": "piclaw-addon-delegate@0.1.0",
+        "piSource": "npm:piclaw-addon-delegate@0.1.0"
+      }
     },
     {
       "slug": "dev-tools",
@@ -60,7 +75,12 @@
         "diagnostics",
         "environment"
       ],
-      "skills": []
+      "skills": [],
+      "install": {
+        "kind": "npm",
+        "spec": "piclaw-addon-dev-tools@0.1.0",
+        "piSource": "npm:piclaw-addon-dev-tools@0.1.0"
+      }
     },
     {
       "slug": "drawio-editor",
@@ -74,7 +94,12 @@
         "drawio",
         "editor"
       ],
-      "skills": []
+      "skills": [],
+      "install": {
+        "kind": "npm",
+        "spec": "piclaw-addon-drawio-editor@0.1.0",
+        "piSource": "npm:piclaw-addon-drawio-editor@0.1.0"
+      }
     },
     {
       "slug": "eml-viewer",
@@ -88,7 +113,12 @@
         "eml",
         "viewer"
       ],
-      "skills": []
+      "skills": [],
+      "install": {
+        "kind": "npm",
+        "spec": "piclaw-addon-eml-viewer@0.1.0",
+        "piSource": "npm:piclaw-addon-eml-viewer@0.1.0"
+      }
     },
     {
       "slug": "kanban-board-widget",
@@ -103,7 +133,12 @@
         "ui",
         "widget"
       ],
-      "skills": []
+      "skills": [],
+      "install": {
+        "kind": "npm",
+        "spec": "piclaw-addon-kanban-board-widget@0.1.0",
+        "piSource": "npm:piclaw-addon-kanban-board-widget@0.1.0"
+      }
     }
   ]
 }
