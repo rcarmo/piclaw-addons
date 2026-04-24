@@ -9,8 +9,14 @@
       "type": "extension",
       "description": "Autonomous experiment loop sub-agent (start/stop/status tools via tmux)",
       "path": "addons/autoresearch",
-      "tags": ["experiments", "research", "automation"],
-      "skills": ["autoresearch-create"]
+      "tags": [
+        "experiments",
+        "research",
+        "automation"
+      ],
+      "skills": [
+        "autoresearch-create"
+      ]
     },
     {
       "slug": "code-validator",
@@ -19,7 +25,11 @@
       "type": "extension",
       "description": "Diagnostics tool for code validation (Python, JS/TS, JSON, extensible via validators.json)",
       "path": "addons/code-validator",
-      "tags": ["diagnostics", "validation", "linting"],
+      "tags": [
+        "diagnostics",
+        "validation",
+        "linting"
+      ],
       "skills": []
     },
     {
@@ -29,7 +39,11 @@
       "type": "extension",
       "description": "Developer tools for workspace diagnostics and environment inspection",
       "path": "addons/dev-tools",
-      "tags": ["developer", "diagnostics", "environment"],
+      "tags": [
+        "developer",
+        "diagnostics",
+        "environment"
+      ],
       "skills": []
     },
     {
@@ -39,8 +53,29 @@
       "type": "extension",
       "description": "Interactive kanban board dashboard widget for the web timeline",
       "path": "addons/kanban-board-widget",
-      "tags": ["ui", "kanban", "widget", "dashboard"],
+      "tags": [
+        "ui",
+        "kanban",
+        "widget",
+        "dashboard"
+      ],
       "skills": []
+    },
+    {
+      "slug": "delegate",
+      "name": "piclaw-addon-delegate",
+      "version": "0.1.0",
+      "type": "extension",
+      "description": "Delegate tasks to cheaper/faster models with auto model selection, tool access, and MCP support",
+      "path": "addons/delegate",
+      "tags": [
+        "delegation",
+        "multi-model",
+        "cost-optimization"
+      ],
+      "skills": [
+        "delegate"
+      ]
     }
   ]
 }
