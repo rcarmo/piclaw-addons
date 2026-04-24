@@ -10,9 +10,9 @@
       "description": "Autonomous experiment loop sub-agent (start/stop/status tools via tmux)",
       "path": "addons/autoresearch",
       "tags": [
+        "automation",
         "experiments",
-        "research",
-        "automation"
+        "research"
       ],
       "skills": [
         "autoresearch-create"
@@ -27,8 +27,8 @@
       "path": "addons/code-validator",
       "tags": [
         "diagnostics",
-        "validation",
-        "linting"
+        "linting",
+        "validation"
       ],
       "skills": []
     },
@@ -40,9 +40,9 @@
       "description": "Delegate tasks to cheaper/faster models with auto model selection, tool access, and MCP support",
       "path": "addons/delegate",
       "tags": [
+        "cost-optimization",
         "delegation",
-        "multi-model",
-        "cost-optimization"
+        "multi-model"
       ],
       "skills": [
         "delegate"
@@ -71,8 +71,8 @@
       "path": "addons/drawio-editor",
       "tags": [
         "diagrams",
-        "editor",
-        "drawio"
+        "drawio",
+        "editor"
       ],
       "skills": []
     },
@@ -84,9 +84,9 @@
       "description": "Email message (.eml) previewer for the workspace file viewer",
       "path": "addons/eml-viewer",
       "tags": [
-        "viewer",
         "email",
-        "eml"
+        "eml",
+        "viewer"
       ],
       "skills": []
     },
@@ -98,10 +98,10 @@
       "description": "Interactive kanban board dashboard widget for the web timeline",
       "path": "addons/kanban-board-widget",
       "tags": [
-        "ui",
+        "dashboard",
         "kanban",
-        "widget",
-        "dashboard"
+        "ui",
+        "widget"
       ],
       "skills": []
     }

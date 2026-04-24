@@ -1,0 +1,25 @@
+name: validate-metadata
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Validate catalog and root package metadata
+        run: bun run check:catalog
+
+      - name: Validate package can be packed
+        run: bun pm pack --dry-run >/dev/null

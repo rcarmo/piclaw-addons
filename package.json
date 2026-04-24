@@ -2,26 +2,46 @@
   "name": "piclaw-addons",
   "version": "2.0.0",
   "description": "Community add-ons for piclaw — extensions, skills, and widgets",
-  "keywords": ["pi-package", "piclaw", "extensions", "skills"],
+  "keywords": [
+    "extensions",
+    "pi-package",
+    "piclaw",
+    "skills"
+  ],
   "type": "module",
+  "scripts": {
+    "sync:catalog": "bun scripts/sync-catalog.ts --write",
+    "check:catalog": "bun scripts/sync-catalog.ts --check"
+  },
+  "homepage": "https://github.com/rcarmo/piclaw-addons",
+  "bugs": {
+    "url": "https://github.com/rcarmo/piclaw-addons/issues"
+  },
   "pi": {
     "extensions": [
-      "extensions/autoresearch.ts",
-      "extensions/code-validator.ts",
-      "extensions/delegate.ts",
-      "extensions/dev-tools.ts",
-      "extensions/drawio-editor.ts",
-      "extensions/eml-viewer.ts",
-      "extensions/kanban-board-widget.ts"
+      "addons/autoresearch/index.ts",
+      "addons/code-validator/index.ts",
+      "addons/delegate/index.ts",
+      "addons/dev-tools/index.ts",
+      "addons/drawio-editor/index.ts",
+      "addons/eml-viewer/index.ts",
+      "addons/kanban-board-widget/index.ts"
     ],
     "skills": [
-      "skills"
+      "addons/autoresearch/skills",
+      "addons/delegate/skills"
     ]
   },
   "agents": {
     "skills": [
-      { "name": "autoresearch-create", "path": "./skills/autoresearch-create" },
-      { "name": "delegate", "path": "./skills/delegate" }
+      {
+        "name": "autoresearch-create",
+        "path": "./addons/autoresearch/skills/autoresearch-create"
+      },
+      {
+        "name": "delegate",
+        "path": "./addons/delegate/skills/delegate"
+      }
     ]
   },
   "peerDependencies": {
@@ -32,5 +52,11 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/rcarmo/piclaw-addons.git"
-  }
+  },
+  "files": [
+    "LICENSE",
+    "README.md",
+    "addons",
+    "catalog.json"
+  ]
 }
