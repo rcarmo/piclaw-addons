@@ -39,21 +39,30 @@ ENV_FILE="/workspace/.env.sh"
 # 1. Make relay script executable
 chmod +x "$RELAY_SCRIPT"
 
-# 2. Add BROWSER to .env.sh
-[ -f "$ENV_FILE" ] || { echo "# Workspace environment" > "$ENV_FILE"; echo "Created $ENV_FILE"; }
-
-if grep -qE '^\s*(export\s+)?BROWSER=' "$ENV_FILE" 2>/dev/null; then
-    echo "BROWSER already set in $ENV_FILE — skipping"
+# 2. Set env vars via piclaw's env tool if available, otherwise write .env.sh directly
+if command -v piclaw >/dev/null 2>&1; then
+    # piclaw env tool sets process.env immediately + persists to .env.sh
+    echo "Setting env vars via piclaw env tool..."
+    piclaw env set BROWSER "$RELAY_SCRIPT" 2>/dev/null || true
+    piclaw env set BROWSER_RELAY_PORT "$PORT" 2>/dev/null || true
+    piclaw env set BROWSER_RELAY_HOST "$HOST" 2>/dev/null || true
 else
-    echo "" >> "$ENV_FILE"
-    echo "# Browser relay for WSL2 → Windows browser integration" >> "$ENV_FILE"
-    echo "export BROWSER=\"$RELAY_SCRIPT\"" >> "$ENV_FILE"
-    echo "export BROWSER_RELAY_PORT=\"$PORT\"" >> "$ENV_FILE"
-    echo "export BROWSER_RELAY_HOST=\"$HOST\"" >> "$ENV_FILE"
-    echo "Added BROWSER=$RELAY_SCRIPT to $ENV_FILE"
+    # Fallback: write .env.sh directly (requires restart to take effect)
+    [ -f "$ENV_FILE" ] || { echo "# Workspace environment" > "$ENV_FILE"; echo "Created $ENV_FILE"; }
+    if grep -qE '^\s*(export\s+)?BROWSER=' "$ENV_FILE" 2>/dev/null; then
+        echo "BROWSER already set in $ENV_FILE — skipping"
+    else
+        echo "" >> "$ENV_FILE"
+        echo "# Browser relay for WSL2 → Windows browser integration" >> "$ENV_FILE"
+        echo "export BROWSER=\"$RELAY_SCRIPT\"" >> "$ENV_FILE"
+        echo "export BROWSER_RELAY_PORT=\"$PORT\"" >> "$ENV_FILE"
+        echo "export BROWSER_RELAY_HOST=\"$HOST\"" >> "$ENV_FILE"
+        echo "Added BROWSER=$RELAY_SCRIPT to $ENV_FILE"
+        echo "Note: restart piclaw or run 'source $ENV_FILE' for changes to take effect"
+    fi
 fi
 
-# 3. Export for current session
+# 3. Export for current shell session
 export BROWSER="$RELAY_SCRIPT"
 export BROWSER_RELAY_PORT="$PORT"
 export BROWSER_RELAY_HOST="$HOST"
