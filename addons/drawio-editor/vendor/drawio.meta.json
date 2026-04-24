@@ -1,0 +1,12 @@
+{
+  "manifest_id": "drawio",
+  "package_name": "drawio",
+  "package_version": "v29.7.8",
+  "package_license": "Apache-2.0",
+  "package_repository": "https://github.com/jgraph/drawio",
+  "source_url": "https://github.com/jgraph/drawio/releases/download/v29.7.8/draw.war",
+  "output_dir": "extensions/viewers/drawio-editor/vendor",
+  "total_size_bytes": 46305072,
+  "copied_items": 2529,
+  "metadata_file": "extensions/viewers/drawio-editor/vendor/drawio.meta.json"
+}
