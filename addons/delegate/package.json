@@ -7,22 +7,44 @@
   "piclaw": {
     "type": "extension",
     "compatibleVersions": ">=1.8.0",
-    "tags": ["delegation", "multi-model", "cost-optimization"],
-    "skills": ["skills/delegate"]
+    "tags": [
+      "delegation",
+      "multi-model",
+      "cost-optimization"
+    ],
+    "skills": [
+      "skills/delegate"
+    ]
   },
   "agents": {
     "skills": [
-      { "name": "delegate", "path": "./skills/delegate" }
+      {
+        "name": "delegate",
+        "path": "./skills/delegate"
+      }
     ]
   },
   "peerDependencies": {
     "@mariozechner/pi-coding-agent": ">=0.1.0"
   },
   "peerDependenciesMeta": {
-    "@mariozechner/pi-coding-agent": { "optional": true }
+    "@mariozechner/pi-coding-agent": {
+      "optional": true
+    }
   },
   "dependencies": {
     "@sinclair/typebox": ">=0.30.0"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "keywords": [
+    "pi-package"
+  ],
+  "pi": {
+    "extensions": [
+      "index.ts"
+    ],
+    "skills": [
+      "skills"
+    ]
+  }
 }

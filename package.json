@@ -1,0 +1,36 @@
+{
+  "name": "piclaw-addons",
+  "version": "2.0.0",
+  "description": "Community add-ons for piclaw — extensions, skills, and widgets",
+  "keywords": ["pi-package", "piclaw", "extensions", "skills"],
+  "type": "module",
+  "pi": {
+    "extensions": [
+      "extensions/autoresearch.ts",
+      "extensions/code-validator.ts",
+      "extensions/delegate.ts",
+      "extensions/dev-tools.ts",
+      "extensions/drawio-editor.ts",
+      "extensions/eml-viewer.ts",
+      "extensions/kanban-board-widget.ts"
+    ],
+    "skills": [
+      "skills"
+    ]
+  },
+  "agents": {
+    "skills": [
+      { "name": "autoresearch-create", "path": "./skills/autoresearch-create" },
+      { "name": "delegate", "path": "./skills/delegate" }
+    ]
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-coding-agent": "*",
+    "@sinclair/typebox": "*"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rcarmo/piclaw-addons.git"
+  }
+}

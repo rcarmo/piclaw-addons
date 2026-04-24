@@ -7,8 +7,20 @@
   "piclaw": {
     "type": "extension",
     "compatibleVersions": ">=2.0.0",
-    "tags": ["viewer", "email", "eml"]
+    "tags": [
+      "viewer",
+      "email",
+      "eml"
+    ]
   },
   "agents": {},
-  "license": "MIT"
+  "license": "MIT",
+  "keywords": [
+    "pi-package"
+  ],
+  "pi": {
+    "extensions": [
+      "index.ts"
+    ]
+  }
 }

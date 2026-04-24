@@ -7,8 +7,20 @@
   "piclaw": {
     "type": "extension",
     "compatibleVersions": ">=1.8.0",
-    "tags": ["developer", "diagnostics", "environment"]
+    "tags": [
+      "developer",
+      "diagnostics",
+      "environment"
+    ]
   },
   "agents": {},
-  "license": "MIT"
+  "license": "MIT",
+  "keywords": [
+    "pi-package"
+  ],
+  "pi": {
+    "extensions": [
+      "index.ts"
+    ]
+  }
 }

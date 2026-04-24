@@ -7,8 +7,21 @@
   "piclaw": {
     "type": "extension",
     "compatibleVersions": ">=1.8.0",
-    "tags": ["ui", "kanban", "widget", "dashboard"]
+    "tags": [
+      "ui",
+      "kanban",
+      "widget",
+      "dashboard"
+    ]
   },
   "agents": {},
-  "license": "MIT"
+  "license": "MIT",
+  "keywords": [
+    "pi-package"
+  ],
+  "pi": {
+    "extensions": [
+      "index.ts"
+    ]
+  }
 }
