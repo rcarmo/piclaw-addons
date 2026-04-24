@@ -25,6 +25,7 @@ piclaw-addons/
 ├── catalog.json
 ├── package.json
 └── scripts/
+    ├── browser-relay/
     └── sync-catalog.ts
 ```
 
@@ -49,6 +50,13 @@ bun run sync:catalog    # regenerate catalog.json + root package metadata
 - `catalog.json` (including per-addon `install.kind/spec/piSource`)
 
 from each `addons/<slug>/package.json`.
+
+## Utility scripts
+
+The `scripts/` directory also contains non-package helper tooling for common PiClaw setups.
+These scripts are repository utilities, not published addon entrypoints, so they do not affect the generated package metadata.
+
+- [`scripts/browser-relay/`](scripts/browser-relay/README.md) — WSL2 browser relay for opening container-launched OAuth and local UI URLs in the Windows browser
 
 ## GitHub Actions
 

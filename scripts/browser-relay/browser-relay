@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# browser-relay — send a URL from the container to the WSL2 host-side relay.
+# Intended for use as BROWSER=browser-relay inside PiClaw containers.
+
+set -euo pipefail
+
+url="${1:-}"
+[[ -n "$url" ]] || exit 0
+
+relay_port="${BROWSER_RELAY_PORT:-9222}"
+relay_host="${BROWSER_RELAY_HOST:-localhost}"
+
+[[ "$relay_port" =~ ^[0-9]+$ ]] || {
+  echo "browser-relay: invalid port: $relay_port" >&2
+  exit 1
+}
+[[ "$relay_host" =~ ^[a-zA-Z0-9._-]+$ ]] || {
+  echo "browser-relay: invalid host: $relay_host" >&2
+  exit 1
+}
+
+curl -sf --max-time 3 \
+  --get --data-urlencode "url=$url" \
+  "http://${relay_host}:${relay_port}/open" \
+  >/dev/null 2>&1 || {
+    echo "browser-relay: failed to reach relay at ${relay_host}:${relay_port}" >&2
+    echo "browser-relay: is wsl-browser-relay running on the WSL2 host?" >&2
+    exit 1
+  }
