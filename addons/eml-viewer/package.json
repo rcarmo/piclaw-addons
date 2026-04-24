@@ -1,0 +1,14 @@
+{
+  "name": "piclaw-addon-eml-viewer",
+  "version": "0.1.0",
+  "description": "Email message (.eml) previewer for the workspace file viewer",
+  "type": "module",
+  "main": "index.ts",
+  "piclaw": {
+    "type": "extension",
+    "compatibleVersions": ">=2.0.0",
+    "tags": ["viewer", "email", "eml"]
+  },
+  "agents": {},
+  "license": "MIT"
+}

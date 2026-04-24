@@ -33,6 +33,22 @@
       "skills": []
     },
     {
+      "slug": "delegate",
+      "name": "piclaw-addon-delegate",
+      "version": "0.1.0",
+      "type": "extension",
+      "description": "Delegate tasks to cheaper/faster models with auto model selection, tool access, and MCP support",
+      "path": "addons/delegate",
+      "tags": [
+        "delegation",
+        "multi-model",
+        "cost-optimization"
+      ],
+      "skills": [
+        "delegate"
+      ]
+    },
+    {
       "slug": "dev-tools",
       "name": "piclaw-addon-dev-tools",
       "version": "0.1.0",
@@ -53,7 +69,25 @@
       "type": "extension",
       "description": "Self-hosted draw.io diagram editor with workspace file integration",
       "path": "addons/drawio-editor",
-      "tags": ["diagrams", "editor", "drawio"],
+      "tags": [
+        "diagrams",
+        "editor",
+        "drawio"
+      ],
+      "skills": []
+    },
+    {
+      "slug": "eml-viewer",
+      "name": "piclaw-addon-eml-viewer",
+      "version": "0.1.0",
+      "type": "extension",
+      "description": "Email message (.eml) previewer for the workspace file viewer",
+      "path": "addons/eml-viewer",
+      "tags": [
+        "viewer",
+        "email",
+        "eml"
+      ],
       "skills": []
     },
     {
@@ -70,22 +104,6 @@
         "dashboard"
       ],
       "skills": []
-    },
-    {
-      "slug": "delegate",
-      "name": "piclaw-addon-delegate",
-      "version": "0.1.0",
-      "type": "extension",
-      "description": "Delegate tasks to cheaper/faster models with auto model selection, tool access, and MCP support",
-      "path": "addons/delegate",
-      "tags": [
-        "delegation",
-        "multi-model",
-        "cost-optimization"
-      ],
-      "skills": [
-        "delegate"
-      ]
     }
   ]
 }
