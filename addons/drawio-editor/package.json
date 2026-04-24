@@ -25,6 +25,11 @@
   "pi": {
     "extensions": [
       "index.ts"
-    ]
+    ],
+    "web": {
+      "entries": [
+        "web/index.ts"
+      ]
+    }
   }
 }
