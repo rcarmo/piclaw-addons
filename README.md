@@ -23,6 +23,7 @@ After installing, restart piclaw to load the extension.
 | [code-validator](addons/code-validator) | extension | 0.1.0 | Diagnostics tool for code validation | — |
 | [dev-tools](addons/dev-tools) | extension | 0.1.0 | Developer tools for workspace diagnostics | — |
 | [kanban-board-widget](addons/kanban-board-widget) | extension | 0.1.0 | Interactive kanban board widget | — |
+| [delegate](addons/delegate) | extension | 0.1.0 | Delegate tasks to cheaper/faster models with auto model selection | delegate |
 
 ## Add-on Manifest Format
 
