@@ -1,0 +1,28 @@
+#!/bin/bash
+# browser-relay — sends URLs to the WSL2 host-side relay for opening in Windows browser
+# Installed to /workspace/.local/bin/browser-relay
+# Used as BROWSER= target inside the container
+
+set -euo pipefail
+
+URL="${1:-}"
+[ -z "$URL" ] && exit 0
+
+RELAY_PORT="${BROWSER_RELAY_PORT:-9222}"
+RELAY_HOST="${BROWSER_RELAY_HOST:-localhost}"
+
+# Validate port is numeric
+[[ "$RELAY_PORT" =~ ^[0-9]+$ ]] || { echo "browser-relay: invalid port" >&2; exit 1; }
+# Validate host is a simple hostname/IP
+[[ "$RELAY_HOST" =~ ^[a-zA-Z0-9._-]+$ ]] || { echo "browser-relay: invalid host" >&2; exit 1; }
+
+# Send URL to host-side relay via HTTP GET
+# --data-urlencode handles URL encoding without spawning python3
+curl -sf --max-time 3 \
+  --get --data-urlencode "url=$URL" \
+  "http://${RELAY_HOST}:${RELAY_PORT}/open" \
+  >/dev/null 2>&1 || {
+    echo "browser-relay: failed to reach relay at ${RELAY_HOST}:${RELAY_PORT}" >&2
+    echo "browser-relay: is wsl-browser-relay running on the WSL2 host?" >&2
+    exit 1
+  }

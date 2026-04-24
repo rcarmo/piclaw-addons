@@ -1,0 +1,12 @@
+[Unit]
+Description=WSL Browser Relay — opens URLs from containers in Windows browser
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 %h/.local/bin/wsl-browser-relay.py --port 9222 --bind 127.0.0.1
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

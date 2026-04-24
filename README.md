@@ -99,6 +99,23 @@ The machine-readable catalog is at [`catalog.json`](catalog.json). The piclaw se
 5. Update `catalog.json`
 6. Open a PR
 
+## Scripts
+
+Standalone workspace tools in `scripts/`. These are not extensions — they install CLI tools, configure validators, or set up integrations inside the PiClaw container.
+
+| Script | What it does | Dependencies |
+|---|---|---|
+| `install-gh.sh` | GitHub CLI (`gh`) | `curl`, `jq` |
+| `install-az.sh` | Azure CLI (`az`) | `curl`, `python3` |
+| `install-uv.sh` | uv (Python package manager) | `curl` |
+| `install-biome.sh` | Biome linter + formatter. Auto-adds validators | `curl` |
+| `install-shellcheck.sh` | ShellCheck. Auto-adds `.sh` validator | `curl`, `python3` |
+| `install-pwsh.sh` | PowerShell 7 (standalone) | `curl` |
+| `install-dotnet-pwsh.sh` | .NET SDK 10 + PowerShell 7 | `curl` |
+| `install-psscriptanalyzer.sh` | PSScriptAnalyzer. Auto-adds `.ps1` validator | `pwsh`, `python3` |
+| `add-validator-bicep.sh` | Adds `.bicep` validator entry (requires `az`) | `az`, `python3` |
+| [`browser-relay/`](scripts/browser-relay/README.md) | WSL2 browser relay — opens URLs from containers in Windows browser. Enables `az login` without `--use-device-code` | `curl`, WSL2 + `wslu` on host |
+
 ## License
 
 MIT
