@@ -20,6 +20,7 @@
   "pi": {
     "extensions": [
       "addons/autoresearch/index.ts",
+      "addons/cheapskate/index.ts",
       "addons/code-validator/index.ts",
       "addons/delegate/index.ts",
       "addons/dev-tools/index.ts",

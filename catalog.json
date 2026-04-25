@@ -24,6 +24,26 @@
       }
     },
     {
+      "slug": "cheapskate",
+      "name": "piclaw-addon-cheapskate",
+      "version": "0.1.0",
+      "type": "extension",
+      "description": "Free-tier provider rotation — automatically cycle across Google Gemini, Cerebras, Groq, SambaNova, and other free API tiers",
+      "path": "addons/cheapskate",
+      "tags": [
+        "cost-optimization",
+        "free-tier",
+        "providers",
+        "rotation"
+      ],
+      "skills": [],
+      "install": {
+        "kind": "npm",
+        "spec": "piclaw-addon-cheapskate@0.1.0",
+        "piSource": "npm:piclaw-addon-cheapskate@0.1.0"
+      }
+    },
+    {
       "slug": "code-validator",
       "name": "piclaw-addon-code-validator",
       "version": "0.1.0",
@@ -185,10 +205,11 @@
       "name": "piclaw-addon-voice-pipeline",
       "version": "0.1.0",
       "type": "extension",
-      "description": "ESPHome-only voice assistant pipeline for ThinkSmart/ESPHome Voice Assistant workflows using Azure STT/TTS and Flint chat",
+      "description": "ESPHome-only voice assistant pipeline for ThinkSmart/ESP32-Audio devices using Azure STT/TTS and the Flint chat runtime",
       "path": "addons/voice-pipeline",
       "tags": [
         "audio",
+        "esp32",
         "home-automation",
         "smart-home",
         "voice"

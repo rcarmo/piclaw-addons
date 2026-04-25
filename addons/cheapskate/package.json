@@ -1,0 +1,30 @@
+{
+  "name": "piclaw-addon-cheapskate",
+  "version": "0.1.0",
+  "description": "Free-tier provider rotation — automatically cycle across Google Gemini, Cerebras, Groq, SambaNova, and other free API tiers",
+  "type": "module",
+  "main": "index.ts",
+  "piclaw": {
+    "type": "extension",
+    "compatibleVersions": ">=1.8.0",
+    "tags": [
+      "providers",
+      "free-tier",
+      "cost-optimization",
+      "rotation"
+    ]
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-coding-agent": "*",
+    "@sinclair/typebox": "*"
+  },
+  "license": "MIT",
+  "keywords": [
+    "pi-package"
+  ],
+  "pi": {
+    "extensions": [
+      "index.ts"
+    ]
+  }
+}
