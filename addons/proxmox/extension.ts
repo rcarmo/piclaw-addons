@@ -3,6 +3,7 @@ import { Type } from "@sinclair/typebox";
 
 import { getChatJid } from "../../lib/compat/chat-context.js";
 import { registerToolStatusHintProvider } from "../../lib/compat/tool-status-hints.js";
+import { createExtensionStorage, type ExtensionStorage } from "../../lib/compat/extension-kv.js";
 import type {
   ProxmoxConfig,
   ProxmoxConfigClearResult,
@@ -10,6 +11,10 @@ import type {
 } from "../../lib/compat/types.js";
 import {
   discoverProxmoxInstances,
+  requestProxmoxApi,
+  runProxmoxWorkflow,
+  type ProxmoxApiConfig,
+  type ProxmoxApiMethod,
   type ProxmoxWorkflowName,
   type ProxmoxWorkflowRequest,
   type ProxmoxWorkflowResponse,
@@ -49,6 +54,63 @@ export interface ProxmoxToolHandlers {
 }
 
 let registeredHandlers: ProxmoxToolHandlers | null = null;
+let kvStorage: ExtensionStorage | null = null;
+
+function getStorage(): ExtensionStorage {
+  if (!kvStorage) kvStorage = createExtensionStorage("proxmox");
+  return kvStorage;
+}
+
+function kvGetConfig(chatJid: string): ProxmoxConfig | null {
+  return getStorage().get<ProxmoxConfig>("config", "chat", chatJid);
+}
+
+function kvSetConfig(chatJid: string, config: SessionProxmoxConfigInput): ProxmoxConfigSetResult {
+  const full: ProxmoxConfig = {
+    chat_jid: chatJid,
+    base_url: config.base_url,
+    api_token_keychain: config.api_token_keychain,
+    allow_insecure_tls: config.allow_insecure_tls,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+  getStorage().set("config", full, "chat", chatJid);
+  return { config: full, apply_timing: "immediate" };
+}
+
+function kvClearConfig(chatJid: string): ProxmoxConfigClearResult {
+  const deleted = getStorage().delete("config", "chat", chatJid);
+  return { deleted, apply_timing: "immediate" };
+}
+
+function resolveApiConfig(chatJid: string): ProxmoxApiConfig | null {
+  const config = kvGetConfig(chatJid);
+  if (!config) return null;
+  return {
+    base_url: config.base_url,
+    api_token_keychain: config.api_token_keychain,
+    allow_insecure_tls: config.allow_insecure_tls ?? true,
+  };
+}
+
+async function kvRequest(chatJid: string, input: { method: string; path: string; query?: unknown; body?: unknown; body_mode?: "form" | "json" }): Promise<ProxmoxRequestResult> {
+  const apiConfig = resolveApiConfig(chatJid);
+  if (!apiConfig) throw new Error(`No Proxmox config for ${chatJid}. Use action=set first.`);
+  const response = await requestProxmoxApi(apiConfig, {
+    method: input.method as ProxmoxApiMethod,
+    path: input.path,
+    query: input.query,
+    body: input.body,
+    body_mode: input.body_mode as "form" | "json" | undefined,
+  });
+  return { status: response.status, method: input.method, path: input.path, body: response.body };
+}
+
+async function kvWorkflow(chatJid: string, input: ProxmoxWorkflowRequest): Promise<ProxmoxWorkflowResponse> {
+  const apiConfig = resolveApiConfig(chatJid);
+  if (!apiConfig) throw new Error(`No Proxmox config for ${chatJid}. Use action=set first.`);
+  return runProxmoxWorkflow(apiConfig, input);
+}
 
 const PROXMOX_STATUS_ICON_SVG = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="4" y="4" width="16" height="6" rx="1.5"></rect><rect x="4" y="14" width="16" height="6" rx="1.5"></rect><path d="M8 7h.01M8 17h.01"></path><path d="M11 7h5M11 17h5"></path></svg>`;
 
@@ -85,7 +147,7 @@ registerToolStatusHintProvider({
         record?.baseUrl,
         record?.url,
         record?.endpoint,
-        registeredHandlers?.get(chatJid)?.base_url,
+        registeredHandlers?.get(chatJid)?.base_url ?? kvGetConfig(chatJid)?.base_url,
       ),
     );
     if (!host) return null;
@@ -1002,14 +1064,8 @@ export const proxmoxTool: ExtensionFactory = (pi: ExtensionAPI) => {
       }
 
       const handlers = registeredHandlers;
-      if (!handlers) {
-        return {
-          content: [{ type: "text", text: "proxmox is not available in this runtime." }],
-          details: { available: false },
-        };
-      }
       if (params.action === "get") {
-        const config = handlers.get(chatJid);
+        const config = handlers?.get(chatJid) ?? kvGetConfig(chatJid);
         if (!config) {
           return {
             content: [{ type: "text", text: `No Proxmox config stored for ${chatJid}.` }],
@@ -1026,11 +1082,17 @@ export const proxmoxTool: ExtensionFactory = (pi: ExtensionAPI) => {
       }
 
       if (params.action === "set") {
-        const result = await handlers.set(chatJid, {
-          base_url: typeof params.base_url === "string" ? params.base_url.trim() : "",
-          api_token_keychain: typeof params.api_token_keychain === "string" ? params.api_token_keychain.trim() : "",
-          allow_insecure_tls: params.allow_insecure_tls ?? true,
-        });
+        const result = handlers
+          ? await handlers.set(chatJid, {
+              base_url: typeof params.base_url === "string" ? params.base_url.trim() : "",
+              api_token_keychain: typeof params.api_token_keychain === "string" ? params.api_token_keychain.trim() : "",
+              allow_insecure_tls: params.allow_insecure_tls ?? true,
+            })
+          : kvSetConfig(chatJid, {
+              base_url: typeof params.base_url === "string" ? params.base_url.trim() : "",
+              api_token_keychain: typeof params.api_token_keychain === "string" ? params.api_token_keychain.trim() : "",
+              allow_insecure_tls: params.allow_insecure_tls ?? true,
+            });
         return {
           content: [{
             type: "text",
@@ -1047,7 +1109,7 @@ export const proxmoxTool: ExtensionFactory = (pi: ExtensionAPI) => {
       }
 
       if (params.action === "clear") {
-        const result = await handlers.clear(chatJid);
+        const result = handlers ? await handlers.clear(chatJid) : kvClearConfig(chatJid);
         return {
           content: [{
             type: "text",
@@ -1097,7 +1159,7 @@ export const proxmoxTool: ExtensionFactory = (pi: ExtensionAPI) => {
         const help = getProxmoxWorkflowHelp(params.workflow);
         startProxmoxUiProgress(ctx, `Proxmox: running workflow ${help.canonical_workflow}…`);
         try {
-          const workflowResult = await handlers.workflow(chatJid, {
+          const workflowResult = await (handlers?.workflow ?? kvWorkflow)(chatJid, {
           workflow: help.runtime_workflow,
           ...(typeof params.vmid === "number" ? { vmid: params.vmid } : {}),
           ...(typeof params.node === "string" ? { node: params.node } : {}),
@@ -1212,7 +1274,7 @@ export const proxmoxTool: ExtensionFactory = (pi: ExtensionAPI) => {
 
         const batch = await runRequestBatch({
           requests: batchRequests,
-          execute: (request) => handlers.request(chatJid, request),
+          execute: (request) => (handlers?.request ?? kvRequest)(chatJid, request),
           timeout_ms: params.timeout_ms,
           retries: params.retries,
           retry_delay_ms: params.retry_delay_ms,
@@ -1257,7 +1319,7 @@ export const proxmoxTool: ExtensionFactory = (pi: ExtensionAPI) => {
         };
       }
 
-      const response = await handlers.request(chatJid, {
+      const response = await (handlers?.request ?? kvRequest)(chatJid, {
         method,
         path,
         ...(params.query !== undefined ? { query: params.query } : {}),

@@ -18,3 +18,4 @@ export type {
   ProxmoxConfig, ProxmoxConfigSetResult, ProxmoxConfigClearResult,
   PortainerConfig, PortainerConfigSetResult, PortainerConfigClearResult,
 } from "./types.js";
+export { createExtensionStorage, type ExtensionStorage, type KvScope } from "./extension-kv.js";

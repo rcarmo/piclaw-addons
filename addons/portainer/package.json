@@ -1,6 +1,6 @@
 {
   "name": "piclaw-addon-portainer",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Portainer management tool — session-scoped API config, ad-hoc requests, and endpoint/stack/container/image/network/volume workflows",
   "type": "module",
   "main": "index.ts",
