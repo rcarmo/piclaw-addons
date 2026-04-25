@@ -26,7 +26,7 @@
     {
       "slug": "cheapskate",
       "name": "piclaw-addon-cheapskate",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "type": "extension",
       "description": "Free-tier provider auto-rotation — select cheapskate/auto as your model and it transparently routes to Google Gemini, Cerebras, Groq, or SambaNova free tiers",
       "path": "addons/cheapskate",
@@ -40,8 +40,8 @@
       "skills": [],
       "install": {
         "kind": "npm",
-        "spec": "piclaw-addon-cheapskate@0.3.0",
-        "piSource": "npm:piclaw-addon-cheapskate@0.3.0"
+        "spec": "piclaw-addon-cheapskate@0.4.0",
+        "piSource": "npm:piclaw-addon-cheapskate@0.4.0"
       }
     },
     {
@@ -235,9 +235,7 @@
         "multi-agent",
         "networking"
       ],
-      "skills": [
-        "yolochat"
-      ],
+      "skills": [],
       "install": {
         "kind": "npm",
         "spec": "piclaw-addon-yolochat@0.1.0",

@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 import { existsSync } from 'node:fs';
 import { readdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { join, relative } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 
 interface AgentSkillEntry {
   name?: string;
@@ -57,7 +57,7 @@ interface CatalogEntry {
   };
 }
 
-const repoRoot = '/workspace/piclaw-addons';
+const repoRoot = resolve(import.meta.dir, '..');
 const addonsDir = join(repoRoot, 'addons');
 const rootPackagePath = join(repoRoot, 'package.json');
 const catalogPath = join(repoRoot, 'catalog.json');
@@ -67,7 +67,7 @@ const writeMode = process.argv.includes('--write');
 const checkMode = process.argv.includes('--check');
 
 function stableStringify(value: unknown): string {
-  return `${JSON.stringify(value, null, 2)}\n`;
+  return `${JSON.stringify(value, null, 2).replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))}\n`;
 }
 
 async function readJson<T>(path: string): Promise<T> {
@@ -129,14 +129,14 @@ async function buildMetadata() {
     if (!pkg.name) throw new Error(`addons/${slug}/package.json: missing name`);
     if (!pkg.version) throw new Error(`addons/${slug}/package.json: missing version`);
     if (!pkg.description) throw new Error(`addons/${slug}/package.json: missing description`);
-    if (!pkg.pi?.extensions?.length) throw new Error(`addons/${slug}/package.json: missing pi.extensions`);
+    if (!pkg.pi?.extensions?.length && !pkg.pi?.skills?.length) throw new Error(`addons/${slug}/package.json: missing pi.extensions or pi.skills — addon must declare at least one`);
     if (!(pkg.keywords || []).includes('pi-package')) {
       throw new Error(`addons/${slug}/package.json: keywords must include "pi-package"`);
     }
 
     await validateCorePeerDependencies(addonRoot, slug, pkg);
 
-    for (const ext of pkg.pi.extensions) {
+    for (const ext of (pkg.pi?.extensions ?? [])) {
       const rel = join('addons', slug, ext).replaceAll('\\', '/');
       extensionPaths.push(rel);
       if (!existsSync(join(repoRoot, rel))) {
