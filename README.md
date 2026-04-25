@@ -4,12 +4,29 @@ Community add-ons for [piclaw](https://github.com/rcarmo/piclaw).
 
 This repository is structured as a **Pi package** and is intended to be compatible with the [Pi Packages gallery](https://pi.dev/packages).
 
+> **For agents:** see [AGENTS.md](AGENTS.md) for how to add, modify, and test addons.
+
+## Available addons
+
+| Addon | Description | Version |
+|---|---|---|
+| [`autoresearch`](addons/autoresearch/) | Autonomous experiment loop sub-agent | 0.1.0 |
+| [`code-validator`](addons/code-validator/) | Code validation tools | 0.1.0 |
+| [`delegate`](addons/delegate/) | Task delegation to sub-agents | 0.1.0 |
+| [`dev-tools`](addons/dev-tools/) | Developer utility tools | 0.1.0 |
+| [`drawio-editor`](addons/drawio-editor/) | draw.io diagram editor widget | 0.1.0 |
+| [`eml-viewer`](addons/eml-viewer/) | Email (.eml) file viewer | 0.1.0 |
+| [`kanban-board-widget`](addons/kanban-board-widget/) | Kanban board timeline widget | 0.1.0 |
+| [`portainer`](addons/portainer/) | Portainer container management tool | 0.1.1 |
+| [`proxmox`](addons/proxmox/) | Proxmox VE infrastructure management tool | 0.1.2 |
+
 ## What this repo provides
 
 - **Root package**: `piclaw-addons`
 - **Pi package manifest**: root `package.json` with `keywords: ["pi-package"]` and `pi.*` entries
 - **Addon manifests**: each `addons/<slug>/package.json` is also Pi-package-shaped
 - **Catalog**: `catalog.json` for the piclaw web settings UI
+- **Shared compat layer**: `lib/compat/` — standalone shims for keychain, logging, KV storage, etc.
 
 ## Layout
 
@@ -17,13 +34,19 @@ This repository is structured as a **Pi package** and is intended to be compatib
 piclaw-addons/
 ├── addons/
 │   ├── autoresearch/
-│   │   ├── index.ts
-│   │   ├── package.json
-│   │   └── skills/
 │   ├── code-validator/
-│   └── ...
+│   ├── delegate/
+│   ├── dev-tools/
+│   ├── drawio-editor/
+│   ├── eml-viewer/
+│   ├── kanban-board-widget/
+│   ├── portainer/
+│   └── proxmox/
+├── lib/
+│   └── compat/           # Shared compatibility shims
 ├── catalog.json
 ├── package.json
+├── tsconfig.json
 └── scripts/
     ├── browser-relay/
     └── sync-catalog.ts
