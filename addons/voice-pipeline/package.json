@@ -1,0 +1,32 @@
+{
+  "name": "piclaw-addon-voice-pipeline",
+  "version": "0.1.0",
+  "description": "ESPHome-only voice assistant pipeline for ThinkSmart/ESP32-Audio devices using Azure STT/TTS and the Flint chat runtime",
+  "type": "module",
+  "main": "index.ts",
+  "piclaw": {
+    "type": "extension",
+    "compatibleVersions": ">=1.8.0",
+    "tags": [
+      "voice",
+      "home-automation",
+      "esp32",
+      "smart-home",
+      "audio"
+    ]
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-coding-agent": "*",
+    "@mariozechner/pi-ai": "*",
+    "@sinclair/typebox": "*"
+  },
+  "license": "MIT",
+  "keywords": [
+    "pi-package"
+  ],
+  "pi": {
+    "extensions": [
+      "index.ts"
+    ]
+  }
+}

@@ -179,6 +179,26 @@
         "spec": "piclaw-addon-proxmox@0.1.2",
         "piSource": "npm:piclaw-addon-proxmox@0.1.2"
       }
+    },
+    {
+      "slug": "voice-pipeline",
+      "name": "piclaw-addon-voice-pipeline",
+      "version": "0.1.0",
+      "type": "extension",
+      "description": "ESPHome-only voice assistant pipeline for ThinkSmart/ESPHome Voice Assistant workflows using Azure STT/TTS and Flint chat",
+      "path": "addons/voice-pipeline",
+      "tags": [
+        "audio",
+        "home-automation",
+        "smart-home",
+        "voice"
+      ],
+      "skills": [],
+      "install": {
+        "kind": "npm",
+        "spec": "piclaw-addon-voice-pipeline@0.1.0",
+        "piSource": "npm:piclaw-addon-voice-pipeline@0.1.0"
+      }
     }
   ]
 }

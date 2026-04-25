@@ -1,6 +1,6 @@
 {
   "name": "piclaw-addons",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Community add-ons for piclaw — extensions, skills, and widgets",
   "keywords": [
     "extensions",
@@ -27,7 +27,8 @@
       "addons/eml-viewer/index.ts",
       "addons/kanban-board-widget/index.ts",
       "addons/portainer/index.ts",
-      "addons/proxmox/index.ts"
+      "addons/proxmox/index.ts",
+      "addons/voice-pipeline/index.ts"
     ],
     "skills": [
       "addons/autoresearch/skills",
