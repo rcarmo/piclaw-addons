@@ -1,0 +1,36 @@
+{
+  "name": "piclaw-addon-portainer",
+  "version": "0.1.0",
+  "description": "Portainer management tool — session-scoped API config, ad-hoc requests, and endpoint/stack/container/image/network/volume workflows",
+  "type": "module",
+  "main": "index.ts",
+  "piclaw": {
+    "type": "extension",
+    "compatibleVersions": ">=1.8.0",
+    "tags": [
+      "portainer",
+      "docker",
+      "containers",
+      "infrastructure"
+    ],
+    "skills": [
+      "skills/portainer-container-compare-chart"
+    ]
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-coding-agent": "*",
+    "@sinclair/typebox": "*"
+  },
+  "license": "MIT",
+  "keywords": [
+    "pi-package"
+  ],
+  "pi": {
+    "extensions": [
+      "index.ts"
+    ],
+    "skills": [
+      "skills"
+    ]
+  }
+}

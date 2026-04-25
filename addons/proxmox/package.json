@@ -1,0 +1,36 @@
+{
+  "name": "piclaw-addon-proxmox",
+  "version": "0.1.0",
+  "description": "Proxmox VE management tool — session-scoped API config, ad-hoc requests, and VM/LXC/storage/task/metrics workflows",
+  "type": "module",
+  "main": "index.ts",
+  "piclaw": {
+    "type": "extension",
+    "compatibleVersions": ">=1.8.0",
+    "tags": [
+      "proxmox",
+      "infrastructure",
+      "virtualization",
+      "homelab"
+    ],
+    "skills": [
+      "skills/proxmox-guest-compare-chart"
+    ]
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-coding-agent": "*",
+    "@sinclair/typebox": "*"
+  },
+  "license": "MIT",
+  "keywords": [
+    "pi-package"
+  ],
+  "pi": {
+    "extensions": [
+      "index.ts"
+    ],
+    "skills": [
+      "skills"
+    ]
+  }
+}

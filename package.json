@@ -25,7 +25,9 @@
       "addons/dev-tools/index.ts",
       "addons/drawio-editor/index.ts",
       "addons/eml-viewer/index.ts",
-      "addons/kanban-board-widget/index.ts"
+      "addons/kanban-board-widget/index.ts",
+      "addons/portainer/index.ts",
+      "addons/proxmox/index.ts"
     ],
     "skills": [
       "addons/autoresearch/skills",
@@ -58,5 +60,8 @@
     "README.md",
     "addons",
     "catalog.json"
-  ]
+  ],
+  "devDependencies": {
+    "bun-types": "^1.3.13"
+  }
 }
