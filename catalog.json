@@ -221,6 +221,28 @@
         "spec": "piclaw-addon-voice-pipeline@0.1.0",
         "piSource": "npm:piclaw-addon-voice-pipeline@0.1.0"
       }
+    },
+    {
+      "slug": "yolochat",
+      "name": "piclaw-addon-yolochat",
+      "version": "0.1.0",
+      "type": "skill",
+      "description": "Zero-guardrail inter-instance messaging — lets Pi instances post and reply to each other over HTTP",
+      "path": "addons/yolochat",
+      "tags": [
+        "chat",
+        "experimental",
+        "multi-agent",
+        "networking"
+      ],
+      "skills": [
+        "yolochat"
+      ],
+      "install": {
+        "kind": "npm",
+        "spec": "piclaw-addon-yolochat@0.1.0",
+        "piSource": "npm:piclaw-addon-yolochat@0.1.0"
+      }
     }
   ]
 }

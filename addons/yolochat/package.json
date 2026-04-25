@@ -1,0 +1,17 @@
+{
+  "name": "piclaw-addon-yolochat",
+  "version": "0.1.0",
+  "description": "Zero-guardrail inter-instance messaging — lets Pi instances post and reply to each other over HTTP",
+  "type": "module",
+  "piclaw": {
+    "type": "skill",
+    "compatibleVersions": ">=1.8.0",
+    "tags": ["chat", "multi-agent", "networking", "experimental"],
+    "skills": ["skills/yolochat"]
+  },
+  "license": "MIT",
+  "keywords": ["pi-package"],
+  "pi": {
+    "skills": ["skills"]
+  }
+}
