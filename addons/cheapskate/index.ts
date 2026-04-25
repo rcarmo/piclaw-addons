@@ -1,105 +1,71 @@
 /**
- * piclaw-addon-cheapskate — Free-tier provider rotation.
+ * piclaw-addon-cheapskate — Free-tier provider rotation as a single selectable model.
  *
- * Registers multiple free-tier providers and implements automatic
- * rotation when rate limits are hit. The agent gets access to free
- * models across Google, Cerebras, Groq, SambaNova, and others.
+ * Registers a `cheapskate` provider with an `auto` model. When selected,
+ * it transparently routes requests to the best available free-tier backend
+ * (Google Gemini, Cerebras, Groq, SambaNova) and rotates on rate-limit errors.
  *
- * When one provider returns a 429 or rate-limit error, the extension
- * catches it and switches to the next available provider automatically.
+ * The user just picks `cheapskate/auto` from the model selector.
  */
 
 import type { ExtensionAPI, ExtensionFactory } from "@mariozechner/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
 
-// ── Free-tier provider definitions ───────────────────────────────
+// ── Free-tier backend definitions ────────────────────────────────
 
-interface FreeTierProvider {
+interface FreeBackend {
+  id: string;
   name: string;
-  displayName: string;
   baseUrl: string;
   apiKeyEnv: string;
-  api: "openai";
-  models: Array<{
-    id: string;
-    name: string;
-    reasoning: boolean;
-    contextWindow: number;
-    maxTokens: number;
-    inputCost: number;
-    outputCost: number;
-  }>;
-  dailyRequestLimit?: number;
-  requestsPerMinute?: number;
-  tokensPerMinute?: number;
-  tokensPerDay?: number;
+  modelId: string;
+  modelName: string;
+  reasoning: boolean;
+  contextWindow: number;
+  maxTokens: number;
+  requestsPerMinute: number;
+  tokensPerMinute: number;
+  tokensPerDay: number;
 }
 
-const FREE_TIER_PROVIDERS: FreeTierProvider[] = [
+const BACKENDS: FreeBackend[] = [
   {
-    name: "google-free",
-    displayName: "Google Gemini (free tier)",
+    id: "google", name: "Google Gemini",
     baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
     apiKeyEnv: "GOOGLE_GENERATIVE_AI_API_KEY",
-    api: "openai",
-    models: [
-      { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", reasoning: true, contextWindow: 1_000_000, maxTokens: 65_536, inputCost: 0, outputCost: 0 },
-      { id: "gemini-2.5-flash-lite", name: "Gemini 2.5 Flash-Lite", reasoning: false, contextWindow: 1_000_000, maxTokens: 65_536, inputCost: 0, outputCost: 0 },
-    ],
-    requestsPerMinute: 10,
-    tokensPerMinute: 250_000,
-    tokensPerDay: 1_000_000,
+    modelId: "gemini-2.5-flash", modelName: "Gemini 2.5 Flash",
+    reasoning: true, contextWindow: 1_000_000, maxTokens: 65_536,
+    requestsPerMinute: 10, tokensPerMinute: 250_000, tokensPerDay: 1_000_000,
   },
   {
-    name: "cerebras-free",
-    displayName: "Cerebras (free tier)",
+    id: "cerebras", name: "Cerebras",
     baseUrl: "https://api.cerebras.ai/v1",
     apiKeyEnv: "CEREBRAS_API_KEY",
-    api: "openai",
-    models: [
-      { id: "qwen-3-235b-a22b-instruct-2507", name: "Qwen 3 235B", reasoning: true, contextWindow: 131_072, maxTokens: 16_384, inputCost: 0, outputCost: 0 },
-      { id: "llama-4-scout-17b-16e-instruct", name: "Llama 4 Scout", reasoning: false, contextWindow: 131_072, maxTokens: 16_384, inputCost: 0, outputCost: 0 },
-      { id: "llama3.1-8b", name: "Llama 3.1 8B", reasoning: false, contextWindow: 131_072, maxTokens: 16_384, inputCost: 0, outputCost: 0 },
-    ],
-    requestsPerMinute: 30,
-    tokensPerMinute: 60_000,
-    tokensPerDay: 1_000_000,
+    modelId: "qwen-3-235b-a22b-instruct-2507", modelName: "Qwen 3 235B",
+    reasoning: true, contextWindow: 131_072, maxTokens: 16_384,
+    requestsPerMinute: 30, tokensPerMinute: 60_000, tokensPerDay: 1_000_000,
   },
   {
-    name: "groq-free",
-    displayName: "Groq (free tier)",
+    id: "groq", name: "Groq",
     baseUrl: "https://api.groq.com/openai/v1",
     apiKeyEnv: "GROQ_API_KEY",
-    api: "openai",
-    models: [
-      { id: "llama-4-scout-17b-16e-instruct", name: "Llama 4 Scout (Groq)", reasoning: false, contextWindow: 131_072, maxTokens: 8_192, inputCost: 0, outputCost: 0 },
-      { id: "qwen-qwq-32b", name: "QwQ 32B (Groq)", reasoning: true, contextWindow: 131_072, maxTokens: 16_384, inputCost: 0, outputCost: 0 },
-      { id: "gemma2-9b-it", name: "Gemma 2 9B (Groq)", reasoning: false, contextWindow: 8_192, maxTokens: 4_096, inputCost: 0, outputCost: 0 },
-    ],
-    requestsPerMinute: 30,
-    tokensPerMinute: 15_000,
-    tokensPerDay: 500_000,
+    modelId: "qwen-qwq-32b", modelName: "QwQ 32B",
+    reasoning: true, contextWindow: 131_072, maxTokens: 16_384,
+    requestsPerMinute: 30, tokensPerMinute: 15_000, tokensPerDay: 500_000,
   },
   {
-    name: "sambanova-free",
-    displayName: "SambaNova (free tier)",
+    id: "sambanova", name: "SambaNova",
     baseUrl: "https://api.sambanova.ai/v1",
     apiKeyEnv: "SAMBANOVA_API_KEY",
-    api: "openai",
-    models: [
-      { id: "DeepSeek-R1", name: "DeepSeek R1 (SambaNova)", reasoning: true, contextWindow: 65_536, maxTokens: 16_384, inputCost: 0, outputCost: 0 },
-      { id: "QwQ-32B", name: "QwQ 32B (SambaNova)", reasoning: true, contextWindow: 65_536, maxTokens: 16_384, inputCost: 0, outputCost: 0 },
-      { id: "Meta-Llama-3.3-70B-Instruct", name: "Llama 3.3 70B (SambaNova)", reasoning: false, contextWindow: 131_072, maxTokens: 16_384, inputCost: 0, outputCost: 0 },
-    ],
-    requestsPerMinute: 10,
-    tokensPerMinute: 100_000,
+    modelId: "DeepSeek-R1", modelName: "DeepSeek R1",
+    reasoning: true, contextWindow: 65_536, maxTokens: 16_384,
+    requestsPerMinute: 10, tokensPerMinute: 100_000, tokensPerDay: 1_000_000,
   },
 ];
 
 // ── Rate-limit tracking ──────────────────────────────────────────
 
-interface ProviderUsage {
-  name: string;
+interface BackendUsage {
   requestsThisMinute: number;
   tokensThisMinute: number;
   tokensToday: number;
@@ -107,236 +73,280 @@ interface ProviderUsage {
   dayResetAt: number;
   cooldownUntil: number;
   consecutiveErrors: number;
+  lastUsed: number;
 }
 
-const usageMap = new Map<string, ProviderUsage>();
+const usageMap = new Map<string, BackendUsage>();
 
-function getUsage(name: string): ProviderUsage {
-  if (!usageMap.has(name)) {
+function getUsage(id: string): BackendUsage {
+  if (!usageMap.has(id)) {
     const now = Date.now();
-    usageMap.set(name, {
-      name,
-      requestsThisMinute: 0,
-      tokensThisMinute: 0,
-      tokensToday: 0,
-      minuteResetAt: now + 60_000,
-      dayResetAt: now + 86_400_000,
-      cooldownUntil: 0,
-      consecutiveErrors: 0,
+    usageMap.set(id, {
+      requestsThisMinute: 0, tokensThisMinute: 0, tokensToday: 0,
+      minuteResetAt: now + 60_000, dayResetAt: now + 86_400_000,
+      cooldownUntil: 0, consecutiveErrors: 0, lastUsed: 0,
     });
   }
-  const usage = usageMap.get(name)!;
+  const u = usageMap.get(id)!;
   const now = Date.now();
-  if (now >= usage.minuteResetAt) {
-    usage.requestsThisMinute = 0;
-    usage.tokensThisMinute = 0;
-    usage.minuteResetAt = now + 60_000;
-  }
-  if (now >= usage.dayResetAt) {
-    usage.tokensToday = 0;
-    usage.dayResetAt = now + 86_400_000;
-  }
-  return usage;
+  if (now >= u.minuteResetAt) { u.requestsThisMinute = 0; u.tokensThisMinute = 0; u.minuteResetAt = now + 60_000; }
+  if (now >= u.dayResetAt) { u.tokensToday = 0; u.dayResetAt = now + 86_400_000; }
+  return u;
 }
 
-function recordRequest(name: string, tokens: number): void {
-  const usage = getUsage(name);
-  usage.requestsThisMinute++;
-  usage.tokensThisMinute += tokens;
-  usage.tokensToday += tokens;
-  usage.consecutiveErrors = 0;
+function recordSuccess(id: string, tokens = 0): void {
+  const u = getUsage(id);
+  u.requestsThisMinute++;
+  u.tokensThisMinute += tokens;
+  u.tokensToday += tokens;
+  u.consecutiveErrors = 0;
+  u.lastUsed = Date.now();
 }
 
-function recordError(name: string): void {
-  const usage = getUsage(name);
-  usage.consecutiveErrors++;
-  // Exponential backoff: 30s, 60s, 120s, 240s, max 5min
-  const backoffMs = Math.min(30_000 * Math.pow(2, usage.consecutiveErrors - 1), 300_000);
-  usage.cooldownUntil = Date.now() + backoffMs;
+function recordError(id: string): void {
+  const u = getUsage(id);
+  u.consecutiveErrors++;
+  u.cooldownUntil = Date.now() + Math.min(30_000 * Math.pow(2, u.consecutiveErrors - 1), 300_000);
 }
 
-function isAvailable(provider: FreeTierProvider): boolean {
-  if (!process.env[provider.apiKeyEnv]) return false;
-  const usage = getUsage(provider.name);
+function isAvailable(backend: FreeBackend): boolean {
+  if (!process.env[backend.apiKeyEnv]) return false;
+  const u = getUsage(backend.id);
   const now = Date.now();
-  if (usage.cooldownUntil > now) return false;
-  if (provider.requestsPerMinute && usage.requestsThisMinute >= provider.requestsPerMinute) return false;
-  if (provider.tokensPerMinute && usage.tokensThisMinute >= provider.tokensPerMinute * 0.9) return false;
-  if (provider.tokensPerDay && usage.tokensToday >= provider.tokensPerDay * 0.9) return false;
+  if (u.cooldownUntil > now) return false;
+  if (u.requestsThisMinute >= backend.requestsPerMinute) return false;
+  if (u.tokensThisMinute >= backend.tokensPerMinute * 0.9) return false;
+  if (u.tokensPerDay && u.tokensToday >= backend.tokensPerDay * 0.9) return false;
   return true;
 }
 
-// ── Provider rotation ────────────────────────────────────────────
+// ── Backend selection ────────────────────────────────────────────
 
-let rotationIndex = 0;
+let currentBackendId: string | null = null;
 
-function getNextAvailableProvider(): FreeTierProvider | null {
-  const available = FREE_TIER_PROVIDERS.filter(isAvailable);
-  if (available.length === 0) return null;
-  rotationIndex = rotationIndex % available.length;
-  const provider = available[rotationIndex]!;
-  rotationIndex = (rotationIndex + 1) % available.length;
-  return provider;
+function getConfiguredBackends(): FreeBackend[] {
+  return BACKENDS.filter((b) => !!process.env[b.apiKeyEnv]);
 }
 
-function getBestModel(provider: FreeTierProvider): typeof provider.models[0] | null {
-  // Prefer reasoning models first, then largest context window
-  const sorted = [...provider.models].sort((a, b) => {
-    if (a.reasoning !== b.reasoning) return a.reasoning ? -1 : 1;
+function getAvailableBackends(): FreeBackend[] {
+  return BACKENDS.filter(isAvailable);
+}
+
+function selectBestBackend(): FreeBackend | null {
+  const available = getAvailableBackends();
+  if (available.length === 0) return null;
+  // Prefer: least recently used, then largest context window
+  available.sort((a, b) => {
+    const ua = getUsage(a.id), ub = getUsage(b.id);
+    if (ua.lastUsed !== ub.lastUsed) return ua.lastUsed - ub.lastUsed;
     return b.contextWindow - a.contextWindow;
   });
-  return sorted[0] ?? null;
+  return available[0]!;
+}
+
+function getCurrentBackend(): FreeBackend | null {
+  if (currentBackendId) {
+    const b = BACKENDS.find((x) => x.id === currentBackendId);
+    if (b && isAvailable(b)) return b;
+  }
+  const best = selectBestBackend();
+  if (best) currentBackendId = best.id;
+  return best;
+}
+
+function rotateBackend(): FreeBackend | null {
+  if (currentBackendId) recordError(currentBackendId);
+  const available = getAvailableBackends().filter((b) => b.id !== currentBackendId);
+  if (available.length === 0) return selectBestBackend();
+  available.sort((a, b) => getUsage(a.id).lastUsed - getUsage(b.id).lastUsed);
+  const next = available[0]!;
+  currentBackendId = next.id;
+  return next;
+}
+
+// ── Provider registration ────────────────────────────────────────
+
+function buildModelName(backend: FreeBackend | null, configured: FreeBackend[]): string {
+  if (!backend) return `Free Auto-Router (${configured.length} backends, $0)`;
+  return `Free → ${backend.name} / ${backend.modelName} · $0`;
+}
+
+function registerCheapskateProvider(pi: ExtensionAPI): boolean {
+  const configured = getConfiguredBackends();
+  if (configured.length === 0) return false;
+
+  const best = getCurrentBackend() || configured[0]!;
+  const bestContext = Math.max(...configured.map((b) => b.contextWindow));
+  const anyReasoning = configured.some((b) => b.reasoning);
+
+  pi.registerProvider("cheapskate", {
+    baseUrl: best.baseUrl,
+    apiKey: best.apiKeyEnv,
+    api: "openai",
+    models: [{
+      id: "auto",
+      name: buildModelName(best, configured),
+      api: "openai",
+      reasoning: anyReasoning,
+      input: ["text", "image"] as ("text" | "image")[],
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+      contextWindow: bestContext,
+      maxTokens: Math.max(...configured.map((b) => b.maxTokens)),
+      compat: { modelId: best.modelId },
+    }],
+  });
+
+  currentBackendId = best.id;
+  return true;
+}
+
+function reRegisterWithBackend(pi: ExtensionAPI, backend: FreeBackend): void {
+  const configured = getConfiguredBackends();
+  const bestContext = Math.max(...configured.map((b) => b.contextWindow));
+  const anyReasoning = configured.some((b) => b.reasoning);
+
+  pi.registerProvider("cheapskate", {
+    baseUrl: backend.baseUrl,
+    apiKey: backend.apiKeyEnv,
+    api: "openai",
+    models: [{
+      id: "auto",
+      name: buildModelName(backend, configured),
+      api: "openai",
+      reasoning: anyReasoning,
+      input: ["text", "image"] as ("text" | "image")[],
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+      contextWindow: bestContext,
+      maxTokens: Math.max(...configured.map((b) => b.maxTokens)),
+      compat: { modelId: backend.modelId },
+    }],
+  });
 }
 
 // ── Extension ────────────────────────────────────────────────────
 
 const cheapskate: ExtensionFactory = (pi: ExtensionAPI) => {
-  const registeredProviders: string[] = [];
+  if (!registerCheapskateProvider(pi)) return;
 
-  // Register all free-tier providers that have API keys configured
-  for (const provider of FREE_TIER_PROVIDERS) {
-    const apiKey = process.env[provider.apiKeyEnv];
-    if (!apiKey) continue;
-
-    pi.registerProvider(provider.name, {
-      baseUrl: provider.baseUrl,
-      apiKey: provider.apiKeyEnv,
-      api: provider.api,
-      models: provider.models.map((m) => ({
-        id: m.id,
-        name: m.name,
-        api: provider.api,
-        reasoning: m.reasoning,
-        input: ["text", "image"] as ("text" | "image")[],
-        cost: { input: m.inputCost, output: m.outputCost, cacheRead: 0, cacheWrite: 0 },
-        contextWindow: m.contextWindow,
-        maxTokens: m.maxTokens,
-      })),
-    });
-    registeredProviders.push(provider.name);
-  }
-
-  if (registeredProviders.length === 0) return;
-
-  // Inject cheapskate hint into system prompt
+  // Before each turn: ensure we're pointing at the best available backend
   pi.on("before_agent_start", async (event) => {
-    const available = FREE_TIER_PROVIDERS.filter(isAvailable);
-    const hint = available.length > 0
-      ? `Cheapskate mode active: ${available.length} free-tier provider(s) available (${available.map((p) => p.displayName).join(", ")}). Use switch_model to select one, or the cheapskate tool to rotate automatically.`
-      : "Cheapskate mode: no free-tier providers currently available (rate limits or missing API keys).";
-    return { systemPrompt: `${event.systemPrompt}\n\n${hint}` };
+    const model = event.model;
+    const isCheapskate = model?.provider === "cheapskate" || model?.id === "auto";
+    if (!isCheapskate) return {};
+
+    const backend = getCurrentBackend();
+    if (backend) {
+      reRegisterWithBackend(pi, backend);
+    }
+
+    const active = backend ? `${backend.name} / ${backend.modelName}` : "no backends available";
+    return {
+      systemPrompt: `${event.systemPrompt}\n\n## Cheapskate mode\nYou are running on a free-tier provider: ${active}.\nIf you encounter rate-limit errors, the cheapskate extension will automatically rotate to the next available backend.\nDo not mention this to the user unless asked about the current model.`,
+    };
+  });
+
+  // After provider errors: rotate to next backend
+  pi.on("after_provider_response", (event) => {
+    const model = event.model;
+    const isCheapskate = model?.provider === "cheapskate";
+    if (!isCheapskate) return;
+
+    // Check for rate-limit or error indicators
+    const errorText = typeof (event as any).error === "string" ? (event as any).error : "";
+    const isRateLimit = /429|rate.limit|too many requests|quota|resource.*exhausted/i.test(errorText);
+
+    if (isRateLimit && currentBackendId) {
+      const next = rotateBackend();
+      if (next) {
+        reRegisterWithBackend(pi, next);
+        console.log(`[cheapskate] Rotated from ${currentBackendId} to ${next.id} (${next.name})`);
+      }
+    } else if (currentBackendId) {
+      // Estimate tokens from response for tracking
+      const usage = (event as any).usage;
+      const totalTokens = (typeof usage?.totalTokens === "number" ? usage.totalTokens : 0);
+      recordSuccess(currentBackendId, totalTokens);
+    }
   });
 
   // Register the cheapskate management tool
   pi.registerTool({
     name: "cheapskate",
     label: "cheapskate",
-    description: "Manage free-tier provider rotation. List available providers, check usage/limits, or rotate to the next free provider.",
-    promptSnippet: "cheapskate: list free providers, check usage, or rotate to next available free-tier model.",
+    description: "Manage free-tier provider rotation. Check status, list backends, view usage, or force rotation.",
+    promptSnippet: "cheapskate: check free-tier backend status, usage, or force rotation to the next available provider.",
     parameters: Type.Object({
       action: Type.Union([
         Type.Literal("status"),
-        Type.Literal("rotate"),
         Type.Literal("list"),
         Type.Literal("usage"),
+        Type.Literal("rotate"),
       ]),
     }),
     async execute(_toolCallId, params, _signal, _update, _ctx) {
       if (params.action === "list") {
-        const entries = FREE_TIER_PROVIDERS.map((p) => {
-          const hasKey = !!process.env[p.apiKeyEnv];
-          const available = isAvailable(p);
-          const usage = getUsage(p.name);
+        const entries = BACKENDS.map((b) => {
+          const hasKey = !!process.env[b.apiKeyEnv];
+          const avail = isAvailable(b);
+          const u = getUsage(b.id);
           return {
-            provider: p.name,
-            display: p.displayName,
-            configured: hasKey,
-            available,
-            models: p.models.map((m) => m.name),
-            limits: {
-              rpm: p.requestsPerMinute ?? null,
-              tpm: p.tokensPerMinute ?? null,
-              tpd: p.tokensPerDay ?? null,
-            },
-            cooldown: usage.cooldownUntil > Date.now() ? Math.ceil((usage.cooldownUntil - Date.now()) / 1000) : 0,
+            id: b.id, name: b.name, model: b.modelName,
+            configured: hasKey, available: avail, active: b.id === currentBackendId,
+            limits: { rpm: b.requestsPerMinute, tpm: b.tokensPerMinute, tpd: b.tokensPerDay },
+            cooldown_seconds: u.cooldownUntil > Date.now() ? Math.ceil((u.cooldownUntil - Date.now()) / 1000) : 0,
           };
         });
         const configured = entries.filter((e) => e.configured);
         const text = configured.length > 0
-          ? `${configured.length} free-tier provider(s) configured:\n${configured.map((e) => `- ${e.display}: ${e.available ? "✅ available" : "⏳ rate-limited"} (${e.models.join(", ")})`).join("\n")}`
-          : "No free-tier providers configured. Set API key env vars to enable.";
-        return { content: [{ type: "text", text }], details: { providers: entries } };
+          ? `${configured.length} free-tier backend(s):\n${configured.map((e) => `- ${e.name} / ${e.model}: ${e.active ? "🟢 active" : e.available ? "✅ available" : "⏳ rate-limited"}`).join("\n")}`
+          : "No free-tier backends configured. Set API key env vars to enable.";
+        return { content: [{ type: "text", text }], details: { backends: entries } };
       }
 
       if (params.action === "usage") {
-        const entries = FREE_TIER_PROVIDERS.filter((p) => !!process.env[p.apiKeyEnv]).map((p) => {
-          const usage = getUsage(p.name);
+        const entries = getConfiguredBackends().map((b) => {
+          const u = getUsage(b.id);
           return {
-            provider: p.name,
-            display: p.displayName,
-            requests_this_minute: usage.requestsThisMinute,
-            tokens_this_minute: usage.tokensThisMinute,
-            tokens_today: usage.tokensToday,
-            consecutive_errors: usage.consecutiveErrors,
-            cooldown_seconds: usage.cooldownUntil > Date.now() ? Math.ceil((usage.cooldownUntil - Date.now()) / 1000) : 0,
-            limits: {
-              rpm: p.requestsPerMinute ?? null,
-              tpm: p.tokensPerMinute ?? null,
-              tpd: p.tokensPerDay ?? null,
-            },
+            id: b.id, name: b.name,
+            requests_this_minute: u.requestsThisMinute,
+            tokens_this_minute: u.tokensThisMinute,
+            tokens_today: u.tokensToday,
+            errors: u.consecutiveErrors,
+            cooldown: u.cooldownUntil > Date.now() ? Math.ceil((u.cooldownUntil - Date.now()) / 1000) : 0,
           };
         });
-        const text = entries.length > 0
-          ? entries.map((e) => `${e.display}: ${e.requests_this_minute} req/min, ${e.tokens_this_minute} tok/min, ${e.tokens_today} tok/day${e.cooldown_seconds > 0 ? ` (cooldown ${e.cooldown_seconds}s)` : ""}`).join("\n")
-          : "No configured providers.";
+        const text = entries.map((e) =>
+          `${e.name}: ${e.requests_this_minute} req/min, ${e.tokens_this_minute} tok/min, ${e.tokens_today} tok/day${e.cooldown > 0 ? ` (cooldown ${e.cooldown}s)` : ""}`
+        ).join("\n") || "No configured backends.";
         return { content: [{ type: "text", text }], details: { usage: entries } };
       }
 
       if (params.action === "rotate") {
-        const next = getNextAvailableProvider();
+        const next = rotateBackend();
         if (!next) {
-          return {
-            content: [{ type: "text", text: "No free-tier providers available right now. All are rate-limited or unconfigured." }],
-            details: { rotated: false },
-          };
+          return { content: [{ type: "text", text: "No free-tier backends available right now." }], details: { rotated: false } };
         }
-        const model = getBestModel(next);
-        if (!model) {
-          return {
-            content: [{ type: "text", text: `Provider ${next.displayName} has no available models.` }],
-            details: { rotated: false },
-          };
-        }
-        const success = await pi.setModel(`${next.name}/${model.id}` as any);
+        reRegisterWithBackend(pi, next);
         return {
-          content: [{
-            type: "text",
-            text: success
-              ? `Rotated to ${next.displayName} / ${model.name}.`
-              : `Failed to switch to ${next.displayName} / ${model.name}.`,
-          }],
-          details: { rotated: success, provider: next.name, model: model.id },
+          content: [{ type: "text", text: `Rotated to ${next.name} / ${next.modelName}.` }],
+          details: { rotated: true, backend: next.id, model: next.modelId },
         };
       }
 
       // status
-      const available = FREE_TIER_PROVIDERS.filter(isAvailable);
-      const configured = FREE_TIER_PROVIDERS.filter((p) => !!process.env[p.apiKeyEnv]);
+      const configured = getConfiguredBackends();
+      const available = getAvailableBackends();
+      const current = currentBackendId ? BACKENDS.find((b) => b.id === currentBackendId) : null;
       return {
         content: [{
           type: "text",
-          text: `Cheapskate mode: ${configured.length} provider(s) configured, ${available.length} currently available.`,
+          text: `Cheapskate: ${configured.length} backend(s) configured, ${available.length} available.${current ? ` Active: ${current.name} / ${current.modelName}.` : ""}`,
         }],
-        details: {
-          configured: configured.length,
-          available: available.length,
-          providers: configured.map((p) => p.name),
-          available_now: available.map((p) => p.name),
-        },
+        details: { configured: configured.length, available: available.length, active: current?.id ?? null },
       };
     },
   });
 };
 
 export default cheapskate;
-export { cheapskate, FREE_TIER_PROVIDERS };
+export { cheapskate, BACKENDS, getConfiguredBackends, getAvailableBackends, getCurrentBackend, getUsage, currentBackendId };
