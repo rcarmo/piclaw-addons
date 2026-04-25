@@ -108,6 +108,8 @@ export interface ProxmoxClusterVmResource {
   name?: string;
   node?: string;
   status?: string;
+  tags?: string;
+  template?: number;
 }
 
 export interface ProxmoxVmStatus {
@@ -118,6 +120,9 @@ export interface ProxmoxVmStatus {
   qmpstatus: string | null;
   uptime: number | null;
   agent: number | null;
+  machine: string | null;
+  tags: string | null;
+  template: boolean;
 }
 
 export interface ProxmoxTaskWaitResult {
@@ -802,6 +807,10 @@ export class ProxmoxClient {
       path: `/nodes/${encodeURIComponent(node)}/qemu/${vmid}/status/current`,
     });
     const data = asRecord(getPayloadData(response.body, response.path) ?? {}, response.path);
+    // running-machine is populated by QEMU when the VM is running; machine comes from config
+    const machine = typeof data["running-machine"] === "string" ? data["running-machine"]
+      : typeof data.machine === "string" ? data.machine : null;
+    const tags = typeof data.tags === "string" && data.tags.trim() ? data.tags.trim() : null;
     return {
       name: typeof data.name === "string" ? data.name : null,
       vmid,
@@ -810,6 +819,9 @@ export class ProxmoxClient {
       qmpstatus: typeof data.qmpstatus === "string" ? data.qmpstatus : null,
       uptime: typeof data.uptime === "number" && Number.isFinite(data.uptime) ? data.uptime : null,
       agent: typeof data.agent === "number" && Number.isFinite(data.agent) ? data.agent : null,
+      machine,
+      tags,
+      template: data.template === 1 || data.template === true,
     };
   }
 
@@ -831,6 +843,7 @@ export class ProxmoxClient {
       path: `/nodes/${encodeURIComponent(node)}/lxc/${vmid}/status/current`,
     });
     const data = asRecord(getPayloadData(response.body, response.path) ?? {}, response.path);
+    const tags = typeof data.tags === "string" && data.tags.trim() ? data.tags.trim() : null;
     return {
       name: typeof data.name === "string" ? data.name : null,
       vmid,
@@ -839,6 +852,9 @@ export class ProxmoxClient {
       qmpstatus: null,
       uptime: typeof data.uptime === "number" && Number.isFinite(data.uptime) ? data.uptime : null,
       agent: null,
+      machine: null,
+      tags,
+      template: data.template === 1 || data.template === true,
     };
   }
 
@@ -1515,7 +1531,9 @@ export async function runProxmoxWorkflow(
       const { node } = await resolveNodeForVm(client, workflow, vmid, input.node);
       const status = await client.getVmStatus(node, vmid);
       const configResult = await client.getVmConfig(node, vmid);
-      return { workflow, vmid, node, result: { status, config: configResult } };
+      const machine = status.machine || (typeof configResult.machine === "string" ? configResult.machine : null);
+      const isMicrovm = machine === "microvm";
+      return { workflow, vmid, node, result: { status: { ...status, machine: machine ?? status.machine }, config: configResult, is_microvm: isMicrovm } };
     }
     case "vm.create": {
       const vmid = requireVmid(input.vmid, workflow);

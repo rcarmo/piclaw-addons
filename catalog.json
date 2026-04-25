@@ -163,7 +163,7 @@
     {
       "slug": "proxmox",
       "name": "piclaw-addon-proxmox",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "type": "extension",
       "description": "Proxmox VE management tool — session-scoped API config, ad-hoc requests, and VM/LXC/storage/task/metrics workflows",
       "path": "addons/proxmox",
@@ -176,8 +176,8 @@
       "skills": [],
       "install": {
         "kind": "npm",
-        "spec": "piclaw-addon-proxmox@0.1.0",
-        "piSource": "npm:piclaw-addon-proxmox@0.1.0"
+        "spec": "piclaw-addon-proxmox@0.1.1",
+        "piSource": "npm:piclaw-addon-proxmox@0.1.1"
       }
     }
   ]
