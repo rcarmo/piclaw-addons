@@ -1,82 +1,87 @@
 ---
 name: cheapskate
-description: Rotate across free-tier AI providers to minimize API costs. Tracks rate limits and auto-switches when one provider is exhausted.
+description: Free-tier provider auto-rotation. Select cheapskate/auto as your model and it transparently routes to the best available free backend.
 distribution: public
 ---
 
 # Cheapskate Mode
 
-Automatically rotates across free-tier AI providers to keep API costs at zero (or near-zero).
+Select `cheapskate/auto` from the model picker. It transparently routes requests to the best available free-tier backend and rotates on rate-limit errors.
 
 ## How it works
 
-The cheapskate extension:
-
-1. **Registers free-tier providers** — Google Gemini, Cerebras, Groq, SambaNova (and others as they become available)
-2. **Tracks rate limits** — per-minute request/token counts, daily token budgets, cooldown after errors
-3. **Rotates on exhaustion** — when one provider hits its limits, switch to the next available one
+1. **Appears as a model** — `cheapskate/auto` shows up in the compose box model selector alongside your other models
+2. **Shows the active backend** — the model name displays which provider is active: `Free → Google Gemini / Gemini 2.5 Flash · $0`
+3. **Rotates automatically** — when a backend hits rate limits, it switches to the next available one before the next turn
+4. **Costs nothing** — all backends are free-tier APIs
 
 ## Setup
 
-Set API keys as environment variables (all are free to obtain):
+Set API keys as environment variables or in the keychain (all are free to obtain):
 
-| Provider | Env var | Get a key |
+| Provider | Env var / Keychain entry | Sign up |
 |---|---|---|
-| **Google Gemini** | `GOOGLE_GENERATIVE_AI_API_KEY` | [aistudio.google.com](https://aistudio.google.com/apikey) |
-| **Cerebras** | `CEREBRAS_API_KEY` | [cloud.cerebras.ai](https://cloud.cerebras.ai/) |
-| **Groq** | `GROQ_API_KEY` | [console.groq.com](https://console.groq.com/keys) |
-| **SambaNova** | `SAMBANOVA_API_KEY` | [cloud.sambanova.ai](https://cloud.sambanova.ai/) |
+| **Google Gemini** | `GOOGLE_GENERATIVE_AI_API_KEY` / `google/generative-ai-api-key` | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) |
+| **Cerebras** | `CEREBRAS_API_KEY` / `cerebras/api-key` | [cloud.cerebras.ai](https://cloud.cerebras.ai/) |
+| **Groq** | `GROQ_API_KEY` / `groq/api-key` | [console.groq.com/keys](https://console.groq.com/keys) |
+| **SambaNova** | `SAMBANOVA_API_KEY` / `sambanova/api-key` | [cloud.sambanova.ai](https://cloud.sambanova.ai/) |
 
-Only providers with a configured API key are registered. You can use any subset.
+Only backends with a configured API key are available. Any subset works — even a single provider.
 
-## Available free-tier models
+## Free-tier backends
 
-| Provider | Models | Context | Free limits |
-|---|---|---|---|
-| **Google Gemini** | Gemini 2.5 Flash, Flash-Lite | 1M | 10 RPM, 250K TPM, 1M TPD |
-| **Cerebras** | Qwen 3 235B, Llama 4 Scout, Llama 3.1 8B | 131K | 30 RPM, 60K TPM, 1M TPD |
-| **Groq** | Llama 4 Scout, QwQ 32B, Gemma 2 9B | 131K | 30 RPM, 15K TPM, 500K TPD |
-| **SambaNova** | DeepSeek R1, QwQ 32B, Llama 3.3 70B | 65–131K | 10 RPM, 100K TPM |
+| Provider | Model | Context | Reasoning | Free limits |
+|---|---|---|---|---|
+| **Google Gemini** | Gemini 2.5 Flash | 1M | ✅ | 10 RPM, 250K TPM, 1M TPD |
+| **Cerebras** | Qwen 3 235B | 131K | ✅ | 30 RPM, 60K TPM, 1M TPD |
+| **Groq** | QwQ 32B | 131K | ✅ | 30 RPM, 15K TPM, 500K TPD |
+| **SambaNova** | DeepSeek R1 | 65K | ✅ | 10 RPM, 100K TPM |
 
 ## Usage
 
-### Tool: `cheapskate`
+### Select the model
+
+Pick `cheapskate/auto` from the model selector in the compose box or settings. The compose box shows the active backend:
+
+```
+cheapskate/auto — Free → Google Gemini / Gemini 2.5 Flash · $0
+```
+
+When the backend rotates (e.g. after a rate limit), the display updates:
+
+```
+cheapskate/auto — Free → Cerebras / Qwen 3 235B · $0
+```
+
+### Management tool: `cheapskate`
 
 | Action | What it does |
 |---|---|
-| `status` | Show how many providers are configured and available |
-| `list` | List all providers with their models, limits, and availability |
-| `usage` | Show current rate-limit consumption per provider |
-| `rotate` | Switch to the next available free-tier provider/model |
+| `cheapskate action=status` | Show configured/available backends and active backend |
+| `cheapskate action=list` | List all backends with models, limits, and availability |
+| `cheapskate action=usage` | Show current rate-limit consumption per backend |
+| `cheapskate action=rotate` | Force rotation to the next available backend |
 
-### Manual rotation
+### Automatic rotation
 
-```
-cheapskate action=rotate
-```
+- Before each turn: picks the best available backend (least recently used, then largest context)
+- On rate-limit error (429): rotates to next backend with exponential backoff (30s → 5min max)
+- At 90% of any limit (RPM/TPM/TPD): backend marked unavailable for rotation
+- Tracking resets: per-minute counters reset every 60s, daily counters every 24h
 
-### Check what's available
+## Quality ranking
 
-```
-cheapskate action=list
-```
-
-### Monitor usage
-
-```
-cheapskate action=usage
-```
-
-## Rate-limit handling
-
-- Per-provider tracking of requests/minute, tokens/minute, tokens/day
-- Providers at 90% of any limit are marked unavailable for rotation
-- Errors trigger exponential backoff cooldown (30s → 60s → 120s → 5min max)
-- Rotation picks the next available provider round-robin
+| Use case | Best backend | Why |
+|---|---|---|
+| General coding | Google Gemini 2.5 Flash | Largest context (1M), strong reasoning |
+| Complex reasoning | SambaNova DeepSeek R1, Groq QwQ 32B | Dedicated reasoning models |
+| Fast iteration | Cerebras Qwen 3 235B | ~2000 tok/s inference speed |
+| Budget fallback | Any — all are $0 | Rotate through all four |
 
 ## Notes
 
-- Free tiers change frequently — the provider list is hardcoded and should be updated when tiers change
-- Quality varies significantly between free models — Gemini 2.5 Flash and Cerebras Qwen 3 235B are the strongest
-- Free tiers are best for routine tasks, research, and drafting — switch to a paid model for production-critical work
-- The extension registers providers via `pi.registerProvider()`, so models appear in `list_models` output
+- Free tiers change frequently — backend definitions are hardcoded and should be updated when tiers change
+- Quality varies between backends — Gemini 2.5 Flash and Cerebras Qwen 3 235B are the strongest for coding
+- The extension uses `pi.registerProvider()` to register the `cheapskate` provider and `compat.modelId` to map the virtual `auto` model to the backend's actual model ID
+- Each turn start re-registers the provider with the current best backend's URL and API key
+- The tool is also available as a bundled extension in the piclaw monorepo for immediate availability without installing the addons package

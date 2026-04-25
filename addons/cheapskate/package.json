@@ -1,7 +1,7 @@
 {
   "name": "piclaw-addon-cheapskate",
-  "version": "0.1.0",
-  "description": "Free-tier provider rotation — automatically cycle across Google Gemini, Cerebras, Groq, SambaNova, and other free API tiers",
+  "version": "0.2.0",
+  "description": "Free-tier provider auto-rotation — select cheapskate/auto as your model and it transparently routes to Google Gemini, Cerebras, Groq, or SambaNova free tiers",
   "type": "module",
   "main": "index.ts",
   "piclaw": {
@@ -11,7 +11,11 @@
       "providers",
       "free-tier",
       "cost-optimization",
-      "rotation"
+      "rotation",
+      "models"
+    ],
+    "skills": [
+      "skills/cheapskate"
     ]
   },
   "peerDependencies": {
@@ -25,6 +29,9 @@
   "pi": {
     "extensions": [
       "index.ts"
+    ],
+    "skills": [
+      "skills"
     ]
   }
 }

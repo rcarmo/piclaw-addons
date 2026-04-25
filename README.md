@@ -11,6 +11,7 @@ This repository is structured as a **Pi package** and is intended to be compatib
 | Addon | Description | Version |
 |---|---|---|
 | [`autoresearch`](addons/autoresearch/) | Autonomous experiment loop sub-agent | 0.1.0 |
+| [`cheapskate`](addons/cheapskate/) | Free-tier provider auto-rotation (`cheapskate/auto` model) | 0.2.0 |
 | [`code-validator`](addons/code-validator/) | Code validation tools | 0.1.0 |
 | [`delegate`](addons/delegate/) | Task delegation to sub-agents | 0.1.0 |
 | [`dev-tools`](addons/dev-tools/) | Developer utility tools | 0.1.0 |

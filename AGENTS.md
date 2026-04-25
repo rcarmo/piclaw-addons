@@ -320,6 +320,7 @@ pi.on("resources_discover", () => ({
 | Addon | Description | Version |
 |---|---|---|
 | `autoresearch` | Autonomous experiment loop sub-agent | 0.1.0 |
+| `cheapskate` | Free-tier provider auto-rotation (`cheapskate/auto` model) | 0.2.0 |
 | `code-validator` | Code validation tools | 0.1.0 |
 | `delegate` | Task delegation to sub-agents | 0.1.0 |
 | `dev-tools` | Developer utility tools | 0.1.0 |
