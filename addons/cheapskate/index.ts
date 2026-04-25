@@ -6,10 +6,14 @@
  * (Google Gemini, Cerebras, Groq, SambaNova) and rotates on rate-limit errors.
  *
  * The user just picks `cheapskate/auto` from the model selector.
+ *
+ * Settings pane at /cheapskate/ lets users enable/disable individual backends.
  */
 
 import type { ExtensionAPI, ExtensionFactory } from "@mariozechner/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
+import { join, dirname } from "path";
 
 // ── Free-tier backend definitions ────────────────────────────────
 
@@ -79,6 +83,37 @@ const BACKENDS: FreeBackend[] = [
   },
 ];
 
+// ── Persistent config ────────────────────────────────────────────
+
+const CONFIG_PATH = join(process.env.WORKSPACE || "/workspace", ".piclaw", "cheapskate-config.json");
+
+interface CheapskateConfig {
+  enabledBackendIds: string[];
+}
+
+function loadConfig(): CheapskateConfig {
+  try {
+    if (existsSync(CONFIG_PATH)) {
+      const raw = JSON.parse(readFileSync(CONFIG_PATH, "utf-8"));
+      if (Array.isArray(raw.enabledBackendIds)) return raw;
+    }
+  } catch {}
+  // Default: all backends with keys are enabled
+  return { enabledBackendIds: BACKENDS.filter(b => !!process.env[b.apiKeyEnv]).map(b => b.id) };
+}
+
+function saveConfig(config: CheapskateConfig): void {
+  const dir = dirname(CONFIG_PATH);
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+}
+
+let config = loadConfig();
+
+function isBackendEnabled(id: string): boolean {
+  return config.enabledBackendIds.includes(id);
+}
+
 // ── Rate-limit tracking ──────────────────────────────────────────
 
 interface BackendUsage {
@@ -127,7 +162,7 @@ function recordError(id: string): void {
 
 function isAvailable(backend: FreeBackend): boolean {
   if (!process.env[backend.apiKeyEnv]) return false;
-  // Cloudflare also requires CLOUDFLARE_ACCOUNT_ID
+  if (!isBackendEnabled(backend.id)) return false;
   if (backend.id === "cloudflare" && !process.env.CLOUDFLARE_ACCOUNT_ID) return false;
   const u = getUsage(backend.id);
   const now = Date.now();
@@ -151,7 +186,7 @@ function resolveBaseUrl(backend: FreeBackend): string {
 }
 
 function getConfiguredBackends(): FreeBackend[] {
-  return BACKENDS.filter((b) => !!process.env[b.apiKeyEnv]);
+  return BACKENDS.filter((b) => !!process.env[b.apiKeyEnv] && isBackendEnabled(b.id));
 }
 
 function getAvailableBackends(): FreeBackend[] {
@@ -161,7 +196,6 @@ function getAvailableBackends(): FreeBackend[] {
 function selectBestBackend(): FreeBackend | null {
   const available = getAvailableBackends();
   if (available.length === 0) return null;
-  // Prefer: least recently used, then largest context window
   available.sort((a, b) => {
     const ua = getUsage(a.id), ub = getUsage(b.id);
     if (ua.lastUsed !== ub.lastUsed) return ua.lastUsed - ub.lastUsed;
@@ -193,8 +227,8 @@ function rotateBackend(): FreeBackend | null {
 // ── Provider registration ────────────────────────────────────────
 
 function buildModelName(backend: FreeBackend | null, configured: FreeBackend[]): string {
-  if (!backend) return `Free Auto-Router (${configured.length} backends, $0)`;
-  return `Free → ${backend.name} / ${backend.modelName} · $0`;
+  if (!backend) return `Auto (${configured.length} backends)`;
+  return `${backend.name} → ${backend.modelName}`;
 }
 
 function registerCheapskateProvider(pi: ExtensionAPI): boolean {
@@ -249,10 +283,106 @@ function reRegisterWithBackend(pi: ExtensionAPI, backend: FreeBackend): void {
   });
 }
 
+// ── Settings page HTML ───────────────────────────────────────────
+
+function getSettingsPageHtml(): string {
+  return readFileSync(join(dirname(new URL(import.meta.url).pathname), "settings.html"), "utf-8");
+}
+
+// ── Settings API ─────────────────────────────────────────────────
+
+function buildConfigResponse() {
+  const backends = BACKENDS.map(b => {
+    const u = getUsage(b.id);
+    const hasKey = !!process.env[b.apiKeyEnv];
+    return {
+      id: b.id,
+      name: b.name,
+      model: b.modelName,
+      apiKeyEnv: b.apiKeyEnv,
+      hasKey,
+      enabled: hasKey && isBackendEnabled(b.id),
+      active: b.id === currentBackendId,
+      available: isAvailable(b),
+      cooldownSeconds: u.cooldownUntil > Date.now() ? Math.ceil((u.cooldownUntil - Date.now()) / 1000) : 0,
+      rpm: b.requestsPerMinute,
+      tpm: b.tokensPerMinute,
+      tpd: b.tokensPerDay,
+      contextWindow: b.contextWindow,
+      maxTokens: b.maxTokens,
+      reasoning: b.reasoning,
+    };
+  });
+  return { backends, currentBackendId };
+}
+
+// ── Web route handler ────────────────────────────────────────────
+
+function handleRoute(req: Request, relativePath: string): Response | null {
+  const url = new URL(req.url, "http://localhost");
+  const path = relativePath.replace(/^\/+/, "");
+
+  // Settings page
+  if (path === "" || path === "settings" || path === "settings.html") {
+    try {
+      return new Response(getSettingsPageHtml(), {
+        headers: { "Content-Type": "text/html; charset=utf-8" },
+      });
+    } catch {
+      return new Response("Settings page not found", { status: 404 });
+    }
+  }
+
+  // Config API - GET
+  if (path === "api/config" && req.method === "GET") {
+    return new Response(JSON.stringify(buildConfigResponse()), {
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  // Config API - POST
+  if (path === "api/config" && req.method === "POST") {
+    return (async () => {
+      try {
+        const body = await req.json() as { enabledBackendIds?: string[] };
+        if (!Array.isArray(body.enabledBackendIds)) {
+          return new Response(JSON.stringify({ error: "enabledBackendIds must be an array" }), {
+            status: 400,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+        const validIds = new Set(BACKENDS.map(b => b.id));
+        config.enabledBackendIds = body.enabledBackendIds.filter(id => validIds.has(id));
+        saveConfig(config);
+        return new Response(JSON.stringify({ ok: true, ...buildConfigResponse() }), {
+          headers: { "Content-Type": "application/json" },
+        });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: String(err) }), {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+    })() as any;
+  }
+
+  return null;
+}
+
 // ── Extension ────────────────────────────────────────────────────
 
 const cheapskate: ExtensionFactory = (pi: ExtensionAPI) => {
-  if (!registerCheapskateProvider(pi)) return;
+  if (!registerCheapskateProvider(pi)) {
+    // Still register the route even without backends so the settings page is accessible
+  }
+
+  // Register web route for settings UI
+  const registerRoute = (globalThis as any).__piclaw_registerRoute as
+    ((prefix: string, handler: (req: Request, relativePath: string) => Response | null, extensionPath?: string) => "created" | "updated") | undefined;
+
+  if (typeof registerRoute === "function") {
+    registerRoute("/cheapskate", handleRoute, dirname(new URL(import.meta.url).pathname));
+  }
 
   // Before each turn: ensure we're pointing at the best available backend
   pi.on("before_agent_start", async (event) => {
@@ -277,18 +407,22 @@ const cheapskate: ExtensionFactory = (pi: ExtensionAPI) => {
     const isCheapskate = model?.provider === "cheapskate";
     if (!isCheapskate) return;
 
-    // Check for rate-limit or error indicators
     const errorText = typeof (event as any).error === "string" ? (event as any).error : "";
     const isRateLimit = /429|rate.limit|too many requests|quota|resource.*exhausted/i.test(errorText);
+    const isContextError = /context(?:\ window|\ length)?|maximum context length|context_length|token limit|too many tokens|prompt too long|reduce (?:the )?length|overflow|request too large/i.test(errorText);
+    const shouldRotate = isRateLimit || isContextError;
 
-    if (isRateLimit && currentBackendId) {
+    if (shouldRotate && currentBackendId) {
+      const reason = isContextError ? "context limit" : "rate limit";
+      const prev = currentBackendId;
       const next = rotateBackend();
       if (next) {
         reRegisterWithBackend(pi, next);
-        console.log(`[cheapskate] Rotated from ${currentBackendId} to ${next.id} (${next.name})`);
+        console.log(`[cheapskate] Rotated from ${prev} to ${next.id} (${next.name}) due to ${reason}`);
+      } else {
+        console.log(`[cheapskate] No alternative backend available after ${reason} on ${prev}`);
       }
     } else if (currentBackendId) {
-      // Estimate tokens from response for tracking
       const usage = (event as any).usage;
       const totalTokens = (typeof usage?.totalTokens === "number" ? usage.totalTokens : 0);
       recordSuccess(currentBackendId, totalTokens);
@@ -317,12 +451,12 @@ const cheapskate: ExtensionFactory = (pi: ExtensionAPI) => {
           const u = getUsage(b.id);
           return {
             id: b.id, name: b.name, model: b.modelName,
-            configured: hasKey, available: avail, active: b.id === currentBackendId,
+            configured: hasKey, enabled: isBackendEnabled(b.id), available: avail, active: b.id === currentBackendId,
             limits: { rpm: b.requestsPerMinute, tpm: b.tokensPerMinute, tpd: b.tokensPerDay },
             cooldown_seconds: u.cooldownUntil > Date.now() ? Math.ceil((u.cooldownUntil - Date.now()) / 1000) : 0,
           };
         });
-        const configured = entries.filter((e) => e.configured);
+        const configured = entries.filter((e) => e.configured && e.enabled);
         const text = configured.length > 0
           ? `${configured.length} free-tier backend(s):\n${configured.map((e) => `- ${e.name} / ${e.model}: ${e.active ? "🟢 active" : e.available ? "✅ available" : "⏳ rate-limited"}`).join("\n")}`
           : "No free-tier backends configured. Set API key env vars to enable.";
@@ -366,7 +500,7 @@ const cheapskate: ExtensionFactory = (pi: ExtensionAPI) => {
       return {
         content: [{
           type: "text",
-          text: `Cheapskate: ${configured.length} backend(s) configured, ${available.length} available.${current ? ` Active: ${current.name} / ${current.modelName}.` : ""}`,
+          text: `Cheapskate: ${configured.length} backend(s) configured, ${available.length} available.${current ? ` Active: ${current.name} / ${current.modelName}.` : ""}\nSettings: /cheapskate/`,
         }],
         details: { configured: configured.length, available: available.length, active: current?.id ?? null },
       };
