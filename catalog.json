@@ -125,7 +125,7 @@
     {
       "slug": "eml-viewer",
       "name": "piclaw-addon-eml-viewer",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "type": "extension",
       "description": "Attachment preview route for email message (.eml) files in the web timeline",
       "path": "addons/eml-viewer",
@@ -137,8 +137,8 @@
       "skills": [],
       "install": {
         "kind": "npm",
-        "spec": "piclaw-addon-eml-viewer@0.2.0",
-        "piSource": "npm:piclaw-addon-eml-viewer@0.2.0"
+        "spec": "piclaw-addon-eml-viewer@0.2.1",
+        "piSource": "npm:piclaw-addon-eml-viewer@0.2.1"
       }
     },
     {
