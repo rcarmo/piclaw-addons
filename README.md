@@ -18,8 +18,8 @@ This repository is structured as a **Pi package** and is intended to be compatib
 | [`drawio-editor`](addons/drawio-editor/) | draw.io diagram editor widget | 0.1.0 |
 | [`eml-viewer`](addons/eml-viewer/) | Email (.eml) file viewer | 0.1.0 |
 | [`kanban-board-widget`](addons/kanban-board-widget/) | Kanban board timeline widget | 0.1.0 |
-| [`portainer`](addons/portainer/) | Portainer container management tool | 0.1.1 |
-| [`proxmox`](addons/proxmox/) | Proxmox VE infrastructure management tool | 0.1.2 |
+| [`portainer`](addons/portainer/) | Portainer container management tool | 0.1.2 |
+| [`proxmox`](addons/proxmox/) | Proxmox VE infrastructure management tool | 0.1.3 |
 
 ## What this repo provides
 
@@ -27,7 +27,7 @@ This repository is structured as a **Pi package** and is intended to be compatib
 - **Pi package manifest**: root `package.json` with `keywords: ["pi-package"]` and `pi.*` entries
 - **Addon manifests**: each `addons/<slug>/package.json` is also Pi-package-shaped
 - **Catalog**: `catalog.json` for the piclaw web settings UI
-- **Shared compat layer**: `lib/compat/` — standalone shims for keychain, logging, KV storage, etc.
+- **Shared compat layer**: `lib/compat/` — standalone shims for keychain, logging, KV storage, etc. (repo-level reference code; individually published add-ons still need their own self-contained copies)
 
 ## Layout
 

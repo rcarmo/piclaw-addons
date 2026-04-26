@@ -39,6 +39,9 @@ piclaw-addons/
 
 ## How to add a new addon
 
+> **Important:** standalone add-on packages must be self-contained.
+> If an add-on is published as its own npm package (for example `piclaw-addon-portainer`), it must not rely on repo-root files outside its package directory at runtime. Do not import `../../lib/compat/*` from a published standalone package unless those files are vendored into that package.
+
 ### 1. Create the directory
 
 ```

@@ -164,7 +164,7 @@
     {
       "slug": "portainer",
       "name": "piclaw-addon-portainer",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "type": "extension",
       "description": "Portainer management tool — session-scoped API config, ad-hoc requests, and endpoint/stack/container/image/network/volume workflows",
       "path": "addons/portainer",
@@ -177,14 +177,14 @@
       "skills": [],
       "install": {
         "kind": "npm",
-        "spec": "piclaw-addon-portainer@0.1.1",
-        "piSource": "npm:piclaw-addon-portainer@0.1.1"
+        "spec": "piclaw-addon-portainer@0.1.2",
+        "piSource": "npm:piclaw-addon-portainer@0.1.2"
       }
     },
     {
       "slug": "proxmox",
       "name": "piclaw-addon-proxmox",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "type": "extension",
       "description": "Proxmox VE management tool — session-scoped API config, ad-hoc requests, and VM/LXC/storage/task/metrics workflows",
       "path": "addons/proxmox",
@@ -197,8 +197,8 @@
       "skills": [],
       "install": {
         "kind": "npm",
-        "spec": "piclaw-addon-proxmox@0.1.2",
-        "piSource": "npm:piclaw-addon-proxmox@0.1.2"
+        "spec": "piclaw-addon-proxmox@0.1.3",
+        "piSource": "npm:piclaw-addon-proxmox@0.1.3"
       }
     },
     {

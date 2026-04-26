@@ -1,6 +1,6 @@
 {
   "name": "piclaw-addon-proxmox",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Proxmox VE management tool — session-scoped API config, ad-hoc requests, and VM/LXC/storage/task/metrics workflows",
   "type": "module",
   "main": "index.ts",
