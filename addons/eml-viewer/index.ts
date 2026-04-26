@@ -42,89 +42,29 @@ function buildViewerHtml(): string {
 
       * { box-sizing: border-box; }
       html, body { margin: 0; padding: 0; height: 100%; background: var(--bg); color: var(--text); font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-      body { display: flex; flex-direction: column; }
-      .shell { min-height: 100%; display: flex; flex-direction: column; }
-      .header {
-        position: sticky;
-        top: 0;
-        z-index: 2;
+      body { overflow: auto; }
+      .shell { padding: 16px 20px; }
+      .meta-row {
         display: flex;
-        flex-direction: column;
-        gap: 10px;
-        padding: 18px 22px;
-        background: linear-gradient(180deg, rgba(8, 15, 32, 0.98), rgba(8, 15, 32, 0.92));
-        border-bottom: 1px solid var(--border);
-        box-shadow: var(--shadow);
-        backdrop-filter: blur(16px);
-      }
-      .header-row {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 16px;
-      }
-      .badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        padding: 6px 10px;
-        border-radius: 999px;
-        border: 1px solid rgba(125, 211, 252, 0.22);
-        background: rgba(14, 165, 233, 0.14);
-        color: var(--accent);
-        font-size: 12px;
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
-      }
-      .title {
-        margin: 0;
-        font-size: 20px;
-        font-weight: 700;
-        line-height: 1.35;
-        word-break: break-word;
-      }
-      .subtitle {
-        color: var(--muted);
+        flex-wrap: wrap;
+        gap: 4px 16px;
+        margin-bottom: 12px;
         font-size: 13px;
-        word-break: break-all;
-      }
-      .meta-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-        gap: 12px;
-      }
-      .meta-card {
-        border: 1px solid var(--border);
-        border-radius: 14px;
-        padding: 12px 14px;
-        background: var(--surface-2);
-        min-width: 0;
+        line-height: 1.45;
       }
       .meta-label {
-        display: block;
-        margin-bottom: 4px;
         color: var(--muted);
-        font-size: 11px;
-        letter-spacing: 0.05em;
-        text-transform: uppercase;
+        font-weight: 600;
+        flex-shrink: 0;
       }
       .meta-value {
-        font-size: 14px;
-        line-height: 1.45;
         word-break: break-word;
+        min-width: 0;
       }
-      .body {
-        flex: 1;
-        min-height: 0;
-        padding: 18px;
-      }
-      .body-card {
-        min-height: 100%;
-        border: 1px solid var(--border);
-        border-radius: 18px;
-        background: rgba(255, 255, 255, 0.02);
-        box-shadow: var(--shadow);
-        overflow: hidden;
+      .divider {
+        border: none;
+        border-top: 1px solid var(--border);
+        margin: 12px 0;
       }
       .state {
         min-height: 320px;
@@ -148,7 +88,7 @@ function buildViewerHtml(): string {
       @keyframes spin { to { transform: rotate(360deg); } }
       .plain {
         margin: 0;
-        padding: 22px;
+        padding: 0;
         white-space: pre-wrap;
         word-break: break-word;
         line-height: 1.6;
@@ -162,39 +102,27 @@ function buildViewerHtml(): string {
         background: white;
       }
       .warning {
-        padding: 12px 16px;
-        border-bottom: 1px solid var(--border);
+        padding: 8px 12px;
+        margin-bottom: 8px;
+        border-radius: 6px;
         background: rgba(14, 165, 233, 0.08);
         color: var(--muted);
-        font-size: 13px;
+        font-size: 12px;
       }
       a { color: var(--accent); }
       @media (max-width: 720px) {
-        .header { padding: 16px; }
-        .body { padding: 14px; }
-        .title { font-size: 18px; }
-        .meta-grid { grid-template-columns: 1fr; }
+        .shell { padding: 12px; }
       }
     </style>
   </head>
   <body>
     <div class="shell">
-      <div class="header">
-        <div class="header-row">
-          <div>
-            <div class="badge">Email attachment</div>
-            <h1 id="subject" class="title">Email preview</h1>
-            <div id="filename" class="subtitle"></div>
-          </div>
-        </div>
-        <div id="meta" class="meta-grid"></div>
-      </div>
-      <div class="body">
-        <div class="body-card" id="content">
-          <div class="state">
-            <div class="spinner" aria-hidden="true"></div>
-            <div>Loading email…</div>
-          </div>
+      <div id="meta"></div>
+      <hr class="divider">
+      <div id="content">
+        <div class="state">
+          <div class="spinner" aria-hidden="true"></div>
+          <div>Loading email…</div>
         </div>
       </div>
     </div>
@@ -203,12 +131,9 @@ function buildViewerHtml(): string {
       const mediaId = params.get('media');
       const filename = params.get('name') || (mediaId ? ('attachment-' + mediaId + '.eml') : 'email.eml');
 
-      const subjectEl = document.getElementById('subject');
-      const filenameEl = document.getElementById('filename');
       const metaEl = document.getElementById('meta');
       const contentEl = document.getElementById('content');
 
-      filenameEl.textContent = filename;
       document.title = filename + ' — Email preview';
 
       function escapeHtml(value) {
@@ -394,13 +319,14 @@ function buildViewerHtml(): string {
 
       function renderMeta(headers) {
         const entries = [
-          ['From', headers.from || '—'],
-          ['To', headers.to || '—'],
-          ['Cc', headers.cc || '—'],
-          ['Date', headers.date || '—'],
-        ];
+          ['From', headers.from],
+          ['To', headers.to],
+          ['Cc', headers.cc],
+          ['Date', headers.date],
+          ['Subject', headers.subject],
+        ].filter(function (e) { return e[1] && e[1] !== '—'; });
         metaEl.innerHTML = entries.map(function (entry) {
-          return '<div class="meta-card"><span class="meta-label">' + escapeHtml(entry[0]) + '</span><div class="meta-value">' + escapeHtml(entry[1]) + '</div></div>';
+          return '<div class="meta-row"><span class="meta-label">' + escapeHtml(entry[0]) + ':</span> <span class="meta-value">' + escapeHtml(entry[1]) + '</span></div>';
         }).join('');
       }
 
@@ -433,7 +359,6 @@ function buildViewerHtml(): string {
           const display = chooseDisplayEntity(root);
           const headers = root.headers || {};
           const subject = headers.subject || '(no subject)';
-          subjectEl.textContent = subject;
           document.title = subject + ' — ' + filename;
           renderMeta(headers);
           if (display && display.contentType === 'text/html') {
