@@ -35,7 +35,9 @@ function buildViewerHtml(): string {
       .hdr b { color: #c9d1d9; font-weight: 600; }
       hr { border: none; border-top: 1px solid rgba(139,148,158,0.2); margin: 10px 0; }
       .body { white-space: pre-wrap; word-break: break-word; }
-      .html-frame { width: 100%; border: 0; min-height: 60vh; background: #fff; margin-top: 4px; }
+      .html-body { line-height: 1.5; word-break: break-word; }
+      .html-body img, .html-body table { max-width: 100%; }
+      .html-body pre { white-space: pre-wrap; word-break: break-word; }
       .err { color: #f85149; padding: 20px 0; }
     </style>
   </head>
@@ -193,17 +195,44 @@ function buildViewerHtml(): string {
 
         if (contentType.type.startsWith('multipart/') && contentType.params.boundary) {
           const parts = splitMultipartBody(split.body, contentType.params.boundary)
-            .map(part => parseMimeEntity(part, level + 1))
-            .filter(part => !isAttachmentPart(part.headers || {}, parseContentType(part.headers?.['content-type']).params || {}));
-          return { headers, contentType: contentType.type, body: '', parts };
+            .map(part => parseMimeEntity(part, level + 1));
+          return { headers, contentType: contentType.type, body: '', rawBody: null, parts };
         }
 
+        const rawBody = split.body;
+        const decodedBody = decodeTransferEncodedBody(rawBody, transferEncoding, contentType.params.charset);
         return {
           headers,
           contentType: contentType.type,
-          body: decodeTransferEncodedBody(split.body, transferEncoding, contentType.params.charset),
+          body: decodedBody,
+          rawBody: (String(transferEncoding || '').trim().toLowerCase() === 'base64') ? String(rawBody || '').replace(/\s+/g, '') : null,
           parts: [],
         };
+      }
+
+      function collectInlineImages(entity, map) {
+        if (!entity) return map;
+        if (Array.isArray(entity.parts) && entity.parts.length > 0) {
+          for (const part of entity.parts) collectInlineImages(part, map);
+          return map;
+        }
+        if (!entity.contentType || !entity.contentType.startsWith('image/')) return map;
+        const cid = String(entity.headers?.['content-id'] || '').replace(/^<|>$/g, '').trim();
+        if (!cid) return map;
+        const ct = parseContentType(entity.headers?.['content-type']);
+        const mimeType = ct.type || 'image/png';
+        if (entity.rawBody) {
+          map[cid] = 'data:' + mimeType + ';base64,' + entity.rawBody;
+        }
+        return map;
+      }
+
+      function replaceCidReferences(html, cidMap) {
+        if (!html || !cidMap) return html;
+        return String(html).replace(/(["'])cid:([^"'\s]+)(["'])/gi, function(match, q1, cid, q2) {
+          const dataUri = cidMap[cid];
+          return dataUri ? (q1 + dataUri + q2) : match;
+        });
       }
 
       function chooseDisplayEntity(root) {
@@ -242,7 +271,7 @@ function buildViewerHtml(): string {
       }
 
       function renderHtml(body) {
-        return '<iframe class="html-frame" sandbox="" referrerpolicy="no-referrer"></iframe>';
+        return '<div class="html-body">' + sanitizeHtmlBody(body || '') + '</div>';
       }
 
       function renderError(message) {
@@ -263,11 +292,11 @@ function buildViewerHtml(): string {
           const headers = root.headers || {};
           const subject = headers.subject || '(no subject)';
           document.title = subject + ' — ' + filename;
+          const cidMap = collectInlineImages(root, {});
           const meta = renderMeta(headers);
           if (display && display.contentType === 'text/html') {
-            out.innerHTML = meta + '\n<hr>' + renderHtml(display.body || '');
-            const frame = out.querySelector('iframe');
-            if (frame) { frame.setAttribute('sandbox', ''); frame.srcdoc = buildSandboxedHtmlDocument(display.body || ''); }
+            const htmlWithImages = replaceCidReferences(display.body || '', cidMap);
+            out.innerHTML = meta + '\n<hr>' + renderHtml(htmlWithImages);
             return;
           }
           const text = display && typeof display.body === 'string' ? display.body : raw;
