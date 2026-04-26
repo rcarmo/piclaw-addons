@@ -27,114 +27,28 @@ function buildViewerHtml(): string {
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Email preview</title>
     <style>
-      :root {
-        color-scheme: dark;
-        --bg: #0b1020;
-        --surface: rgba(15, 23, 42, 0.92);
-        --surface-2: rgba(15, 23, 42, 0.72);
-        --border: rgba(148, 163, 184, 0.22);
-        --text: #e5eefc;
-        --muted: #9fb0cf;
-        --accent: #7dd3fc;
-        --accent-2: #38bdf8;
-        --shadow: 0 18px 40px rgba(2, 8, 23, 0.34);
-      }
-
-      * { box-sizing: border-box; }
-      html, body { margin: 0; padding: 0; height: 100%; background: var(--bg); color: var(--text); font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-      body { overflow: auto; }
-      .shell { padding: 16px 20px; }
-      .meta-row {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 4px 16px;
-        margin-bottom: 12px;
-        font-size: 13px;
-        line-height: 1.45;
-      }
-      .meta-label {
-        color: var(--muted);
-        font-weight: 600;
-        flex-shrink: 0;
-      }
-      .meta-value {
-        word-break: break-word;
-        min-width: 0;
-      }
-      .divider {
-        border: none;
-        border-top: 1px solid var(--border);
-        margin: 12px 0;
-      }
-      .state {
-        min-height: 320px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        flex-direction: column;
-        gap: 12px;
-        padding: 28px;
-        text-align: center;
-        color: var(--muted);
-      }
-      .spinner {
-        width: 28px;
-        height: 28px;
-        border-radius: 50%;
-        border: 3px solid rgba(148, 163, 184, 0.18);
-        border-top-color: var(--accent-2);
-        animation: spin 0.9s linear infinite;
-      }
-      @keyframes spin { to { transform: rotate(360deg); } }
-      .plain {
-        margin: 0;
-        padding: 0;
-        white-space: pre-wrap;
-        word-break: break-word;
-        line-height: 1.6;
-        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-        font-size: 13px;
-      }
-      .html-frame {
-        width: 100%;
-        min-height: 65vh;
-        border: 0;
-        background: white;
-      }
-      .warning {
-        padding: 8px 12px;
-        margin-bottom: 8px;
-        border-radius: 6px;
-        background: rgba(14, 165, 233, 0.08);
-        color: var(--muted);
-        font-size: 12px;
-      }
-      a { color: var(--accent); }
-      @media (max-width: 720px) {
-        .shell { padding: 12px; }
-      }
+      :root { color-scheme: dark; }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      html, body { height: 100%; background: #0d1117; color: #c9d1d9; font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+      body { padding: 14px 18px; overflow: auto; }
+      .hdr { color: #8b949e; }
+      .hdr b { color: #c9d1d9; font-weight: 600; }
+      hr { border: none; border-top: 1px solid rgba(139,148,158,0.2); margin: 10px 0; }
+      .body { white-space: pre-wrap; word-break: break-word; }
+      .html-frame { width: 100%; border: 0; min-height: 60vh; background: #fff; margin-top: 4px; }
+      .err { color: #f85149; padding: 20px 0; }
     </style>
   </head>
   <body>
-    <div class="shell">
-      <div id="meta"></div>
-      <hr class="divider">
-      <div id="content">
-        <div class="state">
-          <div class="spinner" aria-hidden="true"></div>
-          <div>Loading email…</div>
-        </div>
-      </div>
-    </div>
+    <div id="out">Loading…</div>
     <script>
       const params = new URLSearchParams(window.location.search);
       const mediaId = params.get('media');
       const filename = params.get('name') || (mediaId ? ('attachment-' + mediaId + '.eml') : 'email.eml');
 
-      const metaEl = document.getElementById('meta');
-      const contentEl = document.getElementById('content');
+      const out = document.getElementById('out');
 
-      document.title = filename + ' — Email preview';
+      document.title = filename + ' — Email';
 
       function escapeHtml(value) {
         return String(value == null ? '' : value)
@@ -318,37 +232,26 @@ function buildViewerHtml(): string {
       }
 
       function renderMeta(headers) {
-        const entries = [
-          ['From', headers.from],
-          ['To', headers.to],
-          ['Cc', headers.cc],
-          ['Date', headers.date],
-          ['Subject', headers.subject],
-        ].filter(function (e) { return e[1] && e[1] !== '—'; });
-        metaEl.innerHTML = entries.map(function (entry) {
-          return '<div class="meta-row"><span class="meta-label">' + escapeHtml(entry[0]) + ':</span> <span class="meta-value">' + escapeHtml(entry[1]) + '</span></div>';
-        }).join('');
+        return ['from','to','cc','date','subject'].filter(function(k){return headers[k];}).map(function(k){
+          return '<span class="hdr">' + k.charAt(0).toUpperCase() + k.slice(1) + ':</span> <b>' + escapeHtml(headers[k]) + '</b>';
+        }).join('\n');
       }
 
       function renderPlain(body) {
-        contentEl.innerHTML = '<pre class="plain">' + escapeHtml(body || '') + '</pre>';
+        return '<div class="body">' + escapeHtml(body || '') + '</div>';
       }
 
       function renderHtml(body) {
-        contentEl.innerHTML = '<div class="warning">HTML email is rendered in a sandboxed nested frame with scripts and network access disabled.</div><iframe class="html-frame" referrerpolicy="no-referrer"></iframe>';
-        const frame = contentEl.querySelector('iframe');
-        if (!frame) return;
-        frame.setAttribute('sandbox', '');
-        frame.srcdoc = buildSandboxedHtmlDocument(body || '');
+        return '<iframe class="html-frame" sandbox="" referrerpolicy="no-referrer"></iframe>';
       }
 
       function renderError(message) {
-        contentEl.innerHTML = '<div class="state"><strong>Could not load email preview</strong><div>' + escapeHtml(message || 'Unknown error') + '</div></div>';
+        return '<div class="err">' + escapeHtml(message || 'Unknown error') + '</div>';
       }
 
       async function load() {
         if (!mediaId || !/^\d+$/.test(mediaId)) {
-          renderError('Missing or invalid media id.');
+          out.innerHTML = renderError('Missing or invalid media id.');
           return;
         }
         try {
@@ -360,14 +263,17 @@ function buildViewerHtml(): string {
           const headers = root.headers || {};
           const subject = headers.subject || '(no subject)';
           document.title = subject + ' — ' + filename;
-          renderMeta(headers);
+          const meta = renderMeta(headers);
           if (display && display.contentType === 'text/html') {
-            renderHtml(display.body || '');
+            out.innerHTML = meta + '\n<hr>' + renderHtml(display.body || '');
+            const frame = out.querySelector('iframe');
+            if (frame) { frame.setAttribute('sandbox', ''); frame.srcdoc = buildSandboxedHtmlDocument(display.body || ''); }
             return;
           }
-          renderPlain(display && typeof display.body === 'string' ? display.body : raw);
+          const text = display && typeof display.body === 'string' ? display.body : raw;
+          out.innerHTML = meta + '\n<hr>\n' + renderPlain(text);
         } catch (error) {
-          renderError(error && error.message ? error.message : String(error || 'Unknown error'));
+          out.innerHTML = renderError(error && error.message ? error.message : String(error || 'Unknown error'));
         }
       }
 
