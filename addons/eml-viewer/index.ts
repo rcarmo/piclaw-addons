@@ -29,11 +29,11 @@ function buildViewerHtml(): string {
     <style>
       :root { color-scheme: dark; }
       * { box-sizing: border-box; margin: 0; padding: 0; }
-      html, body { height: 100%; background: #0d1117; color: #c9d1d9; font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+      html, body { height: 100%; background: #0d1117; color: #c9d1d9; font: 14px/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
       body { padding: 14px 18px; overflow: auto; }
-      .hdr { color: #8b949e; }
-      .hdr b { color: #c9d1d9; font-weight: 600; }
-      hr { border: none; border-top: 1px solid rgba(139,148,158,0.2); margin: 10px 0; }
+      .eml-headers { font: 12px/1.8 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: #8b949e; }
+      .eml-headers b { color: #c9d1d9; font-weight: 600; }
+      hr { border: none; border-top: 1px solid rgba(139,148,158,0.2); margin: 12px 0; }
       .body { white-space: pre-wrap; word-break: break-word; }
       .html-body { line-height: 1.5; word-break: break-word; }
       .html-body img, .html-body table { max-width: 100%; }
@@ -261,9 +261,10 @@ function buildViewerHtml(): string {
       }
 
       function renderMeta(headers) {
-        return ['from','to','cc','date','subject'].filter(function(k){return headers[k];}).map(function(k){
-          return '<span class="hdr">' + k.charAt(0).toUpperCase() + k.slice(1) + ':</span> <b>' + escapeHtml(headers[k]) + '</b>';
-        }).join('\n');
+        var lines = ['from','to','cc','date','subject'].filter(function(k){return headers[k];}).map(function(k){
+          return k.charAt(0).toUpperCase() + k.slice(1) + ': <b>' + escapeHtml(headers[k]) + '</b>';
+        }).join('<br>');
+        return '<div class="eml-headers">' + lines + '</div>';
       }
 
       function renderPlain(body) {
