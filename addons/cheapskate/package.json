@@ -32,6 +32,11 @@
     ],
     "skills": [
       "skills"
-    ]
+    ],
+    "web": {
+      "entries": [
+        "web/index.ts"
+      ]
+    }
   }
 }
