@@ -5,7 +5,7 @@
     {
       "slug": "ast-grep-tool",
       "name": "@rcarmo/piclaw-addon-ast-grep",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "type": "extension",
       "description": "Structural code search and rewrite using ast-grep as a native LLM tool",
       "path": "addons/ast-grep-tool",
@@ -17,9 +17,9 @@
       "skills": [],
       "install": {
         "kind": "npm",
-        "spec": "@rcarmo/piclaw-addon-ast-grep@0.1.0",
+        "spec": "@rcarmo/piclaw-addon-ast-grep@0.1.1",
         "registry": "https://npm.pkg.github.com",
-        "piSource": "npm:@rcarmo/piclaw-addon-ast-grep@0.1.0"
+        "piSource": "npm:@rcarmo/piclaw-addon-ast-grep@0.1.1"
       },
       "updatedAt": "2026-04-27",
       "owner": {
