@@ -1,0 +1,110 @@
+name: Triage issue → tag addon owner
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Match issue to addon and notify owner
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs   = require('fs');
+            const title = context.payload.issue.title  ?? '';
+            const body  = context.payload.issue.body   ?? '';
+            const text  = (title + ' ' + body).toLowerCase();
+            const issueNumber = context.payload.issue.number;
+            const issueAuthor = context.payload.issue.user.login;
+
+            // Load catalog
+            const catalog = JSON.parse(fs.readFileSync('catalog.json', 'utf8'));
+
+            // ── Fuzzy ranked scoring ──────────────────────────────────────────
+            // Score = weighted term overlap between issue text and addon tokens.
+            // Weights: slug exact match >> slug tokens > description tokens > tags.
+            function tokenize(s) {
+              return (s ?? '').toLowerCase()
+                .replace(/[^a-z0-9]+/g, ' ')
+                .split(' ')
+                .filter(Boolean);
+            }
+
+            function score(addon) {
+              const slugTokens = tokenize(addon.slug);
+              const descTokens = tokenize(addon.description);
+              const tagTokens  = addon.tags.flatMap(tokenize);
+
+              let s = 0;
+
+              // Exact slug in text is a strong signal
+              if (text.includes(addon.slug)) s += 50;
+
+              // Token hits
+              for (const t of slugTokens) if (text.includes(t) && t.length > 2) s += 10;
+              for (const t of descTokens) if (text.includes(t) && t.length > 3) s += 2;
+              for (const t of tagTokens)  if (text.includes(t) && t.length > 2) s += 3;
+
+              return s;
+            }
+
+            const ranked = catalog.addons
+              .map(a => ({ addon: a, score: score(a) }))
+              .filter(x => x.score > 0)
+              .sort((a, b) => b.score - a.score);
+
+            const THRESHOLD = 10;  // minimum confidence score to act
+            const top = ranked[0];
+
+            if (!top || top.score < THRESHOLD) {
+              console.log('No confident match found (best:', top?.addon.slug, top?.score ?? 0, ')');
+              return;
+            }
+
+            const addon = top.addon;
+            const owner = addon.owner?.login;
+
+            if (!owner) {
+              console.log('Matched', addon.slug, 'but no owner set');
+              return;
+            }
+
+            // Don't ping the owner if they filed the issue themselves
+            const mention = owner !== issueAuthor ? `@${owner}` : `${owner} (you filed this)`;
+
+            const candidates = ranked
+              .slice(0, 3)
+              .map(x => `\`${x.addon.slug}\` (score: ${x.score})`)
+              .join(', ');
+
+            const comment = [
+              `👋 This issue looks like it may be related to the **\`${addon.slug}\`** add-on.`,
+              ``,
+              `Notifying the add-on owner: ${mention}`,
+              ``,
+              `<details>`,
+              `<summary>Matching details</summary>`,
+              ``,
+              `Top candidates: ${candidates}`,
+              ``,
+              `> If this is filed against the wrong add-on, please update the title/description`,
+              `> or mention the correct add-on name.`,
+              `</details>`,
+            ].join('\n');
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo:  context.repo.repo,
+              issue_number: issueNumber,
+              body: comment,
+            });
+
+            console.log(`Commented on issue #${issueNumber}: matched ${addon.slug} (score ${top.score}), notified @${owner}`);
