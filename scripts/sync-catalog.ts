@@ -71,7 +71,7 @@ const checkMode = process.argv.includes('--check');
 
 async function gitLastCommitDate(relPath: string): Promise<string | undefined> {
   try {
-    const proc = Bun.spawn(['git', 'log', '-1', '--format=%cI', '--', relPath], {
+    const proc = Bun.spawn(['git', 'log', '-1', '--format=%cs', '--', relPath], {
       cwd: repoRoot, stdout: 'pipe', stderr: 'pipe',
     });
     const text = (await new Response(proc.stdout).text()).trim();
@@ -204,7 +204,7 @@ async function buildMetadata() {
       skills: dedupeSorted(addonSkillNames),
       install: {
         kind: 'tarball',
-        spec: `https://rcarmo.github.io/piclaw-addons/packages/${pkg.name}-${pkg.version}.tgz`,
+        spec: `https://rcarmo.github.io/piclaw-addons/packages/${pkg.name.replace(/^@[^/]+\//, '')}-${pkg.version}.tgz`,
       },
       ...(updatedAt              ? { updatedAt }              : {}),
       ...(prev.owner             ? { owner:        prev.owner }        : {}),
