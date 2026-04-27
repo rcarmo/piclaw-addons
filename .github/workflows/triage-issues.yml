@@ -108,3 +108,40 @@ jobs:
             });
 
             console.log(`Commented on issue #${issueNumber}: matched ${addon.slug} (score ${top.score}), notified @${owner}`);
+
+            // ── Apply addon label ─────────────────────────────────────────────
+            const labelName = `addon:${addon.slug}`;
+
+            // Create label if it doesn't exist yet
+            try {
+              await github.rest.issues.getLabel({
+                owner: context.repo.owner,
+                repo:  context.repo.repo,
+                name:  labelName,
+              });
+            } catch (e) {
+              if (e.status === 404) {
+                // Pick a deterministic colour from the slug
+                const colours = ['0075ca','e4e669','d93f0b','0e8a16','5319e7','b60205','1d76db','cc317c'];
+                const idx = addon.slug.split('').reduce((a, c) => a + c.charCodeAt(0), 0) % colours.length;
+                await github.rest.issues.createLabel({
+                  owner: context.repo.owner,
+                  repo:  context.repo.repo,
+                  name:  labelName,
+                  color: colours[idx],
+                  description: `Issues related to the ${addon.slug} add-on`,
+                });
+                console.log(`Created label ${labelName}`);
+              } else {
+                throw e;
+              }
+            }
+
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo:  context.repo.repo,
+              issue_number: issueNumber,
+              labels: [labelName],
+            });
+
+            console.log(`Applied label ${labelName} to issue #${issueNumber}`);
