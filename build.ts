@@ -87,9 +87,9 @@ function mdToHtml(md: string): string {
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
     .replace(/\*([^*]+)\*/g, "<em>$1</em>")
     .replace(/^\s*[-*] (.+)$/gm, "<li>$1</li>")
-    .replace(/(<li>[\s\S]*?<\/li>)(?!\s*<li>)/g, "<ul>$1</ul>")
+    .replace(/((?:<li>.*<\/li>\n?)+)/g, "<ul>\n$1</ul>")
     .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
-    .replace(/^(?!<[hup]|$)(.+)$/gm, "<p>$1</p>")
+    .replace(/^(?!<[hulpsd]|<\/|$)(.+)$/gm, "<p>$1</p>")
     .replace(/\n{2,}/g, "\n");
 }
 
