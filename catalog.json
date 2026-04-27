@@ -319,7 +319,8 @@
         "spec": "@rcarmo/piclaw-addon-settings-dialog-screenshot@0.1.0",
         "registry": "https://npm.pkg.github.com",
         "piSource": "npm:@rcarmo/piclaw-addon-settings-dialog-screenshot@0.1.0"
-      }
+      },
+      "updatedAt": "2026-04-27"
     },
     {
       "slug": "voice-pipeline",
