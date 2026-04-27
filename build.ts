@@ -19,7 +19,7 @@ mkdirSync(OUT, { recursive: true });
 mkdirSync(join(OUT, "addons"), { recursive: true });
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-interface Install { kind: string; spec: string; piSource?: string; }
+interface Install { kind: string; spec: string; registry?: string; piSource?: string; }
 interface Person { login: string; url: string; }
 interface Addon {
   slug:         string;
@@ -126,7 +126,8 @@ function ownerChips(addon: Addon): string {
 }
 
 function installSnippet(addon: Addon): string {
-  const pkgUrl = `${SITE_URL}/packages/${esc(addon.name)}-${esc(addon.version)}.tgz`;
+  const pkg   = addon.install;
+  const ghUrl = `https://github.com/rcarmo/piclaw-addons/packages`;
   return `<div class="install-block">
     <svg class="install-icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.751.751 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Z"/></svg>
     <span class="install-text">Open <strong>Settings → Add-Ons</strong> and pick <strong>${esc(addon.slug)}</strong></span>
@@ -134,7 +135,7 @@ function installSnippet(addon: Addon): string {
   <details class="install-alt">
     <summary>Or install manually from the terminal</summary>
     <pre><code>cd /workspace/.piclaw/addons
-bun add ${pkgUrl}</code></pre>
+bun add ${esc(pkg.spec)} --registry ${esc(pkg.registry)}</code></pre>
   </details>`;
 }
 
@@ -499,8 +500,8 @@ const pkgsHtml = `<!DOCTYPE html>
         return `<tr style="border-bottom:1px solid var(--border)">
           <td style="padding:.55rem .5rem"><a href="/piclaw-addons/addons/${esc(a.slug)}/" style="color:var(--accent);font-weight:600">${esc(a.slug)}</a></td>
           <td style="padding:.55rem .5rem;font-family:var(--font-mono);color:var(--ink-dim)">v${esc(a.version)}</td>
-          <td style="padding:.55rem .5rem"><code style="font-family:var(--font-mono);font-size:.78rem;color:var(--ink-dim)">bun add ${url}</code></td>
-          <td style="padding:.55rem .5rem;text-align:right"><a href="${url}" download style="color:var(--accent);font-weight:700;font-size:.82rem">↓ download</a></td>
+          <td style="padding:.55rem .5rem"><code style="font-family:var(--font-mono);font-size:.78rem;color:var(--ink-dim)">bun add ${esc(a.install.spec)} --registry ${esc(a.install.registry ?? '')}</code></td>
+          <td style="padding:.55rem .5rem;text-align:right"><a href="https://github.com/rcarmo/piclaw-addons/packages" target="_blank" style="color:var(--accent);font-weight:700;font-size:.82rem">↗ GitHub Packages</a></td>
         </tr>`;
       }).join("\n")}
     </tbody>
