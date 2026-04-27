@@ -10,6 +10,10 @@ on:
       - 'addons/**'
   workflow_dispatch:
 
+concurrency:
+  group: gh-pages-deploy
+  cancel-in-progress: true
+
 permissions:
   contents: write
   pages: write
