@@ -36,6 +36,11 @@
     "extensions": [
       "index.ts"
     ],
+    "runtime": {
+      "entries": [
+        "runtime.ts"
+      ]
+    },
     "skills": [
       "skills"
     ]

@@ -32,6 +32,11 @@
       "addons/proxmox/index.ts",
       "addons/voice-pipeline/index.ts"
     ],
+    "runtime": {
+      "entries": [
+        "addons/autoresearch/runtime.ts"
+      ]
+    },
     "skills": [
       "addons/autoresearch/skills",
       "addons/delegate/skills"

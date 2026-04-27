@@ -7,8 +7,8 @@
  *   - autoresearch_status: read current JSONL state
  *
  * The upstream pi-autoresearch extension+skill are vendored under
- * runtime/vendor/autoresearch/ and symlinked into the sub-agent's pi config
- * directory at launch time.
+ * addons/autoresearch/vendor/autoresearch/ and symlinked into the sub-agent's
+ * pi config directory at launch time.
  */
 
 import { spawnSync, execSync } from "node:child_process";
@@ -29,7 +29,7 @@ import { clearAutoresearchSessionFiles, prepareDirectAutoresearchWorktree } from
 
 // ── Paths ───────────────────────────────────────────────────────
 
-const VENDOR_DIR = resolve(dirname(import.meta.dir), "..", "vendor", "autoresearch");
+const VENDOR_DIR = resolve(import.meta.dir, "vendor", "autoresearch");
 const SESSIONS_DIR = join(WORKSPACE_DIR, ".piclaw", "autoresearch-sessions");
 const TMUX_SESSION_PREFIX = "autoresearch-";
 
