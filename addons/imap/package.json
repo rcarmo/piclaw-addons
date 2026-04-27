@@ -1,7 +1,7 @@
 {
   "name": "@rcarmo/piclaw-addon-imap",
   "version": "0.1.0",
-  "description": "IMAP email management tool \u2014 search/fetch, move/copy, flag, create drafts, file messages, and STARTTLS support",
+  "description": "IMAP email management tool — search/fetch, move/copy, flag, create drafts, file messages, and STARTTLS support",
   "type": "module",
   "main": "index.ts",
   "piclaw": {
@@ -25,7 +25,12 @@
   "pi": {
     "extensions": [
       "index.ts"
-    ]
+    ],
+    "web": {
+      "entries": [
+        "web/index.ts"
+      ]
+    }
   },
   "publishConfig": {
     "registry": "https://npm.pkg.github.com",
