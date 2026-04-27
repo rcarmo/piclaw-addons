@@ -26,7 +26,7 @@ jobs:
       - name: Build site
         run: bun run build.ts
       - name: Copy assets into docs
-        run: cp -r assets docs/assets
+        run: cp -r assets/* docs/assets/
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
