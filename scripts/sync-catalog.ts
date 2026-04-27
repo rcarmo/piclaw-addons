@@ -55,6 +55,9 @@ interface CatalogEntry {
     spec: string;
     piSource: string;
   };
+  updatedAt?: string;  // ISO date of last git commit touching this addon
+  owner?: { login: string; url: string };
+  contributors?: { login: string; url: string }[];
 }
 
 const repoRoot = resolve(import.meta.dir, '..');
@@ -65,6 +68,20 @@ const extensionsDir = join(repoRoot, 'extensions');
 const skillsDir = join(repoRoot, 'skills');
 const writeMode = process.argv.includes('--write');
 const checkMode = process.argv.includes('--check');
+
+async function gitLastCommitDate(relPath: string): Promise<string | undefined> {
+  try {
+    const proc = Bun.spawn(['git', 'log', '-1', '--format=%cI', '--', relPath], {
+      cwd: repoRoot, stdout: 'pipe', stderr: 'pipe',
+    });
+    const text = (await new Response(proc.stdout).text()).trim();
+    await proc.exited;
+    return text || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 
 function stableStringify(value: unknown): string {
   return `${JSON.stringify(value, null, 2).replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))}\n`;
@@ -121,6 +138,15 @@ async function buildMetadata() {
   const skillRoots: string[] = [];
   const agentSkills: AgentSkillEntry[] = [];
 
+  // Load existing catalog to preserve hand-managed fields (owner, contributors)
+  let existingEntries: Map<string, Partial<CatalogEntry>> = new Map();
+  if (existsSync(catalogPath)) {
+    try {
+      const existing = await readJson<{ addons: CatalogEntry[] }>(catalogPath);
+      for (const e of existing.addons ?? []) existingEntries.set(e.slug, e);
+    } catch { /* ignore */ }
+  }
+
   for (const slug of slugs) {
     const addonRoot = join(addonsDir, slug);
     const pkgPath = join(addonRoot, 'package.json');
@@ -164,6 +190,9 @@ async function buildMetadata() {
       }
     }
 
+    const updatedAt = await gitLastCommitDate(`addons/${slug}`);
+    const prev = existingEntries.get(slug) ?? {};
+
     catalogEntries.push({
       slug,
       name: pkg.name,
@@ -178,6 +207,9 @@ async function buildMetadata() {
         spec: `${pkg.name}@${pkg.version}`,
         piSource: `npm:${pkg.name}@${pkg.version}`,
       },
+      ...(updatedAt ? { updatedAt } : {}),
+      ...(prev.owner        ? { owner:        prev.owner }        : {}),
+      ...(prev.contributors ? { contributors: prev.contributors } : {}),
     });
   }
 

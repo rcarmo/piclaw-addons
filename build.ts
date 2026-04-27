@@ -31,6 +31,7 @@ interface Addon {
   tags:         string[];
   skills:       string[];
   install:      Install;
+  updatedAt?:   string;
   owner?:        Person;
   contributors?: Person[];
   icon?:         string;
@@ -47,12 +48,23 @@ function esc(s: string) {
     .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
+function freshnessIndex(addon: Addon): number {
+  // 05 — no tags: unclassified / missing metadata
+  if (!addon.tags?.length) return 5;
+  const updated = addon.updatedAt ? new Date(addon.updatedAt) : null;
+  if (!updated || isNaN(updated.getTime())) return 4;
+  const days = (Date.now() - updated.getTime()) / 86_400_000;
+  if (days <=  3) return 0;  // new arrival (past 3 days)
+  if (days <=  7) return 1;  // very recent
+  if (days <= 14) return 2;  // recent
+  if (days <= 30) return 3;  // maintained
+  return 4;                  // least recently updated
+}
+
 function iconSrc(addon: Addon): string {
-  // Per-addon icon first, then rotate through defaults by slug hash
   const specific = join(ROOT, "assets", "icons", addon.slug + ".png");
   if (existsSync(specific)) return `/piclaw-addons/assets/icons/${addon.slug}.png`;
-  const n = addon.slug.split("").reduce((a, c) => a + c.charCodeAt(0), 0) % 5;
-  return `/piclaw-addons/assets/icons/default-0${n}.png`;
+  return `/piclaw-addons/assets/icons/default-0${freshnessIndex(addon)}.png`;
 }
 
 function addonReadme(addon: Addon): string {
