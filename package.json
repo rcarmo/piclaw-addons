@@ -19,6 +19,7 @@
   },
   "pi": {
     "extensions": [
+      "addons/ast-grep-tool/index.ts",
       "addons/autoresearch/index.ts",
       "addons/cheapskate/index.ts",
       "addons/code-validator/index.ts",
