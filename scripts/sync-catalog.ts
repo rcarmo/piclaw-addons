@@ -51,9 +51,8 @@ interface CatalogEntry {
   tags: string[];
   skills: string[];
   install: {
-    kind: 'npm';
+    kind: 'tarball';
     spec: string;
-    piSource: string;
   };
   updatedAt?:    string;  // ISO date of last git commit touching this addon
   owner?: { login: string; url: string };
@@ -204,9 +203,8 @@ async function buildMetadata() {
       tags: dedupeSorted(pkg.piclaw?.tags || []),
       skills: dedupeSorted(addonSkillNames),
       install: {
-        kind: 'npm',
-        spec: `${pkg.name}@${pkg.version}`,
-        piSource: `npm:${pkg.name}@${pkg.version}`,
+        kind: 'tarball',
+        spec: `https://rcarmo.github.io/piclaw-addons/packages/${pkg.name}-${pkg.version}.tgz`,
       },
       ...(updatedAt              ? { updatedAt }              : {}),
       ...(prev.owner             ? { owner:        prev.owner }        : {}),

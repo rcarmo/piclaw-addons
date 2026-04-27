@@ -7,6 +7,7 @@ on:
       - 'catalog.json'
       - 'build.ts'
       - 'assets/**'
+      - 'addons/**'
   workflow_dispatch:
 
 permissions:

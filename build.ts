@@ -19,7 +19,7 @@ mkdirSync(OUT, { recursive: true });
 mkdirSync(join(OUT, "addons"), { recursive: true });
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-interface Install { kind: string; spec: string; piSource: string; }
+interface Install { kind: string; spec: string; piSource?: string; }
 interface Person { login: string; url: string; }
 interface Addon {
   slug:         string;
@@ -441,6 +441,18 @@ ${skillList}
   built++;
 }
 console.log(`✓ ${built} addon pages`);
+
+// ── Pack tarballs ─────────────────────────────────────────────────────────────
+mkdirSync(join(OUT, "packages"), { recursive: true });
+for (const addon of addons) {
+  const addonDir = join(ROOT, addon.path);
+  const outPath  = join(OUT, "packages", `${addon.name}-${addon.version}.tgz`);
+  Bun.spawnSync(["tar", "czf", outPath, "-C", addonDir, "."], {
+    stdout: "inherit",
+    stderr: "inherit",
+  });
+  console.log(`✓ packed ${addon.name}@${addon.version}`);
+}
 
 // ── Copy assets ───────────────────────────────────────────────────────────────
 // Assets are committed directly; no copy needed at build time.
