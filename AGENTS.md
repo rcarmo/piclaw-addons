@@ -1,25 +1,45 @@
-# piclaw-addons — Agent guide
+# Developing piclaw add-ons
 
-Add-ons for [piclaw](https://github.com/rcarmo/piclaw) — extensions, skills, and widgets.
-
-See [docs/architecture.md](docs/architecture.md) for the repo layout, catalog format, and CI/CD pipeline.
+This guide covers how to create, test, and publish an extension for [piclaw](https://github.com/rcarmo/piclaw).
 
 ---
 
-## How to add a new addon
+## Quick start
 
-> **Self-contained rule:** Each addon is published as its own npm package. It must not import from `../../lib/compat/*` at runtime — those paths don't exist in a consumer's `node_modules`. Either vendor the compat shims you need into the addon directory, or use the equivalent piclaw runtime imports (with a compat stub for standalone use).
+```bash
+# 1. Create your addon directory
+mkdir -p addons/my-addon/skills/my-skill
 
-### 1. Create the directory
+# 2. Write your entry point, package.json, and skill
+# 3. Sync the catalog
+bun run sync:catalog
+
+# 4. Type-check
+bunx tsc --noEmit
+
+# 5. Push — CI handles the rest
+git add addons/my-addon && git commit -m "feat: add my-addon" && git push
+```
+
+---
+
+## Addon structure
 
 ```
 addons/<slug>/
-├── index.ts          # Required: default export = extension factory
-├── package.json      # Required: addon manifest
-└── skills/           # Optional: colocated skills (SKILL.md per skill)
+├── index.ts          # Entry point (default export)
+├── package.json      # Package manifest
+├── skills/           # Optional: agent skills
+│   └── my-skill/
+│       └── SKILL.md
+└── *.ts              # Supporting modules
 ```
 
-### 2. Write the entry point
+---
+
+## Entry point
+
+The default export is a function that receives the `ExtensionAPI`:
 
 ```ts
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
@@ -29,39 +49,42 @@ import { fileURLToPath } from "node:url";
 const baseDir = dirname(fileURLToPath(import.meta.url));
 
 export default function myAddon(pi: ExtensionAPI) {
+  // Register skills for agent discovery
   pi.on("resources_discover", () => ({
     skillPaths: [join(baseDir, "skills", "my-skill", "SKILL.md")],
   }));
 
+  // Register a tool
   pi.registerTool({
     name: "my_tool",
     label: "my_tool",
     description: "What this tool does.",
-    parameters: MyToolSchema,  // Typebox schema
+    parameters: MyToolSchema,
     async execute(_toolCallId, params, _signal, _update, ctx) {
-      return {
-        content: [{ type: "text", text: "Result" }],
-        details: { ... },
-      };
+      return { content: [{ type: "text", text: "result" }] };
     },
   });
 }
 ```
 
-### 3. Write the package.json
+---
+
+## package.json
 
 ```json
 {
   "name": "@rcarmo/piclaw-addon-<slug>",
   "version": "0.1.0",
-  "description": "Short description of the addon",
+  "description": "One-line description",
   "type": "module",
   "main": "index.ts",
   "piclaw": {
     "type": "extension",
-    "compatibleVersions": ">=1.8.0",
-    "tags": ["relevant", "tags"],
-    "skills": ["skills/my-skill"]
+    "tags": ["relevant", "tags"]
+  },
+  "pi": {
+    "extensions": ["index.ts"],
+    "skills": ["skills"]
   },
   "peerDependencies": {
     "@mariozechner/pi-coding-agent": "*",
@@ -71,111 +94,27 @@ export default function myAddon(pi: ExtensionAPI) {
     "registry": "https://npm.pkg.github.com",
     "access": "public"
   },
-  "license": "MIT",
   "keywords": ["piclaw", "piclaw-addon"],
-  "pi": {
-    "extensions": ["index.ts"],
-    "skills": ["skills"]
-  }
+  "license": "MIT"
 }
 ```
 
-Key fields:
-
-| Field | Purpose |
-|---|---|
-| `name` | Scoped package name: `@rcarmo/piclaw-addon-<slug>` |
-| `piclaw.type` | Always `"extension"` (or `"skill"` for skill-only addons) |
-| `piclaw.tags` | Categorisation tags used by the catalog |
-| `pi.extensions` | Entry points declared for the Pi package system |
-| `pi.skills` | Skill roots for discovery |
-| `peerDependencies` | Must declare `@mariozechner/pi-coding-agent` and `@sinclair/typebox` |
-| `publishConfig.registry` | GitHub Packages — required for scoped publish |
-
-### 4. Sync the catalog
-
-```bash
-bun run sync:catalog    # regenerate catalog.json + root package.json
-bun run check:catalog   # validate without writing (CI uses this)
-```
-
-After syncing, also add `owner` / `contributors` to the new entry in `catalog.json` — the sync script preserves these when they exist but cannot generate them from source.
-
-### 5. Type-check
-
-```bash
-bunx tsc --noEmit
-```
+| Field | Required | Notes |
+|---|---|---|
+| `name` | ✓ | `@rcarmo/piclaw-addon-<slug>` |
+| `version` | ✓ | Bump on every functional change |
+| `description` | ✓ | Shown in the catalog and web UI |
+| `piclaw.type` | ✓ | `"extension"` or `"skill"` |
+| `piclaw.tags` | ✓ | Categorisation for search and display |
+| `pi.extensions` | ✓ | Entry points — usually `["index.ts"]` |
+| `peerDependencies` | ✓ | Must declare both `@mariozechner/pi-coding-agent` and `@sinclair/typebox` |
+| `publishConfig` | ✓ | Points to GitHub Packages registry |
 
 ---
 
-## Extension API
+## Skills
 
-### What extensions can do
-
-| Capability | API |
-|---|---|
-| Register tools | `pi.registerTool({ name, parameters, execute })` |
-| Hook lifecycle | `pi.on("before_agent_start", ...)` |
-| Discover resources | `pi.on("resources_discover", ...)` — skills, prompts, themes |
-| Interactive UI | `ctx.ui.select()`, `.confirm()`, `.input()` |
-| Progress | `ctx.ui.setWorkingMessage()`, `.setWorkingIndicator()` |
-| Persistent status | `ctx.ui.setStatus(key, text)` |
-| Dashboard widgets | `ctx.ui.setWidget(key, content, options)` |
-| Toast notifications | `ctx.ui.notify(message, type)` |
-
-### KV storage
-
-```ts
-import { createExtensionStorage } from "../../lib/compat/extension-kv.js";
-
-const storage = createExtensionStorage("my-addon");
-
-// Chat-scoped
-storage.set("config", { base_url: "..." }, "chat", chatJid);
-const config = storage.get("config", "chat", chatJid);
-
-// Global
-storage.set("preferences", { ... }, "global");
-```
-
-Backed by SQLite in piclaw; falls back to in-memory Map in tests.
-
-### Compat layer (`lib/compat/`)
-
-Use these shims instead of importing piclaw internals directly:
-
-| Shim | Exports |
-|---|---|
-| `keychain.ts` | `getKeychainEntry`, `resolveKeychainPlaceholders`, `buildInjectedExecCommand` |
-| `chat-context.ts` | `getChatJid`, `getChatChannel` |
-| `extension-kv.ts` | `createExtensionStorage`, `ExtensionStorage` |
-| `logger.ts` | `createLogger`, `debugSuppressedError` |
-| `tool-output.ts` | `saveToolOutput`, `buildPreview` |
-| `tool-status-hints.ts` | `registerToolStatusHintProvider` |
-| `request-batch.ts` | `runRequestBatch`, `writeRequestOutputFile` |
-| `structured-tool-response.ts` | `presentStructuredToolValue` |
-| `types.ts` | `ProxmoxConfig`, `PortainerConfig`, shared config types |
-| `config.ts` | `WORKSPACE_DIR` |
-
-```ts
-import { getChatJid, createLogger, createExtensionStorage } from "../../lib/compat/index.js";
-```
-
-> These are in-repo dev paths. Published addons must vendor any shims they need.
-
-### Tool parameter schemas
-
-```ts
-import { Type } from "@sinclair/typebox";
-
-const MyToolSchema = Type.Object({
-  action: Type.Union([Type.Literal("get"), Type.Literal("set")]),
-  key: Type.Optional(Type.String()),
-});
-```
-
-### Skills
+A skill teaches the agent *when and how* to use your tools:
 
 ```
 addons/<slug>/skills/<skill-name>/SKILL.md
@@ -185,12 +124,12 @@ Front matter:
 ```yaml
 ---
 name: my-skill
-description: What this skill teaches the agent to do
+description: What this skill teaches the agent
 distribution: public
 ---
 ```
 
-Register in `resources_discover`:
+Register skills via `resources_discover`:
 ```ts
 pi.on("resources_discover", () => ({
   skillPaths: [join(baseDir, "skills", "my-skill", "SKILL.md")],
@@ -199,34 +138,104 @@ pi.on("resources_discover", () => ({
 
 ---
 
-## Conventions
+## Extension API reference
 
-- Slug: lowercase kebab-case — `proxmox`, `dev-tools`, `kanban-board-widget`
-- Package name: `@rcarmo/piclaw-addon-<slug>`
-- One extension entry point per addon
-- Peer deps only — no bundled copies of `@mariozechner/pi-coding-agent`
-- Never import from piclaw runtime internals — use `lib/compat/`
-- Run `bun run sync:catalog` after any `package.json` change
-- Bump `version` for every functional change
-- Skills in `skills/<name>/SKILL.md` inside the addon directory
-- Add `owner` to `catalog.json` after syncing
+| Capability | Method |
+|---|---|
+| Register tools | `pi.registerTool({ name, parameters, execute })` |
+| Lifecycle hooks | `pi.on("before_agent_start", fn)` |
+| Resource discovery | `pi.on("resources_discover", fn)` |
+| Interactive UI | `ctx.ui.select()`, `.confirm()`, `.input()` |
+| Progress | `ctx.ui.setWorkingMessage(text)` |
+| Status | `ctx.ui.setStatus(key, text)` |
+| Widgets | `ctx.ui.setWidget(key, content, options)` |
+| Toasts | `ctx.ui.notify(message, type)` |
+
+### Tool parameters
+
+Use `@sinclair/typebox`:
+
+```ts
+import { Type } from "@sinclair/typebox";
+
+const Params = Type.Object({
+  action: Type.Union([Type.Literal("get"), Type.Literal("list")]),
+  id: Type.Optional(Type.String()),
+});
+```
+
+### KV storage
+
+Persist config or state:
+
+```ts
+import { createExtensionStorage } from "../../lib/compat/extension-kv.js";
+
+const kv = createExtensionStorage("my-addon");
+kv.set("config", value, "chat", chatJid);   // per-chat
+kv.set("prefs", value, "global");            // cross-chat
+```
 
 ---
 
-## Current addons
+## Testing
 
-| Slug | Description | Version | Owner |
-|---|---|---|---|
-| `autoresearch` | Autonomous experiment loop sub-agent | 0.1.0 | rcarmo |
-| `cheapskate` | Free-tier provider auto-rotation | 0.4.0 | rcarmo |
-| `code-validator` | Code validation for Python, JS/TS, JSON | 0.1.0 | cjnova |
-| `delegate` | Task delegation to cheaper/faster models | 0.1.0 | cjnova |
-| `dev-tools` | Workspace diagnostics and environment tools | 0.1.0 | rcarmo |
-| `drawio-editor` | Self-hosted draw.io diagram editor | 0.1.0 | rcarmo |
-| `eml-viewer` | Email (.eml) viewer for the web timeline | 0.2.1 | rcarmo |
-| `imap` | IMAP email management with drafts and STARTTLS | 0.1.0 | rcarmo |
-| `kanban-board-widget` | Kanban board dashboard widget | 0.1.0 | cjnova |
-| `portainer` | Portainer container management | 0.1.2 | rcarmo |
-| `proxmox` | Proxmox VE infrastructure management | 0.1.3 | rcarmo |
-| `voice-pipeline` | ESPHome voice assistant for ThinkSmart/ESP32 | 0.1.0 | rcarmo |
-| `yolochat` | Zero-guardrail inter-instance messaging | 0.1.0 | rcarmo |
+### Standalone import test
+
+```bash
+bun test standalone-import.test.ts
+```
+
+Validates that each addon can be imported without crashing.
+
+### Type-check
+
+```bash
+bunx tsc --noEmit
+```
+
+### Catalog validation
+
+```bash
+bun run check:catalog
+```
+
+---
+
+## Publishing
+
+### What happens on push
+
+1. `sync-catalog` — regenerates `catalog.json` from all addon `package.json` files
+2. `validate-metadata` — verifies the catalog is in sync and the package can be packed
+3. `build + deploy` — rebuilds the docs site at [rcarmo.github.io/piclaw-addons](https://rcarmo.github.io/piclaw-addons/)
+4. `publish` — publishes changed packages to GitHub Packages (`npm.pkg.github.com`)
+
+### Manual sync
+
+```bash
+bun run sync:catalog    # regenerate
+bun run check:catalog   # validate only (exits 1 if out of sync)
+```
+
+### After syncing
+
+Add `owner` and `contributors` to your new entry in `catalog.json` — these fields are hand-managed and preserved by the sync script but cannot be generated automatically:
+
+```json
+"owner": { "login": "yourname", "url": "https://github.com/yourname" },
+"contributors": []
+```
+
+---
+
+## Conventions
+
+- Slug: lowercase kebab-case (`proxmox`, `dev-tools`, `kanban-board-widget`)
+- One extension entry point per addon
+- Peer deps only — never bundle `@mariozechner/pi-coding-agent`
+- Never import from piclaw runtime internals
+- `lib/compat/` is for in-repo development only — published packages must vendor any shims they need
+- Skills go in `skills/<name>/SKILL.md`
+- Bump version for every functional change
+- Run `sync:catalog` after every `package.json` edit
