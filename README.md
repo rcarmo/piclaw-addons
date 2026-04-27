@@ -2,44 +2,185 @@
 
 Community add-ons for [piclaw](https://github.com/rcarmo/piclaw).
 
-This repository is structured as a **Pi package** and is intended to be compatible with the [Pi Packages gallery](https://pi.dev/packages).
+This repository is structured as a **Pi package** monorepo. Each addon under `addons/` is an independent Pi-package-compliant npm package published to [GitHub Packages](https://github.com/rcarmo?tab=packages&repo_name=piclaw-addons).
 
 > **For agents:** see [AGENTS.md](AGENTS.md) for how to add, modify, and test addons.
+
+## Installing add-ons
+
+### From the piclaw web UI
+
+Open **Settings → Add-ons**, pick the addon you want, and click **Install**. The runtime fetches the package from GitHub Packages and installs it automatically. A restart is required to load the new extension.
+
+### From the command line
+
+Each addon is published as a scoped npm package on the GitHub Packages registry. To install with plain `bun`:
+
+```bash
+# One-time setup: configure the @rcarmo scope to use GitHub Packages
+cd /workspace/.piclaw/addons
+echo '@rcarmo:registry=https://npm.pkg.github.com' >> .npmrc
+echo '//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}' >> .npmrc
+
+# Install an addon
+bun add @rcarmo/piclaw-addon-proxmox
+```
+
+Replace `GITHUB_TOKEN` with any GitHub token that has `read:packages` scope (a classic PAT or fine-grained token works). The `.npmrc` file uses environment variable interpolation, so the token is never stored in plain text.
+
+### Using `pi install`
+
+If you prefer the [Pi CLI](https://github.com/nicepkg/pi), addons can be installed directly:
+
+```bash
+pi install npm:@rcarmo/piclaw-addon-proxmox@0.1.3
+```
+
+This writes the package to your Pi settings (`~/.pi/agent/settings.json` by default, or `.pi/settings.json` with `-l`).
+
+### All available packages
+
+| Package | Install command |
+|---|---|
+| `@rcarmo/piclaw-addon-autoresearch` | `bun add @rcarmo/piclaw-addon-autoresearch` |
+| `@rcarmo/piclaw-addon-cheapskate` | `bun add @rcarmo/piclaw-addon-cheapskate` |
+| `@rcarmo/piclaw-addon-code-validator` | `bun add @rcarmo/piclaw-addon-code-validator` |
+| `@rcarmo/piclaw-addon-delegate` | `bun add @rcarmo/piclaw-addon-delegate` |
+| `@rcarmo/piclaw-addon-dev-tools` | `bun add @rcarmo/piclaw-addon-dev-tools` |
+| `@rcarmo/piclaw-addon-drawio-editor` | `bun add @rcarmo/piclaw-addon-drawio-editor` |
+| `@rcarmo/piclaw-addon-eml-viewer` | `bun add @rcarmo/piclaw-addon-eml-viewer` |
+| `@rcarmo/piclaw-addon-imap` | `bun add @rcarmo/piclaw-addon-imap` |
+| `@rcarmo/piclaw-addon-kanban-board-widget` | `bun add @rcarmo/piclaw-addon-kanban-board-widget` |
+| `@rcarmo/piclaw-addon-portainer` | `bun add @rcarmo/piclaw-addon-portainer` |
+| `@rcarmo/piclaw-addon-proxmox` | `bun add @rcarmo/piclaw-addon-proxmox` |
+| `@rcarmo/piclaw-addon-voice-pipeline` | `bun add @rcarmo/piclaw-addon-voice-pipeline` |
+| `@rcarmo/piclaw-addon-yolochat` | `bun add @rcarmo/piclaw-addon-yolochat` |
+
+## Available addons
+
+| Addon | Description | Version |
+|---|---|---|
+| [`autoresearch`](addons/autoresearch/) | Autonomous experiment loop sub-agent (start/stop/status tools via tmux) | 0.1.0 |
+| [`cheapskate`](addons/cheapskate/) | Free-tier provider auto-rotation (`cheapskate/auto` model) | 0.4.0 |
+| [`code-validator`](addons/code-validator/) | Diagnostics tool for code validation (Python, JS/TS, JSON, extensible) | 0.1.0 |
+| [`delegate`](addons/delegate/) | Task delegation to cheaper/faster models with tool access | 0.1.0 |
+| [`dev-tools`](addons/dev-tools/) | Developer utility tools for workspace diagnostics | 0.1.0 |
+| [`drawio-editor`](addons/drawio-editor/) | Self-hosted draw.io diagram editor with workspace integration | 0.1.0 |
+| [`eml-viewer`](addons/eml-viewer/) | Email (.eml) file viewer for the web timeline | 0.2.1 |
+| [`imap`](addons/imap/) | IMAP email management with drafts, filing, and STARTTLS | 0.1.0 |
+| [`kanban-board-widget`](addons/kanban-board-widget/) | Interactive kanban board dashboard widget | 0.1.0 |
+| [`portainer`](addons/portainer/) | Portainer container management tool | 0.1.2 |
+| [`proxmox`](addons/proxmox/) | Proxmox VE infrastructure management tool | 0.1.3 |
+| [`voice-pipeline`](addons/voice-pipeline/) | ESPHome voice assistant pipeline for ThinkSmart/ESP32-Audio | 0.1.0 |
+| [`yolochat`](addons/yolochat/) | Zero-guardrail inter-instance messaging between Pi instances | 0.1.0 |
+
+## Architecture
+
+### How installation works
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    piclaw-addons repo                    │
+│                                                         │
+│  addons/<slug>/package.json                             │
+│       ↓ (git push)                                      │
+│  sync-catalog workflow                                  │
+│       ↓ generates                                       │
+│  catalog.json ──→ build workflow ──→ GitHub Pages site   │
+│       ↓ also triggers                                   │
+│  publish-packages workflow ──→ GitHub Packages (npm)     │
+└─────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────┐
+│                    piclaw runtime                        │
+│                                                         │
+│  Settings → Add-ons                                     │
+│       ↓ fetches catalog.json from GitHub Pages          │
+│  Click Install                                          │
+│       ↓ reads install.spec from catalog entry           │
+│  bun add @rcarmo/piclaw-addon-<slug>@<version>          │
+│       ↓ .npmrc routes @rcarmo scope to GitHub Packages  │
+│  Installed to /workspace/.piclaw/addons/node_modules/   │
+│       ↓ Restart                                         │
+│  Extension loaded by piclaw runtime                     │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Catalog
+
+`catalog.json` is the central index consumed by the piclaw web UI. It is auto-generated from addon `package.json` files by the `sync-catalog` workflow.
+
+Each entry contains:
+
+```json
+{
+  "slug": "proxmox",
+  "name": "@rcarmo/piclaw-addon-proxmox",
+  "version": "0.1.3",
+  "install": {
+    "kind": "npm",
+    "spec": "@rcarmo/piclaw-addon-proxmox@0.1.3",
+    "registry": "https://npm.pkg.github.com",
+    "piSource": "npm:@rcarmo/piclaw-addon-proxmox@0.1.3"
+  }
+}
+```
+
+| Field | Purpose |
+|---|---|
+| `install.spec` | Passed to `bun add` — scoped package name with version |
+| `install.registry` | GitHub Packages npm registry URL |
+| `install.piSource` | Used by `pi install` for Pi CLI users |
+
+### GitHub Packages authentication
+
+GitHub Packages npm registry requires authentication even for reads. The piclaw runtime automatically configures `.npmrc` in the addons directory with:
+
+```ini
+@rcarmo:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=${GITHUB_PICLAW_BOT_PAT}
+```
+
+The token is injected from the keychain as an environment variable. Any GitHub token with `read:packages` scope is sufficient.
+
+### Fallback mechanism
+
+If `bun add` fails (e.g. no token configured, network issue), the install handler falls back to downloading individual files from the GitHub repository via the GitHub API. This is slower but requires no npm registry authentication.
 
 ## Publishing workflow
 
 ![Event sequence](assets/event-sequence.svg)
 
 When an addon is updated, the chain runs automatically:
-1. `git push addons/<slug>` triggers **`sync-catalog`** → rewrites `catalog.json`
-2. `catalog.json` commit triggers **`build + deploy`** → rebuilds `docs/` and pushes to `gh-pages`
-3. Site at [rcarmo.github.io/piclaw-addons](https://rcarmo.github.io/piclaw-addons/) goes live ~30s later
+
+1. **`git push addons/<slug>`** triggers **`sync-catalog`** → rewrites `catalog.json`
+2. **`catalog.json` commit** triggers **`build + deploy`** → rebuilds the docs site and pushes to `gh-pages`
+3. **GitHub Actions** publishes updated packages to **GitHub Packages** npm registry
+4. Site at [rcarmo.github.io/piclaw-addons](https://rcarmo.github.io/piclaw-addons/) goes live ~30s later
 
 `workflow_dispatch` on `build.yml` bypasses the chain and deploys directly.
 
-## Available addons
+## Creating a new addon
 
-| Addon | Description | Version |
-|---|---|---|
-| [`autoresearch`](addons/autoresearch/) | Autonomous experiment loop sub-agent | 0.1.0 |
-| [`cheapskate`](addons/cheapskate/) | Free-tier provider auto-rotation (`cheapskate/auto` model) | 0.2.0 |
-| [`code-validator`](addons/code-validator/) | Code validation tools | 0.1.0 |
-| [`delegate`](addons/delegate/) | Task delegation to sub-agents | 0.1.0 |
-| [`dev-tools`](addons/dev-tools/) | Developer utility tools | 0.1.0 |
-| [`drawio-editor`](addons/drawio-editor/) | draw.io diagram editor widget | 0.1.0 |
-| [`eml-viewer`](addons/eml-viewer/) | Email (.eml) file viewer | 0.1.0 |
-| [`kanban-board-widget`](addons/kanban-board-widget/) | Kanban board timeline widget | 0.1.0 |
-| [`imap`](addons/imap/) | IMAP email management tool with drafts, filing, and STARTTLS support | 0.1.0 |
-| [`portainer`](addons/portainer/) | Portainer container management tool | 0.1.2 |
-| [`proxmox`](addons/proxmox/) | Proxmox VE infrastructure management tool | 0.1.3 |
+Each addon is a standalone [Pi package](https://pi.dev/packages) with:
 
-## What this repo provides
+```json
+{
+  "name": "@rcarmo/piclaw-addon-<slug>",
+  "version": "0.1.0",
+  "keywords": ["pi-package"],
+  "pi": {
+    "extensions": ["index.ts"],
+    "skills": ["skills"]
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-coding-agent": "*",
+    "@sinclair/typebox": "*"
+  }
+}
+```
 
-- **Root package**: `piclaw-addons`
-- **Pi package manifest**: root `package.json` with `keywords: ["pi-package"]` and `pi.*` entries
-- **Addon manifests**: each `addons/<slug>/package.json` is also Pi-package-shaped
-- **Catalog**: `catalog.json` for the piclaw web settings UI
-- **Shared compat layer**: `lib/compat/` — standalone shims for keychain, logging, KV storage, etc. (repo-level reference code; individually published add-ons still need their own self-contained copies)
+Place it under `addons/<slug>/`, push to `main`, and the CI pipeline handles the rest.
 
 ## Layout
 
@@ -47,32 +188,37 @@ When an addon is updated, the chain runs automatically:
 piclaw-addons/
 ├── addons/
 │   ├── autoresearch/
+│   ├── cheapskate/
 │   ├── code-validator/
 │   ├── delegate/
 │   ├── dev-tools/
 │   ├── drawio-editor/
 │   ├── eml-viewer/
-│   ├── kanban-board-widget/
 │   ├── imap/
+│   ├── kanban-board-widget/
 │   ├── portainer/
-│   └── proxmox/
+│   ├── proxmox/
+│   ├── voice-pipeline/
+│   └── yolochat/
 ├── lib/
 │   └── compat/           # Shared compatibility shims
-├── catalog.json
-├── package.json
+├── catalog.json           # Auto-generated addon index
+├── package.json           # Root Pi package manifest
 ├── tsconfig.json
-└── scripts/
-    ├── browser-relay/
-    └── sync-catalog.ts
+├── scripts/
+│   ├── browser-relay/     # WSL2 browser relay utility
+│   └── sync-catalog.ts    # Catalog + metadata generator
+└── .github/
+    └── workflows/
+        ├── build.yml              # Docs site + GitHub Pages deploy
+        ├── sync-catalog.yml       # Catalog auto-regeneration
+        ├── validate-metadata.yml  # PR/push metadata validation
+        └── triage-issues.yml      # Issue triage automation
 ```
-
-The root package points directly at addon entrypoints under `addons/*`.
-No duplicate wrapper extensions or copied skill directories are needed.
 
 ## Metadata sync
 
-The addon catalog and root package metadata are generated from the addon manifests.
-The catalog also emits per-addon package install specs so piclaw Settings can do package-first installs (`bun add <spec>`) instead of downloading raw files.
+The addon catalog and root package metadata are generated from the addon `package.json` files:
 
 ```bash
 bun run check:catalog   # validate metadata is in sync
@@ -81,36 +227,12 @@ bun run sync:catalog    # regenerate catalog.json + root package metadata
 
 `sync-catalog.ts` derives:
 
-- root `pi.extensions`
-- root `pi.skills`
-- root `agents.skills`
-- `catalog.json` (including per-addon `install.kind/spec/piSource`)
+- Root `pi.extensions` and `pi.skills`
+- Root `agents.skills`
+- `catalog.json` (including per-addon install specs)
 
 from each `addons/<slug>/package.json`.
 
 ## Utility scripts
 
-The `scripts/` directory also contains non-package helper tooling for common PiClaw setups.
-These scripts are repository utilities, not published addon entrypoints, so they do not affect the generated package metadata.
-
 - [`scripts/browser-relay/`](scripts/browser-relay/README.md) — WSL2 browser relay for opening container-launched OAuth and local UI URLs in the Windows browser
-
-## GitHub Actions
-
-This repo includes workflows to:
-
-- **validate** metadata on pull requests and pushes
-- **auto-sync** `catalog.json` and root package metadata on `main`
-
-## Publishing
-
-This repo is now **Pi-package compliant**.
-To appear on the public Pi package gallery, the root package still needs to be published to npm with the `pi-package` keyword.
-
-At that point installation can use:
-
-```bash
-pi install npm:piclaw-addons
-```
-
-Until then, the package structure is ready and local/path installs work.
