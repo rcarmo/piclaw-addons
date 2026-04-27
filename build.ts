@@ -126,10 +126,16 @@ function ownerChips(addon: Addon): string {
 }
 
 function installSnippet(addon: Addon): string {
+  const pkgUrl = `${SITE_URL}/packages/${esc(addon.name)}-${esc(addon.version)}.tgz`;
   return `<div class="install-block">
     <svg class="install-icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.751.751 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Z"/></svg>
     <span class="install-text">Open <strong>Settings → Add-Ons</strong> and pick <strong>${esc(addon.slug)}</strong></span>
-  </div>`;
+  </div>
+  <details class="install-alt">
+    <summary>Or install manually from the terminal</summary>
+    <pre><code>cd /workspace/.piclaw/addons
+bun add ${pkgUrl}</code></pre>
+  </details>`;
 }
 
 // ── CSS ───────────────────────────────────────────────────────────────────────
@@ -162,8 +168,7 @@ html,body{min-height:100%;background:var(--bg);color:var(--ink);font-family:var(
 /* ── Index hero ─── */
 .hero{background:linear-gradient(135deg,#1e3a5f 0%,#2563eb 100%);color:#fff;padding:3.5rem 2rem 3rem}
 .hero-inner{max-width:var(--max-w);margin:0 auto;display:flex;align-items:center;gap:2.5rem}
-.hero-logo{width:240px;height:240px;border-radius:0;flex-shrink:0;
-  box-shadow:0 12px 40px rgba(0,0,0,.30);object-fit:contain}
+.hero-logo{width:240px;height:240px;border-radius:0;flex-shrink:0;object-fit:contain}
 .hero-text{flex:1;min-width:0}
 .hero-title{font-family:var(--font-head);font-size:3rem;font-weight:800;letter-spacing:-.045em;
   line-height:1.04;margin-bottom:.6rem}
@@ -213,8 +218,7 @@ html,body{min-height:100%;background:var(--bg);color:var(--ink);font-family:var(
 /* ── Detail hero ─── */
 .detail-hero{background:linear-gradient(135deg,#1e3a5f 0%,#2563eb 100%);color:#fff;padding:3.2rem 1.5rem 2.4rem}
 .detail-hero-inner{max-width:760px;margin:0 auto;display:flex;gap:2rem;align-items:flex-start}
-.detail-icon{width:180px;height:180px;border-radius:0;flex-shrink:0;
-  box-shadow:0 10px 32px rgba(0,0,0,.28);object-fit:contain}
+.detail-icon{width:180px;height:180px;border-radius:0;flex-shrink:0;object-fit:contain}
 .detail-kicker{font-family:var(--font-head);font-size:.72rem;font-weight:800;letter-spacing:.1em;
   text-transform:uppercase;opacity:.6;margin-bottom:.55rem}
 .detail-title{font-family:var(--font-head);font-size:clamp(2.2rem,4vw,3rem);font-weight:800;
@@ -259,11 +263,16 @@ html,body{min-height:100%;background:var(--bg);color:var(--ink);font-family:var(
 .install-icon{color:var(--accent);flex-shrink:0}
 .install-text{font-size:.95rem;color:var(--ink-dim)}
 .install-text strong{color:var(--ink)}
-
-/* ── Back link ─── */
-.back{display:inline-flex;align-items:center;gap:.4rem;color:rgba(255,255,255,.72);
-  text-decoration:none;font-size:.82rem;font-weight:700;margin-bottom:1.1rem}
-.back:hover{color:#fff}
+.install-alt{margin-top:.6rem;font-size:.85rem;color:var(--ink-dim)}
+.install-alt summary{cursor:pointer;font-size:.82rem;color:var(--accent);font-weight:600;
+  list-style:none;display:flex;align-items:center;gap:.3rem}
+.install-alt summary::-webkit-details-marker{display:none}
+.install-alt summary::before{content:'›';font-size:1rem;transition:transform .15s}
+.install-alt[open] summary::before{transform:rotate(90deg)}
+.install-alt pre{margin:.5rem 0 0;background:rgba(0,0,0,.04);border:1px solid var(--border);
+  border-radius:8px;padding:.75rem 1rem;overflow-x:auto}
+.install-alt code{font-family:var(--font-mono);font-size:.82rem;white-space:pre}
+@media(prefers-color-scheme:dark){.install-alt pre{background:rgba(255,255,255,.04)}}
 
 /* ── Owner / contributors ─── */
 .owner-row{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.5rem}
