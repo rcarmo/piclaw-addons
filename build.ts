@@ -457,7 +457,8 @@ console.log(`✓ ${built} addon pages`);
 mkdirSync(join(OUT, "packages"), { recursive: true });
 for (const addon of addons) {
   const addonDir = join(ROOT, addon.path);
-  const outPath  = join(OUT, "packages", `${addon.name}-${addon.version}.tgz`);
+  const baseName = addon.name.replace(/^@[^/]+\//, '');
+  const outPath  = join(OUT, "packages", `${baseName}-${addon.version}.tgz`);
   Bun.spawnSync(["tar", "czf", outPath, "-C", addonDir, "."], {
     stdout: "inherit",
     stderr: "inherit",
@@ -496,12 +497,13 @@ const pkgsHtml = `<!DOCTYPE html>
     </thead>
     <tbody>
       ${addons.map(a => {
-        const url = `${SITE_URL}/packages/${esc(a.name)}-${esc(a.version)}.tgz`;
+        const baseName = a.name.replace(/^@[^/]+\//, '');
+        const url = `${SITE_URL}/packages/${esc(baseName)}-${esc(a.version)}.tgz`;
         return `<tr style="border-bottom:1px solid var(--border)">
           <td style="padding:.55rem .5rem"><a href="/piclaw-addons/addons/${esc(a.slug)}/" style="color:var(--accent);font-weight:600">${esc(a.slug)}</a></td>
           <td style="padding:.55rem .5rem;font-family:var(--font-mono);color:var(--ink-dim)">v${esc(a.version)}</td>
           <td style="padding:.55rem .5rem"><code style="font-family:var(--font-mono);font-size:.78rem;color:var(--ink-dim)">bun add ${esc(a.install.spec)} --registry ${esc(a.install.registry ?? '')}</code></td>
-          <td style="padding:.55rem .5rem;text-align:right"><a href="https://github.com/rcarmo/piclaw-addons/packages" target="_blank" style="color:var(--accent);font-weight:700;font-size:.82rem">↗ GitHub Packages</a></td>
+          <td style="padding:.55rem .5rem;text-align:right"><a href="${url}" style="color:var(--accent);font-weight:700;font-size:.82rem">⬇ .tgz</a></td>
         </tr>`;
       }).join("\n")}
     </tbody>
