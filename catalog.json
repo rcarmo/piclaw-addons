@@ -21,6 +21,7 @@
         "registry": "https://npm.pkg.github.com",
         "piSource": "npm:@rcarmo/piclaw-addon-ast-grep@0.1.0"
       },
+      "updatedAt": "2026-04-27",
       "owner": {
         "login": "cjnova",
         "url": "https://github.com/cjnova"
