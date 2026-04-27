@@ -2,7 +2,7 @@
 
 Community add-ons for [piclaw](https://github.com/rcarmo/piclaw).
 
-This repository is structured as a **Pi package** monorepo. Each addon under `addons/` is an independent Pi-package-compliant npm package published to [GitHub Packages](https://github.com/rcarmo?tab=packages&repo_name=piclaw-addons).
+This repository is a monorepo of piclaw add-ons. Each addon under `addons/` is an independent npm package published to [GitHub Packages](https://github.com/rcarmo?tab=packages&repo_name=piclaw-addons).
 
 > **For agents:** see [AGENTS.md](AGENTS.md) for how to add, modify, and test addons.
 
@@ -162,13 +162,12 @@ When an addon is updated, the chain runs automatically:
 
 ## Creating a new addon
 
-Each addon is a standalone [Pi package](https://pi.dev/packages) with:
+Each addon is a standalone npm package with:
 
 ```json
 {
   "name": "@rcarmo/piclaw-addon-<slug>",
   "version": "0.1.0",
-  "keywords": ["pi-package"],
   "pi": {
     "extensions": ["index.ts"],
     "skills": ["skills"]
@@ -203,7 +202,7 @@ piclaw-addons/
 ├── lib/
 │   └── compat/           # Shared compatibility shims
 ├── catalog.json           # Auto-generated addon index
-├── package.json           # Root Pi package manifest
+├── package.json           # Root package manifest
 ├── tsconfig.json
 ├── scripts/
 │   ├── browser-relay/     # WSL2 browser relay utility
