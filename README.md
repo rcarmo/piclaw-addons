@@ -18,6 +18,7 @@ This repository is structured as a **Pi package** and is intended to be compatib
 | [`drawio-editor`](addons/drawio-editor/) | draw.io diagram editor widget | 0.1.0 |
 | [`eml-viewer`](addons/eml-viewer/) | Email (.eml) file viewer | 0.1.0 |
 | [`kanban-board-widget`](addons/kanban-board-widget/) | Kanban board timeline widget | 0.1.0 |
+| [`imap`](addons/imap/) | IMAP email management tool with drafts, filing, and STARTTLS support | 0.1.0 |
 | [`portainer`](addons/portainer/) | Portainer container management tool | 0.1.2 |
 | [`proxmox`](addons/proxmox/) | Proxmox VE infrastructure management tool | 0.1.3 |
 
@@ -41,6 +42,7 @@ piclaw-addons/
 │   ├── drawio-editor/
 │   ├── eml-viewer/
 │   ├── kanban-board-widget/
+│   ├── imap/
 │   ├── portainer/
 │   └── proxmox/
 ├── lib/
