@@ -250,6 +250,11 @@ const indexHtml = `<!DOCTYPE html>
 <meta property="og:description" content="Community extensions, tools and add-ons for piclaw.">
 <meta property="og:url" content="${SITE_URL}/">
 <meta property="og:image" content="${SITE_URL}/assets/icons/piclaw.png">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="piclaw-addons">
+<meta name="twitter:description" content="Community extensions, tools and add-ons for piclaw.">
+<meta name="twitter:image" content="${SITE_URL}/assets/icons/piclaw.png">
 <link rel="canonical" href="${SITE_URL}/">
 <style>${CSS}</style>
 </head>
@@ -326,6 +331,12 @@ for (const addon of addons) {
 <meta property="og:title" content="${esc(addon.slug)} — piclaw-addons">
 <meta property="og:description" content="${esc(addon.description)}">
 <meta property="og:url" content="${SITE_URL}/addons/${esc(addon.slug)}/">
+<meta property="og:image" content="${SITE_URL}/${iconSrc(addon).replace('/piclaw-addons/', '')}">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="${esc(addon.slug)} — piclaw-addons">
+<meta name="twitter:description" content="${esc(addon.description)}">
+<meta name="twitter:image" content="${SITE_URL}/${iconSrc(addon).replace('/piclaw-addons/', '')}">
 <link rel="canonical" href="${SITE_URL}/addons/${esc(addon.slug)}/">
 <style>${CSS}</style>
 </head>
