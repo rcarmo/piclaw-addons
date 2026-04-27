@@ -18,9 +18,9 @@
         "autoresearch-create"
       ],
       "install": {
-        "kind": "npm",
+        "kind": "github",
         "spec": "piclaw-addon-autoresearch@0.1.0",
-        "piSource": "npm:piclaw-addon-autoresearch@0.1.0"
+        "piSource": "github:rcarmo/piclaw-addons/addons/autoresearch"
       },
       "updatedAt": "2026-04-24T17:46:13+01:00",
       "owner": {
@@ -34,7 +34,7 @@
       "name": "piclaw-addon-cheapskate",
       "version": "0.4.0",
       "type": "extension",
-      "description": "Free-tier provider auto-rotation \u2014 select cheapskate/auto as your model and it transparently routes to Google Gemini, Cerebras, Groq, or SambaNova free tiers",
+      "description": "Free-tier provider auto-rotation — select cheapskate/auto as your model and it transparently routes to Google Gemini, Cerebras, Groq, or SambaNova free tiers",
       "path": "addons/cheapskate",
       "tags": [
         "cost-optimization",
@@ -45,9 +45,9 @@
       ],
       "skills": [],
       "install": {
-        "kind": "npm",
+        "kind": "github",
         "spec": "piclaw-addon-cheapskate@0.4.0",
-        "piSource": "npm:piclaw-addon-cheapskate@0.4.0"
+        "piSource": "github:rcarmo/piclaw-addons/addons/cheapskate"
       },
       "updatedAt": "2026-04-26T06:52:28+01:00",
       "owner": {
@@ -70,9 +70,9 @@
       ],
       "skills": [],
       "install": {
-        "kind": "npm",
+        "kind": "github",
         "spec": "piclaw-addon-code-validator@0.1.0",
-        "piSource": "npm:piclaw-addon-code-validator@0.1.0"
+        "piSource": "github:rcarmo/piclaw-addons/addons/code-validator"
       },
       "updatedAt": "2026-04-24T17:46:13+01:00",
       "owner": {
@@ -97,9 +97,9 @@
         "delegate"
       ],
       "install": {
-        "kind": "npm",
+        "kind": "github",
         "spec": "piclaw-addon-delegate@0.1.0",
-        "piSource": "npm:piclaw-addon-delegate@0.1.0"
+        "piSource": "github:rcarmo/piclaw-addons/addons/delegate"
       },
       "updatedAt": "2026-04-24T17:46:13+01:00",
       "owner": {
@@ -122,9 +122,9 @@
       ],
       "skills": [],
       "install": {
-        "kind": "npm",
+        "kind": "github",
         "spec": "piclaw-addon-dev-tools@0.1.0",
-        "piSource": "npm:piclaw-addon-dev-tools@0.1.0"
+        "piSource": "github:rcarmo/piclaw-addons/addons/dev-tools"
       },
       "updatedAt": "2026-04-24T17:46:13+01:00",
       "owner": {
@@ -147,9 +147,9 @@
       ],
       "skills": [],
       "install": {
-        "kind": "npm",
+        "kind": "github",
         "spec": "piclaw-addon-drawio-editor@0.1.0",
-        "piSource": "npm:piclaw-addon-drawio-editor@0.1.0"
+        "piSource": "github:rcarmo/piclaw-addons/addons/drawio-editor"
       },
       "updatedAt": "2026-04-24T22:52:53+01:00",
       "owner": {
@@ -172,9 +172,9 @@
       ],
       "skills": [],
       "install": {
-        "kind": "npm",
+        "kind": "github",
         "spec": "piclaw-addon-eml-viewer@0.2.1",
-        "piSource": "npm:piclaw-addon-eml-viewer@0.2.1"
+        "piSource": "github:rcarmo/piclaw-addons/addons/eml-viewer"
       },
       "updatedAt": "2026-04-26T23:15:55+01:00",
       "owner": {
@@ -188,7 +188,7 @@
       "name": "piclaw-addon-imap",
       "version": "0.1.0",
       "type": "extension",
-      "description": "IMAP email management tool \u2014 search/fetch, move/copy, flag, create drafts, file messages, and STARTTLS support",
+      "description": "IMAP email management tool — search/fetch, move/copy, flag, create drafts, file messages, and STARTTLS support",
       "path": "addons/imap",
       "tags": [
         "email",
@@ -198,9 +198,9 @@
       ],
       "skills": [],
       "install": {
-        "kind": "npm",
+        "kind": "github",
         "spec": "piclaw-addon-imap@0.1.0",
-        "piSource": "npm:piclaw-addon-imap@0.1.0"
+        "piSource": "github:rcarmo/piclaw-addons/addons/imap"
       },
       "updatedAt": "2026-04-27T10:02:24+01:00",
       "owner": {
@@ -224,9 +224,9 @@
       ],
       "skills": [],
       "install": {
-        "kind": "npm",
+        "kind": "github",
         "spec": "piclaw-addon-kanban-board-widget@0.1.0",
-        "piSource": "npm:piclaw-addon-kanban-board-widget@0.1.0"
+        "piSource": "github:rcarmo/piclaw-addons/addons/kanban-board-widget"
       },
       "updatedAt": "2026-04-24T17:46:13+01:00",
       "owner": {
@@ -240,7 +240,7 @@
       "name": "piclaw-addon-portainer",
       "version": "0.1.2",
       "type": "extension",
-      "description": "Portainer management tool \u2014 session-scoped API config, ad-hoc requests, and endpoint/stack/container/image/network/volume workflows",
+      "description": "Portainer management tool — session-scoped API config, ad-hoc requests, and endpoint/stack/container/image/network/volume workflows",
       "path": "addons/portainer",
       "tags": [
         "containers",
@@ -250,9 +250,9 @@
       ],
       "skills": [],
       "install": {
-        "kind": "npm",
+        "kind": "github",
         "spec": "piclaw-addon-portainer@0.1.2",
-        "piSource": "npm:piclaw-addon-portainer@0.1.2"
+        "piSource": "github:rcarmo/piclaw-addons/addons/portainer"
       },
       "updatedAt": "2026-04-26T20:04:04+01:00",
       "owner": {
@@ -266,7 +266,7 @@
       "name": "piclaw-addon-proxmox",
       "version": "0.1.3",
       "type": "extension",
-      "description": "Proxmox VE management tool \u2014 session-scoped API config, ad-hoc requests, and VM/LXC/storage/task/metrics workflows",
+      "description": "Proxmox VE management tool — session-scoped API config, ad-hoc requests, and VM/LXC/storage/task/metrics workflows",
       "path": "addons/proxmox",
       "tags": [
         "homelab",
@@ -276,9 +276,9 @@
       ],
       "skills": [],
       "install": {
-        "kind": "npm",
+        "kind": "github",
         "spec": "piclaw-addon-proxmox@0.1.3",
-        "piSource": "npm:piclaw-addon-proxmox@0.1.3"
+        "piSource": "github:rcarmo/piclaw-addons/addons/proxmox"
       },
       "updatedAt": "2026-04-26T20:04:04+01:00",
       "owner": {
@@ -303,9 +303,9 @@
       ],
       "skills": [],
       "install": {
-        "kind": "npm",
+        "kind": "github",
         "spec": "piclaw-addon-voice-pipeline@0.1.0",
-        "piSource": "npm:piclaw-addon-voice-pipeline@0.1.0"
+        "piSource": "github:rcarmo/piclaw-addons/addons/voice-pipeline"
       },
       "updatedAt": "2026-04-25T10:26:13+01:00",
       "owner": {
@@ -319,7 +319,7 @@
       "name": "piclaw-addon-yolochat",
       "version": "0.1.0",
       "type": "skill",
-      "description": "Zero-guardrail inter-instance messaging \u2014 lets Pi instances post and reply to each other over HTTP",
+      "description": "Zero-guardrail inter-instance messaging — lets Pi instances post and reply to each other over HTTP",
       "path": "addons/yolochat",
       "tags": [
         "chat",
@@ -329,9 +329,9 @@
       ],
       "skills": [],
       "install": {
-        "kind": "npm",
+        "kind": "github",
         "spec": "piclaw-addon-yolochat@0.1.0",
-        "piSource": "npm:piclaw-addon-yolochat@0.1.0"
+        "piSource": "github:rcarmo/piclaw-addons/addons/yolochat"
       },
       "updatedAt": "2026-04-25T18:10:23+01:00",
       "owner": {
