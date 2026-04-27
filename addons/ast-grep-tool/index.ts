@@ -9,10 +9,6 @@ import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-
-const baseDir = dirname(fileURLToPath(import.meta.url));
 
 const WORKSPACE_ROOT = "/workspace";
 const MAX_RESULTS = 100;
@@ -83,11 +79,6 @@ const SUPPORTED_LANGS = [
 
 /** Register ast-grep extension tools. */
 export default async function register(api: ExtensionAPI) {
-  // Register skill for agent discovery
-  api.on("resources_discover", () => ({
-    skillPaths: [join(baseDir, "skills", "ast-grep", "SKILL.md")],
-  }));
-
   const astGrepBin = await findAstGrepBinary();
 
   api.registerTool({
@@ -134,7 +125,7 @@ export default async function register(api: ExtensionAPI) {
       const { stdout, stderr, code } = await runAstGrep(cmdArgs, signal);
 
       if (code !== 0 && !stdout) {
-        return `Error: ${stderr || `ast-grep exited with code ${code}`}`;
+        return { content: [{ type: "text" as const, text: `Error: ${stderr || `ast-grep exited with code ${code}`}` }] };
       }
 
       const lines = stdout.trim().split("\n").filter(Boolean);
@@ -153,7 +144,7 @@ export default async function register(api: ExtensionAPI) {
       }
 
       if (matches.length === 0) {
-        return `No matches found for pattern: ${pattern}`;
+        return { content: [{ type: "text" as const, text: `No matches found for pattern: ${pattern}` }] };
       }
 
       let output = matches.join("\n");
@@ -163,7 +154,7 @@ export default async function register(api: ExtensionAPI) {
       if (output.length > MAX_OUTPUT_CHARS) {
         output = output.slice(0, MAX_OUTPUT_CHARS) + "\n\n(output truncated)";
       }
-      return output;
+      return { content: [{ type: "text" as const, text: output }] };
     },
   });
 
@@ -214,17 +205,18 @@ export default async function register(api: ExtensionAPI) {
       const { stdout, stderr, code } = await runAstGrep(cmdArgs, signal);
 
       if (code !== 0 && !stdout) {
-        return `Error: ${stderr || `ast-grep exited with code ${code}`}`;
+        return { content: [{ type: "text" as const, text: `Error: ${stderr || `ast-grep exited with code ${code}`}` }] };
       }
 
       const prefix = dryRun
         ? "DRY RUN — preview only (set dry_run: false to apply):\n\n"
         : "Applied changes:\n\n";
-      const output = stdout.trim() || "No matches found.";
+      const raw = stdout.trim() || "No matches found.";
+      const output = raw.length > MAX_OUTPUT_CHARS
+        ? raw.slice(0, MAX_OUTPUT_CHARS) + "\n\n(output truncated)"
+        : raw;
 
-      return prefix + (output.length > MAX_OUTPUT_CHARS
-        ? output.slice(0, MAX_OUTPUT_CHARS) + "\n\n(output truncated)"
-        : output);
+      return { content: [{ type: "text" as const, text: prefix + output }] };
     },
   });
 }
