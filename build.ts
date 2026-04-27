@@ -189,7 +189,9 @@ html,body{min-height:100%;background:var(--bg);color:var(--ink);font-family:var(
 .card-icon{width:48px;height:48px;border-radius:12px;object-fit:contain;flex-shrink:0;
   box-shadow:0 2px 8px rgba(0,0,0,.09)}
 .card-name{font-family:var(--font-head);font-weight:700;font-size:1.05rem;letter-spacing:-.025em}
-.card-version{font-size:.72rem;color:var(--ink-dim);font-family:var(--font-mono);margin-top:.15rem}
+.card-sub-row{display:flex;align-items:center;gap:.45rem;flex-wrap:wrap;margin-top:.18rem}
+.card-version{font-size:.72rem;color:var(--ink-dim);font-family:var(--font-mono)}
+.card-sub-row .owner-row{margin:0}
 .card-desc{font-size:.875rem;color:var(--ink-dim);line-height:1.55;flex:1}
 .card-tags{display:flex;flex-wrap:wrap;gap:.3rem;margin-top:.35rem}
 .badge{display:inline-block;padding:.2rem .55rem;border-radius:6px;font-size:.7rem;font-weight:700;
@@ -306,12 +308,14 @@ ${addons.map(a => `  <a href="/piclaw-addons/addons/${esc(a.slug)}/" class="card
       <img class="card-icon" src="${iconSrc(a)}" alt="" loading="lazy">
       <div>
         <div class="card-name">${esc(a.slug)}</div>
-        <div class="card-version">v${esc(a.version)}</div>
+        <div class="card-sub-row">
+          <span class="card-version">v${esc(a.version)}</span>
+          ${ownerChips(a)}
+        </div>
       </div>
     </div>
     <div class="card-desc">${esc(a.description)}</div>
     <div class="card-tags">${a.tags.map(tagBadge).join("")}</div>
-    ${ownerChips(a)}
   </a>`).join("\n")}
 </main>
 
