@@ -107,12 +107,12 @@ html,body{min-height:100%;background:var(--bg);color:var(--ink);font-family:var(
 
 /* ── Owner / contributors ─── */
 .owner-row{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.45rem}
-.person-link{display:inline-flex;align-items:center;gap:.28rem;padding:.18rem .5rem;
+.person-link,.person-chip{display:inline-flex;align-items:center;gap:.28rem;padding:.18rem .5rem;
   border-radius:6px;border:1px solid var(--border);font-size:.74rem;font-weight:600;
   color:var(--ink-dim);text-decoration:none;background:var(--surface)}
 .person-link:hover{background:var(--accent-bg);color:var(--accent);border-color:var(--accent)}
-.person-link.dim{opacity:.65}
-.card .person-link{font-size:.68rem;padding:.13rem .4rem}
+.person-link.dim,.person-chip.dim{opacity:.65}
+.card .person-chip,.card .person-link{font-size:.68rem;padding:.13rem .4rem}
 
 /* ── Footer ─── */
 footer{text-align:center;padding:1.5rem;font-size:.75rem;color:var(--ink-dim);border-top:1px solid var(--border)}
@@ -147,9 +147,9 @@ footer a{color:var(--accent);text-decoration:none}
     </div>
     <div class="card-desc">Autonomous experiment loop sub-agent (start/stop/status tools via tmux)</div>
     <div class="card-tags"><span class="badge">automation</span><span class="badge">experiments</span><span class="badge">research</span></div>
-    <div class="owner-row"><a href="https://github.com/rcarmo" target="_blank" rel="noopener" class="person-link">
+    <div class="owner-row"><span class="person-chip">
     <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
-    @rcarmo</a></div>
+    @rcarmo</span></div>
   </a>
   <a href="/piclaw-addons/addons/cheapskate/" class="card" data-name="cheapskate Free-tier provider auto-rotation — select cheapskate/auto as your model and it transparently routes to Google Gemini, Cerebras, Groq, or SambaNova free tiers cost-optimization free-tier models providers rotation">
     <div class="card-header">
@@ -161,9 +161,9 @@ footer a{color:var(--accent);text-decoration:none}
     </div>
     <div class="card-desc">Free-tier provider auto-rotation — select cheapskate/auto as your model and it transparently routes to Google Gemini, Cerebras, Groq, or SambaNova free tiers</div>
     <div class="card-tags"><span class="badge">cost-optimization</span><span class="badge">free-tier</span><span class="badge">models</span><span class="badge">providers</span><span class="badge">rotation</span></div>
-    <div class="owner-row"><a href="https://github.com/rcarmo" target="_blank" rel="noopener" class="person-link">
+    <div class="owner-row"><span class="person-chip">
     <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
-    @rcarmo</a></div>
+    @rcarmo</span></div>
   </a>
   <a href="/piclaw-addons/addons/code-validator/" class="card" data-name="code-validator Diagnostics tool for code validation (Python, JS/TS, JSON, extensible via validators.json) diagnostics linting validation">
     <div class="card-header">
@@ -175,9 +175,9 @@ footer a{color:var(--accent);text-decoration:none}
     </div>
     <div class="card-desc">Diagnostics tool for code validation (Python, JS/TS, JSON, extensible via validators.json)</div>
     <div class="card-tags"><span class="badge">diagnostics</span><span class="badge">linting</span><span class="badge">validation</span></div>
-    <div class="owner-row"><a href="https://github.com/rcarmo" target="_blank" rel="noopener" class="person-link">
+    <div class="owner-row"><span class="person-chip">
     <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
-    @rcarmo</a></div>
+    @rcarmo</span></div>
   </a>
   <a href="/piclaw-addons/addons/delegate/" class="card" data-name="delegate Delegate tasks to cheaper/faster models with auto model selection, tool access, and MCP support cost-optimization delegation multi-model">
     <div class="card-header">
@@ -189,9 +189,9 @@ footer a{color:var(--accent);text-decoration:none}
     </div>
     <div class="card-desc">Delegate tasks to cheaper/faster models with auto model selection, tool access, and MCP support</div>
     <div class="card-tags"><span class="badge">cost-optimization</span><span class="badge">delegation</span><span class="badge">multi-model</span></div>
-    <div class="owner-row"><a href="https://github.com/cjnova" target="_blank" rel="noopener" class="person-link">
+    <div class="owner-row"><span class="person-chip">
     <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
-    @cjnova</a></div>
+    @cjnova</span></div>
   </a>
   <a href="/piclaw-addons/addons/dev-tools/" class="card" data-name="dev-tools Developer tools for workspace diagnostics and environment inspection developer diagnostics environment">
     <div class="card-header">
@@ -203,9 +203,9 @@ footer a{color:var(--accent);text-decoration:none}
     </div>
     <div class="card-desc">Developer tools for workspace diagnostics and environment inspection</div>
     <div class="card-tags"><span class="badge">developer</span><span class="badge">diagnostics</span><span class="badge">environment</span></div>
-    <div class="owner-row"><a href="https://github.com/rcarmo" target="_blank" rel="noopener" class="person-link">
+    <div class="owner-row"><span class="person-chip">
     <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
-    @rcarmo</a></div>
+    @rcarmo</span></div>
   </a>
   <a href="/piclaw-addons/addons/drawio-editor/" class="card" data-name="drawio-editor Self-hosted draw.io diagram editor with workspace file integration diagrams drawio editor">
     <div class="card-header">
@@ -217,9 +217,9 @@ footer a{color:var(--accent);text-decoration:none}
     </div>
     <div class="card-desc">Self-hosted draw.io diagram editor with workspace file integration</div>
     <div class="card-tags"><span class="badge">diagrams</span><span class="badge">drawio</span><span class="badge">editor</span></div>
-    <div class="owner-row"><a href="https://github.com/rcarmo" target="_blank" rel="noopener" class="person-link">
+    <div class="owner-row"><span class="person-chip">
     <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
-    @rcarmo</a></div>
+    @rcarmo</span></div>
   </a>
   <a href="/piclaw-addons/addons/eml-viewer/" class="card" data-name="eml-viewer Attachment preview route for email message (.eml) files in the web timeline email eml viewer">
     <div class="card-header">
@@ -231,9 +231,9 @@ footer a{color:var(--accent);text-decoration:none}
     </div>
     <div class="card-desc">Attachment preview route for email message (.eml) files in the web timeline</div>
     <div class="card-tags"><span class="badge">email</span><span class="badge">eml</span><span class="badge">viewer</span></div>
-    <div class="owner-row"><a href="https://github.com/rcarmo" target="_blank" rel="noopener" class="person-link">
+    <div class="owner-row"><span class="person-chip">
     <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
-    @rcarmo</a></div>
+    @rcarmo</span></div>
   </a>
   <a href="/piclaw-addons/addons/imap/" class="card" data-name="imap IMAP email management tool — search/fetch, move/copy, flag, create drafts, file messages, and STARTTLS support email imap mail productivity">
     <div class="card-header">
@@ -245,9 +245,9 @@ footer a{color:var(--accent);text-decoration:none}
     </div>
     <div class="card-desc">IMAP email management tool — search/fetch, move/copy, flag, create drafts, file messages, and STARTTLS support</div>
     <div class="card-tags"><span class="badge">email</span><span class="badge">imap</span><span class="badge">mail</span><span class="badge">productivity</span></div>
-    <div class="owner-row"><a href="https://github.com/rcarmo" target="_blank" rel="noopener" class="person-link">
+    <div class="owner-row"><span class="person-chip">
     <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
-    @rcarmo</a></div>
+    @rcarmo</span></div>
   </a>
   <a href="/piclaw-addons/addons/kanban-board-widget/" class="card" data-name="kanban-board-widget Interactive kanban board dashboard widget for the web timeline dashboard kanban ui widget">
     <div class="card-header">
@@ -259,9 +259,9 @@ footer a{color:var(--accent);text-decoration:none}
     </div>
     <div class="card-desc">Interactive kanban board dashboard widget for the web timeline</div>
     <div class="card-tags"><span class="badge">dashboard</span><span class="badge">kanban</span><span class="badge">ui</span><span class="badge">widget</span></div>
-    <div class="owner-row"><a href="https://github.com/rcarmo" target="_blank" rel="noopener" class="person-link">
+    <div class="owner-row"><span class="person-chip">
     <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
-    @rcarmo</a></div>
+    @rcarmo</span></div>
   </a>
   <a href="/piclaw-addons/addons/portainer/" class="card" data-name="portainer Portainer management tool — session-scoped API config, ad-hoc requests, and endpoint/stack/container/image/network/volume workflows containers docker infrastructure portainer">
     <div class="card-header">
@@ -273,9 +273,9 @@ footer a{color:var(--accent);text-decoration:none}
     </div>
     <div class="card-desc">Portainer management tool — session-scoped API config, ad-hoc requests, and endpoint/stack/container/image/network/volume workflows</div>
     <div class="card-tags"><span class="badge">containers</span><span class="badge">docker</span><span class="badge">infrastructure</span><span class="badge">portainer</span></div>
-    <div class="owner-row"><a href="https://github.com/rcarmo" target="_blank" rel="noopener" class="person-link">
+    <div class="owner-row"><span class="person-chip">
     <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
-    @rcarmo</a></div>
+    @rcarmo</span></div>
   </a>
   <a href="/piclaw-addons/addons/proxmox/" class="card" data-name="proxmox Proxmox VE management tool — session-scoped API config, ad-hoc requests, and VM/LXC/storage/task/metrics workflows homelab infrastructure proxmox virtualization">
     <div class="card-header">
@@ -287,9 +287,9 @@ footer a{color:var(--accent);text-decoration:none}
     </div>
     <div class="card-desc">Proxmox VE management tool — session-scoped API config, ad-hoc requests, and VM/LXC/storage/task/metrics workflows</div>
     <div class="card-tags"><span class="badge">homelab</span><span class="badge">infrastructure</span><span class="badge">proxmox</span><span class="badge">virtualization</span></div>
-    <div class="owner-row"><a href="https://github.com/rcarmo" target="_blank" rel="noopener" class="person-link">
+    <div class="owner-row"><span class="person-chip">
     <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
-    @rcarmo</a></div>
+    @rcarmo</span></div>
   </a>
   <a href="/piclaw-addons/addons/voice-pipeline/" class="card" data-name="voice-pipeline ESPHome-only voice assistant pipeline for ThinkSmart/ESP32-Audio devices using Azure STT/TTS and the Flint chat runtime audio esp32 home-automation smart-home voice">
     <div class="card-header">
@@ -301,9 +301,9 @@ footer a{color:var(--accent);text-decoration:none}
     </div>
     <div class="card-desc">ESPHome-only voice assistant pipeline for ThinkSmart/ESP32-Audio devices using Azure STT/TTS and the Flint chat runtime</div>
     <div class="card-tags"><span class="badge">audio</span><span class="badge">esp32</span><span class="badge">home-automation</span><span class="badge">smart-home</span><span class="badge">voice</span></div>
-    <div class="owner-row"><a href="https://github.com/rcarmo" target="_blank" rel="noopener" class="person-link">
+    <div class="owner-row"><span class="person-chip">
     <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
-    @rcarmo</a></div>
+    @rcarmo</span></div>
   </a>
   <a href="/piclaw-addons/addons/yolochat/" class="card" data-name="yolochat Zero-guardrail inter-instance messaging — lets Pi instances post and reply to each other over HTTP chat experimental multi-agent networking">
     <div class="card-header">
@@ -315,9 +315,9 @@ footer a{color:var(--accent);text-decoration:none}
     </div>
     <div class="card-desc">Zero-guardrail inter-instance messaging — lets Pi instances post and reply to each other over HTTP</div>
     <div class="card-tags"><span class="badge">chat</span><span class="badge">experimental</span><span class="badge">multi-agent</span><span class="badge">networking</span></div>
-    <div class="owner-row"><a href="https://github.com/rcarmo" target="_blank" rel="noopener" class="person-link">
+    <div class="owner-row"><span class="person-chip">
     <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
-    @rcarmo</a></div>
+    @rcarmo</span></div>
   </a>
 </main>
 

@@ -106,12 +106,12 @@ html,body{min-height:100%;background:var(--bg);color:var(--ink);font-family:var(
 
 /* ── Owner / contributors ─── */
 .owner-row{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.45rem}
-.person-link{display:inline-flex;align-items:center;gap:.28rem;padding:.18rem .5rem;
+.person-link,.person-chip{display:inline-flex;align-items:center;gap:.28rem;padding:.18rem .5rem;
   border-radius:6px;border:1px solid var(--border);font-size:.74rem;font-weight:600;
   color:var(--ink-dim);text-decoration:none;background:var(--surface)}
 .person-link:hover{background:var(--accent-bg);color:var(--accent);border-color:var(--accent)}
-.person-link.dim{opacity:.65}
-.card .person-link{font-size:.68rem;padding:.13rem .4rem}
+.person-link.dim,.person-chip.dim{opacity:.65}
+.card .person-chip,.card .person-link{font-size:.68rem;padding:.13rem .4rem}
 
 /* ── Footer ─── */
 footer{text-align:center;padding:1.5rem;font-size:.75rem;color:var(--ink-dim);border-top:1px solid var(--border)}

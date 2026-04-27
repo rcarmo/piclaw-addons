@@ -89,10 +89,25 @@ function personLink(p: Person, dim = false): string {
     @${esc(p.login)}</a>`;
 }
 
+// Plain-text version for use inside <a> cards (no nested links)
+function personChip(p: Person, dim = false): string {
+  return `<span class="person-chip${dim?' dim':''}">
+    <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+    @${esc(p.login)}</span>`;
+}
+
 function ownerRow(addon: Addon): string {
   if (!addon.owner) return "";
   const parts = [personLink(addon.owner)];
   for (const c of addon.contributors ?? []) parts.push(personLink(c, true));
+  return `<div class="owner-row">${parts.join("")}</div>`;
+}
+
+// Card variant: chips only (no nested <a>)
+function ownerChips(addon: Addon): string {
+  if (!addon.owner) return "";
+  const parts = [personChip(addon.owner)];
+  for (const c of addon.contributors ?? []) parts.push(personChip(c, true));
   return `<div class="owner-row">${parts.join("")}</div>`;
 }
 
@@ -205,12 +220,12 @@ html,body{min-height:100%;background:var(--bg);color:var(--ink);font-family:var(
 
 /* ── Owner / contributors ─── */
 .owner-row{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.45rem}
-.person-link{display:inline-flex;align-items:center;gap:.28rem;padding:.18rem .5rem;
+.person-link,.person-chip{display:inline-flex;align-items:center;gap:.28rem;padding:.18rem .5rem;
   border-radius:6px;border:1px solid var(--border);font-size:.74rem;font-weight:600;
   color:var(--ink-dim);text-decoration:none;background:var(--surface)}
 .person-link:hover{background:var(--accent-bg);color:var(--accent);border-color:var(--accent)}
-.person-link.dim{opacity:.65}
-.card .person-link{font-size:.68rem;padding:.13rem .4rem}
+.person-link.dim,.person-chip.dim{opacity:.65}
+.card .person-chip,.card .person-link{font-size:.68rem;padding:.13rem .4rem}
 
 /* ── Footer ─── */
 footer{text-align:center;padding:1.5rem;font-size:.75rem;color:var(--ink-dim);border-top:1px solid var(--border)}
@@ -260,7 +275,7 @@ ${addons.map(a => `  <a href="/piclaw-addons/addons/${esc(a.slug)}/" class="card
     </div>
     <div class="card-desc">${esc(a.description)}</div>
     <div class="card-tags">${a.tags.map(tagBadge).join("")}</div>
-    ${ownerRow(a)}
+    ${ownerChips(a)}
   </a>`).join("\n")}
 </main>
 
