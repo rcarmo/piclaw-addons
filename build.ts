@@ -32,7 +32,6 @@ interface Addon {
   skills:       string[];
   install:      Install;
   updatedAt?:   string;
-  openIssues?:  number;
   owner?:        Person;
   contributors?: Person[];
   icon?:         string;
@@ -213,6 +212,9 @@ html,body{min-height:100%;background:var(--bg);color:var(--ink);font-family:var(
 .detail-version{font-family:var(--font-mono);font-size:.78rem;opacity:.6}
 .detail-issues{font-size:.76rem;font-weight:700;color:#fbbf24;background:rgba(251,191,36,.15);
   border:1px solid rgba(251,191,36,.3);padding:.18rem .5rem;border-radius:6px}
+.issue-badge{display:inline-block;font-size:.7rem;font-weight:700;color:#f59e0b;
+  background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.28);
+  padding:.18rem .5rem;border-radius:6px;margin-top:.3rem}
 .detail-body{max-width:760px;margin:2.2rem auto 3rem;padding:0 1.5rem}
 .detail-body h2{font-family:var(--font-head);font-size:1.2rem;font-weight:700;margin:2rem 0 .65rem;color:var(--ink)}
 .detail-body h3{font-family:var(--font-head);font-size:1rem;font-weight:600;margin:1.3rem 0 .45rem}
@@ -326,6 +328,10 @@ search.addEventListener('input', () => {
   cards.forEach(c => c.hidden = q && !c.dataset.name.toLowerCase().includes(q));
 });
 </script>
+<script type="module">
+  import { mountIndex } from '/piclaw-addons/assets/js/addon-island.mjs';
+  mountIndex();
+</script>
 </body>
 </html>`;
 
@@ -393,6 +399,10 @@ ${skillList}
   <a href="/piclaw-addons/">piclaw-addons</a> &nbsp;·&nbsp;
   <a href="https://github.com/rcarmo/piclaw-addons/tree/main/${esc(addon.path)}">View source</a>
 </footer>
+<script type="module">
+  import { mountDetail } from '/piclaw-addons/assets/js/addon-island.mjs';
+  mountDetail('${esc(addon.slug)}');
+</script>
 </body>
 </html>`;
 

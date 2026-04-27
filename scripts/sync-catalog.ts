@@ -56,7 +56,6 @@ interface CatalogEntry {
     piSource: string;
   };
   updatedAt?:    string;  // ISO date of last git commit touching this addon
-  openIssues?:   number;  // open GitHub issues labelled addon:<slug>
   owner?: { login: string; url: string };
   contributors?: { login: string; url: string }[];
 }
@@ -69,25 +68,6 @@ const extensionsDir = join(repoRoot, 'extensions');
 const skillsDir = join(repoRoot, 'skills');
 const writeMode = process.argv.includes('--write');
 const checkMode = process.argv.includes('--check');
-
-async function fetchOpenIssues(slug: string): Promise<number> {
-  const token = process.env.GITHUB_TOKEN;
-  const [owner, repo] = (process.env.GITHUB_REPOSITORY ?? 'rcarmo/piclaw-addons').split('/');
-  try {
-    const url = `https://api.github.com/repos/${owner}/${repo}/issues?state=open&labels=addon:${slug}&per_page=100`;
-    const res = await fetch(url, {
-      headers: {
-        Accept: 'application/vnd.github+json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-    });
-    if (!res.ok) return 0;
-    const issues = await res.json() as unknown[];
-    return Array.isArray(issues) ? issues.length : 0;
-  } catch {
-    return 0;
-  }
-}
 
 
 async function gitLastCommitDate(relPath: string): Promise<string | undefined> {
@@ -212,7 +192,6 @@ async function buildMetadata() {
     }
 
     const updatedAt  = await gitLastCommitDate(`addons/${slug}`);
-    const openIssues = await fetchOpenIssues(slug);
     const prev = existingEntries.get(slug) ?? {};
 
     catalogEntries.push({
@@ -230,7 +209,6 @@ async function buildMetadata() {
         piSource: `npm:${pkg.name}@${pkg.version}`,
       },
       ...(updatedAt              ? { updatedAt }              : {}),
-      ...(openIssues > 0         ? { openIssues }             : {}),
       ...(prev.owner             ? { owner:        prev.owner }        : {}),
       ...(prev.contributors      ? { contributors: prev.contributors } : {}),
     });
