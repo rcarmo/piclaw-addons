@@ -8,7 +8,7 @@ This repository is structured as a **Pi package** and is intended to be compatib
 
 ## Publishing workflow
 
-![Event sequence](docs/event-sequence.svg)
+![Event sequence](assets/event-sequence.svg)
 
 When an addon is updated, the chain runs automatically:
 1. `git push addons/<slug>` triggers **`sync-catalog`** → rewrites `catalog.json`

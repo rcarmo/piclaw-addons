@@ -463,6 +463,8 @@ for (const addon of addons) {
   console.log(`✓ packed ${addon.name}@${addon.version}`);
 }
 
-// ── Copy assets ───────────────────────────────────────────────────────────────
-// Assets are committed directly; no copy needed at build time.
+// ── Copy static assets ──────────────────────────────────────────────────────
+import { copyFileSync } from "fs";
+copyFileSync(join(ROOT, "assets", "event-sequence.svg"), join(OUT, "event-sequence.svg"));
+
 console.log(`\nDone. Output → docs/`);
