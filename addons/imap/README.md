@@ -2,6 +2,8 @@
 
 IMAP email management addon for piclaw.
 
+Includes a web settings pane for managing accounts.
+
 ## Features
 
 - list folders
@@ -16,20 +18,12 @@ IMAP email management addon for piclaw.
 
 ## Account config
 
-Store one JSON keychain entry per account:
+The settings pane stores:
 
-```bash
-keychain set imap/personal '{
-  "host": "imap.example.com",
-  "port": 143,
-  "user": "user@example.com",
-  "pass": "app-password",
-  "tls": false,
-  "starttls": true,
-  "from": "Your Name <user@example.com>",
-  "allowInsecureTls": false
-}'
-```
+- non-secret account settings in the extension SQLite KV store
+- passwords in keychain at `imap/<name>/password`
+
+Legacy single-secret entries like `imap/personal` are still read as a fallback.
 
 Then use `account: "personal"` in tool calls, or set:
 
@@ -41,4 +35,5 @@ export IMAP_DEFAULT_ACCOUNT=personal
 
 - No SMTP support.
 - This addon cannot send mail; it only manipulates mailboxes over IMAP.
-- `allowInsecureTls=true` is only for broken/self-signed/expired-cert servers.
+- `allowInsecureTls=true` is only for broken/self-signed/private/expired-cert servers.
+- Account management is available both through the settings pane and through `imap` tool actions like `list_accounts`, `save_account`, and `delete_account`.
