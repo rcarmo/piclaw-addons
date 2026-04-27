@@ -3,6 +3,31 @@
   "source": "github:rcarmo/piclaw-addons",
   "addons": [
     {
+      "slug": "ast-grep-tool",
+      "name": "@rcarmo/piclaw-addon-ast-grep",
+      "version": "0.1.0",
+      "type": "extension",
+      "description": "Structural code search and rewrite using ast-grep as a native LLM tool",
+      "path": "addons/ast-grep-tool",
+      "tags": [
+        "ast",
+        "code-search",
+        "refactoring"
+      ],
+      "skills": [],
+      "install": {
+        "kind": "npm",
+        "spec": "@rcarmo/piclaw-addon-ast-grep@0.1.0",
+        "registry": "https://npm.pkg.github.com",
+        "piSource": "npm:@rcarmo/piclaw-addon-ast-grep@0.1.0"
+      },
+      "owner": {
+        "login": "cjnova",
+        "url": "https://github.com/cjnova"
+      },
+      "contributors": []
+    },
+    {
       "slug": "autoresearch",
       "name": "@rcarmo/piclaw-addon-autoresearch",
       "version": "0.1.0",
