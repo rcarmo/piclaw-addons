@@ -91,13 +91,11 @@ html,body{min-height:100%;background:var(--bg);color:var(--ink);font-family:var(
 @media(prefers-color-scheme:dark){.detail-body pre{background:rgba(255,255,255,.04)}}
 
 /* ── Install block ─── */
-.install-block{display:flex;align-items:center;gap:.7rem;padding:.75rem 1rem;
+.install-block{display:flex;align-items:center;gap:.65rem;padding:.75rem 1rem;
   background:var(--accent-bg);border:1px solid var(--border);border-radius:10px;margin:1.2rem 0}
-.install-label{font-size:.75rem;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--accent);white-space:nowrap}
-.install-cmd{font-family:var(--font-mono);font-size:.82rem;flex:1;word-break:break-all}
-.copy-btn{padding:.3rem .7rem;border-radius:7px;border:1px solid var(--border);
-  background:var(--surface);color:var(--ink-dim);font-size:.75rem;cursor:pointer;white-space:nowrap}
-.copy-btn:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
+.install-icon{color:var(--accent);flex-shrink:0}
+.install-text{font-size:.9rem;color:var(--ink-dim)}
+.install-text strong{color:var(--ink)}
 
 /* ── Back link ─── */
 .back{display:inline-flex;align-items:center;gap:.4rem;color:rgba(255,255,255,.75);
@@ -137,10 +135,9 @@ footer a{color:var(--accent);text-decoration:none}
 
 <div class="detail-body">
   <div class="install-block">
-      <span class="install-label">Install</span>
-      <code class="install-cmd">npm:piclaw-addon-autoresearch@0.1.0</code>
-      <button class="copy-btn" onclick="navigator.clipboard.writeText('npm:piclaw-addon-autoresearch@0.1.0')">Copy</button>
-    </div>
+    <svg class="install-icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.751.751 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Z"/></svg>
+    <span class="install-text">Open <strong>Settings → Add-Ons</strong> and pick <strong>autoresearch</strong></span>
+  </div>
   <p>Autonomous experiment loop sub-agent (start/stop/status tools via tmux)</p>
 </div>
 <div class="detail-body"><h2>Skills</h2><ul><li><code>autoresearch-create</code></li></ul></div>

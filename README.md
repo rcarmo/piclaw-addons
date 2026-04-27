@@ -6,6 +6,17 @@ This repository is structured as a **Pi package** and is intended to be compatib
 
 > **For agents:** see [AGENTS.md](AGENTS.md) for how to add, modify, and test addons.
 
+## Publishing workflow
+
+![Event sequence](docs/event-sequence.svg)
+
+When an addon is updated, the chain runs automatically:
+1. `git push addons/<slug>` triggers **`sync-catalog`** → rewrites `catalog.json`
+2. `catalog.json` commit triggers **`build + deploy`** → rebuilds `docs/` and pushes to `gh-pages`
+3. Site at [rcarmo.github.io/piclaw-addons](https://rcarmo.github.io/piclaw-addons/) goes live ~30s later
+
+`workflow_dispatch` on `build.yml` bypasses the chain and deploys directly.
+
 ## Available addons
 
 | Addon | Description | Version |
