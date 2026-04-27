@@ -16,109 +16,129 @@
 <meta name="twitter:image" content="https://rcarmo.github.io/piclaw-addons/assets/icons/default-00.png">
 <link rel="canonical" href="https://rcarmo.github.io/piclaw-addons/addons/kanban-board-widget/">
 <style>
+@font-face{font-family:'IBM Plex Sans';src:url('/piclaw-addons/assets/fonts/ibm-plex-sans-400.woff2') format('woff2');font-weight:400;font-display:swap}
+@font-face{font-family:'IBM Plex Sans';src:url('/piclaw-addons/assets/fonts/ibm-plex-sans-500.woff2') format('woff2');font-weight:500;font-display:swap}
+@font-face{font-family:'IBM Plex Sans';src:url('/piclaw-addons/assets/fonts/ibm-plex-sans-600.woff2') format('woff2');font-weight:600;font-display:swap}
+@font-face{font-family:'IBM Plex Sans';src:url('/piclaw-addons/assets/fonts/ibm-plex-sans-700.woff2') format('woff2');font-weight:700;font-display:swap}
+@font-face{font-family:'Inter';src:url('/piclaw-addons/assets/fonts/inter-var.woff2') format('woff2');font-weight:100 900;font-display:swap}
+@font-face{font-family:'JetBrains Mono';src:url('/piclaw-addons/assets/fonts/jetbrains-mono-400.woff2') format('woff2');font-weight:400;font-display:swap}
+@font-face{font-family:'JetBrains Mono';src:url('/piclaw-addons/assets/fonts/jetbrains-mono-500.woff2') format('woff2');font-weight:500;font-display:swap}
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#f0f4ff;
-  --ink:#0f1c2e;
-  --ink-dim:rgba(15,28,46,.6);
-  --surface:#fff;
-  --border:rgba(30,60,120,.12);
-  --accent:#2563eb;
-  --accent-bg:rgba(37,99,235,.07);
-  --blue:#2563eb;
-  --radius:14px;
-  --font-head:'IBM Plex Sans','Inter',system-ui,sans-serif;
+  --bg:#f0f4ff;--ink:#0f1c2e;--ink-dim:rgba(15,28,46,.6);
+  --surface:#fff;--border:rgba(30,60,120,.12);
+  --accent:#2563eb;--accent-bg:rgba(37,99,235,.07);--blue:#2563eb;
+  --radius:14px;--max-w:900px;
+  --font-head:'IBM Plex Sans',system-ui,sans-serif;
   --font-body:'Inter',system-ui,sans-serif;
   --font-mono:'JetBrains Mono','Fira Mono',monospace;
   --shadow:0 8px 32px rgba(15,28,46,.09);
 }
-@media(prefers-color-scheme:dark){
-  :root{
-    --bg:#0d1117;--ink:#e0e8f0;--ink-dim:rgba(224,232,240,.55);
-    --surface:#141b27;--border:rgba(100,160,255,.13);
-    --accent:#4f8cff;--accent-bg:rgba(79,140,255,.09);
-  }
-}
-html,body{min-height:100%;background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:15px;line-height:1.65}
+@media(prefers-color-scheme:dark){:root{
+  --bg:#0d1117;--ink:#e0e8f0;--ink-dim:rgba(224,232,240,.55);
+  --surface:#141b27;--border:rgba(100,160,255,.13);
+  --accent:#4f8cff;--accent-bg:rgba(79,140,255,.09);
+}}
+html,body{min-height:100%;background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:16px;line-height:1.65}
 
-/* ── Hero ─── */
-.hero{background:linear-gradient(135deg,#1e3a5f 0%,#2563eb 100%);color:#fff;padding:3rem 1.5rem 2.5rem;text-align:center}
-.hero-logo{width:72px;height:72px;border-radius:18px;margin-bottom:1.2rem;box-shadow:0 8px 24px rgba(0,0,0,.25)}
-.hero-title{font-family:var(--font-head);font-size:2.2rem;font-weight:800;letter-spacing:-.04em;margin-bottom:.5rem}
-.hero-sub{font-size:1rem;opacity:.78;max-width:520px;margin:0 auto 1.4rem}
-.hero-meta{font-size:.8rem;opacity:.55}
-.hero-source{display:inline-flex;align-items:center;gap:.4rem;margin-top:.9rem;
-  padding:.45rem .9rem;border-radius:10px;border:1px solid rgba(255,255,255,.25);
-  color:rgba(255,255,255,.85);text-decoration:none;font-size:.78rem;font-weight:700}
+/* ── Index hero ─── */
+.hero{background:linear-gradient(135deg,#1e3a5f 0%,#2563eb 100%);color:#fff;padding:4rem 1.5rem 3rem;text-align:center}
+.hero-logo{width:120px;height:120px;border-radius:26px;margin-bottom:1.5rem;
+  box-shadow:0 12px 40px rgba(0,0,0,.30);object-fit:contain}
+.hero-title{font-family:var(--font-head);font-size:3rem;font-weight:800;letter-spacing:-.045em;
+  line-height:1.04;margin-bottom:.6rem}
+.hero-sub{font-size:1.1rem;opacity:.78;max-width:540px;margin:0 auto 1.4rem;line-height:1.6}
+.hero-meta{font-size:.82rem;opacity:.55}
+.hero-source{display:inline-flex;align-items:center;gap:.4rem;margin-top:1rem;
+  padding:.5rem 1rem;border-radius:10px;border:1px solid rgba(255,255,255,.25);
+  color:rgba(255,255,255,.85);text-decoration:none;font-size:.8rem;font-weight:700}
 .hero-source:hover{background:rgba(255,255,255,.1)}
 
 /* ── Search ─── */
-.search-bar{max-width:900px;margin:1.8rem auto .2rem;padding:0 1.25rem}
-#search{width:100%;padding:.7rem 1rem;border-radius:10px;border:1.5px solid var(--border);
-  background:var(--surface);color:var(--ink);font-size:.95rem;outline:none;font-family:var(--font-body)}
+.search-bar{max-width:var(--max-w);margin:2rem auto .4rem;padding:0 1.25rem}
+#search{width:100%;padding:.75rem 1.1rem;border-radius:10px;border:1.5px solid var(--border);
+  background:var(--surface);color:var(--ink);font-size:1rem;outline:none;font-family:var(--font-body)}
 #search:focus{border-color:var(--accent)}
 
 /* ── Grid ─── */
-.grid{max-width:900px;margin:0 auto 3rem;padding:0 1.25rem;display:grid;
-  grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:1rem}
-.card{display:flex;flex-direction:column;gap:.5rem;padding:1.1rem;
+.grid{max-width:var(--max-w);margin:0 auto 3rem;padding:0 1.25rem;display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1.1rem}
+.card{display:flex;flex-direction:column;gap:.55rem;padding:1.25rem;
   background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
   text-decoration:none;color:var(--ink);transition:box-shadow .15s,border-color .15s}
 .card:hover{box-shadow:var(--shadow);border-color:var(--accent)}
-.card-header{display:flex;align-items:center;gap:.7rem}
-.card-icon{width:38px;height:38px;border-radius:9px;object-fit:contain;flex-shrink:0}
-.card-name{font-family:var(--font-head);font-weight:700;font-size:.95rem;letter-spacing:-.02em}
-.card-version{font-size:.72rem;color:var(--ink-dim);font-family:var(--font-mono);margin-top:.1rem}
-.card-desc{font-size:.82rem;color:var(--ink-dim);line-height:1.5;flex:1}
-.card-tags{display:flex;flex-wrap:wrap;gap:.3rem;margin-top:.3rem}
-.badge{display:inline-block;padding:.18rem .5rem;border-radius:6px;font-size:.68rem;font-weight:700;
+.card-header{display:flex;align-items:center;gap:.85rem}
+.card-icon{width:48px;height:48px;border-radius:12px;object-fit:contain;flex-shrink:0;
+  box-shadow:0 2px 8px rgba(0,0,0,.09)}
+.card-name{font-family:var(--font-head);font-weight:700;font-size:1.05rem;letter-spacing:-.025em}
+.card-version{font-size:.72rem;color:var(--ink-dim);font-family:var(--font-mono);margin-top:.15rem}
+.card-desc{font-size:.875rem;color:var(--ink-dim);line-height:1.55;flex:1}
+.card-tags{display:flex;flex-wrap:wrap;gap:.3rem;margin-top:.35rem}
+.badge{display:inline-block;padding:.2rem .55rem;border-radius:6px;font-size:.7rem;font-weight:700;
   letter-spacing:.04em;background:var(--accent-bg);color:var(--accent);text-transform:lowercase}
 .card[hidden]{display:none}
 
-/* ── Detail page ─── */
-.detail-hero{background:linear-gradient(135deg,#1e3a5f 0%,#2563eb 100%);color:#fff;padding:2.5rem 1.5rem 2rem}
-.detail-hero-inner{max-width:720px;margin:0 auto;display:flex;gap:1.4rem;align-items:flex-start}
-.detail-icon{width:64px;height:64px;border-radius:16px;flex-shrink:0;box-shadow:0 6px 20px rgba(0,0,0,.2)}
-.detail-title{font-family:var(--font-head);font-size:1.8rem;font-weight:800;letter-spacing:-.04em;margin-bottom:.35rem}
-.detail-sub{font-size:.9rem;opacity:.78;line-height:1.5}
-.detail-tags{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.8rem}
-.detail-tags .badge{background:rgba(255,255,255,.15);color:#fff}
-.detail-body{max-width:720px;margin:2rem auto 3rem;padding:0 1.5rem}
-.detail-body h2{font-family:var(--font-head);font-size:1.15rem;font-weight:700;margin:1.8rem 0 .6rem;color:var(--ink)}
-.detail-body h3{font-family:var(--font-head);font-size:1rem;font-weight:600;margin:1.2rem 0 .4rem}
-.detail-body p{margin:.5rem 0;font-size:.9rem;color:var(--ink-dim)}
-.detail-body ul{padding-left:1.4rem;margin:.4rem 0}
-.detail-body li{font-size:.9rem;color:var(--ink-dim);margin:.2rem 0}
+/* ── Detail hero ─── */
+.detail-hero{background:linear-gradient(135deg,#1e3a5f 0%,#2563eb 100%);color:#fff;padding:3.2rem 1.5rem 2.4rem}
+.detail-hero-inner{max-width:760px;margin:0 auto;display:flex;gap:2rem;align-items:flex-start}
+.detail-icon{width:120px;height:120px;border-radius:26px;flex-shrink:0;
+  box-shadow:0 10px 32px rgba(0,0,0,.28);object-fit:contain}
+.detail-kicker{font-family:var(--font-head);font-size:.72rem;font-weight:800;letter-spacing:.1em;
+  text-transform:uppercase;opacity:.6;margin-bottom:.55rem}
+.detail-title{font-family:var(--font-head);font-size:clamp(2.2rem,4vw,3rem);font-weight:800;
+  letter-spacing:-.045em;line-height:1.04;margin-bottom:.65rem}
+.detail-sub{font-size:1.05rem;opacity:.8;line-height:1.6;max-width:55ch;margin-bottom:.9rem}
+.detail-tags{display:flex;flex-wrap:wrap;gap:.35rem;margin-bottom:.75rem}
+.detail-tags .badge{background:rgba(255,255,255,.16);color:#fff}
+.detail-meta{display:flex;align-items:center;gap:.8rem;flex-wrap:wrap;margin-top:.55rem}
+.detail-version{font-family:var(--font-mono);font-size:.78rem;opacity:.6}
+.detail-issues{font-size:.76rem;font-weight:700;color:#fbbf24;background:rgba(251,191,36,.15);
+  border:1px solid rgba(251,191,36,.3);padding:.18rem .5rem;border-radius:6px}
+.detail-body{max-width:760px;margin:2.2rem auto 3rem;padding:0 1.5rem}
+.detail-body h2{font-family:var(--font-head);font-size:1.2rem;font-weight:700;margin:2rem 0 .65rem;color:var(--ink)}
+.detail-body h3{font-family:var(--font-head);font-size:1rem;font-weight:600;margin:1.3rem 0 .45rem}
+.detail-body p{margin:.55rem 0;font-size:.925rem;color:var(--ink-dim)}
+.detail-body ul{padding-left:1.4rem;margin:.45rem 0}
+.detail-body li{font-size:.925rem;color:var(--ink-dim);margin:.25rem 0}
 .detail-body pre{background:rgba(0,0,0,.04);border:1px solid var(--border);border-radius:8px;
-  padding:.9rem 1rem;overflow-x:auto;margin:.6rem 0}
-.detail-body code{font-family:var(--font-mono);font-size:.82rem}
+  padding:.95rem 1.1rem;overflow-x:auto;margin:.7rem 0}
+.detail-body code{font-family:var(--font-mono);font-size:.83rem}
 .detail-body p code{background:rgba(0,0,0,.04);padding:.1em .35em;border-radius:4px}
 .detail-body a{color:var(--accent)}
 @media(prefers-color-scheme:dark){.detail-body pre{background:rgba(255,255,255,.04)}}
+@media(max-width:640px){
+  .detail-hero-inner{flex-direction:column;align-items:center;text-align:center}
+  .detail-icon{width:88px;height:88px}
+  .detail-title{font-size:2rem}
+  .detail-tags,.detail-meta,.owner-row{justify-content:center}
+}
 
 /* ── Install block ─── */
-.install-block{display:flex;align-items:center;gap:.65rem;padding:.75rem 1rem;
-  background:var(--accent-bg);border:1px solid var(--border);border-radius:10px;margin:1.2rem 0}
+.install-block{display:flex;align-items:center;gap:.7rem;padding:.85rem 1.1rem;
+  background:var(--accent-bg);border:1px solid var(--border);border-radius:10px;margin:1.4rem 0}
 .install-icon{color:var(--accent);flex-shrink:0}
-.install-text{font-size:.9rem;color:var(--ink-dim)}
+.install-text{font-size:.95rem;color:var(--ink-dim)}
 .install-text strong{color:var(--ink)}
 
 /* ── Back link ─── */
-.back{display:inline-flex;align-items:center;gap:.4rem;color:rgba(255,255,255,.75);
-  text-decoration:none;font-size:.82rem;font-weight:700;margin-bottom:1rem}
+.back{display:inline-flex;align-items:center;gap:.4rem;color:rgba(255,255,255,.72);
+  text-decoration:none;font-size:.82rem;font-weight:700;margin-bottom:1.1rem}
 .back:hover{color:#fff}
 
 /* ── Owner / contributors ─── */
-.owner-row{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.45rem}
-.person-link,.person-chip{display:inline-flex;align-items:center;gap:.28rem;padding:.18rem .5rem;
-  border-radius:6px;border:1px solid var(--border);font-size:.74rem;font-weight:600;
+.owner-row{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.5rem}
+.person-link,.person-chip{display:inline-flex;align-items:center;gap:.28rem;padding:.22rem .6rem;
+  border-radius:7px;border:1px solid var(--border);font-size:.76rem;font-weight:600;
   color:var(--ink-dim);text-decoration:none;background:var(--surface)}
 .person-link:hover{background:var(--accent-bg);color:var(--accent);border-color:var(--accent)}
 .person-link.dim,.person-chip.dim{opacity:.65}
-.card .person-chip,.card .person-link{font-size:.68rem;padding:.13rem .4rem}
+.detail-hero .person-chip,.detail-hero .person-link{background:rgba(255,255,255,.12);
+  border-color:rgba(255,255,255,.22);color:rgba(255,255,255,.85)}
+.detail-hero .person-link:hover{background:rgba(255,255,255,.22)}
+.card .person-chip,.card .person-link{font-size:.69rem;padding:.13rem .42rem}
 
 /* ── Footer ─── */
-footer{text-align:center;padding:1.5rem;font-size:.75rem;color:var(--ink-dim);border-top:1px solid var(--border)}
+footer{text-align:center;padding:1.5rem;font-size:.76rem;color:var(--ink-dim);border-top:1px solid var(--border)}
 footer a{color:var(--accent);text-decoration:none}
 </style>
 </head>
@@ -129,9 +149,14 @@ footer a{color:var(--accent);text-decoration:none}
     <img class="detail-icon" src="/piclaw-addons/assets/icons/default-00.png" alt="">
     <div>
       <a class="back" href="/piclaw-addons/">← all add-ons</a>
+      <div class="detail-kicker">Add-on</div>
       <div class="detail-title">kanban-board-widget</div>
       <div class="detail-sub">Interactive kanban board dashboard widget for the web timeline</div>
       <div class="detail-tags"><span class="badge">dashboard</span><span class="badge">kanban</span><span class="badge">ui</span><span class="badge">widget</span></div>
+      <div class="detail-meta">
+        <span class="detail-version">v0.1.0</span>
+        
+      </div>
       <div class="owner-row"><a href="https://github.com/cjnova" target="_blank" rel="noopener" class="person-link">
     <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
     @cjnova</a></div>

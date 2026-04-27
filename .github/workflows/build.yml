@@ -24,6 +24,9 @@ jobs:
           bun-version: latest
       - name: Build site
         run: bun run build.ts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
       - name: Copy assets into docs
         run: cp -r assets/* docs/assets/
       - name: Deploy to GitHub Pages
