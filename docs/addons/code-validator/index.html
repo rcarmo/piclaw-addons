@@ -86,6 +86,12 @@ html,body{min-height:100%;background:var(--bg);color:var(--ink);font-family:var(
   letter-spacing:.04em;background:var(--accent-bg);color:var(--accent);text-transform:lowercase}
 .card[hidden]{display:none}
 
+/* ── Detail nav (pinned top-left) ─── */
+.detail-nav{padding:.75rem 1.5rem;background:var(--bg);border-bottom:1px solid var(--border)}
+.back{display:inline-flex;align-items:center;gap:.35rem;color:var(--accent);
+  text-decoration:none;font-size:.82rem;font-weight:700}
+.back:hover{text-decoration:underline}
+
 /* ── Detail hero ─── */
 .detail-hero{background:linear-gradient(135deg,#1e3a5f 0%,#2563eb 100%);color:#fff;padding:3.2rem 1.5rem 2.4rem}
 .detail-hero-inner{max-width:760px;margin:0 auto;display:flex;gap:2rem;align-items:flex-start}
@@ -100,6 +106,11 @@ html,body{min-height:100%;background:var(--bg);color:var(--ink);font-family:var(
 .detail-tags .badge{background:rgba(255,255,255,.16);color:#fff}
 .detail-meta{display:flex;align-items:center;gap:.8rem;flex-wrap:wrap;margin-top:.55rem}
 .detail-version{font-family:var(--font-mono);font-size:.78rem;opacity:.6}
+.detail-type-row,.detail-title-row{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.6rem}
+.type-badge{display:inline-block;padding:.2rem .6rem;border-radius:6px;font-size:.72rem;
+  font-weight:800;letter-spacing:.05em;text-transform:uppercase;
+  background:rgba(255,255,255,.18);color:#fff;border:1px solid rgba(255,255,255,.25)}
+.type-badge.skills{background:rgba(134,239,172,.2);border-color:rgba(134,239,172,.4);color:#bbf7d0}
 .detail-issues{font-size:.76rem;font-weight:700;color:#fbbf24;background:rgba(251,191,36,.15);
   border:1px solid rgba(251,191,36,.3);padding:.18rem .5rem;border-radius:6px}
 .issue-badge{display:inline-block;font-size:.7rem;font-weight:700;color:#f59e0b;
@@ -155,13 +166,19 @@ footer a{color:var(--accent);text-decoration:none}
 </head>
 <body>
 
+<nav class="detail-nav">
+  <a href="/piclaw-addons/" class="back">← all add-ons</a>
+</nav>
+
 <div class="detail-hero">
   <div class="detail-hero-inner">
     <img class="detail-icon" src="/piclaw-addons/assets/icons/default-00.png" alt="">
     <div>
-      <a class="back" href="/piclaw-addons/">← all add-ons</a>
-      <div class="detail-kicker">Add-on</div>
-      <div class="detail-title">code-validator</div>
+      <div class="detail-title-row">
+        <div class="detail-title">code-validator</div>
+        <span class="type-badge">extension</span>
+        
+      </div>
       <div class="detail-sub">Diagnostics tool for code validation (Python, JS/TS, JSON, extensible via validators.json)</div>
       <div class="detail-tags"><span class="badge">diagnostics</span><span class="badge">linting</span><span class="badge">validation</span></div>
       <div class="detail-meta">
