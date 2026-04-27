@@ -1,5 +1,5 @@
 {
-  "name": "piclaw-addon-dev-tools",
+  "name": "@rcarmo/piclaw-addon-dev-tools",
   "version": "0.1.0",
   "description": "Developer tools for workspace diagnostics and environment inspection",
   "type": "module",
@@ -26,5 +26,9 @@
     "extensions": [
       "index.ts"
     ]
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "public"
   }
 }

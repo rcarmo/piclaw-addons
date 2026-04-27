@@ -1,0 +1,49 @@
+name: Publish to GitHub Packages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'addons/**/package.json'
+      - 'catalog.json'
+  workflow_dispatch:
+
+concurrency:
+  group: publish
+  cancel-in-progress: false  # never cancel an in-flight publish
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Set up npm for GitHub Packages
+        run: |
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> ~/.npmrc
+          echo "@rcarmo:registry=https://npm.pkg.github.com" >> ~/.npmrc
+
+      - name: Publish each addon
+        run: |
+          for dir in addons/*/; do
+            slug=$(basename "$dir")
+            name=$(bun -e "console.log(require('./${dir}package.json').name)")
+            version=$(bun -e "console.log(require('./${dir}package.json').version)")
+            echo "→ $name@$version"
+            # Skip if this exact version is already published
+            if npm view "$name@$version" version --registry https://npm.pkg.github.com 2>/dev/null | grep -q "$version"; then
+              echo "  already published, skipping"
+            else
+              cd "$dir"
+              npm publish --registry https://npm.pkg.github.com 2>&1 | tail -3
+              cd ../..
+            fi
+          done

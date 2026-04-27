@@ -4,7 +4,7 @@
   "addons": [
     {
       "slug": "autoresearch",
-      "name": "piclaw-addon-autoresearch",
+      "name": "@rcarmo/piclaw-addon-autoresearch",
       "version": "0.1.0",
       "type": "extension",
       "description": "Autonomous experiment loop sub-agent (start/stop/status tools via tmux)",
@@ -19,7 +19,7 @@
       ],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-autoresearch-0.1.0.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/@rcarmo/piclaw-addon-autoresearch-0.1.0.tgz"
       },
       "updatedAt": "2026-04-24T17:46:13+01:00",
       "owner": {
@@ -30,7 +30,7 @@
     },
     {
       "slug": "cheapskate",
-      "name": "piclaw-addon-cheapskate",
+      "name": "@rcarmo/piclaw-addon-cheapskate",
       "version": "0.4.0",
       "type": "extension",
       "description": "Free-tier provider auto-rotation — select cheapskate/auto as your model and it transparently routes to Google Gemini, Cerebras, Groq, or SambaNova free tiers",
@@ -45,7 +45,7 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-cheapskate-0.4.0.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/@rcarmo/piclaw-addon-cheapskate-0.4.0.tgz"
       },
       "updatedAt": "2026-04-26T06:52:28+01:00",
       "owner": {
@@ -56,7 +56,7 @@
     },
     {
       "slug": "code-validator",
-      "name": "piclaw-addon-code-validator",
+      "name": "@rcarmo/piclaw-addon-code-validator",
       "version": "0.1.0",
       "type": "extension",
       "description": "Diagnostics tool for code validation (Python, JS/TS, JSON, extensible via validators.json)",
@@ -69,7 +69,7 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-code-validator-0.1.0.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/@rcarmo/piclaw-addon-code-validator-0.1.0.tgz"
       },
       "updatedAt": "2026-04-24T17:46:13+01:00",
       "owner": {
@@ -80,7 +80,7 @@
     },
     {
       "slug": "delegate",
-      "name": "piclaw-addon-delegate",
+      "name": "@rcarmo/piclaw-addon-delegate",
       "version": "0.1.0",
       "type": "extension",
       "description": "Delegate tasks to cheaper/faster models with auto model selection, tool access, and MCP support",
@@ -95,7 +95,7 @@
       ],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-delegate-0.1.0.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/@rcarmo/piclaw-addon-delegate-0.1.0.tgz"
       },
       "updatedAt": "2026-04-24T17:46:13+01:00",
       "owner": {
@@ -106,7 +106,7 @@
     },
     {
       "slug": "dev-tools",
-      "name": "piclaw-addon-dev-tools",
+      "name": "@rcarmo/piclaw-addon-dev-tools",
       "version": "0.1.0",
       "type": "extension",
       "description": "Developer tools for workspace diagnostics and environment inspection",
@@ -119,7 +119,7 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-dev-tools-0.1.0.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/@rcarmo/piclaw-addon-dev-tools-0.1.0.tgz"
       },
       "updatedAt": "2026-04-24T17:46:13+01:00",
       "owner": {
@@ -130,7 +130,7 @@
     },
     {
       "slug": "drawio-editor",
-      "name": "piclaw-addon-drawio-editor",
+      "name": "@rcarmo/piclaw-addon-drawio-editor",
       "version": "0.1.0",
       "type": "extension",
       "description": "Self-hosted draw.io diagram editor with workspace file integration",
@@ -143,7 +143,7 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-drawio-editor-0.1.0.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/@rcarmo/piclaw-addon-drawio-editor-0.1.0.tgz"
       },
       "updatedAt": "2026-04-24T22:52:53+01:00",
       "owner": {
@@ -154,7 +154,7 @@
     },
     {
       "slug": "eml-viewer",
-      "name": "piclaw-addon-eml-viewer",
+      "name": "@rcarmo/piclaw-addon-eml-viewer",
       "version": "0.2.1",
       "type": "extension",
       "description": "Attachment preview route for email message (.eml) files in the web timeline",
@@ -167,7 +167,7 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-eml-viewer-0.2.1.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/@rcarmo/piclaw-addon-eml-viewer-0.2.1.tgz"
       },
       "updatedAt": "2026-04-26T23:15:55+01:00",
       "owner": {
@@ -178,7 +178,7 @@
     },
     {
       "slug": "imap",
-      "name": "piclaw-addon-imap",
+      "name": "@rcarmo/piclaw-addon-imap",
       "version": "0.1.0",
       "type": "extension",
       "description": "IMAP email management tool — search/fetch, move/copy, flag, create drafts, file messages, and STARTTLS support",
@@ -192,7 +192,7 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-imap-0.1.0.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/@rcarmo/piclaw-addon-imap-0.1.0.tgz"
       },
       "updatedAt": "2026-04-27T10:02:24+01:00",
       "owner": {
@@ -203,7 +203,7 @@
     },
     {
       "slug": "kanban-board-widget",
-      "name": "piclaw-addon-kanban-board-widget",
+      "name": "@rcarmo/piclaw-addon-kanban-board-widget",
       "version": "0.1.0",
       "type": "extension",
       "description": "Interactive kanban board dashboard widget for the web timeline",
@@ -217,7 +217,7 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-kanban-board-widget-0.1.0.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/@rcarmo/piclaw-addon-kanban-board-widget-0.1.0.tgz"
       },
       "updatedAt": "2026-04-24T17:46:13+01:00",
       "owner": {
@@ -228,7 +228,7 @@
     },
     {
       "slug": "portainer",
-      "name": "piclaw-addon-portainer",
+      "name": "@rcarmo/piclaw-addon-portainer",
       "version": "0.1.2",
       "type": "extension",
       "description": "Portainer management tool — session-scoped API config, ad-hoc requests, and endpoint/stack/container/image/network/volume workflows",
@@ -242,7 +242,7 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-portainer-0.1.2.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/@rcarmo/piclaw-addon-portainer-0.1.2.tgz"
       },
       "updatedAt": "2026-04-26T20:04:04+01:00",
       "owner": {
@@ -253,7 +253,7 @@
     },
     {
       "slug": "proxmox",
-      "name": "piclaw-addon-proxmox",
+      "name": "@rcarmo/piclaw-addon-proxmox",
       "version": "0.1.3",
       "type": "extension",
       "description": "Proxmox VE management tool — session-scoped API config, ad-hoc requests, and VM/LXC/storage/task/metrics workflows",
@@ -267,7 +267,7 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-proxmox-0.1.3.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/@rcarmo/piclaw-addon-proxmox-0.1.3.tgz"
       },
       "updatedAt": "2026-04-26T20:04:04+01:00",
       "owner": {
@@ -278,7 +278,7 @@
     },
     {
       "slug": "voice-pipeline",
-      "name": "piclaw-addon-voice-pipeline",
+      "name": "@rcarmo/piclaw-addon-voice-pipeline",
       "version": "0.1.0",
       "type": "extension",
       "description": "ESPHome-only voice assistant pipeline for ThinkSmart/ESP32-Audio devices using Azure STT/TTS and the Flint chat runtime",
@@ -293,7 +293,7 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-voice-pipeline-0.1.0.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/@rcarmo/piclaw-addon-voice-pipeline-0.1.0.tgz"
       },
       "updatedAt": "2026-04-25T10:26:13+01:00",
       "owner": {
@@ -304,7 +304,7 @@
     },
     {
       "slug": "yolochat",
-      "name": "piclaw-addon-yolochat",
+      "name": "@rcarmo/piclaw-addon-yolochat",
       "version": "0.1.0",
       "type": "skill",
       "description": "Zero-guardrail inter-instance messaging — lets Pi instances post and reply to each other over HTTP",
@@ -318,7 +318,7 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-yolochat-0.1.0.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/@rcarmo/piclaw-addon-yolochat-0.1.0.tgz"
       },
       "updatedAt": "2026-04-25T18:10:23+01:00",
       "owner": {

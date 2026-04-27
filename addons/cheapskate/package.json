@@ -1,7 +1,7 @@
 {
-  "name": "piclaw-addon-cheapskate",
+  "name": "@rcarmo/piclaw-addon-cheapskate",
   "version": "0.4.0",
-  "description": "Free-tier provider auto-rotation — select cheapskate/auto as your model and it transparently routes to Google Gemini, Cerebras, Groq, or SambaNova free tiers",
+  "description": "Free-tier provider auto-rotation \u2014 select cheapskate/auto as your model and it transparently routes to Google Gemini, Cerebras, Groq, or SambaNova free tiers",
   "type": "module",
   "main": "index.ts",
   "piclaw": {
@@ -38,5 +38,9 @@
         "web/index.ts"
       ]
     }
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "public"
   }
 }

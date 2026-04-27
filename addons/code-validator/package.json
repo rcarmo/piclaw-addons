@@ -1,5 +1,5 @@
 {
-  "name": "piclaw-addon-code-validator",
+  "name": "@rcarmo/piclaw-addon-code-validator",
   "version": "0.1.0",
   "description": "Diagnostics tool for code validation (Python, JS/TS, JSON, extensible via validators.json)",
   "type": "module",
@@ -26,5 +26,9 @@
     "extensions": [
       "index.ts"
     ]
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "public"
   }
 }

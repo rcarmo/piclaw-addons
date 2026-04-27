@@ -1,5 +1,5 @@
 {
-  "name": "piclaw-addon-drawio-editor",
+  "name": "@rcarmo/piclaw-addon-drawio-editor",
   "version": "0.1.0",
   "description": "Self-hosted draw.io diagram editor with workspace file integration",
   "type": "module",
@@ -31,5 +31,9 @@
         "web/index.ts"
       ]
     }
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "public"
   }
 }

@@ -1,5 +1,5 @@
 {
-  "name": "piclaw-addons",
+  "name": "@rcarmo/piclaw-addons",
   "version": "2.0.1",
   "description": "Community add-ons for piclaw — extensions, skills, and widgets",
   "keywords": [
@@ -66,5 +66,9 @@
   ],
   "devDependencies": {
     "bun-types": "^1.3.13"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "public"
   }
 }

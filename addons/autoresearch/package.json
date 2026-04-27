@@ -1,5 +1,5 @@
 {
-  "name": "piclaw-addon-autoresearch",
+  "name": "@rcarmo/piclaw-addon-autoresearch",
   "version": "0.1.0",
   "description": "Autonomous experiment loop sub-agent (start/stop/status tools via tmux)",
   "type": "module",
@@ -39,5 +39,9 @@
     "skills": [
       "skills"
     ]
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "public"
   }
 }
