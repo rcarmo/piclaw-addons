@@ -76,34 +76,8 @@ This writes the package to your Pi settings (`~/.pi/agent/settings.json` by defa
 
 ## Architecture
 
-### How installation works
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                    piclaw-addons repo                    │
-│                                                         │
-│  addons/<slug>/package.json                             │
-│       ↓ (git push)                                      │
-│  sync-catalog workflow                                  │
-│       ↓ generates                                       │
-│  catalog.json ──→ build workflow ──→ GitHub Pages site   │
-│       ↓ also triggers                                   │
-│  publish-packages workflow ──→ GitHub Packages (npm)     │
-└─────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────┐
-│                    piclaw runtime                        │
-│                                                         │
-│  Settings → Add-ons                                     │
-│       ↓ fetches catalog.json from GitHub Pages          │
-│  Click Install                                          │
-│       ↓ reads install.spec from catalog entry           │
-│  bun add @rcarmo/piclaw-addon-<slug>@<version>          │
-│       ↓ .npmrc routes @rcarmo scope to GitHub Packages  │
-│  Installed to /workspace/.piclaw/addons/node_modules/   │
-│       ↓ Restart                                         │
-│  Extension loaded by piclaw runtime                     │
-└─────────────────────────────────────────────────────────┘
+![Installation architecture](assets/install-architecture.svg)
 ```
 
 ### Catalog
