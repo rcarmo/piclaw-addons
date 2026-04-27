@@ -34,7 +34,8 @@
     ],
     "skills": [
       "addons/autoresearch/skills",
-      "addons/delegate/skills"
+      "addons/delegate/skills",
+      "addons/settings-dialog-screenshot/skills"
     ]
   },
   "agents": {
@@ -46,6 +47,10 @@
       {
         "name": "delegate",
         "path": "./addons/delegate/skills/delegate"
+      },
+      {
+        "name": "settings-dialog-screenshot",
+        "path": "./addons/settings-dialog-screenshot/skills/settings-dialog-screenshot"
       }
     ]
   },

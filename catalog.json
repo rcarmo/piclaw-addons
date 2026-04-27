@@ -299,6 +299,29 @@
       "contributors": []
     },
     {
+      "slug": "settings-dialog-screenshot",
+      "name": "@rcarmo/piclaw-addon-settings-dialog-screenshot",
+      "version": "0.1.0",
+      "type": "skill",
+      "description": "Developer skill for capturing tightly cropped screenshots of the Pi web settings dialog only",
+      "path": "addons/settings-dialog-screenshot",
+      "tags": [
+        "developer",
+        "documentation",
+        "screenshots",
+        "ui"
+      ],
+      "skills": [
+        "settings-dialog-screenshot"
+      ],
+      "install": {
+        "kind": "npm",
+        "spec": "@rcarmo/piclaw-addon-settings-dialog-screenshot@0.1.0",
+        "registry": "https://npm.pkg.github.com",
+        "piSource": "npm:@rcarmo/piclaw-addon-settings-dialog-screenshot@0.1.0"
+      }
+    },
+    {
       "slug": "voice-pipeline",
       "name": "@rcarmo/piclaw-addon-voice-pipeline",
       "version": "0.1.0",

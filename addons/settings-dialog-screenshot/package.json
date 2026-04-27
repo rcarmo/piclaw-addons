@@ -1,0 +1,40 @@
+{
+  "name": "@rcarmo/piclaw-addon-settings-dialog-screenshot",
+  "version": "0.1.0",
+  "description": "Developer skill for capturing tightly cropped screenshots of the Pi web settings dialog only",
+  "type": "module",
+  "piclaw": {
+    "type": "skill",
+    "compatibleVersions": ">=2.0.0",
+    "tags": [
+      "developer",
+      "documentation",
+      "screenshots",
+      "ui"
+    ],
+    "skills": [
+      "skills/settings-dialog-screenshot"
+    ]
+  },
+  "license": "MIT",
+  "keywords": [
+    "pi-package"
+  ],
+  "pi": {
+    "skills": [
+      "skills"
+    ]
+  },
+  "agents": {
+    "skills": [
+      {
+        "name": "settings-dialog-screenshot",
+        "path": "skills/settings-dialog-screenshot"
+      }
+    ]
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "public"
+  }
+}
