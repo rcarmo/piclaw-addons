@@ -77,6 +77,10 @@ const SUPPORTED_LANGS = [
   "html", "css", "json", "yaml",
 ];
 
+function isNoMatchExit(code: number, stdoutText: string, stderrText: string) {
+  return code === 1 && !stdoutText && !stderrText;
+}
+
 /** Register ast-grep extension tools. */
 export default async function register(api: ExtensionAPI) {
   const astGrepBin = await findAstGrepBinary();
@@ -123,12 +127,18 @@ export default async function register(api: ExtensionAPI) {
       ];
 
       const { stdout, stderr, code } = await runAstGrep(cmdArgs, signal);
+      const stdoutText = stdout.trim();
+      const stderrText = stderr.trim();
 
-      if (code !== 0 && !stdout) {
-        return { content: [{ type: "text" as const, text: `Error: ${stderr || `ast-grep exited with code ${code}`}` }] };
+      if (isNoMatchExit(code, stdoutText, stderrText)) {
+        return { content: [{ type: "text" as const, text: "No matches found." }] };
       }
 
-      const lines = stdout.trim().split("\n").filter(Boolean);
+      if (code !== 0 && !stdoutText && stderrText) {
+        return { content: [{ type: "text" as const, text: `Error: ${stderrText}` }] };
+      }
+
+      const lines = stdoutText.split("\n").filter(Boolean);
       const matches: string[] = [];
 
       for (const line of lines.slice(0, limit)) {
@@ -144,7 +154,7 @@ export default async function register(api: ExtensionAPI) {
       }
 
       if (matches.length === 0) {
-        return { content: [{ type: "text" as const, text: `No matches found for pattern: ${pattern}` }] };
+        return { content: [{ type: "text" as const, text: "No matches found." }] };
       }
 
       let output = matches.join("\n");
@@ -203,15 +213,26 @@ export default async function register(api: ExtensionAPI) {
       ];
 
       const { stdout, stderr, code } = await runAstGrep(cmdArgs, signal);
+      const stdoutText = stdout.trim();
+      const stderrText = stderr.trim();
 
-      if (code !== 0 && !stdout) {
-        return { content: [{ type: "text" as const, text: `Error: ${stderr || `ast-grep exited with code ${code}`}` }] };
+      if (isNoMatchExit(code, stdoutText, stderrText)) {
+        return {
+          content: [{
+            type: "text" as const,
+            text: `${dryRun ? "DRY RUN — preview only (set dry_run: false to apply):\n\n" : "Applied changes:\n\n"}No matches found.`,
+          }],
+        };
+      }
+
+      if (code !== 0 && !stdoutText && stderrText) {
+        return { content: [{ type: "text" as const, text: `Error: ${stderrText}` }] };
       }
 
       const prefix = dryRun
         ? "DRY RUN — preview only (set dry_run: false to apply):\n\n"
         : "Applied changes:\n\n";
-      const raw = stdout.trim() || "No matches found.";
+      const raw = stdoutText || "No matches found.";
       const output = raw.length > MAX_OUTPUT_CHARS
         ? raw.slice(0, MAX_OUTPUT_CHARS) + "\n\n(output truncated)"
         : raw;
