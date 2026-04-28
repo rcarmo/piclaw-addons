@@ -7,12 +7,14 @@
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
-import { extname } from "node:path";
+import { extname, relative } from "node:path";
 
 import { ok, err, collectOutput, stripTrailing } from "./output.js";
 import { runProcess } from "./process.js";
-import { safePath, relPath, validateText, checkJqExpression, parseBlameLines } from "./validation.js";
+import { safePath, validateText, checkJqExpression, parseBlameLines } from "./validation.js";
 import { BASE_DIR, DEFAULT_TIMEOUT, FAST_TIMEOUT } from "./constants.js";
+
+const GIT_BASE_DIR = `${BASE_DIR}/.pi/extensions`;
 
 function result(text: string) {
   return { content: [{ type: "text" as const, text }], details: {} };
@@ -25,7 +27,7 @@ const TOOL_GIT = "git-history";
 async function runGit(args: string[], mode: string, signal?: AbortSignal) {
   const { stdout, stderr, exitCode, signalCode } = await runProcess(
     ["git", ...args],
-    { cwd: BASE_DIR, timeout: DEFAULT_TIMEOUT, signal },
+    { cwd: GIT_BASE_DIR, timeout: DEFAULT_TIMEOUT, signal },
   );
   if (signalCode) {
     return err(TOOL_GIT, "History query was killed", {
@@ -111,9 +113,13 @@ export default function (pi: ExtensionAPI) {
       if (p.mode === "blame" && p.diff) return result(err(TOOL_GIT, "'diff' not supported in blame"));
       if (p.mode !== "blame" && p.lines) return result(err(TOOL_GIT, "'lines' only for blame mode"));
 
+      let repoFile: string | undefined;
       if (p.file) {
-        const { error } = safePath(p.file);
+        const { resolved, error } = safePath(p.file);
         if (error) return result(err(TOOL_GIT, error));
+        const rel = relative(GIT_BASE_DIR, resolved);
+        if (!rel || rel.startsWith("..")) return result(err(TOOL_GIT, "file must be inside .pi/extensions"));
+        repoFile = rel;
       }
 
       const maxCount = p.max_count ?? 20;
@@ -125,32 +131,31 @@ export default function (pi: ExtensionAPI) {
         case "log": {
           const args = ["log", ...common, ...(p.all ? ["--all"] : p.ref ? [p.ref.trim()] : [])];
           if (p.diff) args.push("-p");
-          if (p.file) args.push("--follow", "--", relPath(p.file.trim()));
+          if (repoFile) args.push("--follow", "--", repoFile);
           return result(await runGit(args, "log", signal));
         }
         case "content_search": {
           if (!p.query) return result(err(TOOL_GIT, "'query' required for content_search"));
           const args = ["log", `-S${p.query.trim()}`, ...common, ...(p.all ? ["--all"] : p.ref ? [p.ref.trim()] : [])];
           if (p.diff) args.push("-p");
-          if (p.file) args.push("--follow", "--", relPath(p.file.trim()));
+          if (repoFile) args.push("--follow", "--", repoFile);
           return result(await runGit(args, "content_search", signal));
         }
         case "message_search": {
           if (!p.query) return result(err(TOOL_GIT, "'query' required for message_search"));
           const args = ["log", `--grep=${p.query.trim()}`, ...common, ...(p.all ? ["--all"] : p.ref ? [p.ref.trim()] : [])];
           if (p.diff) args.push("-p");
-          if (p.file) args.push("--follow", "--", relPath(p.file.trim()));
+          if (repoFile) args.push("--follow", "--", repoFile);
           return result(await runGit(args, "message_search", signal));
         }
         case "blame": {
-          if (!p.file) return result(err(TOOL_GIT, "'file' required for blame"));
-          const resolved = relPath(p.file.trim());
+          if (!repoFile) return result(err(TOOL_GIT, "'file' required for blame"));
           const args = ["blame", "--date=short"];
           const { normalized, error: lineErr } = parseBlameLines(p.lines);
           if (lineErr) return result(err(TOOL_GIT, lineErr));
           if (normalized) args.push(`-L${normalized}`);
           if (p.ref) args.push(p.ref.trim());
-          args.push("--", resolved);
+          args.push("--", repoFile);
           return result(await runGit(args, "blame", signal));
         }
       }
