@@ -1,14 +1,14 @@
 import type { ExtensionAPI, ExtensionFactory } from "@mariozechner/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
 
-import { getChatJid } from "../../lib/compat/chat-context.js";
-import { registerToolStatusHintProvider } from "../../lib/compat/tool-status-hints.js";
-import { createExtensionStorage, type ExtensionStorage } from "../../lib/compat/extension-kv.js";
+import { getChatJid } from "./compat/chat-context.js";
+import { registerToolStatusHintProvider } from "./compat/tool-status-hints.js";
+import { createExtensionStorage, type ExtensionStorage } from "./compat/extension-kv.js";
 import type {
   ProxmoxConfig,
   ProxmoxConfigClearResult,
   ProxmoxConfigSetResult,
-} from "../../lib/compat/types.js";
+} from "./compat/types.js";
 import {
   discoverProxmoxInstances,
   requestProxmoxApi,
@@ -23,8 +23,8 @@ import {
   appendOutputFileNote,
   runRequestBatch,
   writeRequestOutputFile,
-} from "../../lib/compat/request-batch.js";
-import { presentStructuredToolValue } from "../../lib/compat/structured-tool-response.js";
+} from "./compat/request-batch.js";
+import { presentStructuredToolValue } from "./compat/structured-tool-response.js";
 
 type SessionProxmoxConfigInput = Omit<ProxmoxConfig, "chat_jid" | "created_at" | "updated_at">;
 type ProxmoxToolResult = { content: Array<{ type: "text"; text: string }>; details: Record<string, unknown> };

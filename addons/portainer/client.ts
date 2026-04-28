@@ -1,6 +1,6 @@
-import { getKeychainEntry, listKeychainEntries } from "../../lib/compat/keychain.js";
-import { buildInjectedExecCommand } from "../../lib/compat/keychain.js";
-import { createLogger, debugSuppressedError } from "../../lib/compat/logger.js";
+import { getKeychainEntry, listKeychainEntries } from "./compat/keychain.js";
+import { buildInjectedExecCommand } from "./compat/keychain.js";
+import { createLogger, debugSuppressedError } from "./compat/logger.js";
 
 const log = createLogger("portainer.client");
 

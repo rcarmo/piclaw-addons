@@ -61,6 +61,22 @@ const BACKENDS: FreeBackend[] = [
     reasoning: true, contextWindow: 65_536, maxTokens: 16_384,
     requestsPerMinute: 10, tokensPerMinute: 100_000, tokensPerDay: 1_000_000,
   },
+  {
+    id: "openrouter", name: "OpenRouter",
+    baseUrl: "https://openrouter.ai/api/v1",
+    apiKeyEnv: "OPENROUTER_API_KEY",
+    modelId: "deepseek/deepseek-r1:free", modelName: "DeepSeek R1 (free)",
+    reasoning: true, contextWindow: 163_840, maxTokens: 16_384,
+    requestsPerMinute: 20, tokensPerMinute: 200_000, tokensPerDay: 1_000_000,
+  },
+  {
+    id: "cloudflare", name: "Cloudflare Workers AI",
+    baseUrl: "https://api.cloudflare.com/client/v4/accounts/CLOUDFLARE_ACCOUNT_ID/ai/v1",
+    apiKeyEnv: "CLOUDFLARE_API_TOKEN",
+    modelId: "@cf/meta/llama-3.3-70b-instruct-fp8-fast", modelName: "Llama 3.3 70B",
+    reasoning: false, contextWindow: 131_072, maxTokens: 8_192,
+    requestsPerMinute: 60, tokensPerMinute: 100_000, tokensPerDay: 1_000_000,
+  },
 ];
 
 // ── Rate-limit tracking ──────────────────────────────────────────
@@ -111,18 +127,28 @@ function recordError(id: string): void {
 
 function isAvailable(backend: FreeBackend): boolean {
   if (!process.env[backend.apiKeyEnv]) return false;
+  // Cloudflare also requires CLOUDFLARE_ACCOUNT_ID
+  if (backend.id === "cloudflare" && !process.env.CLOUDFLARE_ACCOUNT_ID) return false;
   const u = getUsage(backend.id);
   const now = Date.now();
   if (u.cooldownUntil > now) return false;
   if (u.requestsThisMinute >= backend.requestsPerMinute) return false;
   if (u.tokensThisMinute >= backend.tokensPerMinute * 0.9) return false;
-  if (u.tokensPerDay && u.tokensToday >= backend.tokensPerDay * 0.9) return false;
+  if (backend.tokensPerDay && u.tokensToday >= backend.tokensPerDay * 0.9) return false;
   return true;
 }
 
 // ── Backend selection ────────────────────────────────────────────
 
 let currentBackendId: string | null = null;
+
+function resolveBaseUrl(backend: FreeBackend): string {
+  if (backend.id === "cloudflare") {
+    const accountId = process.env.CLOUDFLARE_ACCOUNT_ID || "";
+    return backend.baseUrl.replace("CLOUDFLARE_ACCOUNT_ID", accountId);
+  }
+  return backend.baseUrl;
+}
 
 function getConfiguredBackends(): FreeBackend[] {
   return BACKENDS.filter((b) => !!process.env[b.apiKeyEnv]);
@@ -192,7 +218,7 @@ function registerCheapskateProvider(pi: ExtensionAPI): boolean {
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
       contextWindow: bestContext,
       maxTokens: Math.max(...configured.map((b) => b.maxTokens)),
-      compat: { modelId: best.modelId },
+      compat: { modelId: best.modelId } as any,
     }],
   });
 
@@ -218,7 +244,7 @@ function reRegisterWithBackend(pi: ExtensionAPI, backend: FreeBackend): void {
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
       contextWindow: bestContext,
       maxTokens: Math.max(...configured.map((b) => b.maxTokens)),
-      compat: { modelId: backend.modelId },
+      compat: { modelId: backend.modelId } as any,
     }],
   });
 }
@@ -230,7 +256,7 @@ const cheapskate: ExtensionFactory = (pi: ExtensionAPI) => {
 
   // Before each turn: ensure we're pointing at the best available backend
   pi.on("before_agent_start", async (event) => {
-    const model = event.model;
+    const model = (event as any).model;
     const isCheapskate = model?.provider === "cheapskate" || model?.id === "auto";
     if (!isCheapskate) return {};
 
@@ -247,7 +273,7 @@ const cheapskate: ExtensionFactory = (pi: ExtensionAPI) => {
 
   // After provider errors: rotate to next backend
   pi.on("after_provider_response", (event) => {
-    const model = event.model;
+    const model = (event as any).model;
     const isCheapskate = model?.provider === "cheapskate";
     if (!isCheapskate) return;
 

@@ -74,9 +74,10 @@ cheapskate/auto — Free → Cerebras / Qwen 3 235B · $0
 | Use case | Best backend | Why |
 |---|---|---|
 | General coding | Google Gemini 2.5 Flash | Largest context (1M), strong reasoning |
-| Complex reasoning | SambaNova DeepSeek R1, Groq QwQ 32B | Dedicated reasoning models |
+| Complex reasoning | SambaNova DeepSeek R1, Groq QwQ 32B, OpenRouter DeepSeek R1 | Dedicated reasoning models |
 | Fast iteration | Cerebras Qwen 3 235B | ~2000 tok/s inference speed |
-| Budget fallback | Any — all are $0 | Rotate through all four |
+| Most models via one key | OpenRouter | Aggregates free models from many providers |
+| Budget fallback | Any — all are $0 | Rotate through all six |
 
 ## Notes
 

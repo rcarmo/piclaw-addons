@@ -26,7 +26,7 @@
     {
       "slug": "cheapskate",
       "name": "piclaw-addon-cheapskate",
-      "version": "0.2.0",
+      "version": "0.4.0",
       "type": "extension",
       "description": "Free-tier provider auto-rotation — select cheapskate/auto as your model and it transparently routes to Google Gemini, Cerebras, Groq, or SambaNova free tiers",
       "path": "addons/cheapskate",
@@ -40,8 +40,8 @@
       "skills": [],
       "install": {
         "kind": "npm",
-        "spec": "piclaw-addon-cheapskate@0.2.0",
-        "piSource": "npm:piclaw-addon-cheapskate@0.2.0"
+        "spec": "piclaw-addon-cheapskate@0.4.0",
+        "piSource": "npm:piclaw-addon-cheapskate@0.4.0"
       }
     },
     {
@@ -125,7 +125,7 @@
     {
       "slug": "eml-viewer",
       "name": "piclaw-addon-eml-viewer",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "type": "extension",
       "description": "Attachment preview route for email message (.eml) files in the web timeline",
       "path": "addons/eml-viewer",
@@ -137,8 +137,8 @@
       "skills": [],
       "install": {
         "kind": "npm",
-        "spec": "piclaw-addon-eml-viewer@0.1.0",
-        "piSource": "npm:piclaw-addon-eml-viewer@0.1.0"
+        "spec": "piclaw-addon-eml-viewer@0.2.0",
+        "piSource": "npm:piclaw-addon-eml-viewer@0.2.0"
       }
     },
     {
@@ -164,7 +164,7 @@
     {
       "slug": "portainer",
       "name": "piclaw-addon-portainer",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "type": "extension",
       "description": "Portainer management tool — session-scoped API config, ad-hoc requests, and endpoint/stack/container/image/network/volume workflows",
       "path": "addons/portainer",
@@ -177,14 +177,14 @@
       "skills": [],
       "install": {
         "kind": "npm",
-        "spec": "piclaw-addon-portainer@0.1.1",
-        "piSource": "npm:piclaw-addon-portainer@0.1.1"
+        "spec": "piclaw-addon-portainer@0.1.2",
+        "piSource": "npm:piclaw-addon-portainer@0.1.2"
       }
     },
     {
       "slug": "proxmox",
       "name": "piclaw-addon-proxmox",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "type": "extension",
       "description": "Proxmox VE management tool — session-scoped API config, ad-hoc requests, and VM/LXC/storage/task/metrics workflows",
       "path": "addons/proxmox",
@@ -197,8 +197,8 @@
       "skills": [],
       "install": {
         "kind": "npm",
-        "spec": "piclaw-addon-proxmox@0.1.2",
-        "piSource": "npm:piclaw-addon-proxmox@0.1.2"
+        "spec": "piclaw-addon-proxmox@0.1.3",
+        "piSource": "npm:piclaw-addon-proxmox@0.1.3"
       }
     },
     {
@@ -220,6 +220,26 @@
         "kind": "npm",
         "spec": "piclaw-addon-voice-pipeline@0.1.0",
         "piSource": "npm:piclaw-addon-voice-pipeline@0.1.0"
+      }
+    },
+    {
+      "slug": "yolochat",
+      "name": "piclaw-addon-yolochat",
+      "version": "0.1.0",
+      "type": "skill",
+      "description": "Zero-guardrail inter-instance messaging — lets Pi instances post and reply to each other over HTTP",
+      "path": "addons/yolochat",
+      "tags": [
+        "chat",
+        "experimental",
+        "multi-agent",
+        "networking"
+      ],
+      "skills": [],
+      "install": {
+        "kind": "npm",
+        "spec": "piclaw-addon-yolochat@0.1.0",
+        "piSource": "npm:piclaw-addon-yolochat@0.1.0"
       }
     }
   ]

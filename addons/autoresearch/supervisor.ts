@@ -7,8 +7,8 @@
  *   - autoresearch_status: read current JSONL state
  *
  * The upstream pi-autoresearch extension+skill are vendored under
- * runtime/vendor/autoresearch/ and symlinked into the sub-agent's pi config
- * directory at launch time.
+ * addons/autoresearch/vendor/autoresearch/ and symlinked into the sub-agent's
+ * pi config directory at launch time.
  */
 
 import { spawnSync, execSync } from "node:child_process";
@@ -20,7 +20,9 @@ const WORKSPACE_DIR = process.env.PICLAW_WORKSPACE || "/workspace";
 import { createMedia, postMessagesToolMessage } from "./compat.js";
 
 const log = { info: console.log, warn: console.warn, error: console.error, debug: console.debug };
-function debugSuppressedError(msg: string, e: unknown) { log.debug(msg, e); }
+function debugSuppressedError(msg: string, e: unknown, meta?: Record<string, unknown>) {
+  log.debug(msg, e, meta);
+}
 import { buildAutoresearchSubagentCommand, hasPiCliModel, listPiCliModels } from "./launcher.js";
 import { clearAutoresearchSessionFiles, prepareDirectAutoresearchWorktree } from "./workdir.js";
 
@@ -29,7 +31,7 @@ import { clearAutoresearchSessionFiles, prepareDirectAutoresearchWorktree } from
 
 // ── Paths ───────────────────────────────────────────────────────
 
-const VENDOR_DIR = resolve(dirname(import.meta.dir), "..", "vendor", "autoresearch");
+const VENDOR_DIR = resolve(import.meta.dir, "vendor", "autoresearch");
 const SESSIONS_DIR = join(WORKSPACE_DIR, ".piclaw", "autoresearch-sessions");
 const TMUX_SESSION_PREFIX = "autoresearch-";
 

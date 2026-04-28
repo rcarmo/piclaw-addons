@@ -27,189 +27,30 @@ function buildViewerHtml(): string {
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Email preview</title>
     <style>
-      :root {
-        color-scheme: dark;
-        --bg: #0b1020;
-        --surface: rgba(15, 23, 42, 0.92);
-        --surface-2: rgba(15, 23, 42, 0.72);
-        --border: rgba(148, 163, 184, 0.22);
-        --text: #e5eefc;
-        --muted: #9fb0cf;
-        --accent: #7dd3fc;
-        --accent-2: #38bdf8;
-        --shadow: 0 18px 40px rgba(2, 8, 23, 0.34);
-      }
-
-      * { box-sizing: border-box; }
-      html, body { margin: 0; padding: 0; height: 100%; background: var(--bg); color: var(--text); font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-      body { display: flex; flex-direction: column; }
-      .shell { min-height: 100%; display: flex; flex-direction: column; }
-      .header {
-        position: sticky;
-        top: 0;
-        z-index: 2;
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-        padding: 18px 22px;
-        background: linear-gradient(180deg, rgba(8, 15, 32, 0.98), rgba(8, 15, 32, 0.92));
-        border-bottom: 1px solid var(--border);
-        box-shadow: var(--shadow);
-        backdrop-filter: blur(16px);
-      }
-      .header-row {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 16px;
-      }
-      .badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        padding: 6px 10px;
-        border-radius: 999px;
-        border: 1px solid rgba(125, 211, 252, 0.22);
-        background: rgba(14, 165, 233, 0.14);
-        color: var(--accent);
-        font-size: 12px;
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
-      }
-      .title {
-        margin: 0;
-        font-size: 20px;
-        font-weight: 700;
-        line-height: 1.35;
-        word-break: break-word;
-      }
-      .subtitle {
-        color: var(--muted);
-        font-size: 13px;
-        word-break: break-all;
-      }
-      .meta-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-        gap: 12px;
-      }
-      .meta-card {
-        border: 1px solid var(--border);
-        border-radius: 14px;
-        padding: 12px 14px;
-        background: var(--surface-2);
-        min-width: 0;
-      }
-      .meta-label {
-        display: block;
-        margin-bottom: 4px;
-        color: var(--muted);
-        font-size: 11px;
-        letter-spacing: 0.05em;
-        text-transform: uppercase;
-      }
-      .meta-value {
-        font-size: 14px;
-        line-height: 1.45;
-        word-break: break-word;
-      }
-      .body {
-        flex: 1;
-        min-height: 0;
-        padding: 18px;
-      }
-      .body-card {
-        min-height: 100%;
-        border: 1px solid var(--border);
-        border-radius: 18px;
-        background: rgba(255, 255, 255, 0.02);
-        box-shadow: var(--shadow);
-        overflow: hidden;
-      }
-      .state {
-        min-height: 320px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        flex-direction: column;
-        gap: 12px;
-        padding: 28px;
-        text-align: center;
-        color: var(--muted);
-      }
-      .spinner {
-        width: 28px;
-        height: 28px;
-        border-radius: 50%;
-        border: 3px solid rgba(148, 163, 184, 0.18);
-        border-top-color: var(--accent-2);
-        animation: spin 0.9s linear infinite;
-      }
-      @keyframes spin { to { transform: rotate(360deg); } }
-      .plain {
-        margin: 0;
-        padding: 22px;
-        white-space: pre-wrap;
-        word-break: break-word;
-        line-height: 1.6;
-        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-        font-size: 13px;
-      }
-      .html-frame {
-        width: 100%;
-        min-height: 65vh;
-        border: 0;
-        background: white;
-      }
-      .warning {
-        padding: 12px 16px;
-        border-bottom: 1px solid var(--border);
-        background: rgba(14, 165, 233, 0.08);
-        color: var(--muted);
-        font-size: 13px;
-      }
-      a { color: var(--accent); }
-      @media (max-width: 720px) {
-        .header { padding: 16px; }
-        .body { padding: 14px; }
-        .title { font-size: 18px; }
-        .meta-grid { grid-template-columns: 1fr; }
-      }
+      :root { color-scheme: dark; }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      html, body { height: 100%; background: #0d1117; color: #c9d1d9; font: 14px/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      body { padding: 14px 18px; overflow: auto; }
+      .eml-headers { font: 12px/1.7 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: #8b949e; }
+      .eml-headers b { color: #c9d1d9; font-weight: 600; }
+      hr { border: none; border-top: 1px solid rgba(139,148,158,0.2); margin: 12px 0; }
+      .body { white-space: pre-wrap; word-break: break-word; }
+      .html-body { line-height: 1.5; word-break: break-word; }
+      .html-body img, .html-body table { max-width: 100%; }
+      .html-body pre { white-space: pre-wrap; word-break: break-word; }
+      .err { color: #f85149; padding: 20px 0; }
     </style>
   </head>
   <body>
-    <div class="shell">
-      <div class="header">
-        <div class="header-row">
-          <div>
-            <div class="badge">Email attachment</div>
-            <h1 id="subject" class="title">Email preview</h1>
-            <div id="filename" class="subtitle"></div>
-          </div>
-        </div>
-        <div id="meta" class="meta-grid"></div>
-      </div>
-      <div class="body">
-        <div class="body-card" id="content">
-          <div class="state">
-            <div class="spinner" aria-hidden="true"></div>
-            <div>Loading email…</div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <div id="out">Loading…</div>
     <script>
       const params = new URLSearchParams(window.location.search);
       const mediaId = params.get('media');
       const filename = params.get('name') || (mediaId ? ('attachment-' + mediaId + '.eml') : 'email.eml');
 
-      const subjectEl = document.getElementById('subject');
-      const filenameEl = document.getElementById('filename');
-      const metaEl = document.getElementById('meta');
-      const contentEl = document.getElementById('content');
+      const out = document.getElementById('out');
 
-      filenameEl.textContent = filename;
-      document.title = filename + ' — Email preview';
+      document.title = filename + ' — Email';
 
       function escapeHtml(value) {
         return String(value == null ? '' : value)
@@ -354,17 +195,44 @@ function buildViewerHtml(): string {
 
         if (contentType.type.startsWith('multipart/') && contentType.params.boundary) {
           const parts = splitMultipartBody(split.body, contentType.params.boundary)
-            .map(part => parseMimeEntity(part, level + 1))
-            .filter(part => !isAttachmentPart(part.headers || {}, parseContentType(part.headers?.['content-type']).params || {}));
-          return { headers, contentType: contentType.type, body: '', parts };
+            .map(part => parseMimeEntity(part, level + 1));
+          return { headers, contentType: contentType.type, body: '', rawBody: null, parts };
         }
 
+        const rawBody = split.body;
+        const decodedBody = decodeTransferEncodedBody(rawBody, transferEncoding, contentType.params.charset);
         return {
           headers,
           contentType: contentType.type,
-          body: decodeTransferEncodedBody(split.body, transferEncoding, contentType.params.charset),
+          body: decodedBody,
+          rawBody: (String(transferEncoding || '').trim().toLowerCase() === 'base64') ? String(rawBody || '').replace(/\s+/g, '') : null,
           parts: [],
         };
+      }
+
+      function collectInlineImages(entity, map) {
+        if (!entity) return map;
+        if (Array.isArray(entity.parts) && entity.parts.length > 0) {
+          for (const part of entity.parts) collectInlineImages(part, map);
+          return map;
+        }
+        if (!entity.contentType || !entity.contentType.startsWith('image/')) return map;
+        const cid = String(entity.headers?.['content-id'] || '').replace(/^<|>$/g, '').trim();
+        if (!cid) return map;
+        const ct = parseContentType(entity.headers?.['content-type']);
+        const mimeType = ct.type || 'image/png';
+        if (entity.rawBody) {
+          map[cid] = 'data:' + mimeType + ';base64,' + entity.rawBody;
+        }
+        return map;
+      }
+
+      function replaceCidReferences(html, cidMap) {
+        if (!html || !cidMap) return html;
+        return String(html).replace(/(["'])cid:([^"'\s]+)(["'])/gi, function(match, q1, cid, q2) {
+          const dataUri = cidMap[cid];
+          return dataUri ? (q1 + dataUri + q2) : match;
+        });
       }
 
       function chooseDisplayEntity(root) {
@@ -393,36 +261,26 @@ function buildViewerHtml(): string {
       }
 
       function renderMeta(headers) {
-        const entries = [
-          ['From', headers.from || '—'],
-          ['To', headers.to || '—'],
-          ['Cc', headers.cc || '—'],
-          ['Date', headers.date || '—'],
-        ];
-        metaEl.innerHTML = entries.map(function (entry) {
-          return '<div class="meta-card"><span class="meta-label">' + escapeHtml(entry[0]) + '</span><div class="meta-value">' + escapeHtml(entry[1]) + '</div></div>';
-        }).join('');
+        return ['from','to','cc','date','subject'].filter(function(k){return headers[k];}).map(function(k){
+          return '<span class="hdr">' + k.charAt(0).toUpperCase() + k.slice(1) + ':</span> <b>' + escapeHtml(headers[k]) + '</b>';
+        }).join('\n');
       }
 
       function renderPlain(body) {
-        contentEl.innerHTML = '<pre class="plain">' + escapeHtml(body || '') + '</pre>';
+        return '<div class="body">' + escapeHtml(body || '') + '</div>';
       }
 
       function renderHtml(body) {
-        contentEl.innerHTML = '<div class="warning">HTML email is rendered in a sandboxed nested frame with scripts and network access disabled.</div><iframe class="html-frame" referrerpolicy="no-referrer"></iframe>';
-        const frame = contentEl.querySelector('iframe');
-        if (!frame) return;
-        frame.setAttribute('sandbox', '');
-        frame.srcdoc = buildSandboxedHtmlDocument(body || '');
+        return '<div class="html-body">' + sanitizeHtmlBody(body || '') + '</div>';
       }
 
       function renderError(message) {
-        contentEl.innerHTML = '<div class="state"><strong>Could not load email preview</strong><div>' + escapeHtml(message || 'Unknown error') + '</div></div>';
+        return '<div class="err">' + escapeHtml(message || 'Unknown error') + '</div>';
       }
 
       async function load() {
         if (!mediaId || !/^\d+$/.test(mediaId)) {
-          renderError('Missing or invalid media id.');
+          out.innerHTML = renderError('Missing or invalid media id.');
           return;
         }
         try {
@@ -433,16 +291,18 @@ function buildViewerHtml(): string {
           const display = chooseDisplayEntity(root);
           const headers = root.headers || {};
           const subject = headers.subject || '(no subject)';
-          subjectEl.textContent = subject;
           document.title = subject + ' — ' + filename;
-          renderMeta(headers);
+          const cidMap = collectInlineImages(root, {});
+          const meta = renderMeta(headers);
           if (display && display.contentType === 'text/html') {
-            renderHtml(display.body || '');
+            const htmlWithImages = replaceCidReferences(display.body || '', cidMap);
+            out.innerHTML = meta + '\n<hr>' + renderHtml(htmlWithImages);
             return;
           }
-          renderPlain(display && typeof display.body === 'string' ? display.body : raw);
+          const text = display && typeof display.body === 'string' ? display.body : raw;
+          out.innerHTML = meta + '\n<hr>\n' + renderPlain(text);
         } catch (error) {
-          renderError(error && error.message ? error.message : String(error || 'Unknown error'));
+          out.innerHTML = renderError(error && error.message ? error.message : String(error || 'Unknown error'));
         }
       }
 
