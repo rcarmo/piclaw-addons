@@ -1,5 +1,8 @@
-name: Build & deploy docs
+name: Build & deploy docs + tarballs
 
+# This workflow publishes the GitHub Pages site and the public add-on tarballs
+# under docs/packages/. It must run whenever an add-on package changes,
+# especially package.json version bumps.
 on:
   push:
     branches: [main]
@@ -8,6 +11,7 @@ on:
       - 'build.ts'
       - 'assets/**'
       - 'addons/**'
+      - 'addons/**/package.json'
   workflow_dispatch:
 
 concurrency:
@@ -27,7 +31,7 @@ jobs:
       - uses: oven-sh/setup-bun@v1
         with:
           bun-version: latest
-      - name: Build site
+      - name: Build site and package tarballs
         run: bun run build.ts
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
