@@ -20,7 +20,9 @@ const WORKSPACE_DIR = process.env.PICLAW_WORKSPACE || "/workspace";
 import { createMedia, postMessagesToolMessage } from "./compat.js";
 
 const log = { info: console.log, warn: console.warn, error: console.error, debug: console.debug };
-function debugSuppressedError(msg: string, e: unknown) { log.debug(msg, e); }
+function debugSuppressedError(msg: string, e: unknown, meta?: Record<string, unknown>) {
+  log.debug(msg, e, meta);
+}
 import { buildAutoresearchSubagentCommand, hasPiCliModel, listPiCliModels } from "./launcher.js";
 import { clearAutoresearchSessionFiles, prepareDirectAutoresearchWorktree } from "./workdir.js";
 

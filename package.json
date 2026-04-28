@@ -19,6 +19,7 @@
   },
   "pi": {
     "extensions": [
+      "addons/ast-grep-tool/index.ts",
       "addons/autoresearch/index.ts",
       "addons/cheapskate/index.ts",
       "addons/code-validator/index.ts",
@@ -39,7 +40,8 @@
     },
     "skills": [
       "addons/autoresearch/skills",
-      "addons/delegate/skills"
+      "addons/delegate/skills",
+      "addons/settings-dialog-screenshot/skills"
     ]
   },
   "agents": {
@@ -51,6 +53,10 @@
       {
         "name": "delegate",
         "path": "./addons/delegate/skills/delegate"
+      },
+      {
+        "name": "settings-dialog-screenshot",
+        "path": "./addons/settings-dialog-screenshot/skills/settings-dialog-screenshot"
       }
     ]
   },

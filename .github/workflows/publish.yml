@@ -5,12 +5,11 @@ on:
     branches: [main]
     paths:
       - 'addons/**/package.json'
-      - 'catalog.json'
   workflow_dispatch:
 
 concurrency:
   group: publish
-  cancel-in-progress: false  # never cancel an in-flight publish
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -21,6 +20,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -31,19 +32,19 @@ jobs:
           echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> ~/.npmrc
           echo "@rcarmo:registry=https://npm.pkg.github.com" >> ~/.npmrc
 
-      - name: Publish each addon
+      - name: Publish version-bumped addons
         run: |
           for dir in addons/*/; do
+            [ -f "$dir/package.json" ] || continue
             slug=$(basename "$dir")
-            name=$(bun -e "console.log(require('./${dir}package.json').name)")
-            version=$(bun -e "console.log(require('./${dir}package.json').version)")
-            echo "→ $name@$version"
-            # Skip if this exact version is already published
-            if npm view "$name@$version" version --registry https://npm.pkg.github.com 2>/dev/null | grep -q "$version"; then
-              echo "  already published, skipping"
-            else
-              cd "$dir"
-              npm publish --registry https://npm.pkg.github.com 2>&1 | tail -3
-              cd ../..
+            OLD_VER=$(git show HEAD~1:"${dir}package.json" 2>/dev/null | bun -e "
+              const d=JSON.parse(await Bun.stdin.text()); console.log(d.version||'')" 2>/dev/null || echo "")
+            NEW_VER=$(bun -e "console.log(require('./${dir}package.json').version)")
+            if [ "$OLD_VER" = "$NEW_VER" ] || [ -z "$NEW_VER" ]; then
+              continue
             fi
+            echo "→ $slug: $OLD_VER → $NEW_VER — publishing"
+            cd "$dir"
+            npm publish --registry https://npm.pkg.github.com 2>&1 | tail -3
+            cd ../..
           done

@@ -158,8 +158,9 @@ async function buildMetadata() {
     if (!pkg.version) throw new Error(`addons/${slug}/package.json: missing version`);
     if (!pkg.description) throw new Error(`addons/${slug}/package.json: missing description`);
     if (!pkg.pi?.extensions?.length && !pkg.pi?.skills?.length) throw new Error(`addons/${slug}/package.json: missing pi.extensions or pi.skills — addon must declare at least one`);
-    if (!(pkg.keywords || []).includes('pi-package')) {
-      throw new Error(`addons/${slug}/package.json: keywords must include "pi-package"`);
+    const kws = pkg.keywords || [];
+    if (!kws.includes('pi-package') && !kws.includes('piclaw-addon')) {
+      throw new Error(`addons/${slug}/package.json: keywords must include "pi-package" or "piclaw-addon"`);
     }
 
     await validateCorePeerDependencies(addonRoot, slug, pkg);

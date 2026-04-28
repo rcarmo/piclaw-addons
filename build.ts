@@ -76,21 +76,30 @@ function addonReadme(addon: Addon): string {
 }
 
 function mdToHtml(md: string): string {
-  // Minimal markdown → HTML (headings, bullets, code, paragraphs)
-  return md
-    .replace(/^#{1} .+$/gm, "")                                           // strip h1 (already in hero)
+  // Extract code blocks first so they aren't mangled by later regexes
+  const codeBlocks: string[] = [];
+  let result = md.replace(/```[\w]*\n([\s\S]*?)```/gm, (_m, code) => {
+    codeBlocks.push(`<pre><code>${code}</code></pre>`);
+    return `<!--CODE${codeBlocks.length - 1}-->`;
+  });
+
+  result = result
+    .replace(/^#{1} .+$/gm, "")                                           // strip h1
     .replace(/^## (.+)$/gm, "<h2>$1</h2>")
     .replace(/^### (.+)$/gm, "<h3>$1</h3>")
     .replace(/^#### (.+)$/gm, "<h4>$1</h4>")
-    .replace(/```[\w]*\n([\s\S]*?)```/gm, "<pre><code>$1</code></pre>")
     .replace(/`([^`]+)`/g, "<code>$1</code>")
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
     .replace(/\*([^*]+)\*/g, "<em>$1</em>")
     .replace(/^\s*[-*] (.+)$/gm, "<li>$1</li>")
-    .replace(/(<li>[\s\S]*?<\/li>)(?!\s*<li>)/g, "<ul>$1</ul>")
+    .replace(/((?:<li>.*<\/li>\n?)+)/g, "<ul>\n$1</ul>")
     .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
-    .replace(/^(?!<[hup]|$)(.+)$/gm, "<p>$1</p>")
+    .replace(/^(?!<[hulpsd]|<\/|<!--CODE|$)(.+)$/gm, "<p>$1</p>")
     .replace(/\n{2,}/g, "\n");
+
+  // Restore code blocks
+  result = result.replace(/<!--CODE(\d+)-->/g, (_m, i) => codeBlocks[Number(i)]);
+  return result;
 }
 
 function tagBadge(tag: string) {
