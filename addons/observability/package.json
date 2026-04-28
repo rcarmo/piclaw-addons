@@ -7,10 +7,21 @@
   "piclaw": {
     "type": "extension",
     "compatibleVersions": ">=2.0.0",
-    "tags": ["observability", "tracing", "otel", "opentelemetry", "application-insights", "graphite", "metrics", "live-metrics"]
+    "tags": [
+      "observability",
+      "tracing",
+      "otel",
+      "opentelemetry",
+      "application-insights",
+      "graphite",
+      "metrics",
+      "live-metrics"
+    ]
   },
   "pi": {
-    "extensions": ["index.ts"]
+    "extensions": [
+      "index.ts"
+    ]
   },
   "dependencies": {
     "@azure/monitor-opentelemetry": "^1.16",
@@ -20,10 +31,11 @@
     "@mariozechner/pi-coding-agent": "*",
     "@sinclair/typebox": "*"
   },
-  "publishConfig": {
-    "registry": "https://npm.pkg.github.com",
-    "access": "public"
-  },
-  "keywords": ["piclaw", "piclaw-addon", "observability", "opentelemetry"],
+  "keywords": [
+    "piclaw",
+    "piclaw-addon",
+    "observability",
+    "opentelemetry"
+  ],
   "license": "MIT"
 }

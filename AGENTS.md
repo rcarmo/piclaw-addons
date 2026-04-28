@@ -93,10 +93,6 @@ export default function myAddon(pi: ExtensionAPI) {
     "@mariozechner/pi-coding-agent": "*",
     "@sinclair/typebox": "*"
   },
-  "publishConfig": {
-    "registry": "https://npm.pkg.github.com",
-    "access": "public"
-  },
   "keywords": ["piclaw", "piclaw-addon"],
   "license": "MIT"
 }
@@ -111,7 +107,7 @@ export default function myAddon(pi: ExtensionAPI) {
 | `piclaw.tags` | ✓ | Categorisation for search and display |
 | `pi.extensions` | ✓ | Entry points — usually `["index.ts"]` |
 | `peerDependencies` | ✓ | Must declare both `@mariozechner/pi-coding-agent` and `@sinclair/typebox` |
-| `publishConfig` | ✓ | Points to GitHub Packages registry |
+
 
 ---
 
@@ -212,7 +208,6 @@ bun run check:catalog
 1. `sync-catalog` — regenerates `catalog.json` from all addon `package.json` files
 2. `validate-metadata` — verifies the catalog is in sync and the package can be packed
 3. `build + deploy` — rebuilds the docs site at [rcarmo.github.io/piclaw-addons](https://rcarmo.github.io/piclaw-addons/)
-4. `publish` — publishes changed packages to GitHub Packages (`npm.pkg.github.com`)
 
 ### Manual sync
 

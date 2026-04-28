@@ -16,7 +16,7 @@
   },
   "agents": {},
   "scripts": {
-    "postinstall": "echo 'draw.io addon installed. Vendor files must be provided separately \u2014 see README.'"
+    "postinstall": "echo 'draw.io addon installed. Vendor files must be provided separately — see README.'"
   },
   "license": "MIT",
   "keywords": [
@@ -31,9 +31,5 @@
         "web/index.ts"
       ]
     }
-  },
-  "publishConfig": {
-    "registry": "https://npm.pkg.github.com",
-    "access": "public"
   }
 }

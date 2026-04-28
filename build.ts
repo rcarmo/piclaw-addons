@@ -159,16 +159,7 @@ function installSnippet(addon: Addon): string {
   return `<div class="install-block">
     <svg class="install-icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.751.751 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Z"/></svg>
     <span class="install-text">Open <strong>Settings → Add-Ons</strong> and pick <strong>${esc(addon.slug)}</strong></span>
-  </div>
-  <details class="install-alt">
-    <summary>Or install from the terminal</summary>
-    <pre><code># via pi CLI
-pi install ${esc(pkg.piSource ?? pkg.spec)}
-
-# via bun add (piclaw configures the registry automatically)
-cd /workspace/.piclaw/addons
-bun add ${esc(pkg.spec)}</code></pre>
-  </details>`;
+  </div>`;
 }
 
 // ── CSS ───────────────────────────────────────────────────────────────────────
@@ -535,7 +526,7 @@ ${CLARITY_SCRIPT}
       <tr style="border-bottom:2px solid var(--border)">
         <th style="text-align:left;padding:.6rem .5rem;font-family:var(--font-head)">Add-on</th>
         <th style="text-align:left;padding:.6rem .5rem;font-family:var(--font-head)">Version</th>
-        <th style="text-align:left;padding:.6rem .5rem;font-family:var(--font-head)">Install command</th>
+        <th style="text-align:left;padding:.6rem .5rem;font-family:var(--font-head)">Install</th>
         <th style="text-align:right;padding:.6rem .5rem;font-family:var(--font-head)">.tgz</th>
       </tr>
     </thead>
@@ -546,7 +537,7 @@ ${CLARITY_SCRIPT}
         return `<tr style="border-bottom:1px solid var(--border)">
           <td style="padding:.55rem .5rem"><a href="/piclaw-addons/addons/${esc(a.slug)}/" style="color:var(--accent);font-weight:600">${esc(a.slug)}</a></td>
           <td style="padding:.55rem .5rem;font-family:var(--font-mono);color:var(--ink-dim)">v${esc(a.version)}</td>
-          <td style="padding:.55rem .5rem"><code style="font-family:var(--font-mono);font-size:.78rem;color:var(--ink-dim)">bun add ${esc(a.install.spec)} --registry ${esc(a.install.registry ?? '')}</code></td>
+          <td style="padding:.55rem .5rem"><span style="font-size:.82rem;color:var(--ink-dim)">Settings → Add-Ons → <strong>${esc(a.slug)}</strong></span></td>
           <td style="padding:.55rem .5rem;text-align:right"><a href="${url}" style="color:var(--accent);font-weight:700;font-size:.82rem">⬇ .tgz</a></td>
         </tr>`;
       }).join("\n")}
