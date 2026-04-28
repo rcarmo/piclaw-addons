@@ -85,10 +85,15 @@ function mdToHtml(md: string): string {
 
   // Extract markdown tables before paragraph processing
   const tables: string[] = [];
+  const inlineFormat = (s: string) => s
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*([^*]+)\*/g, "<em>$1</em>")
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
   result = result.replace(/^(\|.+\|\n)(\|[\s:|-]+\|\n)((?:\|.+\|\n?)+)/gm, (_m, headerRow, _sepRow, bodyRows) => {
-    const headers = headerRow.trim().split("|").filter((c: string) => c.trim()).map((c: string) => c.trim());
+    const headers = headerRow.trim().split("|").filter((c: string) => c.trim()).map((c: string) => inlineFormat(c.trim()));
     const rows = bodyRows.trim().split("\n").map((row: string) =>
-      row.split("|").filter((c: string) => c.trim()).map((c: string) => c.trim())
+      row.split("|").filter((c: string) => c.trim()).map((c: string) => inlineFormat(c.trim()))
     );
     const html = `<table class="md-table"><thead><tr>${headers.map((h: string) => `<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.map((r: string[]) => `<tr>${r.map((c: string) => `<td>${c}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
     tables.push(html);
@@ -97,6 +102,7 @@ function mdToHtml(md: string): string {
 
   result = result
     .replace(/^#{1} .+$/gm, "")                                           // strip h1
+    .replace(/^-{3,}$/gm, "<hr>")                                          // horizontal rules
     .replace(/^## (.+)$/gm, "<h2>$1</h2>")
     .replace(/^### (.+)$/gm, "<h3>$1</h3>")
     .replace(/^#### (.+)$/gm, "<h4>$1</h4>")
