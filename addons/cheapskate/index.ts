@@ -14,6 +14,8 @@ import type { ExtensionAPI, ExtensionFactory } from "@mariozechner/pi-coding-age
 import { Type } from "@sinclair/typebox";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { createExtensionStorage, type ExtensionStorage } from "./compat/extension-kv.js";
+import { createExtensionStorage, type ExtensionStorage } from "./compat/extension-kv.js";
 
 // ── Free-tier backend definitions ────────────────────────────────
 
@@ -85,10 +87,14 @@ const BACKENDS: FreeBackend[] = [
   },
 ];
 
-// ── Config persistence ──────────────────────────────────────────
+// ── Config persistence (SQLite KV) ──────────────────────────────
 
-const WORKSPACE_DIR = process.env.PICLAW_WORKSPACE || "/workspace";
-const CONFIG_PATH = join(WORKSPACE_DIR, ".pi", "cheapskate.json");
+const EXTENSION_ID = "cheapskate";
+let kvStore: ExtensionStorage | null = null;
+function kv(): ExtensionStorage {
+  if (!kvStore) kvStore = createExtensionStorage(EXTENSION_ID);
+  return kvStore;
+}
 
 interface CheapskateConfig {
   backends?: Record<string, { enabled?: boolean; safetyCap?: boolean }>;
@@ -96,12 +102,25 @@ interface CheapskateConfig {
 
 function loadConfig(): CheapskateConfig {
   try {
-    if (existsSync(CONFIG_PATH)) {
-      return JSON.parse(readFileSync(CONFIG_PATH, "utf8")) as CheapskateConfig;
+    const saved = kv().get<CheapskateConfig>("config", "global");
+    if (saved) return saved;
+  } catch { /* first run */ }
+  const WORKSPACE_DIR = process.env.PICLAW_WORKSPACE || "/workspace";
+  const legacyPath = join(WORKSPACE_DIR, ".pi", "cheapskate.json");
+  try {
+    if (existsSync(legacyPath)) {
+      const legacy = JSON.parse(readFileSync(legacyPath, "utf8")) as CheapskateConfig;
+      kv().set("config", legacy, "global");
+      return legacy;
     }
   } catch { /* best effort */ }
   return {};
 }
+
+function saveConfig(config: CheapskateConfig): void {
+  kv().set("config", config, "global");
+}
+
 
 function isBackendEnabled(id: string): boolean {
   const bc = loadConfig().backends?.[id];
@@ -290,6 +309,34 @@ function reRegisterWithBackend(pi: ExtensionAPI, backend: FreeBackend): void {
 
 const cheapskate: ExtensionFactory = (pi: ExtensionAPI) => {
   if (!registerCheapskateProvider(pi)) return;
+
+  // Config API for the web settings pane
+  pi.registerCommand("cheapskate-config-get", {
+    description: "Get cheapskate config (internal)",
+    handler: async () => {
+      pi.sendMessage({ customType: "cheapskate", content: JSON.stringify(loadConfig()), display: false });
+    },
+  });
+  pi.registerCommand("cheapskate-config-set", {
+    description: "Set cheapskate config (internal)",
+    handler: async (args: string) => {
+      try {
+        const patch = JSON.parse(args) as Partial<CheapskateConfig>;
+        const current = loadConfig();
+        const merged: CheapskateConfig = {
+          backends: { ...(current.backends || {}), ...(patch.backends || {}) },
+        };
+        // Deep merge per-backend fields
+        for (const [id, fields] of Object.entries(patch.backends || {})) {
+          merged.backends![id] = { ...(current.backends?.[id] || {}), ...fields };
+        }
+        saveConfig(merged);
+        pi.sendMessage({ customType: "cheapskate", content: JSON.stringify({ ok: true, config: merged }), display: false });
+      } catch (err) {
+        pi.sendMessage({ customType: "cheapskate", content: JSON.stringify({ ok: false, error: String(err) }), display: false });
+      }
+    },
+  });
 
   // Before each turn: ensure we're pointing at the best available backend
   pi.on("before_agent_start", async (event) => {

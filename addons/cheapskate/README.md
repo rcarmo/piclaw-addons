@@ -30,9 +30,12 @@ Each backend requires its own API key set as an environment variable or keychain
 Open **Settings → Cheapskate** to:
 
 - Enable or disable individual backends
+- **Enter API keys directly** — keys are stored in the piclaw keychain, not in config files
 - Toggle safety caps on soft-cap providers (Cloudflare charges past the free tier)
 - See which backends have valid API keys
 
+A restart is needed after adding or changing a key for the runtime to pick it up.
+
 ## Configuration
 
-Config is stored at `.pi/cheapskate.json` and auto-saved from the settings pane. Each backend can be individually enabled/disabled and soft-cap providers have a safety-cap toggle that prevents requests once the free allocation is exhausted.
+Backend enable/disable and safety-cap settings are stored in the extension KV store (SQLite). API keys are stored in the keychain. Legacy `.pi/cheapskate.json` configs are automatically migrated on first load.
