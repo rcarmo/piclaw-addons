@@ -21,7 +21,12 @@
   "pi": {
     "extensions": [
       "index.ts"
-    ]
+    ],
+    "web": {
+      "entries": [
+        "web/index.ts"
+      ]
+    }
   },
   "dependencies": {
     "@azure/monitor-opentelemetry": "^1.16",
