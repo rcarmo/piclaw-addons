@@ -6,6 +6,11 @@ This guide covers how to create, test, and publish an extension for [piclaw](htt
 
 ## Quick start
 
+> **Install-path rule:** first-party `piclaw-addons` must install via **public GitHub-hosted tarball URLs** from `catalog.json`.
+> Do **not** change docs, generated catalog entries, or runtime integration back to npmjs.org package specs or authenticated GitHub Packages reads.
+> Runtime install/remove must remain zero-auth.
+
+
 ```bash
 # 1. Create your addon directory
 mkdir -p addons/my-addon/skills/my-skill
@@ -205,9 +210,9 @@ bun run check:catalog
 
 ### What happens on push
 
-1. `sync-catalog` — regenerates `catalog.json` from all addon `package.json` files
+1. `sync-catalog` — regenerates `catalog.json` from all addon `package.json` files using **public GitHub Pages tarball URLs**
 2. `validate-metadata` — verifies the catalog is in sync and the package can be packed
-3. `build + deploy` — rebuilds the docs site at [rcarmo.github.io/piclaw-addons](https://rcarmo.github.io/piclaw-addons/)
+3. `build + deploy` — rebuilds the docs site at [rcarmo.github.io/piclaw-addons](https://rcarmo.github.io/piclaw-addons/) and publishes the downloadable `.tgz` files
 
 ### Manual sync
 
@@ -237,3 +242,4 @@ Add `owner` and `contributors` to your new entry in `catalog.json` — these fie
 - Skills go in `skills/<name>/SKILL.md`
 - Bump version for every functional change
 - Run `sync:catalog` after every `package.json` edit
+- Catalog install entries for first-party add-ons must stay `kind: "tarball"` with public `https://rcarmo.github.io/piclaw-addons/packages/...tgz` URLs

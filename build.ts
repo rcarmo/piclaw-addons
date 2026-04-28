@@ -19,7 +19,9 @@ mkdirSync(OUT, { recursive: true });
 mkdirSync(join(OUT, "addons"), { recursive: true });
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-interface Install { kind: string; spec: string; registry?: string; piSource?: string; }
+// First-party add-ons install from public GitHub Pages tarball URLs only.
+// Do not add npm registry/auth fields back into the generated catalog model.
+interface Install { kind: string; spec: string; }
 interface Person { login: string; url: string; }
 interface Addon {
   slug:         string;
@@ -535,7 +537,7 @@ ${CLARITY_SCRIPT}
 <div class="detail-hero" style="padding:2rem 1.5rem 1.8rem">
   <div style="max-width:760px;margin:0 auto">
     <div class="detail-title" style="font-size:2rem">Packages</div>
-    <div class="detail-sub">Direct-download tarballs — one per add-on. Install via the terminal or Settings → Add-Ons.</div>
+    <div class="detail-sub">Direct-download tarballs — one per add-on. These public GitHub Pages URLs are the supported first-party install path for Settings → Add-Ons and terminal installs.</div>
   </div>
 </div>
 <div class="detail-body">

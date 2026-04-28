@@ -41,6 +41,9 @@ const CORE_PEER_DEPENDENCIES = [
 
 type CorePeerDependency = (typeof CORE_PEER_DEPENDENCIES)[number];
 
+// IMPORTANT: first-party piclaw-addons must install from public GitHub Pages
+// tarball URLs. Do not emit npm/GitHub Packages install specs here — runtime
+// install/remove must work without registry auth.
 interface CatalogEntry {
   slug: string;
   name: string;
@@ -52,7 +55,7 @@ interface CatalogEntry {
   skills: string[];
   install: {
     kind: 'tarball';
-    spec: string;     // @rcarmo/piclaw-addon-<slug>@<version>
+    spec: string;     // https://rcarmo.github.io/piclaw-addons/packages/<name>-<version>.tgz
   };
   updatedAt?:    string;  // ISO date of last git commit touching this addon
   owner?: { login: string; url: string };

@@ -1,4 +1,4 @@
-name: Publish to GitHub Packages
+name: Publish archive packages to GitHub Packages
 
 on:
   push:
@@ -15,6 +15,10 @@ permissions:
   contents: read
   packages: write
 
+# NOTE: runtime install/remove must not depend on this registry.
+# First-party piclaw add-ons install from the public GitHub Pages tarball URLs
+# generated into catalog.json and docs/packages/. This workflow is archival /
+# alternate-consumption only.
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -27,7 +31,7 @@ jobs:
         with:
           bun-version: latest
 
-      - name: Set up npm for GitHub Packages
+      - name: Set up npm for archival GitHub Packages publish
         run: |
           echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> ~/.npmrc
           echo "@rcarmo:registry=https://npm.pkg.github.com" >> ~/.npmrc

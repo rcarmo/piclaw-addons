@@ -8,6 +8,10 @@ Community extensions and add-ons for [piclaw](https://github.com/rcarmo/piclaw).
 
 ## Installing add-ons
 
+> **Important:** first-party `piclaw-addons` installs must use **public GitHub-hosted tarball URLs**.
+> Do **not** switch examples, catalog entries, or runtime code to npmjs.org package specs or authenticated GitHub Packages reads.
+> Runtime install/remove must work with zero registry auth.
+
 ### Web UI (recommended)
 
 Open **Settings → Add-Ons**, pick an add-on, click **Install**. Restart required.
@@ -15,16 +19,14 @@ Open **Settings → Add-Ons**, pick an add-on, click **Install**. Restart requir
 ### `pi install`
 
 ```bash
-pi install npm:@rcarmo/piclaw-addon-proxmox@0.1.3
+pi install https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-proxmox-0.1.3.tgz
 ```
 
 ### `bun add`
 
-piclaw configures the registry automatically. You can also install manually:
-
 ```bash
-cd /workspace/.piclaw/addons
-bun add @rcarmo/piclaw-addon-proxmox
+cd /workspace/.pi/extensions
+bun add https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-proxmox-0.1.3.tgz
 ```
 
 ---
@@ -55,11 +57,11 @@ bun add @rcarmo/piclaw-addon-proxmox
 
 A push to any `addons/<slug>/` path triggers the full chain:
 
-1. **sync-catalog** — regenerates `catalog.json` from addon `package.json` files
-2. **build + deploy** — rebuilds the docs site and deploys to GitHub Pages
-3. **publish** — publishes updated packages to the GitHub Packages npm registry
+1. **sync-catalog** — regenerates `catalog.json` with **public tarball URLs** from addon `package.json` files
+2. **build + deploy** — rebuilds the docs site and deploys the downloadable `.tgz` files to GitHub Pages
+3. **publish** — optionally mirrors version-bumped packages to GitHub Packages for archival/alternate consumption
 
-See [docs/architecture.md](docs/architecture.md) for the catalog format, auth flow, and fallback mechanism.
+The supported first-party runtime install path is the **GitHub Pages tarball URL**, not npm registry resolution.
 
 ---
 
