@@ -14,28 +14,32 @@ Context-length errors also trigger rotation, so long conversations don't get stu
 
 ## Backends
 
-| Provider | Model | Context | Reasoning |
-|---|---|---|---|
-| Google Gemini | Gemini 2.5 Flash | 1M | ✅ |
-| Cerebras | Qwen 3 235B | 131K | ✅ |
-| Groq | QwQ 32B | 131K | ✅ |
-| SambaNova | DeepSeek R1 | 65K | ✅ |
-| OpenRouter | DeepSeek R1 (free) | 163K | ✅ |
-| Cloudflare Workers AI | Llama 3.3 70B | 131K | ❌ |
-
-Each backend requires its own API key set as an environment variable or keychain entry.
+| Provider | Model | Context | Reasoning | Keychain entry |
+|---|---|---|---|---|
+| Google Gemini | Gemini 2.5 Flash | 1M | ✅ | `google/generative-ai-api-key` |
+| Cerebras | Qwen 3 235B | 131K | ✅ | `cerebras/api-key` |
+| Groq | QwQ 32B | 131K | ✅ | `groq/api-key` |
+| SambaNova | DeepSeek R1 | 65K | ✅ | `sambanova/api-key` |
+| OpenRouter | DeepSeek R1 (free) | 163K | ✅ | `openrouter/api-key` |
+| Cloudflare Workers AI | Llama 3.3 70B | 131K | ❌ | `cloudflare/api-token` |
 
 ## Settings pane
 
 Open **Settings → Cheapskate** to:
 
 - Enable or disable individual backends
-- **Enter API keys directly** — keys are stored in the piclaw keychain, not in config files
+- Enter API keys directly — saved to the piclaw keychain
 - Toggle safety caps on soft-cap providers (Cloudflare charges past the free tier)
-- See which backends have valid API keys
+- See at a glance which backends have keys configured
 
 A restart is needed after adding or changing a key for the runtime to pick it up.
 
-## Configuration
+## Storage model
 
-Backend enable/disable and safety-cap settings are stored in the extension KV store (SQLite). API keys are stored in the keychain. Legacy `.pi/cheapskate.json` configs are automatically migrated on first load.
+| What | Where |
+|---|---|
+| API keys | **Keychain** — each backend has a named entry (see table above). Keys are auto-injected as environment variables at runtime. |
+| Backend enabled/disabled | **Runtime database** — extension KV store (SQLite, global scope, extension ID `cheapskate`) |
+| Safety cap toggles | **Runtime database** — same KV store as above |
+
+No config files are written to disk. Legacy `.pi/cheapskate.json` is auto-migrated to the runtime database on first load.
