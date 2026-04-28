@@ -1,0 +1,42 @@
+{
+  "name": "@rcarmo/piclaw-addon-git-query-tools",
+  "version": "0.1.0",
+  "description": "Git history and JSON query tools for piclaw agents",
+  "type": "module",
+  "main": "index.ts",
+  "piclaw": {
+    "type": "extension",
+    "compatibleVersions": ">=1.8.0",
+    "tags": [
+      "git",
+      "json",
+      "query"
+    ],
+    "skills": [
+      "skills/git-query-tools"
+    ]
+  },
+  "agents": {
+    "skills": [
+      { "name": "git-query-tools", "path": "skills/git-query-tools/SKILL.md" }
+    ]
+  },
+  "pi": {
+    "extensions": [
+      "index.ts"
+    ],
+    "skills": [
+      "skills"
+    ]
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-coding-agent": "*",
+    "@sinclair/typebox": "*"
+  },
+  "license": "MIT",
+  "publishConfig": { "registry": "https://npm.pkg.github.com", "access": "public" },
+  "keywords": [
+    "piclaw",
+    "piclaw-addon"
+  ]
+}

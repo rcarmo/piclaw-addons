@@ -27,6 +27,7 @@
       "addons/dev-tools/index.ts",
       "addons/drawio-editor/index.ts",
       "addons/eml-viewer/index.ts",
+      "addons/git-query-tools/index.ts",
       "addons/imap/index.ts",
       "addons/kanban-board-widget/index.ts",
       "addons/observability/index.ts",
@@ -43,6 +44,7 @@
     "skills": [
       "addons/autoresearch/skills",
       "addons/delegate/skills",
+      "addons/git-query-tools/skills",
       "addons/settings-dialog-screenshot/skills"
     ]
   },
@@ -55,6 +57,10 @@
       {
         "name": "delegate",
         "path": "./addons/delegate/skills/delegate"
+      },
+      {
+        "name": "git-query-tools",
+        "path": "./addons/git-query-tools/skills/git-query-tools/SKILL.md"
       },
       {
         "name": "settings-dialog-screenshot",
