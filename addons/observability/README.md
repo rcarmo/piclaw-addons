@@ -342,7 +342,42 @@ dependencies
 | order by calls desc
 ```
 
-#### 5) Provider/runtime failures
+#### 5) Models by instance
+
+```kusto
+dependencies
+| extend piclaw_instance = coalesce(tostring(customDimensions["piclaw.instance"]), cloud_RoleInstance)
+| where timestamp > ago(24h)
+| where name == "agent.turn"
+| extend model = tostring(customDimensions["piclaw.model"])
+| where isnotempty(model)
+| extend duration_ms = todouble(duration / 1ms)
+| summarize turns = count(),
+            errors = countif(success == false or tostring(customDimensions["piclaw.turn.status"]) == "error"),
+            total_duration_ms = sum(duration_ms),
+            p50_ms = percentile(duration_ms, 50),
+            p95_ms = percentile(duration_ms, 95)
+  by piclaw_instance, model
+| order by turns desc
+```
+
+#### 6) Providers / provider-error classifiers
+
+```kusto
+union withsource=table dependencies, traces, exceptions
+| extend piclaw_instance = coalesce(tostring(customDimensions["piclaw.instance"]), cloud_RoleInstance)
+| extend span_name = coalesce(name, operation_Name, message, outerMessage)
+| extend provider = tostring(customDimensions["piclaw.provider"])
+| extend classifier = tostring(customDimensions["piclaw.error.classifier"])
+| where timestamp > ago(24h)
+| where span_name == "provider.error" or isnotempty(provider) or isnotempty(classifier)
+| summarize events = count(),
+            failures = countif(success == false or severityLevel >= 3)
+  by piclaw_instance, provider, classifier, span_name, table
+| order by events desc
+```
+
+#### 7) Provider/runtime failures
 
 ```kusto
 union withsource=table dependencies, traces, exceptions
@@ -360,6 +395,8 @@ union withsource=table dependencies, traces, exceptions
           success,
           operation_Id,
           classifier = tostring(customDimensions["piclaw.error.classifier"]),
+          provider = tostring(customDimensions["piclaw.provider"]),
+          model = tostring(customDimensions["piclaw.model"]),
           message,
           outerMessage,
           problemId,
@@ -367,7 +404,37 @@ union withsource=table dependencies, traces, exceptions
 | order by timestamp desc
 ```
 
-#### 6) One-instance drill-down (`smith`)
+#### 8) Token counters on `agent.turn` spans
+
+> **Note:** token usage is persisted in piclaw's runtime database even when App Insights is not yet carrying token attributes. This query returns rows only when the observability exporter emits `piclaw.turn.input_tokens`, `piclaw.turn.output_tokens`, `piclaw.turn.cache_read_tokens`, `piclaw.turn.cache_write_tokens`, and `piclaw.turn.total_tokens` on `agent.turn` telemetry.
+
+```kusto
+dependencies
+| extend piclaw_instance = coalesce(tostring(customDimensions["piclaw.instance"]), cloud_RoleInstance)
+| where timestamp > ago(24h)
+| where name == "agent.turn"
+| extend model = tostring(customDimensions["piclaw.model"])
+| extend input_tokens = todouble(customDimensions["piclaw.turn.input_tokens"])
+| extend output_tokens = todouble(customDimensions["piclaw.turn.output_tokens"])
+| extend cache_read_tokens = todouble(customDimensions["piclaw.turn.cache_read_tokens"])
+| extend cache_write_tokens = todouble(customDimensions["piclaw.turn.cache_write_tokens"])
+| extend total_tokens = todouble(customDimensions["piclaw.turn.total_tokens"])
+| where isnotnull(input_tokens)
+   or isnotnull(output_tokens)
+   or isnotnull(cache_read_tokens)
+   or isnotnull(cache_write_tokens)
+   or isnotnull(total_tokens)
+| summarize turns = count(),
+            input_tokens = sum(input_tokens),
+            output_tokens = sum(output_tokens),
+            cache_read_tokens = sum(cache_read_tokens),
+            cache_write_tokens = sum(cache_write_tokens),
+            total_tokens = sum(total_tokens)
+  by piclaw_instance, model
+| order by total_tokens desc
+```
+
+#### 9) One-instance drill-down (`smith`)
 
 ```kusto
 union withsource=table requests, dependencies, traces, exceptions
@@ -379,7 +446,7 @@ union withsource=table requests, dependencies, traces, exceptions
 | order by timestamp desc
 ```
 
-#### 7) If Live Metrics only shows requests, confirm the exporter is still sending custom telemetry
+#### 10) If Live Metrics only shows requests, confirm the exporter is still sending custom telemetry
 
 ```kusto
 union withsource=table dependencies, traces
