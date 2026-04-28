@@ -51,19 +51,35 @@ Each piclaw instance needs:
 
 ## Architecture
 
-```
-smith (LXC)         ──┐
-relay (Docker)       ──┤
-orangepi (host)      ──┼──► Azure Application Insights (OTLP/HTTP)
-sandbox (Docker)     ──┤      ├─ Failures blade: all errors across fleet
-microvm (systemd)    ──┘      ├─ Application Map: instance topology
-                              ├─ Transaction Search: per-turn traces
-                              └─ Live Metrics: real-time stream
-
-192.168.1.250:2003   ◄── Carbon plaintext (any instance with Graphite enabled)
-```
-
-No OTel Collector required. Each instance exports directly via `@azure/monitor-opentelemetry`.
+<svg viewBox="0 0 680 260" xmlns="http://www.w3.org/2000/svg" style="max-width:680px;width:100%;height:auto;font-family:system-ui,sans-serif;font-size:13px">
+  <defs>
+    <marker id="ah" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#2563eb"/></marker>
+  </defs>
+  <!-- Instances -->
+  <rect x="10" y="10" width="140" height="150" rx="8" fill="#f0f4ff" stroke="#2563eb" stroke-width="1.5"/>
+  <text x="80" y="32" text-anchor="middle" font-weight="700" fill="#0f1c2e">Instances</text>
+  <text x="80" y="54" text-anchor="middle" fill="#555" font-size="12">smith (LXC)</text>
+  <text x="80" y="72" text-anchor="middle" fill="#555" font-size="12">relay (Docker)</text>
+  <text x="80" y="90" text-anchor="middle" fill="#555" font-size="12">orangepi (host)</text>
+  <text x="80" y="108" text-anchor="middle" fill="#555" font-size="12">sandbox (Docker)</text>
+  <text x="80" y="126" text-anchor="middle" fill="#555" font-size="12">microvm (systemd)</text>
+  <!-- App Insights -->
+  <rect x="280" y="10" width="260" height="150" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/>
+  <text x="410" y="32" text-anchor="middle" font-weight="700" fill="#1e3a5f">Azure Application Insights</text>
+  <text x="410" y="56" text-anchor="middle" fill="#555" font-size="11">Failures blade — errors by instance</text>
+  <text x="410" y="74" text-anchor="middle" fill="#555" font-size="11">Application Map — topology</text>
+  <text x="410" y="92" text-anchor="middle" fill="#555" font-size="11">Transaction Search — per-turn traces</text>
+  <text x="410" y="110" text-anchor="middle" fill="#555" font-size="11">Live Metrics — real-time stream</text>
+  <!-- Arrow instances → App Insights -->
+  <line x1="150" y1="85" x2="275" y2="85" stroke="#2563eb" stroke-width="2" marker-end="url(#ah)"/>
+  <text x="212" y="78" text-anchor="middle" fill="#2563eb" font-size="10" font-weight="600">OTLP/HTTP</text>
+  <!-- Graphite -->
+  <rect x="280" y="190" width="200" height="50" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="1.5"/>
+  <text x="380" y="220" text-anchor="middle" font-weight="600" fill="#166534">Graphite :2003</text>
+  <!-- Arrow instances → Graphite -->
+  <line x1="120" y1="160" x2="275" y2="215" stroke="#16a34a" stroke-width="1.5" stroke-dasharray="6 3" marker-end="url(#ah)"/>
+  <text x="180" y="200" text-anchor="middle" fill="#16a34a" font-size="10" font-weight="600">Carbon plaintext</text>
+</svg>
 
 ---
 

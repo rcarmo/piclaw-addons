@@ -83,6 +83,18 @@ function mdToHtml(md: string): string {
     return `<!--CODE${codeBlocks.length - 1}-->`;
   });
 
+  // Extract markdown tables before paragraph processing
+  const tables: string[] = [];
+  result = result.replace(/^(\|.+\|\n)(\|[\s:|-]+\|\n)((?:\|.+\|\n?)+)/gm, (_m, headerRow, _sepRow, bodyRows) => {
+    const headers = headerRow.trim().split("|").filter((c: string) => c.trim()).map((c: string) => c.trim());
+    const rows = bodyRows.trim().split("\n").map((row: string) =>
+      row.split("|").filter((c: string) => c.trim()).map((c: string) => c.trim())
+    );
+    const html = `<table class="md-table"><thead><tr>${headers.map((h: string) => `<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.map((r: string[]) => `<tr>${r.map((c: string) => `<td>${c}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+    tables.push(html);
+    return `<!--TABLE${tables.length - 1}-->`;
+  });
+
   result = result
     .replace(/^#{1} .+$/gm, "")                                           // strip h1
     .replace(/^## (.+)$/gm, "<h2>$1</h2>")
@@ -94,11 +106,13 @@ function mdToHtml(md: string): string {
     .replace(/^\s*[-*] (.+)$/gm, "<li>$1</li>")
     .replace(/((?:<li>.*<\/li>\n?)+)/g, "<ul>\n$1</ul>")
     .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
-    .replace(/^(?!<[hulpsd]|<\/|<!--CODE|$)(.+)$/gm, "<p>$1</p>")
+    .replace(/^(?!<[hulpsd]|<\/|<!--CODE|<!--TABLE|$)(.+)$/gm, "<p>$1</p>")
     .replace(/\n{2,}/g, "\n");
 
   // Restore code blocks
   result = result.replace(/<!--CODE(\d+)-->/g, (_m, i) => codeBlocks[Number(i)]);
+  // Restore tables
+  result = result.replace(/<!--TABLE(\d+)-->/g, (_m, i) => tables[Number(i)]);
   return result;
 }
 
@@ -264,6 +278,11 @@ html,body{min-height:100%;background:var(--bg);color:var(--ink);font-family:var(
 .detail-body pre{background:rgba(0,0,0,.04);border:1px solid var(--border);border-radius:8px;
   padding:.95rem 1.1rem;overflow-x:auto;margin:.7rem 0}
 .detail-body code{font-family:var(--font-mono);font-size:.83rem}
+.md-table{width:100%;border-collapse:collapse;margin:.7rem 0;font-size:.9rem}
+.md-table th,.md-table td{padding:.45rem .65rem;border:1px solid var(--border);text-align:left}
+.md-table th{background:var(--accent-bg);font-family:var(--font-head);font-weight:600;font-size:.82rem}
+.md-table td{color:var(--ink-dim)}
+.md-table code{font-size:.78rem}
 .detail-body p code{background:rgba(0,0,0,.04);padding:.1em .35em;border-radius:4px}
 .detail-body a{color:var(--accent)}
 @media(prefers-color-scheme:dark){.detail-body pre{background:rgba(255,255,255,.04)}}
