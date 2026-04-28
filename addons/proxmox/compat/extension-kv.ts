@@ -102,13 +102,26 @@ class RuntimeBackedStorage implements ExtensionStorage {
 
 // ── Factory ──────────────────────────────────────────────────────
 
+function getRuntimeInterop(): { getExtensionKvStore?: () => RuntimeKvStore } | null {
+  const interop = (globalThis as { __piclawRuntimeInterop?: { getExtensionKvStore?: () => RuntimeKvStore } }).__piclawRuntimeInterop;
+  return interop || null;
+}
+
 /**
  * Try to resolve piclaw's runtime KV store.
- * Uses dynamic import to avoid hard dependency on piclaw internals.
+ * Prefer the runtime global bridge, then fall back to direct module access.
  */
 function tryGetRuntimeStore(): RuntimeKvStore | null {
   try {
-    // piclaw registers this globally during init
+    const interop = getRuntimeInterop();
+    if (typeof interop?.getExtensionKvStore === "function") {
+      return interop.getExtensionKvStore();
+    }
+  } catch {
+    // continue to module fallback
+  }
+
+  try {
     const mod = require("piclaw/runtime/src/extension-kv-registry.js");
     if (typeof mod?.getExtensionKvStore === "function") {
       return mod.getExtensionKvStore();

@@ -59,13 +59,51 @@ function resolveFromEnv(name: string): KeychainEntry | null {
 
 /**
  * Get a keychain entry by name.
- * Reads from injected env vars (primary) or falls back to piclaw DB.
+ * Reads from injected env vars (primary), then the live piclaw runtime keychain,
+ * and only then falls back to the piclaw CLI.
  */
 export async function getKeychainEntry(name: string): Promise<KeychainEntry> {
   const fromEnv = resolveFromEnv(name);
   if (fromEnv) return fromEnv;
 
-  // Fallback: try piclaw's encrypted keychain DB via the piclaw CLI
+  try {
+    const interop = (globalThis as {
+      __piclawRuntimeInterop?: {
+        getKeychainEntry?: (entryName: string) => Promise<KeychainEntry>;
+      };
+    }).__piclawRuntimeInterop;
+    if (typeof interop?.getKeychainEntry === "function") {
+      const entry = await interop.getKeychainEntry(name);
+      if (entry?.secret) {
+        return {
+          name,
+          type: entry.type || "secret",
+          secret: String(entry.secret),
+          username: entry.username || undefined,
+        };
+      }
+    }
+  } catch {
+    // continue to module fallback
+  }
+
+  try {
+    const mod = require("piclaw/runtime/src/secure/keychain.js");
+    if (typeof mod?.getKeychainEntry === "function") {
+      const entry = await mod.getKeychainEntry(name);
+      if (entry?.secret) {
+        return {
+          name,
+          type: entry.type || "secret",
+          secret: String(entry.secret),
+          username: entry.username || undefined,
+        };
+      }
+    }
+  } catch {
+    // Not running inside piclaw runtime — continue to CLI fallback.
+  }
+
   try {
     const proc = Bun.spawnSync(["piclaw", "keychain", "get", name], {
       stdout: "pipe",
@@ -77,9 +115,11 @@ export async function getKeychainEntry(name: string): Promise<KeychainEntry> {
       if (text) {
         try {
           const parsed = JSON.parse(text);
-          return { name, type: "secret", secret: parsed.secret || text, username: parsed.username };
+          if (typeof parsed?.secret === "string" && parsed.secret) {
+            return { name, type: parsed.type || "secret", secret: parsed.secret, username: parsed.username };
+          }
         } catch {
-          return { name, type: "secret", secret: text };
+          // Some CLI outputs are human-readable wrappers, not raw secrets.
         }
       }
     }

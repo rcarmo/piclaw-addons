@@ -66,7 +66,27 @@ export async function getKeychainEntry(name: string): Promise<KeychainEntry> {
   const fromEnv = resolveFromEnv(name);
   if (fromEnv) return fromEnv;
 
-  // Preferred fallback when running inside piclaw: call the live runtime keychain.
+  try {
+    const interop = (globalThis as {
+      __piclawRuntimeInterop?: {
+        getKeychainEntry?: (entryName: string) => Promise<KeychainEntry>;
+      };
+    }).__piclawRuntimeInterop;
+    if (typeof interop?.getKeychainEntry === "function") {
+      const entry = await interop.getKeychainEntry(name);
+      if (entry?.secret) {
+        return {
+          name,
+          type: entry.type || "secret",
+          secret: String(entry.secret),
+          username: entry.username || undefined,
+        };
+      }
+    }
+  } catch {
+    // continue to module fallback
+  }
+
   try {
     const mod = require("piclaw/runtime/src/secure/keychain.js");
     if (typeof mod?.getKeychainEntry === "function") {
@@ -84,7 +104,6 @@ export async function getKeychainEntry(name: string): Promise<KeychainEntry> {
     // Not running inside piclaw runtime — continue to CLI fallback.
   }
 
-  // Final fallback: try piclaw's CLI surface.
   try {
     const proc = Bun.spawnSync(["piclaw", "keychain", "get", name], {
       stdout: "pipe",

@@ -21,7 +21,22 @@ let runtimeAddLogSink: ((sink: LogSink) => void) | null = null;
 let runtimeRemoveLogSink: ((sink: LogSink) => void) | null = null;
 
 function resolveRuntime(): boolean {
-  if (runtimeAddLogSink) return true;
+  if (runtimeAddLogSink && runtimeRemoveLogSink) return true;
+
+  try {
+    const interop = (globalThis as {
+      __piclawRuntimeInterop?: {
+        addLogSink?: (sink: LogSink) => void;
+        removeLogSink?: (sink: LogSink) => void;
+      };
+    }).__piclawRuntimeInterop;
+    if (typeof interop?.addLogSink === "function" && typeof interop?.removeLogSink === "function") {
+      runtimeAddLogSink = interop.addLogSink;
+      runtimeRemoveLogSink = interop.removeLogSink;
+      return true;
+    }
+  } catch {}
+
   try {
     const mod = require("piclaw/runtime/src/utils/logger.js");
     if (typeof mod?.addLogSink === "function" && typeof mod?.removeLogSink === "function") {
