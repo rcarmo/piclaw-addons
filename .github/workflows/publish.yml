@@ -1,0 +1,50 @@
+name: Publish to GitHub Packages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'addons/**/package.json'
+  workflow_dispatch:
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Set up npm for GitHub Packages
+        run: |
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> ~/.npmrc
+          echo "@rcarmo:registry=https://npm.pkg.github.com" >> ~/.npmrc
+
+      - name: Publish version-bumped addons
+        run: |
+          for dir in addons/*/; do
+            [ -f "$dir/package.json" ] || continue
+            slug=$(basename "$dir")
+            OLD_VER=$(git show HEAD~1:"${dir}package.json" 2>/dev/null | bun -e "
+              const d=JSON.parse(await Bun.stdin.text()); console.log(d.version||'')" 2>/dev/null || echo "")
+            NEW_VER=$(bun -e "console.log(require('./${dir}package.json').version)")
+            if [ "$OLD_VER" = "$NEW_VER" ] || [ -z "$NEW_VER" ]; then
+              continue
+            fi
+            echo "→ $slug: $OLD_VER → $NEW_VER — publishing"
+            cd "$dir"
+            npm publish --registry https://npm.pkg.github.com 2>&1 | tail -3
+            cd ../..
+          done

@@ -1,5 +1,5 @@
 {
-  "name": "piclaw-addon-delegate",
+  "name": "@rcarmo/piclaw-addon-delegate",
   "version": "0.1.0",
   "description": "Delegate tasks to cheaper/faster models with auto model selection, tool access, and MCP support",
   "type": "module",
@@ -39,5 +39,9 @@
     "skills": [
       "skills"
     ]
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "public"
   }
 }

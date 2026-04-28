@@ -3,13 +3,17 @@
  *
  * Registers a `cheapskate` provider with an `auto` model. When selected,
  * it transparently routes requests to the best available free-tier backend
- * (Google Gemini, Cerebras, Groq, SambaNova) and rotates on rate-limit errors.
+ * and rotates on rate-limit errors.
  *
- * The user just picks `cheapskate/auto` from the model selector.
+ * Config at .pi/cheapskate.json — the web settings pane and this extension
+ * both read it. Backends can be individually enabled/disabled and soft-cap
+ * providers (Cloudflare) have a safety-cap toggle.
  */
 
 import type { ExtensionAPI, ExtensionFactory } from "@mariozechner/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 
 // ── Free-tier backend definitions ────────────────────────────────
 
@@ -26,6 +30,7 @@ interface FreeBackend {
   requestsPerMinute: number;
   tokensPerMinute: number;
   tokensPerDay: number;
+  hasSoftCap?: boolean;
 }
 
 const BACKENDS: FreeBackend[] = [
@@ -76,8 +81,37 @@ const BACKENDS: FreeBackend[] = [
     modelId: "@cf/meta/llama-3.3-70b-instruct-fp8-fast", modelName: "Llama 3.3 70B",
     reasoning: false, contextWindow: 131_072, maxTokens: 8_192,
     requestsPerMinute: 60, tokensPerMinute: 100_000, tokensPerDay: 1_000_000,
+    hasSoftCap: true,
   },
 ];
+
+// ── Config persistence ──────────────────────────────────────────
+
+const WORKSPACE_DIR = process.env.PICLAW_WORKSPACE || "/workspace";
+const CONFIG_PATH = join(WORKSPACE_DIR, ".pi", "cheapskate.json");
+
+interface CheapskateConfig {
+  backends?: Record<string, { enabled?: boolean; safetyCap?: boolean }>;
+}
+
+function loadConfig(): CheapskateConfig {
+  try {
+    if (existsSync(CONFIG_PATH)) {
+      return JSON.parse(readFileSync(CONFIG_PATH, "utf8")) as CheapskateConfig;
+    }
+  } catch { /* best effort */ }
+  return {};
+}
+
+function isBackendEnabled(id: string): boolean {
+  const bc = loadConfig().backends?.[id];
+  return bc?.enabled !== false; // default: enabled
+}
+
+function isSafetyCapEnabled(id: string): boolean {
+  const bc = loadConfig().backends?.[id];
+  return bc?.safetyCap !== false; // default: on for soft-cap providers
+}
 
 // ── Rate-limit tracking ──────────────────────────────────────────
 
@@ -125,10 +159,22 @@ function recordError(id: string): void {
   u.cooldownUntil = Date.now() + Math.min(30_000 * Math.pow(2, u.consecutiveErrors - 1), 300_000);
 }
 
+function resolveBaseUrl(backend: FreeBackend): string {
+  if (backend.id === "cloudflare") {
+    return backend.baseUrl.replace("CLOUDFLARE_ACCOUNT_ID", process.env.CLOUDFLARE_ACCOUNT_ID || "");
+  }
+  return backend.baseUrl;
+}
+
 function isAvailable(backend: FreeBackend): boolean {
   if (!process.env[backend.apiKeyEnv]) return false;
-  // Cloudflare also requires CLOUDFLARE_ACCOUNT_ID
+  if (!isBackendEnabled(backend.id)) return false;
   if (backend.id === "cloudflare" && !process.env.CLOUDFLARE_ACCOUNT_ID) return false;
+  // Safety cap: if enabled for soft-cap providers, treat daily limit as hard
+  if (backend.hasSoftCap && isSafetyCapEnabled(backend.id)) {
+    const u = getUsage(backend.id);
+    if (backend.tokensPerDay && u.tokensToday >= backend.tokensPerDay * 0.8) return false;
+  }
   const u = getUsage(backend.id);
   const now = Date.now();
   if (u.cooldownUntil > now) return false;
@@ -142,16 +188,8 @@ function isAvailable(backend: FreeBackend): boolean {
 
 let currentBackendId: string | null = null;
 
-function resolveBaseUrl(backend: FreeBackend): string {
-  if (backend.id === "cloudflare") {
-    const accountId = process.env.CLOUDFLARE_ACCOUNT_ID || "";
-    return backend.baseUrl.replace("CLOUDFLARE_ACCOUNT_ID", accountId);
-  }
-  return backend.baseUrl;
-}
-
 function getConfiguredBackends(): FreeBackend[] {
-  return BACKENDS.filter((b) => !!process.env[b.apiKeyEnv]);
+  return BACKENDS.filter((b) => !!process.env[b.apiKeyEnv] && isBackendEnabled(b.id));
 }
 
 function getAvailableBackends(): FreeBackend[] {
@@ -161,7 +199,6 @@ function getAvailableBackends(): FreeBackend[] {
 function selectBestBackend(): FreeBackend | null {
   const available = getAvailableBackends();
   if (available.length === 0) return null;
-  // Prefer: least recently used, then largest context window
   available.sort((a, b) => {
     const ua = getUsage(a.id), ub = getUsage(b.id);
     if (ua.lastUsed !== ub.lastUsed) return ua.lastUsed - ub.lastUsed;
@@ -194,7 +231,7 @@ function rotateBackend(): FreeBackend | null {
 
 function buildModelName(backend: FreeBackend | null, configured: FreeBackend[]): string {
   if (!backend) return `Free Auto-Router (${configured.length} backends, $0)`;
-  return `Free → ${backend.name} / ${backend.modelName} · $0`;
+  return `Free \u2192 ${backend.name} / ${backend.modelName} \u00b7 $0`;
 }
 
 function registerCheapskateProvider(pi: ExtensionAPI): boolean {
@@ -206,7 +243,7 @@ function registerCheapskateProvider(pi: ExtensionAPI): boolean {
   const anyReasoning = configured.some((b) => b.reasoning);
 
   pi.registerProvider("cheapskate", {
-    baseUrl: best.baseUrl,
+    baseUrl: resolveBaseUrl(best),
     apiKey: best.apiKeyEnv,
     api: "openai",
     models: [{
@@ -232,7 +269,7 @@ function reRegisterWithBackend(pi: ExtensionAPI, backend: FreeBackend): void {
   const anyReasoning = configured.some((b) => b.reasoning);
 
   pi.registerProvider("cheapskate", {
-    baseUrl: backend.baseUrl,
+    baseUrl: resolveBaseUrl(backend),
     apiKey: backend.apiKeyEnv,
     api: "openai",
     models: [{
@@ -261,9 +298,7 @@ const cheapskate: ExtensionFactory = (pi: ExtensionAPI) => {
     if (!isCheapskate) return {};
 
     const backend = getCurrentBackend();
-    if (backend) {
-      reRegisterWithBackend(pi, backend);
-    }
+    if (backend) reRegisterWithBackend(pi, backend);
 
     const active = backend ? `${backend.name} / ${backend.modelName}` : "no backends available";
     return {
@@ -274,10 +309,8 @@ const cheapskate: ExtensionFactory = (pi: ExtensionAPI) => {
   // After provider errors: rotate to next backend
   pi.on("after_provider_response", (event) => {
     const model = (event as any).model;
-    const isCheapskate = model?.provider === "cheapskate";
-    if (!isCheapskate) return;
+    if (model?.provider !== "cheapskate") return;
 
-    // Check for rate-limit or error indicators
     const errorText = typeof (event as any).error === "string" ? (event as any).error : "";
     const isRateLimit = /429|rate.limit|too many requests|quota|resource.*exhausted/i.test(errorText);
 
@@ -288,7 +321,6 @@ const cheapskate: ExtensionFactory = (pi: ExtensionAPI) => {
         console.log(`[cheapskate] Rotated from ${currentBackendId} to ${next.id} (${next.name})`);
       }
     } else if (currentBackendId) {
-      // Estimate tokens from response for tracking
       const usage = (event as any).usage;
       const totalTokens = (typeof usage?.totalTokens === "number" ? usage.totalTokens : 0);
       recordSuccess(currentBackendId, totalTokens);
@@ -313,19 +345,22 @@ const cheapskate: ExtensionFactory = (pi: ExtensionAPI) => {
       if (params.action === "list") {
         const entries = BACKENDS.map((b) => {
           const hasKey = !!process.env[b.apiKeyEnv];
+          const enabled = isBackendEnabled(b.id);
           const avail = isAvailable(b);
           const u = getUsage(b.id);
+          const safetyCap = b.hasSoftCap ? isSafetyCapEnabled(b.id) : null;
           return {
             id: b.id, name: b.name, model: b.modelName,
-            configured: hasKey, available: avail, active: b.id === currentBackendId,
+            configured: hasKey, enabled, available: avail, active: b.id === currentBackendId,
+            hasSoftCap: b.hasSoftCap || false, safetyCap,
             limits: { rpm: b.requestsPerMinute, tpm: b.tokensPerMinute, tpd: b.tokensPerDay },
             cooldown_seconds: u.cooldownUntil > Date.now() ? Math.ceil((u.cooldownUntil - Date.now()) / 1000) : 0,
           };
         });
-        const configured = entries.filter((e) => e.configured);
-        const text = configured.length > 0
-          ? `${configured.length} free-tier backend(s):\n${configured.map((e) => `- ${e.name} / ${e.model}: ${e.active ? "🟢 active" : e.available ? "✅ available" : "⏳ rate-limited"}`).join("\n")}`
-          : "No free-tier backends configured. Set API key env vars to enable.";
+        const active = entries.filter((e) => e.configured && e.enabled);
+        const text = active.length > 0
+          ? `${active.length} free-tier backend(s):\n${active.map((e) => `- ${e.name} / ${e.model}: ${e.active ? "\uD83D\uDFE2 active" : e.available ? "\u2705 available" : "\u23F3 rate-limited"}${e.hasSoftCap ? (e.safetyCap ? " \uD83D\uDD12 safety cap on" : " \u26A0\uFE0F no safety cap") : ""}`).join("\n")}`
+          : "No free-tier backends enabled. Enable them in Settings \u2192 Cheapskate.";
         return { content: [{ type: "text", text }], details: { backends: entries } };
       }
 

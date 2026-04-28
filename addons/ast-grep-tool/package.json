@@ -1,0 +1,36 @@
+{
+  "name": "@rcarmo/piclaw-addon-ast-grep",
+  "version": "0.1.1",
+  "description": "Structural code search and rewrite using ast-grep as a native LLM tool",
+  "type": "module",
+  "main": "index.ts",
+  "piclaw": {
+    "type": "extension",
+    "tags": [
+      "code-search",
+      "ast",
+      "refactoring"
+    ]
+  },
+  "pi": {
+    "extensions": [
+      "index.ts"
+    ],
+    "skills": [
+      "skills"
+    ]
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-coding-agent": "*",
+    "@sinclair/typebox": "*"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "public"
+  },
+  "keywords": [
+    "piclaw",
+    "piclaw-addon"
+  ],
+  "license": "MIT"
+}

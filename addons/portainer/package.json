@@ -1,7 +1,7 @@
 {
-  "name": "piclaw-addon-portainer",
+  "name": "@rcarmo/piclaw-addon-portainer",
   "version": "0.1.2",
-  "description": "Portainer management tool — session-scoped API config, ad-hoc requests, and endpoint/stack/container/image/network/volume workflows",
+  "description": "Portainer management tool \u2014 session-scoped API config, ad-hoc requests, and endpoint/stack/container/image/network/volume workflows",
   "type": "module",
   "main": "index.ts",
   "piclaw": {
@@ -32,5 +32,9 @@
     "skills": [
       "skills"
     ]
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "public"
   }
 }

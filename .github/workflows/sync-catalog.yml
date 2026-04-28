@@ -29,6 +29,9 @@ jobs:
 
       - name: Regenerate catalog and root package metadata
         run: bun run sync:catalog
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
 
       - name: Commit changes
         run: |

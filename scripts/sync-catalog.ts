@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 import { existsSync } from 'node:fs';
 import { readdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { join, relative } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 
 interface AgentSkillEntry {
   name?: string;
@@ -52,12 +52,16 @@ interface CatalogEntry {
   skills: string[];
   install: {
     kind: 'npm';
-    spec: string;
-    piSource: string;
+    spec: string;     // @rcarmo/piclaw-addon-<slug>@<version>
+    registry: string; // https://npm.pkg.github.com
+    piSource: string; // npm:@rcarmo/piclaw-addon-<slug>@<version>
   };
+  updatedAt?:    string;  // ISO date of last git commit touching this addon
+  owner?: { login: string; url: string };
+  contributors?: { login: string; url: string }[];
 }
 
-const repoRoot = '/workspace/piclaw-addons';
+const repoRoot = resolve(import.meta.dir, '..');
 const addonsDir = join(repoRoot, 'addons');
 const rootPackagePath = join(repoRoot, 'package.json');
 const catalogPath = join(repoRoot, 'catalog.json');
@@ -66,8 +70,23 @@ const skillsDir = join(repoRoot, 'skills');
 const writeMode = process.argv.includes('--write');
 const checkMode = process.argv.includes('--check');
 
+
+async function gitLastCommitDate(relPath: string): Promise<string | undefined> {
+  try {
+    const proc = Bun.spawn(['git', 'log', '-1', '--format=%cs', '--', relPath], {
+      cwd: repoRoot, stdout: 'pipe', stderr: 'pipe',
+    });
+    const text = (await new Response(proc.stdout).text()).trim();
+    await proc.exited;
+    return text || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+
 function stableStringify(value: unknown): string {
-  return `${JSON.stringify(value, null, 2)}\n`;
+  return `${JSON.stringify(value, null, 2).replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))}\n`;
 }
 
 async function readJson<T>(path: string): Promise<T> {
@@ -121,6 +140,15 @@ async function buildMetadata() {
   const skillRoots: string[] = [];
   const agentSkills: AgentSkillEntry[] = [];
 
+  // Load existing catalog to preserve hand-managed fields (owner, contributors)
+  let existingEntries: Map<string, Partial<CatalogEntry>> = new Map();
+  if (existsSync(catalogPath)) {
+    try {
+      const existing = await readJson<{ addons: CatalogEntry[] }>(catalogPath);
+      for (const e of existing.addons ?? []) existingEntries.set(e.slug, e);
+    } catch { /* ignore */ }
+  }
+
   for (const slug of slugs) {
     const addonRoot = join(addonsDir, slug);
     const pkgPath = join(addonRoot, 'package.json');
@@ -129,14 +157,15 @@ async function buildMetadata() {
     if (!pkg.name) throw new Error(`addons/${slug}/package.json: missing name`);
     if (!pkg.version) throw new Error(`addons/${slug}/package.json: missing version`);
     if (!pkg.description) throw new Error(`addons/${slug}/package.json: missing description`);
-    if (!pkg.pi?.extensions?.length) throw new Error(`addons/${slug}/package.json: missing pi.extensions`);
-    if (!(pkg.keywords || []).includes('pi-package')) {
-      throw new Error(`addons/${slug}/package.json: keywords must include "pi-package"`);
+    if (!pkg.pi?.extensions?.length && !pkg.pi?.skills?.length) throw new Error(`addons/${slug}/package.json: missing pi.extensions or pi.skills — addon must declare at least one`);
+    const kws = pkg.keywords || [];
+    if (!kws.includes('pi-package') && !kws.includes('piclaw-addon')) {
+      throw new Error(`addons/${slug}/package.json: keywords must include "pi-package" or "piclaw-addon"`);
     }
 
     await validateCorePeerDependencies(addonRoot, slug, pkg);
 
-    for (const ext of pkg.pi.extensions) {
+    for (const ext of (pkg.pi?.extensions ?? [])) {
       const rel = join('addons', slug, ext).replaceAll('\\', '/');
       extensionPaths.push(rel);
       if (!existsSync(join(repoRoot, rel))) {
@@ -164,6 +193,9 @@ async function buildMetadata() {
       }
     }
 
+    const updatedAt  = await gitLastCommitDate(`addons/${slug}`);
+    const prev = existingEntries.get(slug) ?? {};
+
     catalogEntries.push({
       slug,
       name: pkg.name,
@@ -176,8 +208,12 @@ async function buildMetadata() {
       install: {
         kind: 'npm',
         spec: `${pkg.name}@${pkg.version}`,
+        registry: 'https://npm.pkg.github.com',
         piSource: `npm:${pkg.name}@${pkg.version}`,
       },
+      ...(updatedAt              ? { updatedAt }              : {}),
+      ...(prev.owner             ? { owner:        prev.owner }        : {}),
+      ...(prev.contributors      ? { contributors: prev.contributors } : {}),
     });
   }
 
