@@ -17,6 +17,13 @@
     "@opentelemetry/api": "^1.9"
   },
   "peerDependencies": {
-    "@mariozechner/pi-coding-agent": "*"
-  }
+    "@mariozechner/pi-coding-agent": "*",
+    "@sinclair/typebox": "*"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "public"
+  },
+  "keywords": ["piclaw", "piclaw-addon", "observability", "opentelemetry"],
+  "license": "MIT"
 }
