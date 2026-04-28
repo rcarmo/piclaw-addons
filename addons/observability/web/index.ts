@@ -8,13 +8,16 @@ const ADDON_ID = "observability";
 const API = `/agent/addons/api/${ADDON_ID}`;
 const KEYCHAIN_ENTRY = "azure/appinsights-connection-string";
 
-let html, useState, useEffect, useCallback;
-try {
-  const p = globalThis.__piclawPreactHtm || require("../../vendor/preact-htm.js");
-  html = p.html; useState = p.useState; useEffect = p.useEffect; useCallback = p.useCallback;
-} catch { return; }
+const preactHtm = globalThis.__piclawPreactHtm || globalThis.__piclawPreact || null;
+const html = preactHtm?.html;
+const useState = preactHtm?.useState;
+const useEffect = preactHtm?.useEffect;
+const useCallback = preactHtm?.useCallback;
+const HAS_RUNTIME = Boolean(html && useState && useEffect && useCallback);
 
-const ICON = html`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`;
+const ICON = HAS_RUNTIME
+  ? html`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`
+  : null;
 
 async function loadKeychainHas(name) {
   try {
@@ -37,6 +40,7 @@ async function setKeychainSecret(name, secret) {
 }
 
 function ObservabilitySettings() {
+  if (!HAS_RUNTIME) return null;
   const [cfg, setCfg] = useState(null);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
@@ -151,9 +155,17 @@ function ObservabilitySettings() {
 function hostname() { try { return location?.hostname || ""; } catch { return ""; } }
 
 try {
-  let reg, notify;
-  const r = globalThis.__piclawSettingsPaneRegistry;
-  if (r) { reg = r.registerSettingsPane; notify = r.notifySettingsPanesChanged; }
-  if (!reg) { try { const m = require("../../components/settings/pane-registry.js"); reg = m.registerSettingsPane; notify = m.notifySettingsPanesChanged; } catch {} }
-  if (reg) { reg({ id: "observability", label: "Observability", icon: ICON, component: ObservabilitySettings, order: 170 }); notify?.(); }
+  if (HAS_RUNTIME) {
+    let reg, notify;
+    const r = globalThis.__piclawSettingsPaneRegistry;
+    if (r) { reg = r.registerSettingsPane; notify = r.notifySettingsPanesChanged; }
+    if (!reg && globalThis.__piclaw_web?.registerSettingsPane) {
+      reg = globalThis.__piclaw_web.registerSettingsPane;
+      notify = () => globalThis.dispatchEvent?.(new CustomEvent('piclaw:settings-panes-changed'));
+    }
+    if (reg) {
+      reg({ id: "observability", label: "Observability", icon: ICON, component: ObservabilitySettings, order: 170 });
+      notify?.();
+    }
+  }
 } catch {}
