@@ -2,6 +2,8 @@
 
 OpenTelemetry observability for piclaw — trace errors and agent turns across multiple instances to **Azure Application Insights** (with Live Metrics Stream) and **local Graphite**.
 
+![Azure App Insights Live Metrics example](./azure-app-insights-live-metrics.jpg)
+
 Uses the runtime's structured log-sink contract. The runtime never imports OTel — it just logs structured records. This addon subscribes to those records and creates OTel spans, exceptions, and Graphite metrics from them.
 
 ## Setup
@@ -267,8 +269,6 @@ piclaw.relay.provider.error.*      # all provider errors on relay
 | **Live Metrics Stream** | Real-time exceptions, request rate, CPU/memory per instance |
 
 > **Important:** Live Metrics often shows mostly **requests** and aggregate rates. That is normal. The custom piclaw spans (`agent.turn`, `tool.call`, `provider.error`, `log.error`, `log.warn`) are easier to inspect in **Logs / Kusto**, **Transaction Search**, and sometimes **Dependencies**.
-
-![Azure App Insights Live Metrics example](./azure-app-insights-live-metrics.jpg)
 
 ### Kusto queries
 
