@@ -83,6 +83,20 @@ function mdToHtml(md: string): string {
     return `<!--CODE${codeBlocks.length - 1}-->`;
   });
 
+  // Extract inline SVG blocks so paragraph processing doesn't mangle them
+  const svgBlocks: string[] = [];
+  result = result.replace(/<svg[\s\S]*?<\/svg>/gm, (match) => {
+    svgBlocks.push(match);
+    return `<!--SVG${svgBlocks.length - 1}-->`;
+  });
+
+  // Extract inline HTML blocks (<div>, <details>, etc.)
+  const htmlBlocks: string[] = [];
+  result = result.replace(/<(div|details|section|aside|figure|blockquote)[\s\S]*?<\/\1>/gm, (match) => {
+    htmlBlocks.push(match);
+    return `<!--HTML${htmlBlocks.length - 1}-->`;
+  });
+
   // Extract markdown tables before paragraph processing
   const tables: string[] = [];
   const inlineFormat = (s: string) => s
@@ -112,13 +126,17 @@ function mdToHtml(md: string): string {
     .replace(/^\s*[-*] (.+)$/gm, "<li>$1</li>")
     .replace(/((?:<li>.*<\/li>\n?)+)/g, "<ul>\n$1</ul>")
     .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
-    .replace(/^(?!<[hulpsd]|<\/|<!--CODE|<!--TABLE|$)(.+)$/gm, "<p>$1</p>")
+    .replace(/^(?!<[hulpsd]|<\/|<!--CODE|<!--TABLE|<!--SVG|<!--HTML|$)(.+)$/gm, "<p>$1</p>")
     .replace(/\n{2,}/g, "\n");
 
   // Restore code blocks
   result = result.replace(/<!--CODE(\d+)-->/g, (_m, i) => codeBlocks[Number(i)]);
   // Restore tables
   result = result.replace(/<!--TABLE(\d+)-->/g, (_m, i) => tables[Number(i)]);
+  // Restore HTML blocks
+  result = result.replace(/<!--HTML(\d+)-->/g, (_m, i) => htmlBlocks[Number(i)]);
+  // Restore SVG blocks
+  result = result.replace(/<!--SVG(\d+)-->/g, (_m, i) => svgBlocks[Number(i)]);
   return result;
 }
 
