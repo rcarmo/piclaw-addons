@@ -32,6 +32,7 @@
       "addons/observability/index.ts",
       "addons/portainer/index.ts",
       "addons/proxmox/index.ts",
+      "addons/sample-addon/index.ts",
       "addons/voice-pipeline/index.ts"
     ],
     "runtime": {

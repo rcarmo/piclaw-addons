@@ -351,6 +351,26 @@
       "contributors": []
     },
     {
+      "slug": "sample-addon",
+      "name": "@rcarmo/piclaw-addon-sample-addon",
+      "version": "0.1.0",
+      "type": "extension",
+      "description": "Sample add-on — starter template showing a settings pane, keychain secret, SQLite KV config, and a test endpoint",
+      "path": "addons/sample-addon",
+      "tags": [
+        "developer",
+        "sample",
+        "template"
+      ],
+      "skills": [],
+      "install": {
+        "kind": "npm",
+        "spec": "@rcarmo/piclaw-addon-sample-addon@0.1.0",
+        "registry": "https://npm.pkg.github.com",
+        "piSource": "npm:@rcarmo/piclaw-addon-sample-addon@0.1.0"
+      }
+    },
+    {
       "slug": "settings-dialog-screenshot",
       "name": "@rcarmo/piclaw-addon-settings-dialog-screenshot",
       "version": "0.1.0",
