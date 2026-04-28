@@ -27,6 +27,7 @@
       "addons/dev-tools/index.ts",
       "addons/drawio-editor/index.ts",
       "addons/eml-viewer/index.ts",
+      "addons/git-query-tools/index.ts",
       "addons/imap/index.ts",
       "addons/kanban-board-widget/index.ts",
       "addons/observability/index.ts",

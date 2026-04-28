@@ -201,6 +201,29 @@
       "contributors": []
     },
     {
+      "slug": "git-query-tools",
+      "name": "@rcarmo/piclaw-addon-git-query-tools",
+      "version": "0.1.0",
+      "type": "extension",
+      "description": "Git history and JSON query tools for piclaw agents",
+      "path": "addons/git-query-tools",
+      "tags": [
+        "git",
+        "json",
+        "query"
+      ],
+      "skills": [],
+      "install": {
+        "kind": "tarball",
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-git-query-tools-0.1.0.tgz"
+      },
+      "owner": {
+        "login": "cjnova",
+        "url": "https://github.com/cjnova"
+      },
+      "contributors": []
+    },
+    {
       "slug": "imap",
       "name": "@rcarmo/piclaw-addon-imap",
       "version": "0.1.0",
