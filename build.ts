@@ -4,8 +4,8 @@
  * Run: bun run build.ts
  */
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from "fs";
-import { join, dirname } from "path";
+import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, copyFileSync } from "fs";
+import { join, dirname, normalize } from "path";
 
 const ROOT    = dirname(Bun.main);
 const CATALOG = join(ROOT, "catalog.json");
@@ -102,6 +102,7 @@ function mdToHtml(md: string): string {
   // Extract markdown tables before paragraph processing
   const tables: string[] = [];
   const inlineFormat = (s: string) => s
+    .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_m, alt, src) => `<img src="${esc(src)}" alt="${esc(alt)}" loading="lazy">`)
     .replace(/`([^`]+)`/g, "<code>$1</code>")
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
     .replace(/\*([^*]+)\*/g, "<em>$1</em>")
@@ -122,6 +123,7 @@ function mdToHtml(md: string): string {
     .replace(/^## (.+)$/gm, "<h2>$1</h2>")
     .replace(/^### (.+)$/gm, "<h3>$1</h3>")
     .replace(/^#### (.+)$/gm, "<h4>$1</h4>")
+    .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_m, alt, src) => `<figure class="md-figure"><img src="${esc(src)}" alt="${esc(alt)}" loading="lazy"></figure>`)
     .replace(/`([^`]+)`/g, "<code>$1</code>")
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
     .replace(/\*([^*]+)\*/g, "<em>$1</em>")
@@ -180,6 +182,33 @@ function installSnippet(addon: Addon): string {
     <svg class="install-icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.751.751 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Z"/></svg>
     <span class="install-text">Open <strong>Settings → Add-Ons</strong> and pick <strong>${esc(addon.slug)}</strong></span>
   </div>`;
+}
+
+function collectLocalReadmeAssetPaths(readme: string): string[] {
+  const refs = new Set<string>();
+  const add = (value: string) => {
+    const trimmed = String(value || '').trim();
+    if (!trimmed) return;
+    if (/^(https?:|data:|mailto:|#)/i.test(trimmed)) return;
+    if (trimmed.startsWith('/')) return;
+    refs.add(trimmed);
+  };
+  for (const match of readme.matchAll(/!\[[^\]]*\]\(([^)]+)\)/g)) add(match[1] || '');
+  for (const match of readme.matchAll(/<img[^>]+src=["']([^"']+)["']/gi)) add(match[1] || '');
+  return [...refs].sort();
+}
+
+function copyAddonReadmeAssets(addon: Addon, readme: string, outDir: string): void {
+  const addonDir = join(ROOT, addon.path);
+  for (const assetPath of collectLocalReadmeAssetPaths(readme)) {
+    const normalized = normalize(assetPath).replace(/^\.\//, '');
+    if (!normalized || normalized.startsWith('..')) continue;
+    const src = join(addonDir, normalized);
+    if (!existsSync(src)) continue;
+    const dest = join(outDir, normalized);
+    mkdirSync(dirname(dest), { recursive: true });
+    copyFileSync(src, dest);
+  }
 }
 
 // ── CSS ───────────────────────────────────────────────────────────────────────
@@ -295,6 +324,8 @@ html,body{min-height:100%;background:var(--bg);color:var(--ink);font-family:var(
 .detail-body pre{background:rgba(0,0,0,.04);border:1px solid var(--border);border-radius:8px;
   padding:.95rem 1.1rem;overflow-x:auto;margin:.7rem 0}
 .detail-body code{font-family:var(--font-mono);font-size:.83rem}
+.md-figure{margin:1rem 0}
+.md-figure img,.detail-body p img,.detail-body li img{display:block;max-width:100%;height:auto;border-radius:10px;border:1px solid var(--border);box-shadow:var(--shadow)}
 .md-table{width:100%;border-collapse:collapse;margin:.7rem 0;font-size:.9rem}
 .md-table th,.md-table td{padding:.45rem .65rem;border:1px solid var(--border);text-align:left}
 .md-table th{background:var(--accent-bg);font-family:var(--font-head);font-weight:600;font-size:.82rem}
@@ -435,6 +466,7 @@ for (const addon of addons) {
 
   const readme    = addonReadme(addon);
   const bodyHtml  = readme ? mdToHtml(readme) : `<p>${esc(addon.description)}</p>`;
+  if (readme) copyAddonReadmeAssets(addon, readme, dir);
   const skillList = addon.skills.length
     ? `<div class="detail-body"><h2>Skills</h2><ul>${addon.skills.map(s => `<li><code>${esc(s)}</code></li>`).join("")}</ul></div>`
     : "";

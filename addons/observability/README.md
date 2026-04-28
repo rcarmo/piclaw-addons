@@ -266,6 +266,131 @@ piclaw.relay.provider.error.*      # all provider errors on relay
 | **Transaction Search** | Individual turn traces with tool-call child spans |
 | **Live Metrics Stream** | Real-time exceptions, request rate, CPU/memory per instance |
 
+> **Important:** Live Metrics often shows mostly **requests** and aggregate rates. That is normal. The custom piclaw spans (`agent.turn`, `tool.call`, `provider.error`, `log.error`, `log.warn`) are easier to inspect in **Logs / Kusto**, **Transaction Search**, and sometimes **Dependencies**.
+
+![Azure App Insights Live Metrics example](./azure-app-insights-live-metrics.jpg)
+
+### Kusto queries
+
+Use these in **Azure Application Insights → Logs**.
+
+#### 1) Everything recent for piclaw instances
+
+```kusto
+union withsource=table requests, dependencies, traces, exceptions
+| extend piclaw_instance = coalesce(tostring(customDimensions["piclaw.instance"]), cloud_RoleInstance)
+| where timestamp > ago(30m)
+| where cloud_RoleName == "piclaw" or isnotempty(piclaw_instance)
+| extend item_name = coalesce(name, operation_Name, message, outerMessage)
+| project timestamp, table, piclaw_instance, item_name, success, resultCode, severityLevel, operation_Id
+| order by timestamp desc
+```
+
+#### 2) Piclaw custom spans (`agent.turn`, `tool.call`, `provider.error`, `dream`, `log.*`)
+
+```kusto
+union withsource=table dependencies, traces, exceptions
+| extend piclaw_instance = coalesce(tostring(customDimensions["piclaw.instance"]), cloud_RoleInstance)
+| extend span_name = coalesce(name, operation_Name, message, outerMessage)
+| where timestamp > ago(6h)
+| where span_name in ("agent.turn", "tool.call", "provider.error", "dream", "log.error", "log.warn")
+| project timestamp,
+          table,
+          piclaw_instance,
+          span_name,
+          success,
+          duration,
+          operation_Id,
+          chat_jid = tostring(customDimensions["piclaw.chat_jid"]),
+          model = tostring(customDimensions["piclaw.model"]),
+          tool_name = tostring(customDimensions["piclaw.tool.name"]),
+          turn_status = tostring(customDimensions["piclaw.turn.status"]),
+          classifier = tostring(customDimensions["piclaw.error.classifier"])
+| order by timestamp desc
+```
+
+#### 3) Agent-turn throughput and latency by instance
+
+```kusto
+dependencies
+| extend piclaw_instance = coalesce(tostring(customDimensions["piclaw.instance"]), cloud_RoleInstance)
+| where timestamp > ago(24h)
+| where name == "agent.turn"
+| extend duration_ms = todouble(duration / 1ms)
+| summarize turns = count(),
+            errors = countif(success == false or tostring(customDimensions["piclaw.turn.status"]) == "error"),
+            p50_ms = percentile(duration_ms, 50),
+            p95_ms = percentile(duration_ms, 95),
+            p99_ms = percentile(duration_ms, 99)
+  by piclaw_instance
+| order by turns desc
+```
+
+#### 4) Tool-call latency by tool name
+
+```kusto
+dependencies
+| extend piclaw_instance = coalesce(tostring(customDimensions["piclaw.instance"]), cloud_RoleInstance)
+| where timestamp > ago(24h)
+| where name == "tool.call"
+| extend duration_ms = todouble(duration / 1ms)
+| summarize calls = count(),
+            errors = countif(success == false),
+            p50_ms = percentile(duration_ms, 50),
+            p95_ms = percentile(duration_ms, 95)
+  by piclaw_instance, tool_name = tostring(customDimensions["piclaw.tool.name"])
+| order by calls desc
+```
+
+#### 5) Provider/runtime failures
+
+```kusto
+union withsource=table dependencies, traces, exceptions
+| extend piclaw_instance = coalesce(tostring(customDimensions["piclaw.instance"]), cloud_RoleInstance)
+| extend span_name = coalesce(name, operation_Name, message, outerMessage)
+| where timestamp > ago(24h)
+| where span_name in ("provider.error", "log.error", "log.warn")
+   or success == false
+   or severityLevel >= 3
+| project timestamp,
+          table,
+          piclaw_instance,
+          span_name,
+          severityLevel,
+          success,
+          operation_Id,
+          classifier = tostring(customDimensions["piclaw.error.classifier"]),
+          message,
+          outerMessage,
+          problemId,
+          type
+| order by timestamp desc
+```
+
+#### 6) One-instance drill-down (`smith`)
+
+```kusto
+union withsource=table requests, dependencies, traces, exceptions
+| extend piclaw_instance = coalesce(tostring(customDimensions["piclaw.instance"]), cloud_RoleInstance)
+| where timestamp > ago(2h)
+| where piclaw_instance == "smith"
+| extend item_name = coalesce(name, operation_Name, message, outerMessage)
+| project timestamp, table, item_name, success, duration, severityLevel, operation_Id
+| order by timestamp desc
+```
+
+#### 7) If Live Metrics only shows requests, confirm the exporter is still sending custom telemetry
+
+```kusto
+union withsource=table dependencies, traces
+| extend piclaw_instance = coalesce(tostring(customDimensions["piclaw.instance"]), cloud_RoleInstance)
+| extend item_name = coalesce(name, operation_Name, message)
+| where timestamp > ago(15m)
+| where item_name in ("agent.turn", "tool.call", "provider.error", "dream", "log.error", "log.warn")
+| summarize count() by table, item_name, piclaw_instance
+| order by count_ desc
+```
+
 ---
 
 ## Dependencies
