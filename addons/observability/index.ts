@@ -1,0 +1,542 @@
+/**
+ * piclaw-addon-observability — OpenTelemetry tracing for piclaw instances.
+ *
+ * Uses @azure/monitor-opentelemetry (the official Azure Monitor distro) for:
+ *   - Trace export to Application Insights
+ *   - Live Metrics Stream (QuickPulse)
+ *   - Standard metrics collection
+ *
+ * Also pushes metrics to local Graphite via Carbon plaintext when configured.
+ *
+ * All config in extension KV (global scope). Secrets in keychain.
+ */
+
+import { hostname } from "os";
+import { trace, context, SpanStatusCode, type Tracer, type Span } from "@opentelemetry/api";
+import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+
+import { addLogSink, removeLogSink, type LogSink as RuntimeLogSink, type LogRecord } from "./compat/log-sink.js";
+
+import { createExtensionStorage, type ExtensionStorage } from "./compat/extension-kv.js";
+import { createLogger } from "./compat/logger.js";
+
+const EXTENSION_ID = "observability";
+const log = createLogger(EXTENSION_ID);
+
+// ── Config ───────────────────────────────────────────────────────
+
+export interface ObservabilityConfig {
+  // General
+  enabled: boolean;
+  instance_name: string;
+
+  // Azure Application Insights
+  appinsights_enabled: boolean;
+  appinsights_keychain: string;          // keychain entry name holding the connection string
+  appinsights_live_metrics: boolean;     // enable Live Metrics Stream (QuickPulse)
+  appinsights_standard_metrics: boolean; // enable standard OTel metrics collection
+  appinsights_sampling_ratio: number;    // 0–1, 1 = send everything
+
+  // Graphite (Carbon plaintext)
+  graphite_enabled: boolean;
+  graphite_host: string;
+  graphite_port: number;
+  graphite_prefix: string;
+}
+
+const DEFAULT_CONFIG: ObservabilityConfig = {
+  enabled: false,
+  instance_name: "",
+  appinsights_enabled: true,
+  appinsights_keychain: "",
+  appinsights_live_metrics: true,
+  appinsights_standard_metrics: true,
+  appinsights_sampling_ratio: 1,
+  graphite_enabled: false,
+  graphite_host: "",
+  graphite_port: 2003,
+  graphite_prefix: "piclaw",
+};
+
+// ── KV-backed config ─────────────────────────────────────────────
+
+let storage: ExtensionStorage | null = null;
+function kv(): ExtensionStorage {
+  if (!storage) storage = createExtensionStorage(EXTENSION_ID);
+  return storage;
+}
+
+function loadConfig(): ObservabilityConfig {
+  try {
+    const saved = kv().get<Partial<ObservabilityConfig>>("config", "global");
+    if (saved) return { ...DEFAULT_CONFIG, ...saved };
+  } catch { /* first run */ }
+  return { ...DEFAULT_CONFIG };
+}
+
+function saveConfig(config: ObservabilityConfig): void {
+  kv().set("config", config, "global");
+}
+
+// ── Keychain resolution ──────────────────────────────────────────
+
+async function resolveSecret(keychainName: string): Promise<string | null> {
+  if (!keychainName) return null;
+  try {
+    const { getKeychainEntry } = await import("./compat/keychain.js");
+    const entry = await getKeychainEntry(keychainName);
+    return entry?.secret?.trim() || null;
+  } catch { return null; }
+}
+
+// ── Instance identity ────────────────────────────────────────────
+
+function instanceName(config: ObservabilityConfig): string {
+  return config.instance_name?.trim() || hostname();
+}
+
+function detectDeploymentMode(): string {
+  if (process.env.PICLAW_DEPLOYMENT_MODE) return process.env.PICLAW_DEPLOYMENT_MODE.trim();
+  try {
+    const { existsSync } = require("fs");
+    if (existsSync("/.dockerenv")) return "docker";
+    if (existsSync("/run/systemd/container")) return "lxc";
+  } catch {}
+  return "host-native";
+}
+
+const DEPLOYMENT_MODE = detectDeploymentMode();
+
+// ── OTel lifecycle ───────────────────────────────────────────────
+
+let otelActive = false;
+let piclawTracer: Tracer | null = null;
+let shutdownFn: (() => Promise<void>) | null = null;
+
+async function startOtel(config: ObservabilityConfig): Promise<boolean> {
+  if (otelActive) await stopOtel();
+
+  const connectionString = config.appinsights_enabled && config.appinsights_keychain
+    ? await resolveSecret(config.appinsights_keychain)
+    : null;
+
+  if (!connectionString && !config.graphite_enabled) {
+    log.info("No backends configured", { operation: "otel.skip" });
+    return false;
+  }
+
+  if (connectionString) {
+    try {
+      const { useAzureMonitor, shutdownAzureMonitor } = await import("@azure/monitor-opentelemetry");
+      useAzureMonitor({
+        azureMonitorExporterOptions: { connectionString },
+        enableLiveMetrics: config.appinsights_live_metrics,
+        enableStandardMetrics: config.appinsights_standard_metrics,
+        samplingRatio: Math.max(0, Math.min(1, config.appinsights_sampling_ratio)),
+        resource: {
+          attributes: {
+            "service.name": "piclaw",
+            "service.instance.id": instanceName(config),
+            "service.version": process.env.npm_package_version || "unknown",
+            "deployment.environment": DEPLOYMENT_MODE,
+            "host.name": hostname(),
+          },
+        } as any,
+      });
+      shutdownFn = shutdownAzureMonitor;
+
+      log.info("Azure Monitor OTel started", {
+        operation: "otel.start.appinsights",
+        instance: instanceName(config),
+        deployment: DEPLOYMENT_MODE,
+        liveMetrics: config.appinsights_live_metrics,
+        sampling: config.appinsights_sampling_ratio,
+      });
+    } catch (err) {
+      log.error("Failed to start Azure Monitor OTel", { operation: "otel.start.appinsights", err });
+      return false;
+    }
+  }
+
+  piclawTracer = trace.getTracer("piclaw", process.env.npm_package_version || "0.0.0");
+  otelActive = true;
+  return true;
+}
+
+async function stopOtel(): Promise<void> {
+  if (shutdownFn) {
+    try { await shutdownFn(); } catch (err) { log.warn("OTel shutdown error", { err }); }
+    shutdownFn = null;
+  }
+  piclawTracer = null;
+  otelActive = false;
+}
+
+// ── Tracer access ────────────────────────────────────────────────
+
+export function getTracer(): Tracer {
+  return piclawTracer || trace.getTracer("piclaw-noop");
+}
+
+export function isActive(): boolean { return otelActive; }
+
+// ── Span helpers ─────────────────────────────────────────────────
+
+function inst(): string { return instanceName(loadConfig()); }
+
+export function startAgentTurnSpan(chatJid: string, opts?: { model?: string | null; turnId?: string }): Span {
+  return getTracer().startSpan("agent.turn", {
+    attributes: {
+      "piclaw.chat_jid": chatJid,
+      "piclaw.instance": inst(),
+      ...(opts?.model ? { "piclaw.model": opts.model } : {}),
+      ...(opts?.turnId ? { "piclaw.turn_id": opts.turnId } : {}),
+    },
+  });
+}
+
+export function endAgentTurnSpan(span: Span, result: {
+  status: "success" | "error" | "tool_complete";
+  error?: string | null;
+  tokenCount?: number | null;
+  recovery?: { attemptsUsed?: number; exhausted?: boolean; lastClassifier?: string | null } | null;
+}): void {
+  if (result.status === "error") {
+    span.setStatus({ code: SpanStatusCode.ERROR, message: result.error || "unknown" });
+    if (result.error) span.recordException(new Error(result.error));
+  } else {
+    span.setStatus({ code: SpanStatusCode.OK });
+  }
+  span.setAttribute("piclaw.turn.status", result.status);
+  if (result.tokenCount != null) span.setAttribute("piclaw.turn.tokens", result.tokenCount);
+  if (result.recovery) {
+    if (result.recovery.attemptsUsed != null) span.setAttribute("piclaw.recovery.attempts", result.recovery.attemptsUsed);
+    if (result.recovery.exhausted) span.setAttribute("piclaw.recovery.exhausted", true);
+    if (result.recovery.lastClassifier) span.setAttribute("piclaw.recovery.classifier", result.recovery.lastClassifier);
+  }
+  span.end();
+}
+
+export function recordToolCall(chatJid: string, toolName: string, durationMs: number, opts?: { error?: string | null; parentSpan?: Span }): void {
+  const span = getTracer().startSpan("tool.call", {
+    attributes: { "piclaw.chat_jid": chatJid, "piclaw.tool.name": toolName, "piclaw.instance": inst() },
+    ...(opts?.parentSpan ? { context: trace.setSpan(context.active(), opts.parentSpan) } : {}),
+  });
+  if (opts?.error) { span.setStatus({ code: SpanStatusCode.ERROR, message: opts.error }); span.recordException(new Error(opts.error)); }
+  else { span.setStatus({ code: SpanStatusCode.OK }); }
+  span.setAttribute("piclaw.tool.duration_ms", durationMs);
+  span.end();
+}
+
+export function recordProviderError(chatJid: string, error: string, opts?: { model?: string; provider?: string; classifier?: string }): void {
+  const span = getTracer().startSpan("provider.error", {
+    attributes: {
+      "piclaw.chat_jid": chatJid, "piclaw.instance": inst(),
+      ...(opts?.model ? { "piclaw.model": opts.model } : {}),
+      ...(opts?.provider ? { "piclaw.provider": opts.provider } : {}),
+      ...(opts?.classifier ? { "piclaw.error.classifier": opts.classifier } : {}),
+    },
+  });
+  span.setStatus({ code: SpanStatusCode.ERROR, message: error });
+  span.recordException(new Error(error));
+  span.end();
+}
+
+// ── Graphite Carbon plaintext ────────────────────────────────────
+
+let graphiteSocket: ReturnType<typeof import("net").createConnection> | null = null;
+let graphiteTimer: ReturnType<typeof setTimeout> | null = null;
+let graphiteCfg: { host: string; port: number; prefix: string } | null = null;
+
+function ensureGraphite(): void {
+  if (!graphiteCfg?.host || graphiteSocket) return;
+  try {
+    const net = require("net");
+    graphiteSocket = net.createConnection({ host: graphiteCfg.host, port: graphiteCfg.port }, () =>
+      log.info("Graphite connected", { host: graphiteCfg!.host }));
+    graphiteSocket!.on("error", () => { graphiteSocket = null; scheduleReconnect(); });
+    graphiteSocket!.on("close", () => { graphiteSocket = null; scheduleReconnect(); });
+  } catch { graphiteSocket = null; }
+}
+function scheduleReconnect(): void {
+  if (graphiteTimer || !graphiteCfg?.host) return;
+  graphiteTimer = setTimeout(() => { graphiteTimer = null; ensureGraphite(); }, 30_000);
+}
+function teardownGraphite(): void {
+  if (graphiteSocket) { try { graphiteSocket.end(); } catch {} graphiteSocket = null; }
+  if (graphiteTimer) { clearTimeout(graphiteTimer); graphiteTimer = null; }
+  graphiteCfg = null;
+}
+
+export function recordMetric(name: string, value: number, timestampSec?: number): void {
+  if (!graphiteCfg?.host) return;
+  ensureGraphite();
+  if (!graphiteSocket) return;
+  const ts = timestampSec ?? Math.floor(Date.now() / 1000);
+  const i = inst().replace(/[.\s]/g, "_");
+  try { graphiteSocket.write(`${graphiteCfg.prefix}.${i}.${name} ${value} ${ts}\n`); } catch {}
+}
+
+// ── Apply config ─────────────────────────────────────────────────
+
+async function applyConfig(config: ObservabilityConfig): Promise<void> {
+  if (!config.enabled) { await stopOtel(); teardownGraphite(); return; }
+  await startOtel(config);
+  if (config.graphite_enabled && config.graphite_host) {
+    teardownGraphite();
+    graphiteCfg = { host: config.graphite_host, port: config.graphite_port, prefix: config.graphite_prefix };
+    ensureGraphite();
+  } else { teardownGraphite(); }
+}
+
+// ── Settings API ─────────────────────────────────────────────────
+
+function handleGetConfig(): ObservabilityConfig { return loadConfig(); }
+
+function handleSetConfig(body: Partial<ObservabilityConfig>): { ok: boolean; config: ObservabilityConfig } {
+  const c = loadConfig();
+  const next: ObservabilityConfig = {
+    enabled:                     body.enabled ?? c.enabled,
+    instance_name:               typeof body.instance_name === "string" ? body.instance_name.trim() : c.instance_name,
+    appinsights_enabled:         body.appinsights_enabled ?? c.appinsights_enabled,
+    appinsights_keychain:        typeof body.appinsights_keychain === "string" ? body.appinsights_keychain.trim() : c.appinsights_keychain,
+    appinsights_live_metrics:    body.appinsights_live_metrics ?? c.appinsights_live_metrics,
+    appinsights_standard_metrics:body.appinsights_standard_metrics ?? c.appinsights_standard_metrics,
+    appinsights_sampling_ratio:  typeof body.appinsights_sampling_ratio === "number" ? Math.max(0, Math.min(1, body.appinsights_sampling_ratio)) : c.appinsights_sampling_ratio,
+    graphite_enabled:            body.graphite_enabled ?? c.graphite_enabled,
+    graphite_host:               typeof body.graphite_host === "string" ? body.graphite_host.trim() : c.graphite_host,
+    graphite_port:               typeof body.graphite_port === "number" && body.graphite_port > 0 ? body.graphite_port : c.graphite_port,
+    graphite_prefix:             typeof body.graphite_prefix === "string" ? body.graphite_prefix.trim() : c.graphite_prefix,
+  };
+  saveConfig(next);
+  void applyConfig(next);
+  return { ok: true, config: next };
+}
+
+// ── Extension entry point ────────────────────────────────────────
+
+export default function observabilityExtension(pi: ExtensionAPI): void {
+  const config = loadConfig();
+
+  pi.registerCommand("observability-config-get", {
+    description: "Get observability config (internal)",
+    handler: async () => {
+      pi.sendMessage({ customType: "observability", content: JSON.stringify(handleGetConfig()), display: false });
+    },
+  });
+
+  pi.registerCommand("observability-config-set", {
+    description: "Set observability config (internal)",
+    handler: async (args: string) => {
+      try {
+        const result = handleSetConfig(JSON.parse(args));
+        pi.sendMessage({ customType: "observability", content: JSON.stringify(result), display: false });
+      } catch (err) {
+        pi.sendMessage({ customType: "observability", content: JSON.stringify({ ok: false, error: String(err) }), display: false });
+      }
+    },
+  });
+
+  pi.on("session_start", async () => {
+    if (config.enabled) {
+      await applyConfig(config);
+      installLogSinkBridge();
+    }
+  });
+  pi.on("session_shutdown", async () => {
+    removeLogSinkBridge();
+    await stopOtel();
+    teardownGraphite();
+  });
+
+  pi.on("before_agent_start", async (event) => ({
+    systemPrompt: `${event.systemPrompt}\n\n## Observability\nOTel tracing ${config.enabled ? "active" : "disabled"}. Instance: ${instanceName(config)} (${DEPLOYMENT_MODE}).${config.appinsights_live_metrics ? " Live Metrics enabled." : ""}`,
+  }));
+}
+
+// ── Log sink → OTel span bridge ──────────────────────────────────
+
+let activeSink: RuntimeLogSink | null = null;
+
+/** In-flight turn tracking for pairing prompt start → complete/error. */
+const inflightTurns = new Map<string, { span: Span; startedAt: number }>();
+
+function installLogSinkBridge(): void {
+  if (activeSink) return;
+  activeSink = bridgeSink;
+  addLogSink(activeSink);
+}
+
+function removeLogSinkBridge(): void {
+  if (!activeSink) return;
+  removeLogSink(activeSink);
+  activeSink = null;
+  // End any dangling turn spans
+  for (const [key, entry] of inflightTurns) {
+    entry.span.setStatus({ code: SpanStatusCode.ERROR, message: "session shutdown" });
+    entry.span.end();
+  }
+  inflightTurns.clear();
+}
+
+function bridgeSink(record: LogRecord): void {
+  if (!otelActive) return;
+  const op = typeof record.operation === "string" ? record.operation : "";
+  if (!op) return;
+
+  const chatJid = typeof record.chatJid === "string" ? record.chatJid : "";
+  const i = inst();
+
+  // ── Agent turn lifecycle ──────────────────────────────────
+  if (op === "run_agent.prompt" && chatJid) {
+    const span = getTracer().startSpan("agent.turn", {
+      attributes: {
+        "piclaw.chat_jid": chatJid,
+        "piclaw.instance": i,
+        ...(record.model ? { "piclaw.model": String(record.model) } : {}),
+      },
+    });
+    inflightTurns.set(chatJid, { span, startedAt: Date.now() });
+    return;
+  }
+
+  if (op === "run_agent.complete" && chatJid) {
+    const entry = inflightTurns.get(chatJid);
+    if (entry) {
+      entry.span.setStatus({ code: SpanStatusCode.OK });
+      entry.span.setAttribute("piclaw.turn.status", "success");
+      if (typeof record.durationMs === "number") entry.span.setAttribute("piclaw.turn.duration_ms", record.durationMs);
+      if (typeof record.outputChars === "number") entry.span.setAttribute("piclaw.turn.output_chars", record.outputChars);
+      if (typeof record.recoveryAttemptsUsed === "number") entry.span.setAttribute("piclaw.recovery.attempts", record.recoveryAttemptsUsed);
+      entry.span.end();
+      inflightTurns.delete(chatJid);
+    }
+    // Graphite
+    recordMetric("agent.turn.count", 1);
+    recordMetric("agent.turn.success", 1);
+    if (typeof record.durationMs === "number") recordMetric("agent.turn.duration_ms", record.durationMs);
+    return;
+  }
+
+  if ((op === "run_agent" || op === "run_agent.attempt_failed") && record.level === "error" && chatJid) {
+    const entry = inflightTurns.get(chatJid);
+    const errorMsg = typeof record.errorMessage === "string" ? record.errorMessage : typeof record.errorText === "string" ? record.errorText : "unknown";
+    if (entry) {
+      entry.span.setStatus({ code: SpanStatusCode.ERROR, message: errorMsg });
+      entry.span.recordException(new Error(errorMsg));
+      entry.span.setAttribute("piclaw.turn.status", "error");
+      if (typeof record.durationMs === "number") entry.span.setAttribute("piclaw.turn.duration_ms", record.durationMs);
+      if (typeof record.classifier === "string") entry.span.setAttribute("piclaw.error.classifier", record.classifier);
+      entry.span.end();
+      inflightTurns.delete(chatJid);
+    }
+    recordMetric("agent.turn.count", 1);
+    recordMetric("agent.turn.error", 1);
+    return;
+  }
+
+  if (op === "run_agent.no_terminal_reply" && chatJid) {
+    const entry = inflightTurns.get(chatJid);
+    const detail = typeof record.detail === "string" ? record.detail : "no terminal reply";
+    if (entry) {
+      entry.span.setStatus({ code: SpanStatusCode.ERROR, message: detail });
+      entry.span.recordException(new Error(detail));
+      entry.span.setAttribute("piclaw.turn.status", "no_reply");
+      entry.span.end();
+      inflightTurns.delete(chatJid);
+    }
+    recordMetric("agent.turn.count", 1);
+    recordMetric("agent.turn.error", 1);
+    return;
+  }
+
+  // ── Tool calls ────────────────────────────────────────────
+  if (op === "tool.call.end" && chatJid) {
+    const toolName = typeof record.toolName === "string" ? record.toolName : "unknown";
+    const isError = Boolean(record.isError);
+    const durationMs = typeof record.durationMs === "number" ? record.durationMs : 0;
+    const parentEntry = inflightTurns.get(chatJid);
+    const span = getTracer().startSpan("tool.call", {
+      attributes: {
+        "piclaw.chat_jid": chatJid,
+        "piclaw.instance": i,
+        "piclaw.tool.name": toolName,
+        "piclaw.tool.duration_ms": durationMs,
+      },
+      ...(parentEntry ? { context: trace.setSpan(context.active(), parentEntry.span) } : {}),
+    });
+    if (isError) {
+      span.setStatus({ code: SpanStatusCode.ERROR, message: `${toolName} failed` });
+    } else {
+      span.setStatus({ code: SpanStatusCode.OK });
+    }
+    span.end();
+    const safeName = toolName.replace(/[.\s]/g, "_");
+    recordMetric(`tool.${safeName}.count`, 1);
+    if (durationMs) recordMetric(`tool.${safeName}.duration_ms`, durationMs);
+    if (isError) recordMetric(`tool.${safeName}.error`, 1);
+    return;
+  }
+
+  // ── Recovery ──────────────────────────────────────────────
+  if (op === "run_agent.attempt_failed" && record.level === "warn") {
+    const classifier = typeof record.classifier === "string" ? record.classifier : "unknown";
+    recordMetric("recovery.attempts", 1);
+    recordMetric(`provider.error.${classifier.replace(/[.\s]/g, "_")}`, 1);
+    // Create a provider.error span
+    const span = getTracer().startSpan("provider.error", {
+      attributes: {
+        "piclaw.chat_jid": chatJid,
+        "piclaw.instance": i,
+        "piclaw.error.classifier": classifier,
+      },
+    });
+    const errText = typeof record.errorText === "string" ? record.errorText : classifier;
+    span.setStatus({ code: SpanStatusCode.ERROR, message: errText });
+    span.recordException(new Error(errText));
+    span.end();
+    return;
+  }
+
+  // ── Session lifecycle ─────────────────────────────────────
+  if (op === "get_or_create.create_main_session") {
+    recordMetric("session.created", 1);
+    return;
+  }
+  if (op.startsWith("evict_idle.")) {
+    recordMetric("session.evicted", 1);
+    return;
+  }
+
+  // ── Dream ─────────────────────────────────────────────────
+  if (op === "dream.complete") {
+    const durationMs = typeof record.durationMs === "number" ? record.durationMs : 0;
+    const span = getTracer().startSpan("dream", {
+      attributes: {
+        "piclaw.instance": i,
+        "piclaw.dream.mode": typeof record.mode === "string" ? record.mode : "unknown",
+        "piclaw.dream.days": typeof record.days === "number" ? record.days : 0,
+        "piclaw.dream.duration_ms": durationMs,
+      },
+    });
+    span.setStatus({ code: SpanStatusCode.OK });
+    span.end();
+    recordMetric("dream.duration_ms", durationMs);
+    return;
+  }
+
+  // ── Catch-all: warn/error with operation → exception span ─
+  if ((record.level === "warn" || record.level === "error") && op && !op.startsWith("handle_agent_message")) {
+    const span = getTracer().startSpan(`log.${record.level}`, {
+      attributes: {
+        "piclaw.instance": i,
+        "piclaw.operation": op,
+        "piclaw.module": record.module,
+        ...(chatJid ? { "piclaw.chat_jid": chatJid } : {}),
+      },
+    });
+    span.setStatus({ code: SpanStatusCode.ERROR, message: record.message });
+    if (record.level === "error") span.recordException(new Error(record.message));
+    span.end();
+  }
+}
