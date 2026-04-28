@@ -21,7 +21,7 @@
         "registry": "https://npm.pkg.github.com",
         "piSource": "npm:@rcarmo/piclaw-addon-ast-grep@0.1.1"
       },
-      "updatedAt": "2026-04-27",
+      "updatedAt": "2026-04-28",
       "owner": {
         "login": "cjnova",
         "url": "https://github.com/cjnova"
@@ -77,7 +77,7 @@
         "registry": "https://npm.pkg.github.com",
         "piSource": "npm:@rcarmo/piclaw-addon-cheapskate@0.4.0"
       },
-      "updatedAt": "2026-04-27",
+      "updatedAt": "2026-04-28",
       "owner": {
         "login": "rcarmo",
         "url": "https://github.com/rcarmo"
@@ -103,7 +103,7 @@
         "registry": "https://npm.pkg.github.com",
         "piSource": "npm:@rcarmo/piclaw-addon-code-validator@0.1.0"
       },
-      "updatedAt": "2026-04-27",
+      "updatedAt": "2026-04-28",
       "owner": {
         "login": "cjnova",
         "url": "https://github.com/cjnova"
@@ -131,7 +131,7 @@
         "registry": "https://npm.pkg.github.com",
         "piSource": "npm:@rcarmo/piclaw-addon-delegate@0.1.0"
       },
-      "updatedAt": "2026-04-27",
+      "updatedAt": "2026-04-28",
       "owner": {
         "login": "cjnova",
         "url": "https://github.com/cjnova"
@@ -157,7 +157,7 @@
         "registry": "https://npm.pkg.github.com",
         "piSource": "npm:@rcarmo/piclaw-addon-dev-tools@0.1.0"
       },
-      "updatedAt": "2026-04-27",
+      "updatedAt": "2026-04-28",
       "owner": {
         "login": "rcarmo",
         "url": "https://github.com/rcarmo"
@@ -183,7 +183,7 @@
         "registry": "https://npm.pkg.github.com",
         "piSource": "npm:@rcarmo/piclaw-addon-drawio-editor@0.1.0"
       },
-      "updatedAt": "2026-04-27",
+      "updatedAt": "2026-04-28",
       "owner": {
         "login": "rcarmo",
         "url": "https://github.com/rcarmo"
@@ -209,7 +209,7 @@
         "registry": "https://npm.pkg.github.com",
         "piSource": "npm:@rcarmo/piclaw-addon-eml-viewer@0.2.1"
       },
-      "updatedAt": "2026-04-27",
+      "updatedAt": "2026-04-28",
       "owner": {
         "login": "rcarmo",
         "url": "https://github.com/rcarmo"
@@ -236,7 +236,7 @@
         "registry": "https://npm.pkg.github.com",
         "piSource": "npm:@rcarmo/piclaw-addon-imap@0.1.0"
       },
-      "updatedAt": "2026-04-27",
+      "updatedAt": "2026-04-28",
       "owner": {
         "login": "rcarmo",
         "url": "https://github.com/rcarmo"
@@ -263,7 +263,7 @@
         "registry": "https://npm.pkg.github.com",
         "piSource": "npm:@rcarmo/piclaw-addon-kanban-board-widget@0.1.0"
       },
-      "updatedAt": "2026-04-27",
+      "updatedAt": "2026-04-28",
       "owner": {
         "login": "cjnova",
         "url": "https://github.com/cjnova"
@@ -372,7 +372,7 @@
         "registry": "https://npm.pkg.github.com",
         "piSource": "npm:@rcarmo/piclaw-addon-settings-dialog-screenshot@0.1.0"
       },
-      "updatedAt": "2026-04-27"
+      "updatedAt": "2026-04-28"
     },
     {
       "slug": "voice-pipeline",
@@ -395,7 +395,7 @@
         "registry": "https://npm.pkg.github.com",
         "piSource": "npm:@rcarmo/piclaw-addon-voice-pipeline@0.1.0"
       },
-      "updatedAt": "2026-04-27",
+      "updatedAt": "2026-04-28",
       "owner": {
         "login": "rcarmo",
         "url": "https://github.com/rcarmo"
@@ -422,7 +422,7 @@
         "registry": "https://npm.pkg.github.com",
         "piSource": "npm:@rcarmo/piclaw-addon-yolochat@0.1.0"
       },
-      "updatedAt": "2026-04-27",
+      "updatedAt": "2026-04-28",
       "owner": {
         "login": "rcarmo",
         "url": "https://github.com/rcarmo"
