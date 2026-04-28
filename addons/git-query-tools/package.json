@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-git-query-tools",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Git history and JSON query tools for piclaw agents",
   "type": "module",
   "main": "index.ts",
@@ -14,11 +14,6 @@
     ],
     "skills": [
       "skills/git-query-tools"
-    ]
-  },
-  "agents": {
-    "skills": [
-      { "name": "git-query-tools", "path": "skills/git-query-tools/SKILL.md" }
     ]
   },
   "pi": {

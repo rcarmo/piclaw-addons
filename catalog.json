@@ -5,7 +5,7 @@
     {
       "slug": "ast-grep-tool",
       "name": "@rcarmo/piclaw-addon-ast-grep",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "type": "extension",
       "description": "Structural code search and rewrite using ast-grep as a native LLM tool",
       "path": "addons/ast-grep-tool",
@@ -17,7 +17,7 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-ast-grep-0.1.2.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-ast-grep-0.1.3.tgz"
       },
       "updatedAt": "2026-04-28",
       "owner": {
@@ -203,7 +203,7 @@
     {
       "slug": "git-query-tools",
       "name": "@rcarmo/piclaw-addon-git-query-tools",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "type": "extension",
       "description": "Git history and JSON query tools for piclaw agents",
       "path": "addons/git-query-tools",
@@ -212,12 +212,10 @@
         "json",
         "query"
       ],
-      "skills": [
-        "git-query-tools"
-      ],
+      "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-git-query-tools-0.1.0.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-git-query-tools-0.1.1.tgz"
       },
       "updatedAt": "2026-04-28",
       "owner": {
