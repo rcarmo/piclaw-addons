@@ -113,6 +113,22 @@ let otelActive = false;
 let piclawTracer: Tracer | null = null;
 let shutdownFn: (() => Promise<void>) | null = null;
 
+function formatError(err: unknown): string {
+  if (err instanceof Error) return err.stack || err.message;
+  return String(err);
+}
+
+async function createOtelResource(attributes: Record<string, string>) {
+  const resources = await import("@opentelemetry/resources");
+  if (typeof (resources as any).resourceFromAttributes === "function") {
+    return (resources as any).resourceFromAttributes(attributes);
+  }
+  if (typeof (resources as any).Resource === "function") {
+    return new (resources as any).Resource(attributes);
+  }
+  return { attributes } as any;
+}
+
 async function startOtel(config: ObservabilityConfig): Promise<boolean> {
   if (otelActive) await stopOtel();
 
@@ -128,20 +144,19 @@ async function startOtel(config: ObservabilityConfig): Promise<boolean> {
   if (connectionString) {
     try {
       const { useAzureMonitor, shutdownAzureMonitor } = await import("@azure/monitor-opentelemetry");
+      const resource = await createOtelResource({
+        "service.name": "piclaw",
+        "service.instance.id": instanceName(config),
+        "service.version": process.env.npm_package_version || "unknown",
+        "deployment.environment": DEPLOYMENT_MODE,
+        "host.name": hostname(),
+      });
       useAzureMonitor({
         azureMonitorExporterOptions: { connectionString },
         enableLiveMetrics: config.appinsights_live_metrics,
         enableStandardMetrics: config.appinsights_standard_metrics,
         samplingRatio: Math.max(0, Math.min(1, config.appinsights_sampling_ratio)),
-        resource: {
-          attributes: {
-            "service.name": "piclaw",
-            "service.instance.id": instanceName(config),
-            "service.version": process.env.npm_package_version || "unknown",
-            "deployment.environment": DEPLOYMENT_MODE,
-            "host.name": hostname(),
-          },
-        } as any,
+        resource,
       });
       shutdownFn = shutdownAzureMonitor;
 
@@ -153,7 +168,10 @@ async function startOtel(config: ObservabilityConfig): Promise<boolean> {
         sampling: config.appinsights_sampling_ratio,
       });
     } catch (err) {
-      log.error("Failed to start Azure Monitor OTel", { operation: "otel.start.appinsights", err });
+      log.error("Failed to start Azure Monitor OTel", {
+        operation: "otel.start.appinsights",
+        error: formatError(err),
+      });
       return false;
     }
   }
@@ -165,7 +183,7 @@ async function startOtel(config: ObservabilityConfig): Promise<boolean> {
 
 async function stopOtel(): Promise<void> {
   if (shutdownFn) {
-    try { await shutdownFn(); } catch (err) { log.warn("OTel shutdown error", { err }); }
+    try { await shutdownFn(); } catch (err) { log.warn("OTel shutdown error", { error: formatError(err) }); }
     shutdownFn = null;
   }
   piclawTracer = null;
@@ -280,13 +298,24 @@ export function recordMetric(name: string, value: number, timestampSec?: number)
 // ── Apply config ─────────────────────────────────────────────────
 
 async function applyConfig(config: ObservabilityConfig): Promise<void> {
-  if (!config.enabled) { await stopOtel(); teardownGraphite(); return; }
+  if (!config.enabled) {
+    removeLogSinkBridge();
+    await stopOtel();
+    teardownGraphite();
+    return;
+  }
+
   await startOtel(config);
+
   if (config.graphite_enabled && config.graphite_host) {
     teardownGraphite();
     graphiteCfg = { host: config.graphite_host, port: config.graphite_port, prefix: config.graphite_prefix };
     ensureGraphite();
-  } else { teardownGraphite(); }
+  } else {
+    teardownGraphite();
+  }
+
+  installLogSinkBridge();
 }
 
 // ── Settings API ─────────────────────────────────────────────────
@@ -316,7 +345,6 @@ function handleSetConfig(body: Partial<ObservabilityConfig>): { ok: boolean; con
 // ── Extension entry point ────────────────────────────────────────
 
 export default function observabilityExtension(pi: ExtensionAPI): void {
-  const config = loadConfig();
 
   pi.registerCommand("observability-config-get", {
     description: "Get observability config (internal)",
@@ -338,9 +366,9 @@ export default function observabilityExtension(pi: ExtensionAPI): void {
   });
 
   pi.on("session_start", async () => {
+    const config = loadConfig();
     if (config.enabled) {
       await applyConfig(config);
-      installLogSinkBridge();
     }
   });
   pi.on("session_shutdown", async () => {
@@ -349,9 +377,12 @@ export default function observabilityExtension(pi: ExtensionAPI): void {
     teardownGraphite();
   });
 
-  pi.on("before_agent_start", async (event) => ({
-    systemPrompt: `${event.systemPrompt}\n\n## Observability\nOTel tracing ${config.enabled ? "active" : "disabled"}. Instance: ${instanceName(config)} (${DEPLOYMENT_MODE}).${config.appinsights_live_metrics ? " Live Metrics enabled." : ""}`,
-  }));
+  pi.on("before_agent_start", async (event) => {
+    const config = loadConfig();
+    return {
+      systemPrompt: `${event.systemPrompt}\n\n## Observability\nOTel tracing ${config.enabled ? "active" : "disabled"}. Instance: ${instanceName(config)} (${DEPLOYMENT_MODE}).${config.appinsights_live_metrics ? " Live Metrics enabled." : ""}`,
+    };
+  });
 }
 
 // ── Log sink → OTel span bridge ──────────────────────────────────
