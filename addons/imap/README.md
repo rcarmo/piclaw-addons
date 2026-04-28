@@ -1,5 +1,9 @@
 # piclaw-addon-imap
 
+## Install
+
+Open **Settings → Add-Ons** and install **imap** from the catalog.
+
 IMAP email management addon for piclaw.
 
 Includes a web settings pane for managing accounts.

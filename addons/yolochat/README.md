@@ -1,5 +1,9 @@
 # YoloChat
 
+## Install
+
+Open **Settings → Add-Ons** and install **yolochat** from the catalog.
+
 Zero-guardrail inter-instance messaging for Pi.
 
 ## What it does

@@ -15,14 +15,9 @@ Send tasks to a cheaper/faster model in a fresh context with auto model selectio
 
 ## Install
 
-```bash
-cp extensions/delegate.ts /workspace/.pi/extensions/
-cp -r skills/delegate /workspace/.pi/skills/
-```
+Open **Settings → Add-Ons** and install **delegate** from the catalog.
 
-Then restart PiClaw. The extension **auto-activates** itself — no manual `activate_tools` needed.
-
-> **Note:** PiClaw automatically creates a `node_modules` symlink in `.pi/extensions/` on startup to resolve framework packages (`@sinclair/typebox`, etc.). No manual symlink is needed.
+Then restart PiClaw. The extension auto-activates itself.
 
 ### Optional: config-based activation
 

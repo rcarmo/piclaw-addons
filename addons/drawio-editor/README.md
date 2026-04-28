@@ -2,6 +2,10 @@
 
 Self-hosted draw.io diagram editor extension for piclaw.
 
+## Install
+
+Open **Settings → Add-Ons** and install **drawio-editor** from the catalog.
+
 ## What it does
 
 - Registers an HTTP route at `/drawio/*` serving the draw.io webapp in embed mode
@@ -15,7 +19,7 @@ The draw.io webapp (~44MB) is not included in this addon package. It must be ven
 
 1. Download from [jgraph/drawio releases](https://github.com/jgraph/drawio/releases)
 2. Extract to `vendor/` directory inside this addon's install path
-3. Or symlink from an existing piclaw install: `ln -s /usr/local/lib/bun/install/global/node_modules/piclaw/runtime/extensions/viewers/drawio-editor/vendor vendor`
+3. Or symlink from an existing piclaw install
 
 ## Architecture
 

@@ -14,7 +14,9 @@ ESPHome-only voice assistant extension for `piclaw`.
 
 ## Install
 
-Set these environment variables in your piclaw environment:
+Open **Settings → Add-Ons** and install **voice-pipeline** from the catalog.
+
+Then set these environment variables in your piclaw environment:
 
 - `AZURE_SPEECH_REGION` (default: `westeurope`)
 - `AZURE_SPEECH_KEY` (required)
