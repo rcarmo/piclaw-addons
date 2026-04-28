@@ -217,6 +217,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-git-query-tools-0.1.0.tgz"
       },
+      "updatedAt": "2026-04-28",
       "owner": {
         "login": "cjnova",
         "url": "https://github.com/cjnova"
