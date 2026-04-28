@@ -10,22 +10,16 @@ Uses the runtime's structured log-sink contract. The runtime never imports OTel 
 
 Open **Settings → Add-Ons** and install **observability** from the catalog.
 
-### 2. Store the App Insights connection string in keychain
+### 2. Configure via Settings → Observability
 
-```bash
-piclaw keychain set azure/appinsights-connection-string \
-  --type secret \
-  --secret "InstrumentationKey=...;IngestionEndpoint=..."
-```
-
-### 3. Configure via Settings → Observability
+The connection string can be pasted directly into the settings pane — it is saved to the keychain automatically as `azure/appinsights-connection-string`. A restart is needed after setting or changing the connection string.
 
 | Field | Type | Default | Description |
 |---|---|---|---|
 | **Enabled** | checkbox | off | Master switch |
 | **Instance name** | text | `hostname()` | Identifies this instance in App Insights (`cloud_RoleInstance`). Set to e.g. `smith`, `relay`, `orangepi`. |
 | **App Insights enabled** | checkbox | on | Sub-toggle for the Azure backend |
-| **Connection string (keychain entry)** | text | — | Keychain entry name holding the connection string (not the secret itself) |
+| **Connection string** | password | — | Paste the App Insights connection string directly. Saved to keychain as `azure/appinsights-connection-string`. |
 | **Live Metrics Stream** | checkbox | on | Real-time telemetry in the Azure portal ([QuickPulse](https://learn.microsoft.com/en-us/azure/azure-monitor/app/live-stream)) |
 | **Standard metrics** | checkbox | on | OTel standard metrics collection (CPU, memory, request rate) |
 | **Sampling ratio** | number | 1 | 0–1. 1 = send all traces. 0.5 = sample 50%. |
@@ -34,9 +28,16 @@ piclaw keychain set azure/appinsights-connection-string \
 | **Port** | number | 2003 | Carbon plaintext port |
 | **Metric prefix** | text | `piclaw` | Root prefix for all Graphite metric paths |
 
-Config is stored in the extension KV store (SQLite, global scope). Secrets stay in keychain.
+## Storage model
 
-### 4. Deploy to other instances
+| What | Where |
+|---|---|
+| App Insights connection string | **Keychain** — entry `azure/appinsights-connection-string`. Entered directly in the settings pane. |
+| All other settings | **Runtime database** — extension KV store (SQLite, global scope, extension ID `observability`) |
+
+No config files are written to disk.
+
+### 3. Deploy to other instances
 
 Each piclaw instance needs:
 - The addon installed
