@@ -7,15 +7,32 @@
   "piclaw": {
     "type": "extension",
     "compatibleVersions": ">=2.0.0",
-    "tags": ["sample", "template", "developer"]
+    "tags": [
+      "sample",
+      "template",
+      "developer"
+    ]
   },
   "pi": {
-    "extensions": ["index.ts"]
+    "extensions": [
+      "index.ts"
+    ],
+    "web": {
+      "entries": [
+        "web/index.ts"
+      ]
+    }
   },
   "peerDependencies": {
     "@mariozechner/pi-coding-agent": "*",
     "@sinclair/typebox": "*"
   },
-  "keywords": ["piclaw", "piclaw-addon", "sample", "template"],
+  "keywords": [
+    "pi-package",
+    "piclaw",
+    "piclaw-addon",
+    "sample",
+    "template"
+  ],
   "license": "MIT"
 }

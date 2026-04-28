@@ -37,10 +37,11 @@
     "@sinclair/typebox": "*"
   },
   "keywords": [
-    "piclaw",
-    "piclaw-addon",
     "observability",
-    "opentelemetry"
+    "opentelemetry",
+    "pi-package",
+    "piclaw",
+    "piclaw-addon"
   ],
   "license": "MIT"
 }

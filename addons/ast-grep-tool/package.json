@@ -25,6 +25,7 @@
     "@sinclair/typebox": "*"
   },
   "keywords": [
+    "pi-package",
     "piclaw",
     "piclaw-addon"
   ],
