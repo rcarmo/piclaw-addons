@@ -212,7 +212,9 @@
         "json",
         "query"
       ],
-      "skills": [],
+      "skills": [
+        "git-query-tools"
+      ],
       "install": {
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-git-query-tools-0.1.0.tgz"

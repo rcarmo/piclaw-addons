@@ -16,6 +16,11 @@
       "skills/git-query-tools"
     ]
   },
+  "agents": {
+    "skills": [
+      { "name": "git-query-tools", "path": "skills/git-query-tools/SKILL.md" }
+    ]
+  },
   "pi": {
     "extensions": [
       "index.ts"

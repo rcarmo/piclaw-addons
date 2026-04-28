@@ -44,6 +44,7 @@
     "skills": [
       "addons/autoresearch/skills",
       "addons/delegate/skills",
+      "addons/git-query-tools/skills",
       "addons/settings-dialog-screenshot/skills"
     ]
   },
@@ -56,6 +57,10 @@
       {
         "name": "delegate",
         "path": "./addons/delegate/skills/delegate"
+      },
+      {
+        "name": "git-query-tools",
+        "path": "./addons/git-query-tools/skills/git-query-tools/SKILL.md"
       },
       {
         "name": "settings-dialog-screenshot",
