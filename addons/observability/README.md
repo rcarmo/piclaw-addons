@@ -10,12 +10,6 @@ Uses the runtime's structured log-sink contract. The runtime never imports OTel 
 
 Open **Settings → Add-Ons** and install **observability** from the catalog.
 
-Or via CLI:
-
-```bash
-pi install git:github.com/rcarmo/piclaw-addons --addon observability
-```
-
 ### 2. Store the App Insights connection string in keychain
 
 ```bash
