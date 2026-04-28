@@ -152,6 +152,10 @@ bun add ${esc(pkg.spec)}</code></pre>
 }
 
 // ── CSS ───────────────────────────────────────────────────────────────────────
+const CLARITY_SCRIPT = `<script type="text/javascript">
+(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);})(window, document, "clarity", "script", "wiph32r6h2");
+</script>`;
+
 const CSS = `
 @font-face{font-family:'IBM Plex Sans';src:url('/piclaw-addons/assets/fonts/ibm-plex-sans-400.woff2') format('woff2');font-weight:400;font-display:swap}
 @font-face{font-family:'IBM Plex Sans';src:url('/piclaw-addons/assets/fonts/ibm-plex-sans-500.woff2') format('woff2');font-weight:500;font-display:swap}
@@ -322,6 +326,7 @@ const indexHtml = `<!DOCTYPE html>
 <meta name="twitter:description" content="Community extensions, tools and add-ons for piclaw.">
 <meta name="twitter:image" content="${SITE_URL}/assets/icons/piclaw.png">
 <link rel="canonical" href="${SITE_URL}/">
+${CLARITY_SCRIPT}
 <style>${CSS}</style>
 </head>
 <body>
@@ -415,6 +420,7 @@ for (const addon of addons) {
 <meta name="twitter:description" content="${esc(addon.description)}">
 <meta name="twitter:image" content="${SITE_URL}/${iconSrc(addon).replace('/piclaw-addons/', '')}">
 <link rel="canonical" href="${SITE_URL}/addons/${esc(addon.slug)}/">
+${CLARITY_SCRIPT}
 <style>${CSS}</style>
 </head>
 <body>
@@ -487,6 +493,7 @@ const pkgsHtml = `<!DOCTYPE html>
 <title>Packages — piclaw-addons</title>
 <meta name="description" content="Downloadable add-on packages for piclaw.">
 <link rel="canonical" href="${SITE_URL}/packages/">
+${CLARITY_SCRIPT}
 <style>${CSS}</style>
 </head>
 <body>
