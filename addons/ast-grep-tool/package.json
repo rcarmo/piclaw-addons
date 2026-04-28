@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-ast-grep",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Structural code search and rewrite using ast-grep as a native LLM tool",
   "type": "module",
   "main": "index.ts",
