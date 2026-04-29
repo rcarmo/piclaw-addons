@@ -341,7 +341,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-proxmox-0.1.4.tgz"
       },
-      "updatedAt": "2026-04-28",
+      "updatedAt": "2026-04-29",
       "owner": {
         "login": "rcarmo",
         "url": "https://github.com/rcarmo"
