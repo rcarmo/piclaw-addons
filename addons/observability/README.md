@@ -25,6 +25,7 @@ The connection string can be pasted directly into the settings pane — it is sa
 | **Live Metrics Stream** | checkbox | on | Real-time telemetry in the Azure portal ([QuickPulse](https://learn.microsoft.com/en-us/azure/azure-monitor/app/live-stream)) |
 | **Standard metrics** | checkbox | on | OTel standard metrics collection (CPU, memory, request rate) |
 | **Sampling ratio** | number | 1 | 0–1. 1 = send all traces. 0.5 = sample 50%. |
+| **Browser agent telemetry** | checkbox | on | Loads the App Insights browser SDK and translates agent SSE/follow-up activity into custom events keyed by chat JID. |
 | **Graphite enabled** | checkbox | off | Sub-toggle for Carbon plaintext push |
 | **Host** | text | — | Graphite/Carbon receiver host, e.g. `192.168.1.250` |
 | **Port** | number | 2003 | Carbon plaintext port |
@@ -36,6 +37,7 @@ The connection string can be pasted directly into the settings pane — it is sa
 |---|---|
 | App Insights connection string | **Keychain** — entry `azure/appinsights-connection-string`. Entered directly in the settings pane. |
 | All other settings | **Runtime database** — extension KV store (SQLite, global scope, extension ID `observability`) |
+| Browser actor identity | **Derived at runtime** — the browser SDK maps App Insights actor identity to `chatJid` and preserves browser IDs as separate custom dimensions |
 
 No config files are written to disk.
 
@@ -84,7 +86,9 @@ Each piclaw instance needs:
 
 ## How it works
 
-The addon uses piclaw's **log-sink contract** — a generic API that any addon can use:
+The addon uses piclaw's **log-sink contract** — a generic API that any addon can use. Server-side spans are derived from runtime records, and the browser layer translates agent SSE/follow-up activity into App Insights `customEvents` keyed by `chatJid`.
+
+Server side:
 
 ```
 runtime                              addon
@@ -129,21 +133,46 @@ See the [runtime observability docs](https://github.com/rcarmo/piclaw/blob/main/
 
 ---
 
+## Agent identity mapping
+
+| Concept | Mapping |
+|---|---|
+| Primary actor | `chatJid` |
+| Primary transaction | `turnId` |
+| Runtime session / fork identity | `sessionLeafId` when present |
+| Browser correlation | `piclaw.browser_user_id`, `piclaw.browser_session_id`, `piclaw.browser_client_id` |
+| App Insights user-style field | `enduser.id = chatJid` |
+
+This makes App Insights charts and `customEvents` more useful for agent analytics: the actor is the chat/agent JID, not the anonymous browser user.
+
+---
+
 ## Data sent
 
 ### Log operation → Span / Metric mapping
 
 | Log operation | OTel Span | Graphite metric |
 |---|---|---|
-| `run_agent.prompt` → `run_agent.complete` | `agent.turn` (paired by chatJid) | `agent.turn.count`, `agent.turn.duration_ms`, `agent.turn.success` |
+| `run_agent.prompt` → `run_agent.complete` | `agent.turn` (paired by `turnId`, fallback `chatJid`) | `agent.turn.count`, `agent.turn.duration_ms`, `agent.turn.success` |
 | `run_agent.prompt` → `run_agent` (error) | `agent.turn` (ERROR + exception) | `agent.turn.count`, `agent.turn.error` |
 | `run_agent.no_terminal_reply` | `agent.turn` (ERROR) | `agent.turn.error` |
+| `model.response.start/end` | `model.call` (child of `agent.turn`) | `model.call.count`, `model.call.duration_ms` |
 | `run_agent.attempt_failed` | `provider.error` (exception) | `recovery.attempts`, `provider.error.<classifier>` |
-| `tool.call.end` | `tool.call` (child of `agent.turn`) | `tool.<name>.count`, `tool.<name>.duration_ms` |
+| `tool.call.start/end` | `tool.call` (child of `agent.turn`) | `tool.<name>.count`, `tool.<name>.duration_ms` |
 | `dream.complete` | `dream` | `dream.duration_ms` |
 | `get_or_create.create_main_session` | — | `session.created` |
 | `evict_idle.*` | — | `session.evicted` |
 | Any warn/error with `operation` | `log.warn` / `log.error` | — |
+
+### Browser custom events
+
+| Browser event | Source | Primary identity |
+|---|---|---|
+| `agent.turn.start` / `agent.turn.phase` / `agent.turn.complete` / `agent.turn.fail` | translated from `agent_status` SSE | `chatJid` |
+| `agent.followup.queued` / `agent.followup.consumed` / `agent.followup.removed` | translated from follow-up SSE | `chatJid` |
+| `agent.steer.queued` | translated from `agent_steer_queued` SSE | `chatJid` |
+| `agent.message.sent` | translated from `POST /agent/:id/message` | `chatJid` |
+| `agent.stream.connected` | translated from SSE connect | `chatJid` |
 
 ### Span schemas
 
@@ -157,6 +186,9 @@ See the [runtime observability docs](https://github.com/rcarmo/piclaw/blob/main/
   "duration": "4523ms",
   "attributes": {
     "piclaw.chat_jid": "web:default:branch:0f3858079ad7",
+    "piclaw.actor.kind": "chat_jid",
+    "piclaw.actor.id": "web:default:branch:0f3858079ad7",
+    "enduser.id": "web:default:branch:0f3858079ad7",
     "piclaw.instance": "smith",
     "piclaw.model": "azure-openai/gpt-5-4",
     "piclaw.turn.status": "success",
@@ -189,6 +221,24 @@ See the [runtime observability docs](https://github.com/rcarmo/piclaw/blob/main/
       }
     }
   ]
+}
+```
+
+#### model.call
+
+```json
+{
+  "name": "model.call",
+  "status": { "code": "OK" },
+  "duration": "1280ms",
+  "attributes": {
+    "piclaw.chat_jid": "web:default",
+    "piclaw.turn_id": "turn_abcd1234",
+    "piclaw.model": "azure-openai/gpt-5-4",
+    "piclaw.model.sequence": 2,
+    "piclaw.model.stop_reason": "toolUse",
+    "piclaw.model.duration_ms": 1280
+  }
 }
 ```
 
@@ -265,8 +315,9 @@ piclaw.relay.provider.error.*      # all provider errors on relay
 |---|---|
 | **Application Map** | All piclaw instances with health and dependency links |
 | **Failures blade** | Errors grouped by `cloud_RoleInstance`: smith 2, relay 5, orangepi 1 |
-| **Transaction Search** | Individual turn traces with tool-call child spans |
+| **Transaction Search** | Individual turn traces with `model.call` and `tool.call` child spans |
 | **Live Metrics Stream** | Real-time exceptions, request rate, CPU/memory per instance |
+| **Users / Events** | Agent-centric browser custom events when browser agent telemetry is enabled (`chatJid` mapped as the actor) |
 
 > **Important:** Live Metrics often shows mostly **requests** and aggregate rates. That is normal. The custom piclaw spans (`agent.turn`, `tool.call`, `provider.error`, `log.error`, `log.warn`) are easier to inspect in **Logs / Kusto**, **Transaction Search**, and sometimes **Dependencies**.
 >
@@ -275,6 +326,10 @@ piclaw.relay.provider.error.*      # all provider errors on relay
 ### Kusto queries
 
 Use these in **Azure Application Insights → Logs**.
+
+The piclaw repo also includes companion artifacts:
+- `docs/azure/app-insights-agent-kusto-queries.md`
+- `docs/azure/app-insights-agent-observability-workbook-template.json`
 
 #### 1) Everything recent for piclaw instances
 
@@ -288,14 +343,14 @@ union withsource=table requests, dependencies, traces, exceptions
 | order by timestamp desc
 ```
 
-#### 2) Piclaw custom spans (`agent.turn`, `tool.call`, `provider.error`, `dream`, `log.*`)
+#### 2) Piclaw custom spans (`agent.turn`, `model.call`, `tool.call`, `provider.error`, `dream`, `log.*`)
 
 ```kusto
 union withsource=table dependencies, traces, exceptions
 | extend piclaw_instance = coalesce(tostring(customDimensions["piclaw.instance"]), cloud_RoleInstance)
 | extend span_name = coalesce(name, operation_Name, message, outerMessage)
 | where timestamp > ago(6h)
-| where span_name in ("agent.turn", "tool.call", "provider.error", "dream", "log.error", "log.warn")
+| where span_name in ("agent.turn", "model.call", "tool.call", "provider.error", "dream", "log.error", "log.warn")
 | project timestamp,
           table,
           piclaw_instance,
@@ -311,7 +366,18 @@ union withsource=table dependencies, traces, exceptions
 | order by timestamp desc
 ```
 
-#### 3) Agent-turn throughput and latency by instance
+#### 3) Agent-centric browser events by chat JID
+
+```kusto
+customEvents
+| where timestamp > ago(24h)
+| extend chat_jid = coalesce(user_AuthenticatedId, tostring(customDimensions["piclaw.chat_jid"]))
+| where isnotempty(chat_jid)
+| summarize events = count() by name, chat_jid
+| order by events desc
+```
+
+#### 4) Agent-turn throughput and latency by instance
 
 ```kusto
 dependencies
@@ -328,7 +394,7 @@ dependencies
 | order by turns desc
 ```
 
-#### 4) Tool-call latency by tool name
+#### 5) Tool-call latency by tool name
 
 ```kusto
 dependencies
@@ -344,7 +410,7 @@ dependencies
 | order by calls desc
 ```
 
-#### 5) Models by instance
+#### 6) Models by instance
 
 ```kusto
 dependencies
@@ -363,7 +429,7 @@ dependencies
 | order by turns desc
 ```
 
-#### 6) Providers / provider-error classifiers
+#### 7) Providers / provider-error classifiers
 
 ```kusto
 union withsource=table dependencies, traces, exceptions
@@ -379,7 +445,7 @@ union withsource=table dependencies, traces, exceptions
 | order by events desc
 ```
 
-#### 7) Provider/runtime failures
+#### 8) Provider/runtime failures
 
 ```kusto
 union withsource=table dependencies, traces, exceptions
@@ -406,7 +472,7 @@ union withsource=table dependencies, traces, exceptions
 | order by timestamp desc
 ```
 
-#### 8) Token counters on `agent.turn` spans
+#### 9) Token counters on `agent.turn` spans
 
 > **Note:** token usage is persisted in piclaw's runtime database even when App Insights is not yet carrying token attributes. This query returns rows only when the observability exporter emits `piclaw.turn.input_tokens`, `piclaw.turn.output_tokens`, `piclaw.turn.cache_read_tokens`, `piclaw.turn.cache_write_tokens`, and `piclaw.turn.total_tokens` on `agent.turn` telemetry.
 
@@ -436,7 +502,7 @@ dependencies
 | order by total_tokens desc
 ```
 
-#### 9) One-instance drill-down (`smith`)
+#### 10) One-instance drill-down (`smith`)
 
 ```kusto
 union withsource=table requests, dependencies, traces, exceptions
@@ -448,7 +514,7 @@ union withsource=table requests, dependencies, traces, exceptions
 | order by timestamp desc
 ```
 
-#### 10) If Live Metrics only shows requests, confirm the exporter is still sending custom telemetry
+#### 11) If Live Metrics only shows requests, confirm the exporter is still sending custom telemetry
 
 ```kusto
 union withsource=table dependencies, traces
