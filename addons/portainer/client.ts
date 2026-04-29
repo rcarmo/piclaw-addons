@@ -513,21 +513,33 @@ export async function resolvePortainerAuth(apiTokenKeychain: string): Promise<Po
   return { base_url: baseUrl, token };
 }
 
-export async function discoverPortainerInstances(): Promise<PortainerDiscoveryResult> {
+export async function discoverPortainerInstances(defaultConfig?: Partial<Pick<PortainerApiConfig, "base_url" | "api_token_keychain" | "allow_insecure_tls">>): Promise<PortainerDiscoveryResult> {
   const envBase = (process.env.PICLAW_PORTAINER_BASE || process.env.PORTAINER_BASE || "").trim() || null;
+  const defaultBaseUrl = defaultConfig?.base_url?.trim() || envBase || null;
+  const defaultKeychain = defaultConfig?.api_token_keychain?.trim() || DEFAULT_PORTAINER_KEYCHAIN;
+  const defaultAllowInsecureTls = defaultConfig?.allow_insecure_tls ?? true;
   const keychains = listKeychainEntries()
     .map((entry) => entry.name)
     .filter((name) => name.startsWith("portainer/"));
 
   const candidates: PortainerDiscoveryCandidate[] = [];
+  if (defaultBaseUrl && defaultKeychain) {
+    candidates.push({
+      source: "settings",
+      base_url: defaultBaseUrl,
+      api_token_keychain: defaultKeychain,
+      allow_insecure_tls: defaultAllowInsecureTls,
+    });
+  }
+
   for (const name of keychains) {
     try {
       const auth = await resolvePortainerAuth(name);
       candidates.push({
         source: name === DEFAULT_PORTAINER_KEYCHAIN ? "default-keychain" : "keychain",
-        base_url: envBase || auth.base_url,
+        base_url: defaultBaseUrl || auth.base_url,
         api_token_keychain: name,
-        allow_insecure_tls: true,
+        allow_insecure_tls: defaultAllowInsecureTls,
       });
     } catch (error) {
       debugSuppressedError(log, "Skipping unusable Portainer discovery keychain entry.", error, {
@@ -541,9 +553,17 @@ export async function discoverPortainerInstances(): Promise<PortainerDiscoveryRe
     array.findIndex((entry) => entry.api_token_keychain === candidate.api_token_keychain && entry.base_url === candidate.base_url) === index
   );
 
-  const defaultCandidate = uniqueCandidates.find((candidate) => candidate.api_token_keychain === DEFAULT_PORTAINER_KEYCHAIN)
+  const defaultCandidate = uniqueCandidates.find((candidate) => candidate.api_token_keychain === defaultKeychain && candidate.base_url === defaultBaseUrl)
+    ?? uniqueCandidates.find((candidate) => candidate.api_token_keychain === DEFAULT_PORTAINER_KEYCHAIN)
     ?? uniqueCandidates[0]
-    ?? null;
+    ?? (defaultBaseUrl && defaultKeychain
+      ? {
+          source: defaultConfig?.base_url ? "settings" : "env",
+          base_url: defaultBaseUrl,
+          api_token_keychain: defaultKeychain,
+          allow_insecure_tls: defaultAllowInsecureTls,
+        }
+      : null);
 
   return {
     default_candidate: defaultCandidate,

@@ -29,6 +29,29 @@ import { presentStructuredToolValue } from "./compat/structured-tool-response.js
 type SessionPortainerConfigInput = Omit<PortainerConfig, "chat_jid" | "created_at" | "updated_at">;
 type PortainerToolResult = { content: Array<{ type: "text"; text: string }>; details: Record<string, unknown> };
 
+interface PortainerSettingsConfig {
+  host: string;
+  base_url: string;
+  api_token_keychain: string;
+  allow_insecure_tls: boolean;
+}
+
+interface ResolvedPortainerConfigState {
+  stored_config: PortainerConfig | null;
+  settings_config: PortainerSettingsConfig;
+  effective_config: PortainerApiConfig | null;
+  source: "session" | "settings" | "merged" | "none";
+}
+
+const DEFAULT_PORTAINER_TOKEN_KEYCHAIN = process.env.PICLAW_PORTAINER_KEYCHAIN?.trim() || "portainer/relay";
+const DEFAULT_PORTAINER_PORT = process.env.PICLAW_PORTAINER_PORT?.trim() || "9443";
+const DEFAULT_PORTAINER_SETTINGS: PortainerSettingsConfig = {
+  host: "",
+  base_url: "",
+  api_token_keychain: DEFAULT_PORTAINER_TOKEN_KEYCHAIN,
+  allow_insecure_tls: true,
+};
+
 export interface PortainerRequestResult {
   status: number;
   method: string;
@@ -67,13 +90,15 @@ function kvGetConfig(chatJid: string): PortainerConfig | null {
 }
 
 function kvSetConfig(chatJid: string, config: SessionPortainerConfigInput): PortainerConfigSetResult {
+  const previous = kvGetConfig(chatJid);
+  const timestamp = new Date().toISOString();
   const full: PortainerConfig = {
     chat_jid: chatJid,
-    base_url: config.base_url,
-    api_token_keychain: config.api_token_keychain,
+    base_url: typeof config.base_url === "string" ? config.base_url.trim() : "",
+    api_token_keychain: typeof config.api_token_keychain === "string" ? config.api_token_keychain.trim() : "",
     allow_insecure_tls: config.allow_insecure_tls,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    created_at: previous?.created_at || timestamp,
+    updated_at: timestamp,
   };
   getStorage().set("config", full, "chat", chatJid);
   return { config: full, apply_timing: "immediate" };
@@ -84,19 +109,132 @@ function kvClearConfig(chatJid: string): PortainerConfigClearResult {
   return { deleted, apply_timing: "immediate" };
 }
 
-function resolveApiConfig(chatJid: string): PortainerApiConfig | null {
-  const config = kvGetConfig(chatJid);
-  if (!config) return null;
-  return {
-    base_url: config.base_url,
-    api_token_keychain: config.api_token_keychain,
-    allow_insecure_tls: config.allow_insecure_tls ?? true,
+export function normalizePortainerBaseUrlInput(value: string): string {
+  const trimmed = typeof value === "string" ? value.trim() : "";
+  if (!trimmed) return "";
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    try {
+      const url = new URL(trimmed);
+      url.pathname = url.pathname === "/" || !url.pathname ? "" : url.pathname.replace(/\/+$/, "");
+      url.search = "";
+      url.hash = "";
+      return url.toString().replace(/\/+$/, "");
+    } catch {
+      return trimmed.replace(/\/+$/, "");
+    }
+  }
+
+  const host = trimmed.replace(/^\/+/, "").replace(/\/+$/, "");
+  return `https://${host}:${DEFAULT_PORTAINER_PORT}`;
+}
+
+export function derivePortainerHostInput(value: string): string {
+  const trimmed = typeof value === "string" ? value.trim() : "";
+  if (!trimmed) return "";
+  try {
+    const url = new URL(trimmed);
+    return url.hostname || url.host || "";
+  } catch {
+    return trimmed.replace(/^https?:\/\//i, "").replace(/\/.*$/, "");
+  }
+}
+
+function loadPortainerSettingsConfig(): PortainerSettingsConfig {
+  try {
+    const saved = getStorage().get<Partial<PortainerSettingsConfig>>("settings", "global") || {};
+    const base_url = normalizePortainerBaseUrlInput(
+      typeof saved.base_url === "string" && saved.base_url.trim()
+        ? saved.base_url
+        : (typeof saved.host === "string" ? saved.host : ""),
+    );
+    const host = typeof saved.host === "string" && saved.host.trim()
+      ? saved.host.trim()
+      : derivePortainerHostInput(base_url);
+    return {
+      ...DEFAULT_PORTAINER_SETTINGS,
+      ...saved,
+      host,
+      base_url,
+      api_token_keychain: typeof saved.api_token_keychain === "string" && saved.api_token_keychain.trim()
+        ? saved.api_token_keychain.trim()
+        : DEFAULT_PORTAINER_TOKEN_KEYCHAIN,
+      allow_insecure_tls: saved.allow_insecure_tls ?? DEFAULT_PORTAINER_SETTINGS.allow_insecure_tls,
+    };
+  } catch {
+    return { ...DEFAULT_PORTAINER_SETTINGS };
+  }
+}
+
+function savePortainerSettingsConfig(patch: Partial<PortainerSettingsConfig>): PortainerSettingsConfig {
+  const current = loadPortainerSettingsConfig();
+  const hasHost = Object.prototype.hasOwnProperty.call(patch, "host");
+  const hasBaseUrl = Object.prototype.hasOwnProperty.call(patch, "base_url");
+  const nextHostInput = hasHost ? String(patch.host || "").trim() : current.host;
+  const nextBaseUrl = hasBaseUrl
+    ? normalizePortainerBaseUrlInput(String(patch.base_url || ""))
+    : hasHost
+      ? normalizePortainerBaseUrlInput(nextHostInput)
+      : current.base_url;
+
+  const next: PortainerSettingsConfig = {
+    host: nextHostInput || derivePortainerHostInput(nextBaseUrl),
+    base_url: nextBaseUrl,
+    api_token_keychain: typeof patch.api_token_keychain === "string"
+      ? (patch.api_token_keychain.trim() || DEFAULT_PORTAINER_TOKEN_KEYCHAIN)
+      : current.api_token_keychain,
+    allow_insecure_tls: patch.allow_insecure_tls ?? current.allow_insecure_tls,
   };
+  getStorage().set("settings", next, "global");
+  return next;
+}
+
+function hasConfiguredSettings(settings: PortainerSettingsConfig): boolean {
+  return Boolean(
+    settings.base_url
+    || (settings.api_token_keychain && settings.api_token_keychain !== DEFAULT_PORTAINER_TOKEN_KEYCHAIN)
+    || settings.allow_insecure_tls !== DEFAULT_PORTAINER_SETTINGS.allow_insecure_tls,
+  );
+}
+
+function resolveApiConfig(chatJid: string): PortainerApiConfig | null {
+  return resolvePortainerConfigState(chatJid).effective_config;
+}
+
+function resolvePortainerConfigState(chatJid: string, storedOverride?: PortainerConfig | null): ResolvedPortainerConfigState {
+  const stored_config = storedOverride === undefined ? kvGetConfig(chatJid) : storedOverride;
+  const settings_config = loadPortainerSettingsConfig();
+  const base_url = readTrimmedString(stored_config?.base_url, settings_config.base_url);
+  const api_token_keychain = readTrimmedString(stored_config?.api_token_keychain, settings_config.api_token_keychain);
+  const allow_insecure_tls = stored_config?.allow_insecure_tls ?? settings_config.allow_insecure_tls ?? true;
+  const effective_config = base_url && api_token_keychain
+    ? { base_url, api_token_keychain, allow_insecure_tls }
+    : null;
+  const source = stored_config
+    ? (hasConfiguredSettings(settings_config) ? "merged" : "session")
+    : effective_config
+      ? "settings"
+      : "none";
+
+  return {
+    stored_config,
+    settings_config,
+    effective_config,
+    source,
+  };
+}
+
+function handleGetPortainerSettings(): PortainerSettingsConfig {
+  return loadPortainerSettingsConfig();
+}
+
+function handleSetPortainerSettings(body: Partial<PortainerSettingsConfig>): { ok: true; config: PortainerSettingsConfig } {
+  return { ok: true, config: savePortainerSettingsConfig(body) };
 }
 
 async function kvRequest(chatJid: string, input: { method: string; path: string; query?: unknown; body?: unknown; body_mode?: string }): Promise<PortainerRequestResult> {
   const apiConfig = resolveApiConfig(chatJid);
-  if (!apiConfig) throw new Error(`No Portainer config for ${chatJid}. Use action=set first.`);
+  if (!apiConfig) throw new Error(`No usable Portainer config for ${chatJid}. Use action=set or fill in the Portainer addon settings.`);
   const response = await requestPortainerApi(apiConfig, {
     method: input.method as PortainerApiMethod,
     path: input.path,
@@ -108,7 +246,7 @@ async function kvRequest(chatJid: string, input: { method: string; path: string;
 
 async function kvWorkflow(chatJid: string, input: PortainerWorkflowRequest): Promise<PortainerWorkflowResponse> {
   const apiConfig = resolveApiConfig(chatJid);
-  if (!apiConfig) throw new Error(`No Portainer config for ${chatJid}. Use action=set first.`);
+  if (!apiConfig) throw new Error(`No usable Portainer config for ${chatJid}. Use action=set or fill in the Portainer addon settings.`);
   return runPortainerWorkflow(apiConfig, input);
 }
 
@@ -147,7 +285,7 @@ registerToolStatusHintProvider({
         record?.baseUrl,
         record?.url,
         record?.endpoint,
-        registeredHandlers?.get(chatJid)?.base_url ?? kvGetConfig(chatJid)?.base_url,
+        registeredHandlers?.get(chatJid)?.base_url ?? resolvePortainerConfigState(chatJid).effective_config?.base_url,
       ),
     );
     if (!host) return null;
@@ -236,7 +374,7 @@ const PortainerToolSchema = Type.Object({
     description: "Operation to perform for the current chat Portainer config, API request, or workflow.",
   }),
   chat_jid: Type.Optional(Type.String({ description: "Target chat JID. Defaults to the current chat context." })),
-  base_url: Type.Optional(Type.String({ description: "Portainer base URL, typically like https://host:9443." })),
+  base_url: Type.Optional(Type.String({ description: "Portainer base URL, typically like https://host:9443. Bare hosts/IPs should be configured in the addon settings pane." })),
   api_token_keychain: Type.Optional(Type.String({ description: "Keychain entry containing the Portainer API token secret." })),
   allow_insecure_tls: Type.Optional(Type.Boolean({ description: "Allow insecure/self-signed TLS when calling the API." })),
   method: Type.Optional(Type.String({ description: "HTTP method for action=request (GET, POST, PUT, DELETE)." })),
@@ -671,7 +809,7 @@ function buildPortainerContractPayload(): Record<string, unknown> {
       get: ["chat_jid"],
       set: ["base_url", "api_token_keychain", "allow_insecure_tls"],
       clear: ["chat_jid"],
-      discover: ["env hints", "keychain hints"],
+      discover: ["addon settings", "env hints", "keychain hints"],
     },
     request_contract: buildPortainerRequestHelpPayload().request_contract,
     workflow_contract: {
@@ -811,7 +949,8 @@ function buildPortainerRecommendations(intent: string | undefined, options?: { c
 const PORTAINER_TOOL_HINT = [
   "## Portainer",
   "Use portainer to inspect or change the Portainer API profile for the current session.",
-  "Use portainer discover to find a likely existing Portainer instance from keychain/env hints.",
+  "The addon settings pane can provide default host/IP, token keychain, and TLS settings for all chats.",
+  "Use portainer discover to find a likely existing Portainer instance from addon settings, keychain hints, or env hints.",
   "Use portainer capabilities to list workflow families, portainer recommend for intent-based shortlists, and portainer workflow_help for one workflow's fields/guidance.",
   "Use portainer contract for the overall tool contract and request_help for raw request fields, response shape, Docker-proxy request examples, and bounded stats-snapshot patterns.",
   "Use portainer request for ad-hoc Portainer API calls and portainer workflow for reusable endpoint/stack/container/image/network/volume orchestration.",
@@ -844,6 +983,25 @@ export const portainerTool: ExtensionFactory = (pi: ExtensionAPI) => {
   pi.on("before_agent_start", async (event) => ({
     systemPrompt: `${event.systemPrompt}\n\n${PORTAINER_TOOL_HINT}`,
   }));
+
+  pi.registerCommand("portainer-config-get", {
+    description: "Get Portainer addon settings (internal)",
+    handler: async () => {
+      pi.sendMessage({ customType: "portainer", content: JSON.stringify(handleGetPortainerSettings()), display: false });
+    },
+  });
+
+  pi.registerCommand("portainer-config-set", {
+    description: "Set Portainer addon settings (internal)",
+    handler: async (args: string) => {
+      try {
+        const body = JSON.parse(args) as Partial<PortainerSettingsConfig>;
+        pi.sendMessage({ customType: "portainer", content: JSON.stringify(handleSetPortainerSettings(body)), display: false });
+      } catch (err) {
+        pi.sendMessage({ customType: "portainer", content: JSON.stringify({ ok: false, error: String(err) }), display: false });
+      }
+    },
+  });
 
   pi.registerTool({
     name: "portainer",
@@ -932,36 +1090,54 @@ export const portainerTool: ExtensionFactory = (pi: ExtensionAPI) => {
 
       const handlers = registeredHandlers;
       if (params.action === "get") {
-        const config = handlers?.get(chatJid) ?? kvGetConfig(chatJid);
-        if (!config) {
+        const resolved = resolvePortainerConfigState(chatJid, handlers?.get(chatJid));
+        if (!resolved.effective_config) {
           return {
-            content: [{ type: "text", text: `No Portainer config stored for ${chatJid}.` }],
-            details: { action: "get", chat_jid: chatJid, configured: false, config: null },
+            content: [{ type: "text", text: `No usable Portainer config stored for ${chatJid}. Fill in the Portainer addon settings or use action=set.` }],
+            details: {
+              action: "get",
+              chat_jid: chatJid,
+              configured: false,
+              source: resolved.source,
+              config: null,
+              stored_config: resolved.stored_config,
+              settings_config: resolved.settings_config,
+            },
           };
         }
         return {
           content: [{
             type: "text",
-            text: `Portainer config for ${chatJid}: ${config.base_url} (key ${config.api_token_keychain}, insecure TLS ${config.allow_insecure_tls ? "on" : "off"}).`,
+            text: `Portainer config for ${chatJid}: ${resolved.effective_config.base_url} (key ${resolved.effective_config.api_token_keychain}, source ${resolved.source}, insecure TLS ${resolved.effective_config.allow_insecure_tls ? "on" : "off"}).`,
           }],
-          details: { action: "get", chat_jid: chatJid, configured: true, config },
+          details: {
+            action: "get",
+            chat_jid: chatJid,
+            configured: true,
+            source: resolved.source,
+            config: resolved.effective_config,
+            stored_config: resolved.stored_config,
+            settings_config: resolved.settings_config,
+          },
         };
       }
 
       if (params.action === "set") {
+        const current = handlers?.get(chatJid) ?? kvGetConfig(chatJid);
         const result = handlers ? await handlers.set(chatJid, {
-          base_url: typeof params.base_url === "string" ? params.base_url.trim() : "",
-          api_token_keychain: typeof params.api_token_keychain === "string" ? params.api_token_keychain.trim() : "",
-          allow_insecure_tls: params.allow_insecure_tls ?? true,
+          base_url: typeof params.base_url === "string" ? params.base_url.trim() : (current?.base_url || ""),
+          api_token_keychain: typeof params.api_token_keychain === "string" ? params.api_token_keychain.trim() : (current?.api_token_keychain || ""),
+          allow_insecure_tls: params.allow_insecure_tls ?? current?.allow_insecure_tls ?? true,
         }) : kvSetConfig(chatJid, {
-          base_url: typeof params.base_url === "string" ? params.base_url.trim() : "",
-          api_token_keychain: typeof params.api_token_keychain === "string" ? params.api_token_keychain.trim() : "",
-          allow_insecure_tls: params.allow_insecure_tls ?? true,
+          base_url: typeof params.base_url === "string" ? params.base_url.trim() : (current?.base_url || ""),
+          api_token_keychain: typeof params.api_token_keychain === "string" ? params.api_token_keychain.trim() : (current?.api_token_keychain || ""),
+          allow_insecure_tls: params.allow_insecure_tls ?? current?.allow_insecure_tls ?? true,
         });
+        const resolved = resolvePortainerConfigState(chatJid, result.config);
         return {
           content: [{
             type: "text",
-            text: `Stored Portainer config for ${chatJid}: ${result.config.base_url} (key ${result.config.api_token_keychain}). Applies immediately.`,
+            text: `Stored Portainer session override for ${chatJid}: ${resolved.effective_config?.base_url || result.config.base_url || "(inherits addon settings)"} (key ${resolved.effective_config?.api_token_keychain || result.config.api_token_keychain || "(inherits addon settings)"}). Applies immediately.`,
           }],
           details: {
             action: "set",
@@ -969,17 +1145,22 @@ export const portainerTool: ExtensionFactory = (pi: ExtensionAPI) => {
             updated: true,
             apply_timing: result.apply_timing,
             config: result.config,
+            effective_config: resolved.effective_config,
+            source: resolved.source,
           },
         };
       }
 
       if (params.action === "clear") {
         const result = handlers ? await handlers.clear(chatJid) : kvClearConfig(chatJid);
+        const resolved = resolvePortainerConfigState(chatJid, null);
         return {
           content: [{
             type: "text",
             text: result.deleted
-              ? `Cleared Portainer config for ${chatJid}. Applies immediately.`
+              ? (resolved.effective_config
+                ? `Cleared Portainer session override for ${chatJid}. Addon settings remain available.`
+                : `Cleared Portainer config for ${chatJid}. Applies immediately.`)
               : `No Portainer config existed for ${chatJid}. Applies immediately.`,
           }],
           details: {
@@ -987,6 +1168,8 @@ export const portainerTool: ExtensionFactory = (pi: ExtensionAPI) => {
             chat_jid: chatJid,
             deleted: result.deleted,
             apply_timing: result.apply_timing,
+            effective_config: resolved.effective_config,
+            source: resolved.source,
           },
         };
       }
@@ -994,17 +1177,19 @@ export const portainerTool: ExtensionFactory = (pi: ExtensionAPI) => {
       if (params.action === "discover") {
         startPortainerUiProgress(ctx, "Portainer: discovering configured instances…");
         try {
-          const discovery = await discoverPortainerInstances();
+          const settings = loadPortainerSettingsConfig();
+          const discovery = await discoverPortainerInstances(settings);
           return {
             content: [{
               type: "text",
               text: discovery.default_candidate
                 ? `Discovered ${discovery.candidates.length} Portainer candidate(s); default ${discovery.default_candidate.api_token_keychain}${discovery.default_candidate.base_url ? ` @ ${discovery.default_candidate.base_url}` : ""}.`
-                : "No Portainer instances discovered from current keychain/env hints.",
+                : "No Portainer instances discovered from addon settings, keychain hints, or env hints.",
             }],
             details: {
               action: "discover",
               chat_jid: chatJid,
+              settings_config: settings,
               ...discovery,
             },
           };
