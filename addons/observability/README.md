@@ -269,6 +269,8 @@ piclaw.relay.provider.error.*      # all provider errors on relay
 | **Live Metrics Stream** | Real-time exceptions, request rate, CPU/memory per instance |
 
 > **Important:** Live Metrics often shows mostly **requests** and aggregate rates. That is normal. The custom piclaw spans (`agent.turn`, `tool.call`, `provider.error`, `log.error`, `log.warn`) are easier to inspect in **Logs / Kusto**, **Transaction Search**, and sometimes **Dependencies**.
+>
+> Piclaw also stamps a **synthetic result code** onto spans so `resultCode` is no longer `NaN` in App Insights for custom telemetry: `200=info/success`, `300=warn`, `400=error`.
 
 ### Kusto queries
 

@@ -6,6 +6,7 @@
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, copyFileSync } from "fs";
 import { join, dirname, normalize } from "path";
+import { marked } from "marked";
 
 const ROOT    = dirname(Bun.main);
 const CATALOG = join(ROOT, "catalog.json");
@@ -77,71 +78,48 @@ function addonReadme(addon: Addon): string {
   return readFileSync(p, "utf8");
 }
 
+const CODE_COPY_ICON_SVG = `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg>`;
+const CODE_COPY_SUCCESS_SVG = `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 6L9 17l-5-5"></path></svg>`;
+const CODE_COPY_ERROR_SVG = `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"></circle><path d="M9 9l6 6M15 9l-6 6"></path></svg>`;
+
+function normalizeCodeLanguageLabel(lang: string | null | undefined): string {
+  const trimmed = String(lang || "").trim();
+  if (!trimmed) return "text";
+  const base = trimmed.split(/[\s,]+/, 1)[0] || trimmed;
+  return base.toLowerCase();
+}
+
+const markdownRenderer = new marked.Renderer();
+markdownRenderer.heading = function ({ tokens, depth }) {
+  if (depth === 1) return "";
+  return `<h${depth}>${this.parser.parseInline(tokens)}</h${depth}>`;
+};
+markdownRenderer.link = function ({ href, title, tokens }) {
+  const text = this.parser.parseInline(tokens);
+  const safeHref = typeof href === "string" ? esc(href) : "";
+  if (!safeHref) return text;
+  const safeTitle = typeof title === "string" && title ? ` title="${esc(title)}"` : "";
+  return `<a href="${safeHref}" target="_blank" rel="noopener"${safeTitle}>${text}</a>`;
+};
+markdownRenderer.image = function ({ href, title, text }) {
+  const safeHref = typeof href === "string" ? esc(href) : "";
+  const safeAlt = esc(text || "");
+  const safeTitle = typeof title === "string" && title ? ` title="${esc(title)}"` : "";
+  return `<figure class="md-figure"><img src="${safeHref}" alt="${safeAlt}" loading="lazy"${safeTitle}></figure>`;
+};
+markdownRenderer.code = function ({ text, lang }) {
+  const normalizedLang = normalizeCodeLanguageLabel(lang);
+  const langClass = normalizedLang && normalizedLang !== "text" ? ` class="language-${esc(normalizedLang)}"` : "";
+  return `<div class="addon-code-block"><div class="addon-code-block-header"><span class="addon-code-lang">${esc(normalizedLang)}</span><button type="button" class="addon-code-copy-btn" aria-label="Copy code" title="Copy code" data-copy-state="idle"><span class="addon-code-copy-icon" aria-hidden="true">${CODE_COPY_ICON_SVG}</span><span class="addon-code-copy-label">Copy</span></button></div><pre><code${langClass}>${esc(text)}</code></pre></div>`;
+};
+
 function mdToHtml(md: string): string {
-  // Extract code blocks first so they aren't mangled by later regexes
-  const codeBlocks: string[] = [];
-  let result = md.replace(/```[\w]*\n([\s\S]*?)```/gm, (_m, code) => {
-    codeBlocks.push(`<pre><code>${code}</code></pre>`);
-    return `<!--CODE${codeBlocks.length - 1}-->`;
-  });
-
-  // Extract inline SVG blocks so paragraph processing doesn't mangle them
-  const svgBlocks: string[] = [];
-  result = result.replace(/<svg[\s\S]*?<\/svg>/gm, (match) => {
-    svgBlocks.push(match);
-    return `<!--SVG${svgBlocks.length - 1}-->`;
-  });
-
-  // Extract inline HTML blocks (<div>, <details>, etc.)
-  const htmlBlocks: string[] = [];
-  result = result.replace(/<(div|details|section|aside|figure|blockquote)[\s\S]*?<\/\1>/gm, (match) => {
-    htmlBlocks.push(match);
-    return `<!--HTML${htmlBlocks.length - 1}-->`;
-  });
-
-  // Extract markdown tables before paragraph processing
-  const tables: string[] = [];
-  const inlineFormat = (s: string) => s
-    .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_m, alt, src) => `<img src="${esc(src)}" alt="${esc(alt)}" loading="lazy">`)
-    .replace(/`([^`]+)`/g, "<code>$1</code>")
-    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-    .replace(/\*([^*]+)\*/g, "<em>$1</em>")
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
-  result = result.replace(/^(\|.+\|\n)(\|[\s:|-]+\|\n)((?:\|.+\|\n?)+)/gm, (_m, headerRow, _sepRow, bodyRows) => {
-    const headers = headerRow.trim().split("|").filter((c: string) => c.trim()).map((c: string) => inlineFormat(c.trim()));
-    const rows = bodyRows.trim().split("\n").map((row: string) =>
-      row.split("|").filter((c: string) => c.trim()).map((c: string) => inlineFormat(c.trim()))
-    );
-    const html = `<table class="md-table"><thead><tr>${headers.map((h: string) => `<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.map((r: string[]) => `<tr>${r.map((c: string) => `<td>${c}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
-    tables.push(html);
-    return `<!--TABLE${tables.length - 1}-->`;
-  });
-
-  result = result
-    .replace(/^#{1} .+$/gm, "")                                           // strip h1
-    .replace(/^-{3,}$/gm, "<hr>")                                          // horizontal rules
-    .replace(/^## (.+)$/gm, "<h2>$1</h2>")
-    .replace(/^### (.+)$/gm, "<h3>$1</h3>")
-    .replace(/^#### (.+)$/gm, "<h4>$1</h4>")
-    .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_m, alt, src) => `<figure class="md-figure"><img src="${esc(src)}" alt="${esc(alt)}" loading="lazy"></figure>`)
-    .replace(/`([^`]+)`/g, "<code>$1</code>")
-    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-    .replace(/\*([^*]+)\*/g, "<em>$1</em>")
-    .replace(/^\s*[-*] (.+)$/gm, "<li>$1</li>")
-    .replace(/((?:<li>.*<\/li>\n?)+)/g, "<ul>\n$1</ul>")
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
-    .replace(/^(?!<[hulpsd]|<\/|<!--CODE|<!--TABLE|<!--SVG|<!--HTML|$)(.+)$/gm, "<p>$1</p>")
-    .replace(/\n{2,}/g, "\n");
-
-  // Restore code blocks
-  result = result.replace(/<!--CODE(\d+)-->/g, (_m, i) => codeBlocks[Number(i)]);
-  // Restore tables
-  result = result.replace(/<!--TABLE(\d+)-->/g, (_m, i) => tables[Number(i)]);
-  // Restore HTML blocks
-  result = result.replace(/<!--HTML(\d+)-->/g, (_m, i) => htmlBlocks[Number(i)]);
-  // Restore SVG blocks
-  result = result.replace(/<!--SVG(\d+)-->/g, (_m, i) => svgBlocks[Number(i)]);
-  return result;
+  const tokens = marked.lexer(md, { gfm: true }) as any[];
+  const filteredTokens = tokens.filter((token) => !(token?.type === "heading" && token?.depth === 1));
+  return marked.parser(filteredTokens as any, {
+    gfm: true,
+    renderer: markdownRenderer,
+  }) as string;
 }
 
 function tagBadge(tag: string) {
@@ -319,11 +297,27 @@ html,body{min-height:100%;background:var(--bg);color:var(--ink);font-family:var(
 .detail-body h2{font-family:var(--font-head);font-size:1.2rem;font-weight:700;margin:2rem 0 .65rem;color:var(--ink)}
 .detail-body h3{font-family:var(--font-head);font-size:1rem;font-weight:600;margin:1.3rem 0 .45rem}
 .detail-body p{margin:.55rem 0;font-size:.925rem;color:var(--ink-dim)}
-.detail-body ul{padding-left:1.4rem;margin:.45rem 0}
+.detail-body ul,.detail-body ol{padding-left:1.4rem;margin:.45rem 0}
 .detail-body li{font-size:.925rem;color:var(--ink-dim);margin:.25rem 0}
+.detail-body blockquote{margin:.9rem 0;padding:.15rem 0 .15rem 1rem;border-left:3px solid color-mix(in srgb, var(--accent) 45%, var(--border));color:var(--ink-dim);background:color-mix(in srgb, var(--accent-bg) 55%, transparent);border-radius:0 10px 10px 0}
+.detail-body blockquote > :first-child{margin-top:0}
+.detail-body blockquote > :last-child{margin-bottom:0}
 .detail-body pre{background:rgba(0,0,0,.04);border:1px solid var(--border);border-radius:8px;
   padding:.95rem 1.1rem;overflow-x:auto;margin:.7rem 0}
 .detail-body code{font-family:var(--font-mono);font-size:.83rem}
+.addon-code-block{margin:.9rem 0;border:1px solid var(--border);border-radius:10px;overflow:hidden;background:color-mix(in srgb, var(--surface) 92%, var(--accent-bg))}
+.addon-code-block-header{display:flex;align-items:center;justify-content:space-between;gap:.65rem;padding:.55rem .7rem;border-bottom:1px solid var(--border);background:color-mix(in srgb, var(--accent-bg) 35%, var(--surface))}
+.addon-code-lang{display:inline-flex;align-items:center;min-width:0;font-family:var(--font-body);font-size:.72rem;line-height:1;text-transform:none;color:var(--ink-dim);letter-spacing:.02em}
+.addon-code-copy-btn{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--border);border-radius:999px;padding:4px 9px;background:transparent;color:var(--ink-dim);font-size:.72rem;line-height:1;cursor:pointer;white-space:nowrap}
+.addon-code-copy-btn:hover{background:color-mix(in srgb, var(--accent) 10%, transparent);border-color:color-mix(in srgb, var(--accent) 28%, var(--border));color:var(--ink)}
+.addon-code-copy-btn:focus-visible{outline:none;box-shadow:0 0 0 2px color-mix(in srgb, var(--accent) 36%, transparent)}
+.addon-code-copy-btn[data-copy-state="success"]{color:#10b981;border-color:color-mix(in srgb, #10b981 35%, var(--border))}
+.addon-code-copy-btn[data-copy-state="error"]{color:#ef4444;border-color:color-mix(in srgb, #ef4444 35%, var(--border))}
+.addon-code-copy-icon{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px}
+.addon-code-copy-icon svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.addon-code-copy-label{font-weight:600}
+.addon-code-block pre{margin:0;border:none;border-radius:0;background:transparent;padding:1rem 1.1rem;overflow-x:auto}
+.addon-code-block pre code{background:none;padding:0;border:none;font-size:.82rem;display:block;white-space:pre}
 .md-figure{margin:1rem 0}
 .md-figure img,.detail-body p img,.detail-body li img{display:block;max-width:100%;height:auto;border-radius:10px;border:1px solid var(--border);box-shadow:var(--shadow)}
 .md-table{width:100%;border-collapse:collapse;margin:.7rem 0;font-size:.9rem}
@@ -331,7 +325,7 @@ html,body{min-height:100%;background:var(--bg);color:var(--ink);font-family:var(
 .md-table th{background:var(--accent-bg);font-family:var(--font-head);font-weight:600;font-size:.82rem}
 .md-table td{color:var(--ink-dim)}
 .md-table code{font-size:.78rem}
-.detail-body p code{background:rgba(0,0,0,.04);padding:.1em .35em;border-radius:4px}
+.detail-body :not(pre) > code{background:rgba(0,0,0,.04);padding:.1em .35em;border-radius:4px}
 .detail-body a{color:var(--accent)}
 @media(prefers-color-scheme:dark){.detail-body pre{background:rgba(255,255,255,.04)}}
 @media(max-width:640px){

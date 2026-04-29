@@ -202,6 +202,24 @@ export function isActive(): boolean { return otelActive; }
 
 function inst(): string { return instanceName(loadConfig()); }
 
+function syntheticResultCodeForLevel(level: string | null | undefined): number {
+  switch ((level || "").toLowerCase()) {
+    case "debug": return 100;
+    case "info": return 200;
+    case "warn": return 300;
+    case "error": return 400;
+    default: return 200;
+  }
+}
+
+function setSyntheticResultCode(span: Span, code: number): void {
+  const normalized = Number.isFinite(code) ? Math.trunc(code) : 200;
+  span.setAttribute("http.status_code", normalized);
+  span.setAttribute("http.response.status_code", normalized);
+  span.setAttribute("piclaw.result_code", normalized);
+  span.setAttribute("piclaw.result_code_source", "synthetic");
+}
+
 export function startAgentTurnSpan(chatJid: string, opts?: { model?: string | null; turnId?: string }): Span {
   return getTracer().startSpan("agent.turn", {
     attributes: {
@@ -221,9 +239,11 @@ export function endAgentTurnSpan(span: Span, result: {
 }): void {
   if (result.status === "error") {
     span.setStatus({ code: SpanStatusCode.ERROR, message: result.error || "unknown" });
+    setSyntheticResultCode(span, 400);
     if (result.error) span.recordException(new Error(result.error));
   } else {
     span.setStatus({ code: SpanStatusCode.OK });
+    setSyntheticResultCode(span, 200);
   }
   span.setAttribute("piclaw.turn.status", result.status);
   if (result.tokenCount != null) span.setAttribute("piclaw.turn.tokens", result.tokenCount);
@@ -240,8 +260,15 @@ export function recordToolCall(chatJid: string, toolName: string, durationMs: nu
     attributes: { "piclaw.chat_jid": chatJid, "piclaw.tool.name": toolName, "piclaw.instance": inst() },
     ...(opts?.parentSpan ? { context: trace.setSpan(context.active(), opts.parentSpan) } : {}),
   });
-  if (opts?.error) { span.setStatus({ code: SpanStatusCode.ERROR, message: opts.error }); span.recordException(new Error(opts.error)); }
-  else { span.setStatus({ code: SpanStatusCode.OK }); }
+  if (opts?.error) {
+    span.setStatus({ code: SpanStatusCode.ERROR, message: opts.error });
+    setSyntheticResultCode(span, 400);
+    span.recordException(new Error(opts.error));
+  }
+  else {
+    span.setStatus({ code: SpanStatusCode.OK });
+    setSyntheticResultCode(span, 200);
+  }
   span.setAttribute("piclaw.tool.duration_ms", durationMs);
   span.end();
 }
@@ -256,6 +283,7 @@ export function recordProviderError(chatJid: string, error: string, opts?: { mod
     },
   });
   span.setStatus({ code: SpanStatusCode.ERROR, message: error });
+  setSyntheticResultCode(span, 400);
   span.recordException(new Error(error));
   span.end();
 }
@@ -405,6 +433,7 @@ function removeLogSinkBridge(): void {
   // End any dangling turn spans
   for (const [key, entry] of inflightTurns) {
     entry.span.setStatus({ code: SpanStatusCode.ERROR, message: "session shutdown" });
+    setSyntheticResultCode(entry.span, 400);
     entry.span.end();
   }
   inflightTurns.clear();
@@ -435,6 +464,7 @@ function bridgeSink(record: LogRecord): void {
     const entry = inflightTurns.get(chatJid);
     if (entry) {
       entry.span.setStatus({ code: SpanStatusCode.OK });
+      setSyntheticResultCode(entry.span, 200);
       entry.span.setAttribute("piclaw.turn.status", "success");
       if (typeof record.durationMs === "number") entry.span.setAttribute("piclaw.turn.duration_ms", record.durationMs);
       if (typeof record.outputChars === "number") entry.span.setAttribute("piclaw.turn.output_chars", record.outputChars);
@@ -454,6 +484,7 @@ function bridgeSink(record: LogRecord): void {
     const errorMsg = typeof record.errorMessage === "string" ? record.errorMessage : typeof record.errorText === "string" ? record.errorText : "unknown";
     if (entry) {
       entry.span.setStatus({ code: SpanStatusCode.ERROR, message: errorMsg });
+      setSyntheticResultCode(entry.span, 400);
       entry.span.recordException(new Error(errorMsg));
       entry.span.setAttribute("piclaw.turn.status", "error");
       if (typeof record.durationMs === "number") entry.span.setAttribute("piclaw.turn.duration_ms", record.durationMs);
@@ -471,6 +502,7 @@ function bridgeSink(record: LogRecord): void {
     const detail = typeof record.detail === "string" ? record.detail : "no terminal reply";
     if (entry) {
       entry.span.setStatus({ code: SpanStatusCode.ERROR, message: detail });
+      setSyntheticResultCode(entry.span, syntheticResultCodeForLevel(record.level));
       entry.span.recordException(new Error(detail));
       entry.span.setAttribute("piclaw.turn.status", "no_reply");
       entry.span.end();
@@ -498,8 +530,10 @@ function bridgeSink(record: LogRecord): void {
     });
     if (isError) {
       span.setStatus({ code: SpanStatusCode.ERROR, message: `${toolName} failed` });
+      setSyntheticResultCode(span, 400);
     } else {
       span.setStatus({ code: SpanStatusCode.OK });
+      setSyntheticResultCode(span, syntheticResultCodeForLevel(record.level));
     }
     span.end();
     const safeName = toolName.replace(/[.\s]/g, "_");
@@ -524,6 +558,7 @@ function bridgeSink(record: LogRecord): void {
     });
     const errText = typeof record.errorText === "string" ? record.errorText : classifier;
     span.setStatus({ code: SpanStatusCode.ERROR, message: errText });
+    setSyntheticResultCode(span, syntheticResultCodeForLevel(record.level));
     span.recordException(new Error(errText));
     span.end();
     return;
@@ -551,6 +586,7 @@ function bridgeSink(record: LogRecord): void {
       },
     });
     span.setStatus({ code: SpanStatusCode.OK });
+    setSyntheticResultCode(span, 200);
     span.end();
     recordMetric("dream.duration_ms", durationMs);
     return;
@@ -567,6 +603,7 @@ function bridgeSink(record: LogRecord): void {
       },
     });
     span.setStatus({ code: SpanStatusCode.ERROR, message: record.message });
+    setSyntheticResultCode(span, syntheticResultCodeForLevel(record.level));
     if (record.level === "error") span.recordException(new Error(record.message));
     span.end();
   }
