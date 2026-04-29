@@ -12,7 +12,7 @@
  */
 
 import { hostname } from "os";
-import { trace, context, SpanStatusCode, type Tracer, type Span } from "@opentelemetry/api";
+import { trace, context, SpanKind, SpanStatusCode, type Tracer, type Span } from "@opentelemetry/api";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 
 import { addLogSink, removeLogSink, type LogSink as RuntimeLogSink, type LogRecord } from "./compat/log-sink.js";
@@ -222,14 +222,60 @@ function setSyntheticResultCode(span: Span, code: number): void {
   span.setAttribute("piclaw.result_code_source", "synthetic");
 }
 
+export function buildSyntheticRequestAttributes(
+  attributes: Record<string, string | number | boolean>,
+  route: string,
+  instance: string,
+): Record<string, string | number | boolean> {
+  const normalizedRoute = route.startsWith("/") ? route : `/${route}`;
+  return {
+    ...attributes,
+    "http.request.method": "POST",
+    "http.route": normalizedRoute,
+    "url.full": `piclaw://request${normalizedRoute}`,
+    "server.address": instance,
+    "network.protocol.name": "piclaw",
+    "piclaw.telemetry_class": "request",
+  };
+}
+
+export function buildSyntheticDependencyAttributes(
+  attributes: Record<string, string | number | boolean>,
+  route: string,
+  target: string,
+  dependencyKind: string,
+): Record<string, string | number | boolean> {
+  const normalizedRoute = route.startsWith("/") ? route : `/${route}`;
+  const normalizedTarget = target.trim() || "piclaw";
+  return {
+    ...attributes,
+    "http.request.method": "POST",
+    "http.route": normalizedRoute,
+    "url.full": `piclaw://${normalizedTarget}${normalizedRoute}`,
+    "server.address": normalizedTarget,
+    "peer.service": normalizedTarget,
+    "network.protocol.name": "piclaw",
+    "piclaw.telemetry_class": "dependency",
+    "piclaw.dependency.kind": dependencyKind,
+  };
+}
+
+export function modelDependencyTarget(model: string | null | undefined): string {
+  const normalized = String(model || "").trim();
+  if (!normalized) return "llm";
+  const [provider] = normalized.split("/");
+  return provider?.trim() || "llm";
+}
+
 export function startAgentTurnSpan(chatJid: string, opts?: { model?: string | null; turnId?: string }): Span {
   return getTracer().startSpan("agent.turn", {
-    attributes: {
+    kind: SpanKind.SERVER,
+    attributes: buildSyntheticRequestAttributes({
       "piclaw.chat_jid": chatJid,
       "piclaw.instance": inst(),
       ...(opts?.model ? { "piclaw.model": opts.model } : {}),
       ...(opts?.turnId ? { "piclaw.turn_id": opts.turnId } : {}),
-    },
+    }, "/agent/turn", inst()),
   });
 }
 
@@ -259,7 +305,13 @@ export function endAgentTurnSpan(span: Span, result: {
 
 export function recordToolCall(chatJid: string, toolName: string, durationMs: number, opts?: { error?: string | null; parentSpan?: Span }): void {
   const span = getTracer().startSpan("tool.call", {
-    attributes: { "piclaw.chat_jid": chatJid, "piclaw.tool.name": toolName, "piclaw.instance": inst() },
+    kind: SpanKind.CLIENT,
+    attributes: buildSyntheticDependencyAttributes(
+      { "piclaw.chat_jid": chatJid, "piclaw.tool.name": toolName, "piclaw.instance": inst() },
+      "/tool/call",
+      toolName,
+      "tool",
+    ),
     ...(opts?.parentSpan ? { context: trace.setSpan(context.active(), opts.parentSpan) } : {}),
   });
   if (opts?.error) {
@@ -542,12 +594,13 @@ function modelResponseKey(record: LogRecord, chatJid: string): string {
 function startModelCallSpan(turnEntry: InflightTurnEntry, sharedAttrs: Record<string, string | number | boolean>, model: string | null, reason?: string | null): void {
   const sequence = turnEntry.nextModelSequence;
   const span = getTracer().startSpan("model.call", {
-    attributes: {
+    kind: SpanKind.CLIENT,
+    attributes: buildSyntheticDependencyAttributes({
       ...sharedAttrs,
       ...(model ? { "piclaw.model": model } : {}),
       "piclaw.model.sequence": sequence,
       ...(reason ? { "piclaw.model.resume_reason": reason } : {}),
-    },
+    }, "/model/call", modelDependencyTarget(model), "model"),
     context: trace.setSpan(context.active(), turnEntry.span),
   });
   const key = `${turnEntry.turnKey}:${sequence}`;
@@ -643,10 +696,11 @@ function bridgeSink(record: LogRecord): void {
 
   if (op === "run_agent.prompt" && chatJid) {
     const span = getTracer().startSpan("agent.turn", {
-      attributes: {
+      kind: SpanKind.SERVER,
+      attributes: buildSyntheticRequestAttributes({
         ...sharedAttrs,
         ...(record.model ? { "piclaw.model": String(record.model) } : {}),
-      },
+      }, "/agent/turn", i),
     });
     const turnEntry: InflightTurnEntry = {
       span,
@@ -747,11 +801,12 @@ function bridgeSink(record: LogRecord): void {
     const parentEntry = getInflightTurn(record, chatJid);
     endModelCallSpan(parentEntry, { stopReason: "tool_use", level: record.level });
     const span = getTracer().startSpan("tool.call", {
-      attributes: {
+      kind: SpanKind.CLIENT,
+      attributes: buildSyntheticDependencyAttributes({
         ...sharedAttrs,
         "piclaw.tool.name": toolName,
         ...(readRecordString(record, "toolCallId", "tool_call_id") ? { "piclaw.tool.call_id": readRecordString(record, "toolCallId", "tool_call_id")! } : {}),
-      },
+      }, "/tool/call", toolName, "tool"),
       ...(parentEntry ? { context: trace.setSpan(context.active(), parentEntry.span) } : {}),
     });
     inflightToolCalls.set(toolSpanKey(record, chatJid, toolName), { span, turnKey });
@@ -766,10 +821,11 @@ function bridgeSink(record: LogRecord): void {
     const existing = inflightToolCalls.get(key);
     const parentEntry = getInflightTurn(record, chatJid);
     const span = existing?.span ?? getTracer().startSpan("tool.call", {
-      attributes: {
+      kind: SpanKind.CLIENT,
+      attributes: buildSyntheticDependencyAttributes({
         ...sharedAttrs,
         "piclaw.tool.name": toolName,
-      },
+      }, "/tool/call", toolName, "tool"),
       ...(parentEntry ? { context: trace.setSpan(context.active(), parentEntry.span) } : {}),
     });
     span.setAttribute("piclaw.tool.duration_ms", durationMs);

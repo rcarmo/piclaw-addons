@@ -153,12 +153,12 @@ This makes App Insights charts and `customEvents` more useful for agent analytic
 
 | Log operation | OTel Span | Graphite metric |
 |---|---|---|
-| `run_agent.prompt` → `run_agent.complete` | `agent.turn` (paired by `turnId`, fallback `chatJid`) | `agent.turn.count`, `agent.turn.duration_ms`, `agent.turn.success` |
-| `run_agent.prompt` → `run_agent` (error) | `agent.turn` (ERROR + exception) | `agent.turn.count`, `agent.turn.error` |
-| `run_agent.no_terminal_reply` | `agent.turn` (ERROR) | `agent.turn.error` |
-| `model.response.start/end` | `model.call` (child of `agent.turn`) | `model.call.count`, `model.call.duration_ms` |
+| `run_agent.prompt` → `run_agent.complete` | `agent.turn` (**request-style** span; paired by `turnId`, fallback `chatJid`) | `agent.turn.count`, `agent.turn.duration_ms`, `agent.turn.success` |
+| `run_agent.prompt` → `run_agent` (error) | `agent.turn` (**request-style** span; ERROR + exception) | `agent.turn.count`, `agent.turn.error` |
+| `run_agent.no_terminal_reply` | `agent.turn` (**request-style** span; ERROR) | `agent.turn.error` |
+| `model.response.start/end` | `model.call` (**dependency-style** child span of `agent.turn`) | `model.call.count`, `model.call.duration_ms` |
 | `run_agent.attempt_failed` | `provider.error` (exception) | `recovery.attempts`, `provider.error.<classifier>` |
-| `tool.call.start/end` | `tool.call` (child of `agent.turn`) | `tool.<name>.count`, `tool.<name>.duration_ms` |
+| `tool.call.start/end` | `tool.call` (**dependency-style** child span of `agent.turn`) | `tool.<name>.count`, `tool.<name>.duration_ms` |
 | `dream.complete` | `dream` | `dream.duration_ms` |
 | `get_or_create.create_main_session` | — | `session.created` |
 | `evict_idle.*` | — | `session.evicted` |
@@ -181,7 +181,7 @@ This makes App Insights charts and `customEvents` more useful for agent analytic
 ```json
 {
   "name": "agent.turn",
-  "kind": "INTERNAL",
+  "kind": "SERVER",
   "status": { "code": "OK" },
   "duration": "4523ms",
   "attributes": {
@@ -229,6 +229,7 @@ This makes App Insights charts and `customEvents` more useful for agent analytic
 ```json
 {
   "name": "model.call",
+  "kind": "CLIENT",
   "status": { "code": "OK" },
   "duration": "1280ms",
   "attributes": {
@@ -316,10 +317,13 @@ piclaw.relay.provider.error.*      # all provider errors on relay
 | **Application Map** | All piclaw instances with health and dependency links |
 | **Failures blade** | Errors grouped by `cloud_RoleInstance`: smith 2, relay 5, orangepi 1 |
 | **Transaction Search** | Individual turn traces with `model.call` and `tool.call` child spans |
-| **Live Metrics Stream** | Real-time exceptions, request rate, CPU/memory per instance |
+| **Live Metrics Stream** | `agent.turn` maps more naturally to Incoming Requests, while `model.call` and `tool.call` map more naturally to outgoing dependency metrics |
 | **Users / Events** | Agent-centric browser custom events when browser agent telemetry is enabled (`chatJid` mapped as the actor) |
 
-> **Important:** Live Metrics often shows mostly **requests** and aggregate rates. That is normal. The custom piclaw spans (`agent.turn`, `tool.call`, `provider.error`, `log.error`, `log.warn`) are easier to inspect in **Logs / Kusto**, **Transaction Search**, and sometimes **Dependencies**.
+> **Important:** the addon now synthesizes telemetry classes intentionally:
+> - `agent.turn` → **request-style** span (for Incoming Requests / request rate / request duration)
+> - `model.call` and `tool.call` → **dependency-style** spans (for outgoing dependency metrics)
+> - `provider.error`, `log.error`, and failed spans → exceptions / failures
 >
 > Piclaw also stamps a **synthetic result code** onto spans so `resultCode` is no longer `NaN` in App Insights for custom telemetry: `200=info/success`, `300=warn`, `400=error`.
 
@@ -346,7 +350,7 @@ union withsource=table requests, dependencies, traces, exceptions
 #### 2) Piclaw custom spans (`agent.turn`, `model.call`, `tool.call`, `provider.error`, `dream`, `log.*`)
 
 ```kusto
-union withsource=table dependencies, traces, exceptions
+union withsource=table requests, dependencies, traces, exceptions
 | extend piclaw_instance = coalesce(tostring(customDimensions["piclaw.instance"]), cloud_RoleInstance)
 | extend span_name = coalesce(name, operation_Name, message, outerMessage)
 | where timestamp > ago(6h)
@@ -380,7 +384,7 @@ customEvents
 #### 4) Agent-turn throughput and latency by instance
 
 ```kusto
-dependencies
+requests
 | extend piclaw_instance = coalesce(tostring(customDimensions["piclaw.instance"]), cloud_RoleInstance)
 | where timestamp > ago(24h)
 | where name == "agent.turn"
@@ -413,7 +417,7 @@ dependencies
 #### 6) Models by instance
 
 ```kusto
-dependencies
+requests
 | extend piclaw_instance = coalesce(tostring(customDimensions["piclaw.instance"]), cloud_RoleInstance)
 | where timestamp > ago(24h)
 | where name == "agent.turn"
@@ -477,7 +481,7 @@ union withsource=table dependencies, traces, exceptions
 > **Note:** token usage is persisted in piclaw's runtime database even when App Insights is not yet carrying token attributes. This query returns rows only when the observability exporter emits `piclaw.turn.input_tokens`, `piclaw.turn.output_tokens`, `piclaw.turn.cache_read_tokens`, `piclaw.turn.cache_write_tokens`, and `piclaw.turn.total_tokens` on `agent.turn` telemetry.
 
 ```kusto
-dependencies
+requests
 | extend piclaw_instance = coalesce(tostring(customDimensions["piclaw.instance"]), cloud_RoleInstance)
 | where timestamp > ago(24h)
 | where name == "agent.turn"
@@ -517,7 +521,7 @@ union withsource=table requests, dependencies, traces, exceptions
 #### 11) If Live Metrics only shows requests, confirm the exporter is still sending custom telemetry
 
 ```kusto
-union withsource=table dependencies, traces
+union withsource=table requests, dependencies, traces
 | extend piclaw_instance = coalesce(tostring(customDimensions["piclaw.instance"]), cloud_RoleInstance)
 | extend item_name = coalesce(name, operation_Name, message)
 | where timestamp > ago(15m)
