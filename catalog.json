@@ -177,6 +177,33 @@
       "contributors": []
     },
     {
+      "slug": "editable-table",
+      "name": "@rcarmo/piclaw-addon-editable-table",
+      "version": "0.1.0",
+      "type": "extension",
+      "description": "Editable Markdown table widget for the web UI — opens a themed spreadsheet-style grid and inserts the edited Markdown table back into chat",
+      "path": "addons/editable-table",
+      "tags": [
+        "editor",
+        "markdown",
+        "table",
+        "web-ui",
+        "widget"
+      ],
+      "skills": [
+        "editable-table"
+      ],
+      "install": {
+        "kind": "tarball",
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-editable-table-0.1.0.tgz"
+      },
+      "owner": {
+        "login": "rcarmo",
+        "url": "https://github.com/rcarmo"
+      },
+      "contributors": []
+    },
+    {
       "slug": "eml-viewer",
       "name": "@rcarmo/piclaw-addon-eml-viewer",
       "version": "0.2.1",
@@ -296,7 +323,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-observability-0.1.2.tgz"
       },
-      "updatedAt": "2026-04-28"
+      "updatedAt": "2026-04-29"
     },
     {
       "slug": "portainer",

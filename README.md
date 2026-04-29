@@ -41,6 +41,7 @@ bun add https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-proxmox-0.1
 | [`delegate`](addons/delegate/) | Task delegation to cheaper/faster models |
 | [`dev-tools`](addons/dev-tools/) | Workspace diagnostics and environment tools |
 | [`drawio-editor`](addons/drawio-editor/) | Self-hosted draw.io diagram editor |
+| [`editable-table`](addons/editable-table/) | Spreadsheet-style Markdown table editor for the web UI |
 | [`eml-viewer`](addons/eml-viewer/) | Email (.eml) viewer for the web timeline |
 | [`imap`](addons/imap/) | IMAP email management with drafts and STARTTLS |
 | [`kanban-board-widget`](addons/kanban-board-widget/) | Kanban board dashboard widget |
