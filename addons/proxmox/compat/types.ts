@@ -8,7 +8,9 @@ export interface ProxmoxConfig {
   chat_jid: string;
   /** Proxmox API base URL, typically ending in /api2/json. */
   base_url: string;
-  /** Keychain entry name containing the Proxmox API token credentials. */
+  /** Proxmox API token username, e.g. root@pam!piclaw. */
+  username?: string;
+  /** Keychain entry name containing the Proxmox API token secret. */
   api_token_keychain: string;
   /** Whether to allow insecure/self-signed TLS when calling the API. */
   allow_insecure_tls?: boolean;
