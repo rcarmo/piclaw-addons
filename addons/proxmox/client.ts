@@ -64,6 +64,7 @@ export type ProxmoxWorkflowName =
 
 export interface ProxmoxApiConfig {
   base_url: string;
+  username: string;
   api_token_keychain: string;
   allow_insecure_tls: boolean;
 }
@@ -514,35 +515,51 @@ async function sleep(ms: number): Promise<void> {
 }
 
 /** Resolve a Proxmox API token from a keychain entry. */
-export async function resolveProxmoxToken(apiTokenKeychain: string): Promise<ProxmoxApiToken> {
+export async function resolveProxmoxToken(username: string | undefined, apiTokenKeychain: string): Promise<ProxmoxApiToken> {
+  const configuredUsername = typeof username === "string" ? username.trim() : "";
   const entry = await getKeychainEntry(apiTokenKeychain);
+  if (configuredUsername && entry.secret.trim()) {
+    return { username: configuredUsername, secret: entry.secret.trim() };
+  }
   if (entry.username?.trim() && entry.secret.trim()) {
     return { username: entry.username.trim(), secret: entry.secret.trim() };
   }
 
   const parsed = parseTokenSecret(entry.secret);
   if (parsed) {
-    return parsed;
+    return configuredUsername ? { username: configuredUsername, secret: parsed.secret } : parsed;
   }
 
-  throw new Error(`Keychain entry ${apiTokenKeychain} must provide a username and secret for Proxmox API auth.`);
+  throw new Error(`Proxmox auth requires a configured username plus a token secret in keychain entry ${apiTokenKeychain}.`);
 }
 
-export async function discoverProxmoxInstances(): Promise<ProxmoxDiscoveryResult> {
+export async function discoverProxmoxInstances(defaultConfig?: Partial<Pick<ProxmoxApiConfig, "base_url" | "username" | "api_token_keychain" | "allow_insecure_tls">>): Promise<ProxmoxDiscoveryResult> {
   const envBase = (process.env.PVE_BASE || process.env.PICLAW_PROXMOX_BASE || "").trim() || null;
+  const defaultBaseUrl = defaultConfig?.base_url?.trim() || envBase || null;
+  const defaultUsername = defaultConfig?.username?.trim() || "";
+  const defaultKeychain = defaultConfig?.api_token_keychain?.trim() || DEFAULT_PROXMOX_KEYCHAIN;
+  const defaultAllowInsecureTls = defaultConfig?.allow_insecure_tls ?? true;
   const keychains = listKeychainEntries()
     .map((entry) => entry.name)
     .filter((name) => name.startsWith("proxmox/"));
 
   const candidates: ProxmoxDiscoveryCandidate[] = [];
+  if (defaultBaseUrl && defaultUsername && defaultKeychain) {
+    candidates.push({
+      source: "settings",
+      base_url: defaultBaseUrl,
+      api_token_keychain: defaultKeychain,
+      allow_insecure_tls: defaultAllowInsecureTls,
+    });
+  }
   for (const name of keychains) {
     try {
-      await resolveProxmoxToken(name);
+      await resolveProxmoxToken(name === defaultKeychain ? defaultUsername : undefined, name);
       candidates.push({
         source: name === DEFAULT_PROXMOX_KEYCHAIN ? "default-keychain" : "keychain",
-        base_url: envBase || (name === DEFAULT_PROXMOX_KEYCHAIN ? DEFAULT_PROXMOX_BASE_URL : null),
+        base_url: defaultBaseUrl || (name === DEFAULT_PROXMOX_KEYCHAIN ? DEFAULT_PROXMOX_BASE_URL : null),
         api_token_keychain: name,
-        allow_insecure_tls: true,
+        allow_insecure_tls: defaultAllowInsecureTls,
       });
     } catch (err) {
       debugSuppressedError(log, "Skipping unusable Proxmox discovery keychain entry.", err, {
@@ -556,14 +573,15 @@ export async function discoverProxmoxInstances(): Promise<ProxmoxDiscoveryResult
     array.findIndex((entry) => entry.api_token_keychain === candidate.api_token_keychain && entry.base_url === candidate.base_url) === index
   );
 
-  const defaultCandidate = uniqueCandidates.find((candidate) => candidate.api_token_keychain === DEFAULT_PROXMOX_KEYCHAIN)
+  const defaultCandidate = uniqueCandidates.find((candidate) => candidate.api_token_keychain === defaultKeychain && candidate.base_url === defaultBaseUrl)
+    ?? uniqueCandidates.find((candidate) => candidate.api_token_keychain === DEFAULT_PROXMOX_KEYCHAIN)
     ?? uniqueCandidates[0]
-    ?? (envBase
+    ?? (defaultBaseUrl && defaultUsername && defaultKeychain
       ? {
-          source: "env",
-          base_url: envBase,
-          api_token_keychain: DEFAULT_PROXMOX_KEYCHAIN,
-          allow_insecure_tls: true,
+          source: defaultConfig?.base_url || defaultConfig?.username ? "settings" : "env",
+          base_url: defaultBaseUrl,
+          api_token_keychain: defaultKeychain,
+          allow_insecure_tls: defaultAllowInsecureTls,
         }
       : null);
 
@@ -583,7 +601,7 @@ export async function requestProxmoxApi(
   const method = request.method;
   const query = toSearchParams(request.query);
   const url = `${baseUrl}${path}${query.size ? `?${query.toString()}` : ""}`;
-  const token = await resolveProxmoxToken(config.api_token_keychain);
+  const token = await resolveProxmoxToken(config.username, config.api_token_keychain);
   const timeoutMs = Math.max(1_000, Math.trunc(request.timeout_ms ?? DEFAULT_PROXMOX_REQUEST_TIMEOUT_MS));
   const connectTimeoutSec = Math.max(1, Math.ceil(Math.min(timeoutMs, DEFAULT_PROXMOX_CONNECT_TIMEOUT_MS) / 1_000));
   const maxTimeSec = Math.max(connectTimeoutSec, Math.ceil(timeoutMs / 1_000));

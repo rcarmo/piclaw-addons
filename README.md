@@ -19,14 +19,14 @@ Open **Settings → Add-Ons**, pick an add-on, click **Install**. Restart requir
 ### `pi install`
 
 ```bash
-pi install https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-proxmox-0.1.3.tgz
+pi install https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-proxmox-0.1.4.tgz
 ```
 
 ### `bun add`
 
 ```bash
 cd /workspace/.pi/extensions
-bun add https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-proxmox-0.1.3.tgz
+bun add https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-proxmox-0.1.4.tgz
 ```
 
 ---

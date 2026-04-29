@@ -29,6 +29,31 @@ import { presentStructuredToolValue } from "./compat/structured-tool-response.js
 type SessionProxmoxConfigInput = Omit<ProxmoxConfig, "chat_jid" | "created_at" | "updated_at">;
 type ProxmoxToolResult = { content: Array<{ type: "text"; text: string }>; details: Record<string, unknown> };
 
+interface ProxmoxSettingsConfig {
+  host: string;
+  base_url: string;
+  username: string;
+  api_token_keychain: string;
+  allow_insecure_tls: boolean;
+}
+
+interface ResolvedProxmoxConfigState {
+  stored_config: ProxmoxConfig | null;
+  settings_config: ProxmoxSettingsConfig;
+  effective_config: ProxmoxApiConfig | null;
+  source: "session" | "settings" | "merged" | "none";
+}
+
+const DEFAULT_PROXMOX_TOKEN_KEYCHAIN = process.env.PICLAW_PROXMOX_TOKEN_KEYCHAIN?.trim() || "proxmox/piclaw-management-token";
+const DEFAULT_PROXMOX_PORT = process.env.PICLAW_PROXMOX_PORT?.trim() || "8006";
+const DEFAULT_PROXMOX_SETTINGS: ProxmoxSettingsConfig = {
+  host: "",
+  base_url: "",
+  username: "",
+  api_token_keychain: DEFAULT_PROXMOX_TOKEN_KEYCHAIN,
+  allow_insecure_tls: true,
+};
+
 export interface ProxmoxRequestResult {
   status: number;
   method: string;
@@ -66,13 +91,16 @@ function kvGetConfig(chatJid: string): ProxmoxConfig | null {
 }
 
 function kvSetConfig(chatJid: string, config: SessionProxmoxConfigInput): ProxmoxConfigSetResult {
+  const previous = kvGetConfig(chatJid);
+  const timestamp = new Date().toISOString();
   const full: ProxmoxConfig = {
     chat_jid: chatJid,
-    base_url: config.base_url,
-    api_token_keychain: config.api_token_keychain,
+    base_url: typeof config.base_url === "string" ? config.base_url.trim() : "",
+    username: typeof config.username === "string" ? config.username.trim() : "",
+    api_token_keychain: typeof config.api_token_keychain === "string" ? config.api_token_keychain.trim() : "",
     allow_insecure_tls: config.allow_insecure_tls,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    created_at: previous?.created_at || timestamp,
+    updated_at: timestamp,
   };
   getStorage().set("config", full, "chat", chatJid);
   return { config: full, apply_timing: "immediate" };
@@ -83,19 +111,138 @@ function kvClearConfig(chatJid: string): ProxmoxConfigClearResult {
   return { deleted, apply_timing: "immediate" };
 }
 
-function resolveApiConfig(chatJid: string): ProxmoxApiConfig | null {
-  const config = kvGetConfig(chatJid);
-  if (!config) return null;
-  return {
-    base_url: config.base_url,
-    api_token_keychain: config.api_token_keychain,
-    allow_insecure_tls: config.allow_insecure_tls ?? true,
+export function normalizeProxmoxBaseUrlInput(value: string): string {
+  const trimmed = typeof value === "string" ? value.trim() : "";
+  if (!trimmed) return "";
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    try {
+      const url = new URL(trimmed);
+      url.pathname = url.pathname === "/" || !url.pathname ? "/api2/json" : url.pathname.replace(/\/+$/, "");
+      if (url.pathname === "/api2") url.pathname = "/api2/json";
+      if (!url.pathname.endsWith("/api2/json")) url.pathname = "/api2/json";
+      url.search = "";
+      url.hash = "";
+      return url.toString().replace(/\/+$/, "");
+    } catch {
+      return trimmed;
+    }
+  }
+
+  const host = trimmed.replace(/^\/+/, "").replace(/\/+$/, "");
+  return `https://${host}:${DEFAULT_PROXMOX_PORT}/api2/json`;
+}
+
+export function deriveProxmoxHostInput(value: string): string {
+  const trimmed = typeof value === "string" ? value.trim() : "";
+  if (!trimmed) return "";
+  try {
+    const url = new URL(trimmed);
+    return url.hostname || url.host || "";
+  } catch {
+    return trimmed.replace(/^https?:\/\//i, "").replace(/\/api2\/json.*$/i, "").replace(/\/.*$/, "");
+  }
+}
+
+function loadProxmoxSettingsConfig(): ProxmoxSettingsConfig {
+  try {
+    const saved = getStorage().get<Partial<ProxmoxSettingsConfig>>("settings", "global") || {};
+    const base_url = normalizeProxmoxBaseUrlInput(
+      typeof saved.base_url === "string" && saved.base_url.trim()
+        ? saved.base_url
+        : (typeof saved.host === "string" ? saved.host : ""),
+    );
+    const host = typeof saved.host === "string" && saved.host.trim()
+      ? saved.host.trim()
+      : deriveProxmoxHostInput(base_url);
+    return {
+      ...DEFAULT_PROXMOX_SETTINGS,
+      ...saved,
+      host,
+      base_url,
+      username: typeof saved.username === "string" ? saved.username.trim() : "",
+      api_token_keychain: typeof saved.api_token_keychain === "string" && saved.api_token_keychain.trim()
+        ? saved.api_token_keychain.trim()
+        : DEFAULT_PROXMOX_TOKEN_KEYCHAIN,
+      allow_insecure_tls: saved.allow_insecure_tls ?? DEFAULT_PROXMOX_SETTINGS.allow_insecure_tls,
+    };
+  } catch {
+    return { ...DEFAULT_PROXMOX_SETTINGS };
+  }
+}
+
+function saveProxmoxSettingsConfig(patch: Partial<ProxmoxSettingsConfig>): ProxmoxSettingsConfig {
+  const current = loadProxmoxSettingsConfig();
+  const hasHost = Object.prototype.hasOwnProperty.call(patch, "host");
+  const hasBaseUrl = Object.prototype.hasOwnProperty.call(patch, "base_url");
+  const nextHostInput = hasHost ? String(patch.host || "").trim() : current.host;
+  const nextBaseUrl = hasBaseUrl
+    ? normalizeProxmoxBaseUrlInput(String(patch.base_url || ""))
+    : hasHost
+      ? normalizeProxmoxBaseUrlInput(nextHostInput)
+      : current.base_url;
+
+  const next: ProxmoxSettingsConfig = {
+    host: nextHostInput || deriveProxmoxHostInput(nextBaseUrl),
+    base_url: nextBaseUrl,
+    username: typeof patch.username === "string" ? patch.username.trim() : current.username,
+    api_token_keychain: typeof patch.api_token_keychain === "string"
+      ? (patch.api_token_keychain.trim() || DEFAULT_PROXMOX_TOKEN_KEYCHAIN)
+      : current.api_token_keychain,
+    allow_insecure_tls: patch.allow_insecure_tls ?? current.allow_insecure_tls,
   };
+  getStorage().set("settings", next, "global");
+  return next;
+}
+
+function hasConfiguredSettings(settings: ProxmoxSettingsConfig): boolean {
+  return Boolean(
+    settings.base_url
+    || settings.username
+    || (settings.api_token_keychain && settings.api_token_keychain !== DEFAULT_PROXMOX_TOKEN_KEYCHAIN)
+    || settings.allow_insecure_tls !== DEFAULT_PROXMOX_SETTINGS.allow_insecure_tls,
+  );
+}
+
+function resolveApiConfig(chatJid: string): ProxmoxApiConfig | null {
+  return resolveProxmoxConfigState(chatJid).effective_config;
+}
+
+function resolveProxmoxConfigState(chatJid: string, storedOverride?: ProxmoxConfig | null): ResolvedProxmoxConfigState {
+  const stored_config = storedOverride === undefined ? kvGetConfig(chatJid) : storedOverride;
+  const settings_config = loadProxmoxSettingsConfig();
+  const base_url = readTrimmedString(stored_config?.base_url, settings_config.base_url);
+  const username = readTrimmedString(stored_config?.username, settings_config.username);
+  const api_token_keychain = readTrimmedString(stored_config?.api_token_keychain, settings_config.api_token_keychain);
+  const allow_insecure_tls = stored_config?.allow_insecure_tls ?? settings_config.allow_insecure_tls ?? true;
+  const effective_config = base_url && username && api_token_keychain
+    ? { base_url, username, api_token_keychain, allow_insecure_tls }
+    : null;
+  const source = stored_config
+    ? (hasConfiguredSettings(settings_config) ? "merged" : "session")
+    : effective_config
+      ? "settings"
+      : "none";
+
+  return {
+    stored_config,
+    settings_config,
+    effective_config,
+    source,
+  };
+}
+
+function handleGetProxmoxSettings(): ProxmoxSettingsConfig {
+  return loadProxmoxSettingsConfig();
+}
+
+function handleSetProxmoxSettings(body: Partial<ProxmoxSettingsConfig>): { ok: true; config: ProxmoxSettingsConfig } {
+  return { ok: true, config: saveProxmoxSettingsConfig(body) };
 }
 
 async function kvRequest(chatJid: string, input: { method: string; path: string; query?: unknown; body?: unknown; body_mode?: "form" | "json" }): Promise<ProxmoxRequestResult> {
   const apiConfig = resolveApiConfig(chatJid);
-  if (!apiConfig) throw new Error(`No Proxmox config for ${chatJid}. Use action=set first.`);
+  if (!apiConfig) throw new Error(`No usable Proxmox config for ${chatJid}. Use action=set or fill in the Proxmox addon settings.`);
   const response = await requestProxmoxApi(apiConfig, {
     method: input.method as ProxmoxApiMethod,
     path: input.path,
@@ -108,7 +255,7 @@ async function kvRequest(chatJid: string, input: { method: string; path: string;
 
 async function kvWorkflow(chatJid: string, input: ProxmoxWorkflowRequest): Promise<ProxmoxWorkflowResponse> {
   const apiConfig = resolveApiConfig(chatJid);
-  if (!apiConfig) throw new Error(`No Proxmox config for ${chatJid}. Use action=set first.`);
+  if (!apiConfig) throw new Error(`No usable Proxmox config for ${chatJid}. Use action=set or fill in the Proxmox addon settings.`);
   return runProxmoxWorkflow(apiConfig, input);
 }
 
@@ -147,7 +294,7 @@ registerToolStatusHintProvider({
         record?.baseUrl,
         record?.url,
         record?.endpoint,
-        registeredHandlers?.get(chatJid)?.base_url ?? kvGetConfig(chatJid)?.base_url,
+        registeredHandlers?.get(chatJid)?.base_url ?? resolveProxmoxConfigState(chatJid).effective_config?.base_url,
       ),
     );
     if (!host) return null;
@@ -253,8 +400,9 @@ const ProxmoxToolSchema = Type.Object({
     description: "Operation to perform for the current chat Proxmox config, API request, or workflow.",
   }),
   chat_jid: Type.Optional(Type.String({ description: "Target chat JID. Defaults to the current chat context." })),
-  base_url: Type.Optional(Type.String({ description: "Proxmox API base URL, typically ending in /api2/json." })),
-  api_token_keychain: Type.Optional(Type.String({ description: "Keychain entry containing the Proxmox API token credentials." })),
+  base_url: Type.Optional(Type.String({ description: "Proxmox API base URL, typically ending in /api2/json. Bare hosts/IPs should be configured in the addon settings pane." })),
+  username: Type.Optional(Type.String({ description: "Proxmox API token username, e.g. root@pam!piclaw." })),
+  api_token_keychain: Type.Optional(Type.String({ description: "Keychain entry containing the Proxmox API token secret." })),
   allow_insecure_tls: Type.Optional(Type.Boolean({ description: "Allow insecure/self-signed TLS when calling the API." })),
   method: Type.Optional(Type.String({ description: "HTTP method for action=request (GET, POST, PUT, DELETE)." })),
   path: Type.Optional(Type.String({ description: "Relative Proxmox API path for action=request." })),
@@ -786,9 +934,9 @@ function buildProxmoxContractPayload(): Record<string, unknown> {
     ],
     session_profile_contract: {
       get: ["chat_jid"],
-      set: ["base_url", "api_token_keychain", "allow_insecure_tls"],
+      set: ["base_url", "username", "api_token_keychain", "allow_insecure_tls"],
       clear: ["chat_jid"],
-      discover: ["env hints", "keychain hints"],
+      discover: ["addon settings", "env hints", "keychain hints"],
     },
     request_contract: buildProxmoxRequestHelpPayload().request_contract,
     workflow_contract: {
@@ -938,7 +1086,8 @@ function buildProxmoxRecommendations(intent: string | undefined, options?: { cat
 const PROXMOX_TOOL_HINT = [
   "## Proxmox",
   "Use proxmox to inspect or change the Proxmox API profile for the current session.",
-  "Use proxmox discover to find a likely existing Proxmox instance from keychain/env hints.",
+  "The addon settings pane can provide default host/IP, username, token keychain, and TLS settings for all chats.",
+  "Use proxmox discover to find a likely existing Proxmox instance from addon settings, keychain hints, or env hints.",
   "Use proxmox capabilities to list workflow families, proxmox recommend for intent-based shortlists, and proxmox workflow_help for one workflow's fields/guidance.",
   "Use proxmox contract for the overall tool contract and request_help for raw request fields, response shape, and charting-oriented request examples.",
   "Use proxmox request for ad-hoc API calls and proxmox workflow for reusable VM/LXC/node/storage/backup/task/metrics orchestration.",
@@ -976,6 +1125,25 @@ export const proxmoxTool: ExtensionFactory = (pi: ExtensionAPI) => {
   pi.on("before_agent_start", async (event) => ({
     systemPrompt: `${event.systemPrompt}\n\n${PROXMOX_TOOL_HINT}`,
   }));
+
+  pi.registerCommand("proxmox-config-get", {
+    description: "Get Proxmox addon settings (internal)",
+    handler: async () => {
+      pi.sendMessage({ customType: "proxmox", content: JSON.stringify(handleGetProxmoxSettings()), display: false });
+    },
+  });
+
+  pi.registerCommand("proxmox-config-set", {
+    description: "Set Proxmox addon settings (internal)",
+    handler: async (args: string) => {
+      try {
+        const body = JSON.parse(args) as Partial<ProxmoxSettingsConfig>;
+        pi.sendMessage({ customType: "proxmox", content: JSON.stringify(handleSetProxmoxSettings(body)), display: false });
+      } catch (err) {
+        pi.sendMessage({ customType: "proxmox", content: JSON.stringify({ ok: false, error: String(err) }), display: false });
+      }
+    },
+  });
 
   // @ts-expect-error TS2589 — Typebox Union schema depth exceeds TS limit in strict mode
   pi.registerTool({
@@ -1065,38 +1233,58 @@ export const proxmoxTool: ExtensionFactory = (pi: ExtensionAPI) => {
 
       const handlers = registeredHandlers;
       if (params.action === "get") {
-        const config = handlers?.get(chatJid) ?? kvGetConfig(chatJid);
-        if (!config) {
+        const resolved = resolveProxmoxConfigState(chatJid, handlers?.get(chatJid));
+        if (!resolved.effective_config) {
           return {
-            content: [{ type: "text", text: `No Proxmox config stored for ${chatJid}.` }],
-            details: { action: "get", chat_jid: chatJid, configured: false, config: null },
+            content: [{ type: "text", text: `No usable Proxmox config stored for ${chatJid}. Fill in the Proxmox addon settings or use action=set.` }],
+            details: {
+              action: "get",
+              chat_jid: chatJid,
+              configured: false,
+              source: resolved.source,
+              config: null,
+              stored_config: resolved.stored_config,
+              settings_config: resolved.settings_config,
+            },
           };
         }
         return {
           content: [{
             type: "text",
-            text: `Proxmox config for ${chatJid}: ${config.base_url} (key ${config.api_token_keychain}, insecure TLS ${config.allow_insecure_tls ? "on" : "off"}).`,
+            text: `Proxmox config for ${chatJid}: ${resolved.effective_config.base_url} as ${resolved.effective_config.username} (key ${resolved.effective_config.api_token_keychain}, source ${resolved.source}, insecure TLS ${resolved.effective_config.allow_insecure_tls ? "on" : "off"}).`,
           }],
-          details: { action: "get", chat_jid: chatJid, configured: true, config },
+          details: {
+            action: "get",
+            chat_jid: chatJid,
+            configured: true,
+            source: resolved.source,
+            config: resolved.effective_config,
+            stored_config: resolved.stored_config,
+            settings_config: resolved.settings_config,
+          },
         };
       }
 
       if (params.action === "set") {
+        const current = handlers?.get(chatJid) ?? kvGetConfig(chatJid);
         const result = handlers
           ? await handlers.set(chatJid, {
-              base_url: typeof params.base_url === "string" ? params.base_url.trim() : "",
-              api_token_keychain: typeof params.api_token_keychain === "string" ? params.api_token_keychain.trim() : "",
-              allow_insecure_tls: params.allow_insecure_tls ?? true,
+              base_url: typeof params.base_url === "string" ? params.base_url.trim() : (current?.base_url || ""),
+              username: typeof params.username === "string" ? params.username.trim() : (current?.username || ""),
+              api_token_keychain: typeof params.api_token_keychain === "string" ? params.api_token_keychain.trim() : (current?.api_token_keychain || ""),
+              allow_insecure_tls: params.allow_insecure_tls ?? current?.allow_insecure_tls ?? true,
             })
           : kvSetConfig(chatJid, {
-              base_url: typeof params.base_url === "string" ? params.base_url.trim() : "",
-              api_token_keychain: typeof params.api_token_keychain === "string" ? params.api_token_keychain.trim() : "",
-              allow_insecure_tls: params.allow_insecure_tls ?? true,
+              base_url: typeof params.base_url === "string" ? params.base_url.trim() : (current?.base_url || ""),
+              username: typeof params.username === "string" ? params.username.trim() : (current?.username || ""),
+              api_token_keychain: typeof params.api_token_keychain === "string" ? params.api_token_keychain.trim() : (current?.api_token_keychain || ""),
+              allow_insecure_tls: params.allow_insecure_tls ?? current?.allow_insecure_tls ?? true,
             });
+        const resolved = resolveProxmoxConfigState(chatJid, result.config);
         return {
           content: [{
             type: "text",
-            text: `Stored Proxmox config for ${chatJid}: ${result.config.base_url} (key ${result.config.api_token_keychain}). Applies immediately.`,
+            text: `Stored Proxmox session override for ${chatJid}: ${resolved.effective_config?.base_url || result.config.base_url || "(inherits addon settings)"} as ${resolved.effective_config?.username || result.config.username || "(inherits addon settings)"}. Applies immediately.`,
           }],
           details: {
             action: "set",
@@ -1104,17 +1292,22 @@ export const proxmoxTool: ExtensionFactory = (pi: ExtensionAPI) => {
             updated: true,
             apply_timing: result.apply_timing,
             config: result.config,
+            effective_config: resolved.effective_config,
+            source: resolved.source,
           },
         };
       }
 
       if (params.action === "clear") {
         const result = handlers ? await handlers.clear(chatJid) : kvClearConfig(chatJid);
+        const resolved = resolveProxmoxConfigState(chatJid, null);
         return {
           content: [{
             type: "text",
             text: result.deleted
-              ? `Cleared Proxmox config for ${chatJid}. Applies immediately.`
+              ? (resolved.effective_config
+                ? `Cleared Proxmox session override for ${chatJid}. Addon settings remain available.`
+                : `Cleared Proxmox config for ${chatJid}. Applies immediately.`)
               : `No Proxmox config existed for ${chatJid}. Applies immediately.`,
           }],
           details: {
@@ -1122,6 +1315,8 @@ export const proxmoxTool: ExtensionFactory = (pi: ExtensionAPI) => {
             chat_jid: chatJid,
             deleted: result.deleted,
             apply_timing: result.apply_timing,
+            effective_config: resolved.effective_config,
+            source: resolved.source,
           },
         };
       }
@@ -1129,17 +1324,19 @@ export const proxmoxTool: ExtensionFactory = (pi: ExtensionAPI) => {
       if (params.action === "discover") {
         startProxmoxUiProgress(ctx, "Proxmox: discovering configured instances…");
         try {
-          const discovery = await discoverProxmoxInstances();
+          const settings = loadProxmoxSettingsConfig();
+          const discovery = await discoverProxmoxInstances(settings);
           return {
             content: [{
               type: "text",
               text: discovery.default_candidate
                 ? `Discovered ${discovery.candidates.length} Proxmox candidate(s); default ${discovery.default_candidate.api_token_keychain}${discovery.default_candidate.base_url ? ` @ ${discovery.default_candidate.base_url}` : ""}.`
-                : "No Proxmox instances discovered from current keychain/env hints.",
+                : "No Proxmox instances discovered from addon settings, keychain hints, or env hints.",
             }],
             details: {
               action: "discover",
               chat_jid: chatJid,
+              settings_config: settings,
               ...discovery,
             },
           };
