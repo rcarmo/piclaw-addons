@@ -243,3 +243,19 @@ Add `owner` and `contributors` to your new entry in `catalog.json` — these fie
 - Bump version for every functional change
 - Run `sync:catalog` after every `package.json` edit
 - Catalog install entries for first-party add-ons must stay `kind: "tarball"` with public `https://rcarmo.github.io/piclaw-addons/packages/...tgz` URLs
+
+## Git workflow
+
+- **Always use pull requests** — never commit directly to `main`
+- Create a feature branch, commit, push, and open a PR via `gh pr create`
+- Wait for the user to approve or say "merge" before merging
+- Use `gh pr merge --merge --delete-branch` to merge and clean up
+- PR descriptions should include: summary, what changed, test results
+- One logical change per PR; don't bundle unrelated work
+
+### Worktrees
+
+- Use `git worktree add` for parallel work instead of switching branches in the main checkout
+- After merging a PR, remove the worktree (`git worktree remove <path>`) and confirm cleanup with `git worktree list`
+- Before starting new work, run `git worktree list` and prune any stale/orphaned worktrees (`git worktree prune`)
+- Never leave merged-branch worktrees lying around
