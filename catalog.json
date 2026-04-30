@@ -242,7 +242,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-imap-0.1.1.tgz"
       },
-      "updatedAt": "2026-04-28",
+      "updatedAt": "2026-04-30",
       "owner": {
         "login": "rcarmo",
         "url": "https://github.com/rcarmo"
