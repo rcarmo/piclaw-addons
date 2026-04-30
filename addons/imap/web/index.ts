@@ -3,6 +3,16 @@
  */
 // @ts-nocheck
 const API_BASE = '/imap-settings/api';
+const preactHtm = globalThis.__piclawPreactHtm || globalThis.__piclawPreact || null;
+const html = preactHtm?.html;
+const useEffect = preactHtm?.useEffect;
+const useMemo = preactHtm?.useMemo;
+const useState = preactHtm?.useState;
+const HAS_RUNTIME = Boolean(html && useEffect && useMemo && useState);
+
+const ICON = HAS_RUNTIME
+  ? html`<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z"></path><path d="m22 8-8.97 6.35a1.8 1.8 0 0 1-2.06 0L2 8"></path></svg>`
+  : null;
 
 async function api(path, options = {}) {
   const resp = await fetch(`${API_BASE}${path}`, {
@@ -21,14 +31,12 @@ async function api(path, options = {}) {
 function registerPane() {
   const registry = globalThis.__piclawSettingsPaneRegistry || {};
   const registerSettingsPane = registry.registerSettingsPane;
-  if (!registerSettingsPane) return;
-
-  const icon = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z"></path><path d="m22 8-8.97 6.35a1.8 1.8 0 0 1-2.06 0L2 8"></path></svg>`;
+  if (!registerSettingsPane || !HAS_RUNTIME) return;
 
   registerSettingsPane({
     id: 'imap',
     label: 'IMAP',
-    icon,
+    icon: ICON,
     order: 36,
     searchable: true,
     component: ImapPane,
@@ -51,8 +59,7 @@ function emptyDraft(name = '') {
 }
 
 function ImapPane() {
-  const { html, useEffect, useMemo, useState } = globalThis.__piclawPreact || {};
-  if (!html) return null;
+  if (!HAS_RUNTIME) return null;
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
