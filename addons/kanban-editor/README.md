@@ -51,8 +51,8 @@ This makes it easier to split related planning work across multiple boards and j
 This is the current extraction status.
 
 - the add-on registers a `kanban-editor` workspace pane for `.kanban.md` files
-- piclaw core no longer registers the built-in kanban pane by default, so the add-on now owns specialized kanban pane registration
-- it ships its own kanban JS/CSS asset copies through the add-on asset route instead of depending on the core `/static/...` paths
-- the core runtime still keeps the legacy pane implementation around as compatibility code while the carve-out continues
+- piclaw core no longer registers or ships the built-in kanban pane/runtime assets
+- the add-on now owns specialized kanban pane registration and ships its own kanban JS/CSS assets through the add-on asset route
+- without the add-on installed, `.kanban.md` files fall back to the normal editor path
 
-Next slices can remove more of the remaining legacy kanban ownership from core.
+The kanban board UI is now fully carved out of piclaw core and lives in this add-on.
