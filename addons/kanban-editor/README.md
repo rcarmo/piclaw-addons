@@ -48,10 +48,11 @@ This makes it easier to split related planning work across multiple boards and j
 
 ## Extraction status
 
-This is the first extraction slice.
+This is the current extraction status.
 
 - the add-on registers a `kanban-editor` workspace pane for `.kanban.md` files
 - it can override the built-in pane when installed
-- it currently reuses the core kanban JS/CSS assets while pane ownership moves into an installable add-on
+- it now ships its own kanban JS/CSS asset copies through the add-on asset route instead of depending on the core `/static/...` paths
+- the core runtime still contains the built-in kanban pane for compatibility while the carve-out continues
 
-Future slices can move the remaining built-in kanban assets fully into the add-on.
+Next slices can remove the remaining built-in pane registration and move more kanban ownership completely into the add-on.

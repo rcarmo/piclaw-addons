@@ -305,7 +305,7 @@
     {
       "slug": "kanban-editor",
       "name": "@rcarmo/piclaw-addon-kanban-editor",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "type": "extension",
       "description": "Workspace .kanban.md editor add-on with Obsidian-style [[links]] between boards",
       "path": "addons/kanban-editor",
@@ -319,8 +319,9 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-kanban-editor-0.1.0.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-kanban-editor-0.1.1.tgz"
       },
+      "updatedAt": "2026-04-30",
       "owner": {
         "login": "rcarmo",
         "url": "https://github.com/rcarmo"

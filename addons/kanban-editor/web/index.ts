@@ -3,8 +3,9 @@
 import { createFileConflictMonitor } from './file-conflict-monitor.ts';
 
 const KANBAN_EXTENSION = /\.kanban\.md$/i;
-const KANBAN_SCRIPT_URL = '/static/js/vendor/kanban-editor.js?v=kanban-addon-0.1.0';
-const KANBAN_STYLES_URL = '/static/css/kanban.css';
+const ADDON_ASSET_BASE = '/agent/addons/assets/%40rcarmo%2Fpiclaw-addon-kanban-editor/web/vendor';
+const KANBAN_SCRIPT_URL = `${ADDON_ASSET_BASE}/kanban-editor.js?v=0.1.1`;
+const KANBAN_STYLES_URL = `${ADDON_ASSET_BASE}/kanban.css?v=0.1.1`;
 
 function esc(value) {
   return String(value || '')

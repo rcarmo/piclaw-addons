@@ -21,3 +21,10 @@ test('kanban-editor README documents wiki links', () => {
   expect(readme).toContain('[[ops-roadmap]]');
   expect(readme).toContain('opens the target board in a normal workspace tab/editor');
 });
+
+test('kanban-editor web entry uses addon-owned assets', () => {
+  const source = readFileSync(resolve(addonDir, 'web', 'index.ts'), 'utf8');
+  expect(source).toContain('/agent/addons/assets/%40rcarmo%2Fpiclaw-addon-kanban-editor/web/vendor');
+  expect(source).not.toContain('/static/js/vendor/kanban-editor.js');
+  expect(source).not.toContain('/static/css/kanban.css');
+});

@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-kanban-editor",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Workspace .kanban.md editor add-on with Obsidian-style [[links]] between boards",
   "type": "module",
   "main": "index.ts",
