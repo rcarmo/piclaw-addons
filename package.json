@@ -31,6 +31,7 @@
       "addons/git-query-tools/index.ts",
       "addons/imap/index.ts",
       "addons/kanban-board-widget/index.ts",
+      "addons/kanban-editor/index.ts",
       "addons/observability/index.ts",
       "addons/portainer/index.ts",
       "addons/proxmox/index.ts",

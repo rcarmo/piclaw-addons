@@ -270,7 +270,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-imap-0.1.0.tgz"
       },
-      "updatedAt": "2026-04-28",
+      "updatedAt": "2026-04-30",
       "owner": {
         "login": "rcarmo",
         "url": "https://github.com/rcarmo"
@@ -299,6 +299,31 @@
       "owner": {
         "login": "cjnova",
         "url": "https://github.com/cjnova"
+      },
+      "contributors": []
+    },
+    {
+      "slug": "kanban-editor",
+      "name": "@rcarmo/piclaw-addon-kanban-editor",
+      "version": "0.1.0",
+      "type": "extension",
+      "description": "Workspace .kanban.md editor add-on with Obsidian-style [[links]] between boards",
+      "path": "addons/kanban-editor",
+      "tags": [
+        "editor",
+        "kanban",
+        "markdown",
+        "wiki-links",
+        "workspace"
+      ],
+      "skills": [],
+      "install": {
+        "kind": "tarball",
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-kanban-editor-0.1.0.tgz"
+      },
+      "owner": {
+        "login": "rcarmo",
+        "url": "https://github.com/rcarmo"
       },
       "contributors": []
     },
