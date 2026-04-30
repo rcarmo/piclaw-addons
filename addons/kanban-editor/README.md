@@ -46,6 +46,28 @@ then these resolve as:
 
 This makes it easier to split related planning work across multiple boards and jump between them from inside the board itself.
 
+## Starter board
+
+You can paste this into any `*.kanban.md` file to create a minimal starter board:
+
+```md
+---
+
+## Backlog
+
+- [ ] Explore new ideas
+- [ ] Read the docs
+
+## In Progress
+
+- [ ] Set up workspace
+- [ ] Try the kanban editor
+
+## Done
+
+- [x] Install PiClaw
+```
+
 ## Extraction status
 
 This is the current extraction status.
