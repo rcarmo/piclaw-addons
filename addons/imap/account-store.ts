@@ -1,5 +1,11 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { createExtensionStorage, type ExtensionStorage } from "./compat/extension-kv.ts";
+import {
+  deleteKeychainEntry,
+  getKeychainEntry,
+  listKeychainEntries,
+  setKeychainEntry,
+} from "./compat/keychain.ts";
 
 export interface ImapAccountConfig {
   host: string;
@@ -63,53 +69,28 @@ function sanitizeConfig(config: Record<string, unknown>): ImapAccountConfig {
   };
 }
 
-function parseJsonFromMixedOutput(text: string): any {
-  const lines = text.trim().split("\n");
-  for (let i = 0; i < lines.length; i++) {
-    const candidate = lines.slice(i).join("\n").trim();
-    if (!candidate.startsWith("[") && !candidate.startsWith("{")) continue;
-    try {
-      return JSON.parse(candidate);
-    } catch {}
-  }
-  throw new Error("Could not parse CLI JSON output");
+async function keychainSet(_pi: ExtensionAPI, name: string, secret: string): Promise<void> {
+  await setKeychainEntry({ name, type: "password", secret });
 }
 
-async function keychainSet(pi: ExtensionAPI, name: string, secret: string): Promise<void> {
-  const result = await pi.exec("piclaw", ["keychain", "set", name, "--secret", secret, "--type", "password"], { timeout: 10_000 });
-  if (result.exitCode !== 0) throw new Error(result.stderr || `Failed to set keychain entry ${name}`);
+async function keychainDelete(_pi: ExtensionAPI, name: string): Promise<void> {
+  await deleteKeychainEntry(name);
 }
 
-async function keychainDelete(pi: ExtensionAPI, name: string): Promise<void> {
-  const result = await pi.exec("piclaw", ["keychain", "delete", name], { timeout: 10_000 });
-  if (result.exitCode !== 0 && !/not found/i.test(result.stderr || result.stdout)) {
-    throw new Error(result.stderr || `Failed to delete keychain entry ${name}`);
-  }
-}
-
-async function keychainGetRaw(pi: ExtensionAPI, name: string): Promise<any | null> {
-  const result = await pi.exec("piclaw", ["keychain", "get", name], { timeout: 10_000 });
-  if (result.exitCode !== 0) return null;
+async function keychainGetRaw(_pi: ExtensionAPI, name: string): Promise<any | null> {
   try {
-    const parsed = parseJsonFromMixedOutput(result.stdout);
-    if (parsed?.secret && typeof parsed.secret === "string") {
-      try { return JSON.parse(parsed.secret); } catch { return parsed.secret; }
+    const entry = await getKeychainEntry(name);
+    if (typeof entry.secret === "string") {
+      try { return JSON.parse(entry.secret); } catch { return entry.secret; }
     }
-    return parsed?.secret ?? parsed;
+    return null;
   } catch {
     return null;
   }
 }
 
-async function keychainList(pi: ExtensionAPI): Promise<Array<{ name: string; type?: string }>> {
-  const result = await pi.exec("piclaw", ["keychain", "list"], { timeout: 10_000 });
-  if (result.exitCode !== 0) return [];
-  try {
-    const parsed = parseJsonFromMixedOutput(result.stdout);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
+async function keychainList(_pi: ExtensionAPI): Promise<Array<{ name: string; type?: string }>> {
+  return await listKeychainEntries();
 }
 
 export async function listAccounts(pi: ExtensionAPI): Promise<{ accounts: ImapStoredAccount[]; defaultAccount: string | null }> {

@@ -28,6 +28,27 @@ async function api(path, options = {}) {
   return payload;
 }
 
+async function setKeychainSecret(name, secret) {
+  const resp = await fetch('/agent/keychain', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, secret, type: 'password' }),
+  });
+  const payload = await resp.json().catch(() => ({}));
+  if (!resp.ok || payload?.ok === false) {
+    throw new Error(payload?.error || `Failed to save keychain entry ${name}`);
+  }
+  return payload;
+}
+
+function normalizeAccountName(name) {
+  return String(name || '').trim().toLowerCase().replace(/[^a-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '');
+}
+
+function passwordKeychainName(name) {
+  return `imap/${normalizeAccountName(name)}/password`;
+}
+
 function registerPane() {
   const registry = globalThis.__piclawSettingsPaneRegistry || {};
   const registerSettingsPane = registry.registerSettingsPane;
@@ -121,9 +142,11 @@ function ImapPane() {
         tls: !!draft.tls,
         starttls: !!draft.starttls,
         allowInsecureTls: !!draft.allowInsecureTls,
-        password: draft.password || undefined,
         setDefault: !!draft.setDefault,
       };
+      if (draft.password) {
+        await setKeychainSecret(passwordKeychainName(draft.name), draft.password);
+      }
       const payload = await api('/accounts', { method: 'POST', body: JSON.stringify({ action: 'save', name: draft.name, account: body }) });
       await refresh(payload.account?.name || draft.name);
       setDraft((prev) => ({ ...prev, password: '' }));
@@ -234,7 +257,7 @@ function ImapPane() {
         </div>
         <div class="settings-row">
           <label>From</label>
-          <input value=${draft.from} onInput=${(e) => patch('from', e.currentTarget.value)} placeholder="Rui Carmo <rui@example.com>" />
+          <input value=${draft.from} onInput=${(e) => patch('from', e.currentTarget.value)} placeholder="Me <me@example.com>" />
         </div>
         <div class="settings-row">
           <label>Implicit TLS</label>
