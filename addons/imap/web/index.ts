@@ -23,9 +23,12 @@ function registerPane() {
   const registerSettingsPane = registry.registerSettingsPane;
   if (!registerSettingsPane) return;
 
+  const icon = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z"></path><path d="m22 8-8.97 6.35a1.8 1.8 0 0 1-2.06 0L2 8"></path></svg>`;
+
   registerSettingsPane({
     id: 'imap',
     label: 'IMAP',
+    icon,
     order: 36,
     searchable: true,
     component: ImapPane,
@@ -90,6 +93,11 @@ function ImapPane() {
     setDraft((prev) => ({ ...prev, [field]: value }));
   }
 
+  function selectAccount(account) {
+    setSelected(account.name);
+    setDraft({ ...emptyDraft(account.name), ...account, password: '', setDefault: account.name === defaultAccount });
+  }
+
   async function saveCurrent() {
     if (!draft.name) {
       setError('Account name is required.');
@@ -152,59 +160,103 @@ function ImapPane() {
   if (loading) return html`<div class="settings-loading">Loading IMAP accounts…</div>`;
 
   return html`
-    <div class="imap-settings" style="display:grid;grid-template-columns:220px 1fr;gap:16px;align-items:start;">
-      <div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-          <strong>Accounts</strong>
-          <button onClick=${() => { setSelected(''); setDraft(emptyDraft()); }}>New</button>
+    <div class="imap-settings" style="display:flex;flex-direction:column;gap:16px;">
+      <div class="settings-section">
+        <h3>Accounts</h3>
+        <div class="settings-hint" style="margin:0 0 12px;">
+          Passwords live in keychain. Connection settings and defaults live in the SQLite KV store.
         </div>
-        <div style="display:flex;flex-direction:column;gap:8px;">
-          ${accounts.map((account) => html`
-            <button
-              style=${`text-align:left;padding:10px;border-radius:8px;border:1px solid var(--border-color,#333);background:${selected===account.name ? 'var(--accent-bg,#1f2f4a)' : 'var(--panel-bg,#111)'};color:inherit;`}
-              onClick=${() => {
-                setSelected(account.name);
-                setDraft({ ...emptyDraft(account.name), ...account, password: '', setDefault: account.name === defaultAccount });
-              }}>
-              <div style="font-weight:600;display:flex;justify-content:space-between;gap:8px;">
-                <span>${account.name}</span>
-                ${account.name === defaultAccount ? html`<span title="Default">★</span>` : null}
-              </div>
-              <div style="font-size:12px;opacity:.75">${account.user}@${account.host}:${account.port}</div>
-              <div style="font-size:11px;opacity:.65">
-                ${account.tls ? 'TLS' : account.starttls ? 'STARTTLS' : 'Plain'}
-                ${account.allowInsecureTls ? ' • insecure certs accepted' : ''}
-                ${account.source === 'legacy-keychain' ? ' • legacy' : ''}
-              </div>
-            </button>
-          `)}
-          ${accounts.length === 0 ? html`<div style="opacity:.7;font-size:12px">No IMAP accounts yet.</div>` : null}
+        <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
+          <button onClick=${() => { setSelected(''); setDraft(emptyDraft()); }}>New account</button>
         </div>
+        ${accounts.length === 0 ? html`<div class="settings-hint">No IMAP accounts yet.</div>` : html`
+          <table class="settings-table">
+            <thead>
+              <tr>
+                <th>Account</th>
+                <th>Server</th>
+                <th>Security</th>
+                <th style="width:90px;">Default</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${accounts.map((account) => html`
+                <tr>
+                  <td>
+                    <button onClick=${() => selectAccount(account)} style=${`text-align:left;background:none;border:none;padding:0;color:inherit;font:inherit;cursor:pointer;${selected===account.name ? 'font-weight:600;' : ''}`}>
+                      ${account.name}
+                    </button>
+                    ${account.source === 'legacy-keychain' ? html`<div class="settings-hint" style="margin-top:4px;">Legacy config</div>` : null}
+                  </td>
+                  <td>${account.user}@${account.host}:${account.port}</td>
+                  <td>
+                    ${account.tls ? 'TLS' : account.starttls ? 'STARTTLS' : 'Plain'}
+                    ${account.allowInsecureTls ? html`<div class="settings-hint" style="margin-top:4px;">Accepts untrusted certs</div>` : null}
+                  </td>
+                  <td>${account.name === defaultAccount ? '★' : ''}</td>
+                </tr>
+              `)}
+            </tbody>
+          </table>
+        `}
       </div>
-      <div style="display:flex;flex-direction:column;gap:12px;">
-        ${error ? html`<div style="color:#ff8080">${error}</div>` : null}
-        <label>Name <input value=${draft.name} onInput=${(e) => patch('name', e.currentTarget.value)} placeholder="personal" /></label>
-        <div style="display:grid;grid-template-columns:1fr 100px;gap:12px;">
-          <label>Host <input value=${draft.host} onInput=${(e) => patch('host', e.currentTarget.value)} placeholder="imap.example.com" /></label>
-          <label>Port <input type="number" value=${draft.port} onInput=${(e) => patch('port', Number(e.currentTarget.value))} /></label>
+
+      <div class="settings-section">
+        <h3>${selected ? `Edit account: ${selected}` : 'New account'}</h3>
+        ${error ? html`<div style="color:var(--danger-color,#ff8080);margin-bottom:12px;">${error}</div>` : null}
+
+        <div class="settings-row">
+          <label>Name</label>
+          <input value=${draft.name} onInput=${(e) => patch('name', e.currentTarget.value)} placeholder="personal" />
         </div>
-        <label>Username <input value=${draft.user} onInput=${(e) => patch('user', e.currentTarget.value)} placeholder="user@example.com" /></label>
-        <label>Password <input type="password" value=${draft.password} onInput=${(e) => patch('password', e.currentTarget.value)} placeholder=${selectedMeta?.hasPassword ? 'Leave blank to keep existing password' : 'Required for new accounts'} /></label>
-        <label>From <input value=${draft.from} onInput=${(e) => patch('from', e.currentTarget.value)} placeholder="Rui Carmo <rui@example.com>" /></label>
-        <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;">
-          <label><input type="checkbox" checked=${!!draft.tls} onChange=${(e) => patch('tls', e.currentTarget.checked)} /> Use implicit TLS</label>
-          <label><input type="checkbox" checked=${!!draft.starttls} onChange=${(e) => patch('starttls', e.currentTarget.checked)} disabled=${!!draft.tls} /> Use STARTTLS</label>
-          <label><input type="checkbox" checked=${!!draft.allowInsecureTls} onChange=${(e) => patch('allowInsecureTls', e.currentTarget.checked)} /> Accept untrusted TLS certs</label>
+        <div class="settings-row">
+          <label>Host</label>
+          <input value=${draft.host} onInput=${(e) => patch('host', e.currentTarget.value)} placeholder="imap.example.com" />
         </div>
-        <label><input type="checkbox" checked=${!!draft.setDefault} onChange=${(e) => patch('setDefault', e.currentTarget.checked)} /> Make this the default account</label>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <div class="settings-row">
+          <label>Port</label>
+          <input type="number" value=${draft.port} onInput=${(e) => patch('port', Number(e.currentTarget.value))} style="width:100px;" />
+        </div>
+        <div class="settings-row">
+          <label>Username</label>
+          <input value=${draft.user} onInput=${(e) => patch('user', e.currentTarget.value)} placeholder="user@example.com" />
+        </div>
+        <div class="settings-row">
+          <label>Password</label>
+          <input type="password" value=${draft.password} onInput=${(e) => patch('password', e.currentTarget.value)} placeholder=${selectedMeta?.hasPassword ? 'Leave blank to keep existing password' : 'Required for new accounts'} />
+        </div>
+        <div class="settings-row">
+          <label>From</label>
+          <input value=${draft.from} onInput=${(e) => patch('from', e.currentTarget.value)} placeholder="Rui Carmo <rui@example.com>" />
+        </div>
+        <div class="settings-row">
+          <label>Implicit TLS</label>
+          <input type="checkbox" checked=${!!draft.tls} onChange=${(e) => patch('tls', e.currentTarget.checked)} />
+        </div>
+        <div class="settings-row">
+          <label>STARTTLS</label>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <input type="checkbox" checked=${!!draft.starttls} onChange=${(e) => patch('starttls', e.currentTarget.checked)} disabled=${!!draft.tls} />
+            <span class="settings-hint" style="margin:0;">Disabled when implicit TLS is enabled.</span>
+          </div>
+        </div>
+        <div class="settings-row">
+          <label>Accept untrusted TLS certs</label>
+          <input type="checkbox" checked=${!!draft.allowInsecureTls} onChange=${(e) => patch('allowInsecureTls', e.currentTarget.checked)} />
+        </div>
+        <div class="settings-row">
+          <label>Make default</label>
+          <input type="checkbox" checked=${!!draft.setDefault} onChange=${(e) => patch('setDefault', e.currentTarget.checked)} />
+        </div>
+
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
           <button onClick=${saveCurrent} disabled=${saving}>${saving ? 'Saving…' : 'Save account'}</button>
           ${selected ? html`<button onClick=${removeCurrent} disabled=${saving}>Delete</button>` : null}
           ${selected && selected !== defaultAccount ? html`<button onClick=${() => setDefault(selected)} disabled=${saving}>Set default</button>` : null}
           ${defaultAccount ? html`<button onClick=${() => setDefault('')} disabled=${saving}>Clear default</button>` : null}
         </div>
-        <div class="settings-hint" style="font-size:12px;opacity:.75;">
-          Passwords are stored in keychain. Host, port, username, security mode, and certificate policy are stored in the SQLite KV store.
+        <div class="settings-hint" style="margin-top:12px;">
+          Use port 993 with implicit TLS, or port 143 with STARTTLS.
         </div>
       </div>
     </div>
