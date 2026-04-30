@@ -2,7 +2,7 @@
  * IMAP settings pane — SQLite KV + keychain account manager.
  */
 // @ts-nocheck
-const API_BASE = '/imap-settings/api';
+const API_BASE = '/agent/addons/api/imap';
 const preactHtm = globalThis.__piclawPreactHtm || globalThis.__piclawPreact || null;
 const html = preactHtm?.html;
 const useEffect = preactHtm?.useEffect;
@@ -124,7 +124,7 @@ function ImapPane() {
         password: draft.password || undefined,
         setDefault: !!draft.setDefault,
       };
-      const payload = await api(`/accounts/${encodeURIComponent(draft.name)}`, { method: 'PUT', body: JSON.stringify(body) });
+      const payload = await api('/accounts', { method: 'POST', body: JSON.stringify({ action: 'save', name: draft.name, account: body }) });
       await refresh(payload.account?.name || draft.name);
       setDraft((prev) => ({ ...prev, password: '' }));
     } catch (e) {
@@ -140,7 +140,7 @@ function ImapPane() {
     setSaving(true);
     setError('');
     try {
-      await api(`/accounts/${encodeURIComponent(selected)}`, { method: 'DELETE' });
+      await api('/accounts', { method: 'POST', body: JSON.stringify({ action: 'delete', name: selected }) });
       setSelected('');
       setDraft(emptyDraft());
       await refresh('');
@@ -155,7 +155,7 @@ function ImapPane() {
     setSaving(true);
     setError('');
     try {
-      await api('/default', { method: 'POST', body: JSON.stringify({ name }) });
+      await api('/accounts', { method: 'POST', body: JSON.stringify({ action: 'set_default', name }) });
       await refresh(name || '');
     } catch (e) {
       setError(String(e?.message || e));

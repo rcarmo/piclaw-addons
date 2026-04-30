@@ -26,8 +26,7 @@ import {
   setDefaultAccount,
 } from "./account-store.ts";
 
-const ROUTE_PREFIX = "/imap-settings";
-const EXT_DIR = typeof import.meta !== "undefined" && import.meta.dir ? import.meta.dir : process.cwd();
+const ADDON_ID = "imap";
 
 interface ImapAccount extends ImapConfig {
   from: string;
@@ -104,64 +103,74 @@ async function resolveAccount(pi: ExtensionAPI, accountName?: string): Promise<I
   };
 }
 
-async function handleSettingsRoute(pi: ExtensionAPI, req: Request, pathname: string): Promise<Response> {
-  const path = pathname.replace(/^\/imap-settings/, "") || "/";
-  const json = (payload: unknown, status = 200) => new Response(req.method === "HEAD" ? null : JSON.stringify(payload, null, 2), {
-    status,
-    headers: {
-      "Content-Type": "application/json; charset=utf-8",
-      "Cache-Control": "no-store",
+function commandJson(pi: ExtensionAPI, payload: unknown): void {
+  pi.sendMessage({
+    customType: ADDON_ID,
+    content: JSON.stringify(payload),
+    display: false,
+  });
+}
+
+async function handleAccountsSet(pi: ExtensionAPI, input: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const action = String(input.action ?? input.op ?? "").toLowerCase().trim();
+  const name = typeof input.name === "string" ? input.name.trim() : "";
+
+  if (action === "save") {
+    if (!name) throw new Error("account name required");
+    const account = (input.account && typeof input.account === "object" ? input.account : input) as Record<string, unknown>;
+    const saved = await saveAccount(
+      pi,
+      name,
+      account,
+      typeof account.password === "string" ? account.password : typeof input.password === "string" ? input.password : undefined,
+      parseBoolean(account.setDefault ?? input.setDefault),
+    );
+    return { ok: true, account: saved, defaultAccount: getDefaultAccount() };
+  }
+
+  if (action === "delete") {
+    if (!name) throw new Error("account name required");
+    const deleted = await deleteAccount(pi, name);
+    return { ok: true, deleted, defaultAccount: getDefaultAccount() };
+  }
+
+  if (action === "set_default" || action === "set-default") {
+    const nextDefault = name || null;
+    setDefaultAccount(nextDefault);
+    return { ok: true, defaultAccount: getDefaultAccount() };
+  }
+
+  throw new Error("Unsupported IMAP accounts action");
+}
+
+function registerSettingsCommands(pi: ExtensionAPI): void {
+  pi.registerCommand("imap-accounts-get", {
+    description: "Get IMAP accounts for the settings pane (internal)",
+    handler: async () => {
+      try {
+        const payload = await listAccounts(pi);
+        commandJson(pi, { ok: true, ...payload });
+      } catch (error) {
+        commandJson(pi, { ok: false, error: error instanceof Error ? error.message : String(error) });
+      }
     },
   });
 
-  try {
-    if (path === "/api/accounts" && req.method === "GET") {
-      const { accounts, defaultAccount } = await listAccounts(pi);
-      return json({ accounts, defaultAccount });
-    }
-
-    if (path === "/api/default" && req.method === "POST") {
-      const body = await req.json().catch(() => ({}));
-      const name = typeof body?.name === "string" && body.name.trim() ? body.name.trim() : null;
-      setDefaultAccount(name);
-      return json({ ok: true, defaultAccount: getDefaultAccount() });
-    }
-
-    const accountMatch = path.match(/^\/api\/accounts\/([^/]+)$/);
-    if (accountMatch?.[1]) {
-      const name = decodeURIComponent(accountMatch[1]);
-      if (req.method === "GET") {
-        const account = await getAccount(pi, name);
-        if (!account) return json({ ok: false, error: "Account not found" }, 404);
-        return json({ ok: true, account: { ...account, password: undefined }, hasPassword: account.hasPassword });
+  pi.registerCommand("imap-accounts-set", {
+    description: "Update IMAP account settings (internal)",
+    handler: async (args: string) => {
+      try {
+        const input = JSON.parse(args || "{}") as Record<string, unknown>;
+        commandJson(pi, await handleAccountsSet(pi, input));
+      } catch (error) {
+        commandJson(pi, { ok: false, error: error instanceof Error ? error.message : String(error) });
       }
-
-      if (req.method === "PUT") {
-        const body = await req.json().catch(() => ({}));
-        const saved = await saveAccount(pi, name, body ?? {}, typeof body?.password === "string" ? body.password : undefined, parseBoolean(body?.setDefault));
-        return json({ ok: true, account: saved, defaultAccount: getDefaultAccount() });
-      }
-
-      if (req.method === "DELETE") {
-        const deleted = await deleteAccount(pi, name);
-        return json({ ok: true, deleted, defaultAccount: getDefaultAccount() });
-      }
-    }
-
-    return json({ ok: false, error: `Unhandled IMAP settings route: ${req.method} ${path}` }, 404);
-  } catch (error) {
-    return json({ ok: false, error: error instanceof Error ? error.message : String(error) }, 500);
-  }
+    },
+  });
 }
 
 export default function imapExtension(pi: ExtensionAPI) {
-  const registerRoute = (globalThis as any).__piclaw_registerRoute as
-    | ((prefix: string, handler: (req: Request, pathname: string) => Response | Promise<Response> | null, extensionPath?: string) => "created" | "updated")
-    | undefined;
-
-  if (typeof registerRoute === "function") {
-    registerRoute(ROUTE_PREFIX, (req, pathname) => handleSettingsRoute(pi, req, pathname), EXT_DIR);
-  }
+  registerSettingsCommands(pi);
 
   pi.on("session_shutdown", async () => {
     if (cleanupTimer) {
