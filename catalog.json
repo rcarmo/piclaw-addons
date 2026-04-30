@@ -71,7 +71,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-cheapskate-0.4.1.tgz"
       },
-      "updatedAt": "2026-04-28",
+      "updatedAt": "2026-04-30",
       "owner": {
         "login": "rcarmo",
         "url": "https://github.com/rcarmo"
@@ -324,7 +324,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-observability-0.1.4.tgz"
       },
-      "updatedAt": "2026-04-29"
+      "updatedAt": "2026-04-30"
     },
     {
       "slug": "portainer",
@@ -344,7 +344,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-portainer-0.1.4.tgz"
       },
-      "updatedAt": "2026-04-29",
+      "updatedAt": "2026-04-30",
       "owner": {
         "login": "rcarmo",
         "url": "https://github.com/rcarmo"
@@ -369,7 +369,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-proxmox-0.1.5.tgz"
       },
-      "updatedAt": "2026-04-29",
+      "updatedAt": "2026-04-30",
       "owner": {
         "login": "rcarmo",
         "url": "https://github.com/rcarmo"
@@ -393,7 +393,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-sample-addon-0.1.1.tgz"
       },
-      "updatedAt": "2026-04-28"
+      "updatedAt": "2026-04-30"
     },
     {
       "slug": "settings-dialog-screenshot",
@@ -416,6 +416,36 @@
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-settings-dialog-screenshot-0.1.0.tgz"
       },
       "updatedAt": "2026-04-28"
+    },
+    {
+      "slug": "vent",
+      "name": "@rcarmo/piclaw-addon-vent",
+      "version": "0.1.0",
+      "type": "extension",
+      "description": "Workspace vent log add-on, adapted from pi-vent by Igor Warzocha, with a configurable output file",
+      "path": "addons/vent",
+      "tags": [
+        "feedback",
+        "postmortem",
+        "quality",
+        "vent",
+        "workspace"
+      ],
+      "skills": [],
+      "install": {
+        "kind": "tarball",
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-vent-0.1.0.tgz"
+      },
+      "owner": {
+        "login": "rcarmo",
+        "url": "https://github.com/rcarmo"
+      },
+      "contributors": [
+        {
+          "login": "IgorWarzocha",
+          "url": "https://github.com/IgorWarzocha"
+        }
+      ]
     },
     {
       "slug": "voice-pipeline",

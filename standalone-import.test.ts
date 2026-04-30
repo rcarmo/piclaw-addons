@@ -13,7 +13,7 @@ afterEach(() => {
   }
 });
 
-async function importStandaloneAddon(slug: "autoresearch" | "editable-table" | "imap" | "portainer" | "proxmox") {
+async function importStandaloneAddon(slug: "autoresearch" | "editable-table" | "imap" | "portainer" | "proxmox" | "vent") {
   const tempRoot = mkdtempSync(join(tmpdir(), `piclaw-addon-${slug}-`));
   tempDirs.push(tempRoot);
 
@@ -46,5 +46,10 @@ test("standalone piclaw-addon-portainer imports outside the monorepo root", asyn
 
 test("standalone piclaw-addon-proxmox imports outside the monorepo root", async () => {
   const mod = await importStandaloneAddon("proxmox");
+  expect(typeof mod.default).toBe("function");
+});
+
+test("standalone piclaw-addon-vent imports outside the monorepo root", async () => {
+  const mod = await importStandaloneAddon("vent");
   expect(typeof mod.default).toBe("function");
 });

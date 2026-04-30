@@ -49,6 +49,8 @@ Use this split:
 
 Do **not** build new settings panes on top of internal slash-command bridges. Piclaw keeps that path only as a compatibility fallback for older add-ons.
 
+For add-ons with meaningful web UI, prefer committing at least one screenshot under `addons/<slug>/assets/` and referencing it from the add-on README.
+
 See:
 - [AGENTS.md](AGENTS.md)
 - [docs/architecture.md](docs/architecture.md)
@@ -72,6 +74,7 @@ See:
 | [`kanban-board-widget`](addons/kanban-board-widget/) | Kanban board dashboard widget |
 | [`portainer`](addons/portainer/) | Portainer container management |
 | [`proxmox`](addons/proxmox/) | Proxmox VE infrastructure management |
+| [`vent`](addons/vent/) | Adapted repackaging of pi-vent with a configurable output file |
 | [`voice-pipeline`](addons/voice-pipeline/) | ESPHome voice assistant for ThinkSmart/ESP32 |
 | [`yolochat`](addons/yolochat/) | Zero-guardrail inter-instance messaging |
 

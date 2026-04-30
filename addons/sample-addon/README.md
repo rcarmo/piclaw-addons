@@ -112,4 +112,5 @@ addons/sample-addon/
 3. Replace the greeting field with your config
 4. Replace the secret keychain entry name
 5. Replace the test tool with your tool
-6. Run `bun run scripts/sync-catalog.ts --write` to update the catalog
+6. If your add-on exposes a settings pane or other meaningful web UI, capture a screenshot on the microVM test instance and store it under `addons/your-addon/assets/`, then reference it from the README
+7. Run `bun run scripts/sync-catalog.ts --write` to update the catalog
