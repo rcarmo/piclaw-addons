@@ -9,6 +9,7 @@
       "type": "extension",
       "description": "Structural code search and rewrite using ast-grep as a native LLM tool",
       "path": "addons/ast-grep-tool",
+      "homepage": "https://rcarmo.github.io/piclaw-addons/addons/ast-grep-tool/",
       "tags": [
         "ast",
         "code-search",
@@ -33,6 +34,7 @@
       "type": "extension",
       "description": "Autonomous experiment loop sub-agent (start/stop/status tools via tmux)",
       "path": "addons/autoresearch",
+      "homepage": "https://rcarmo.github.io/piclaw-addons/addons/autoresearch/",
       "tags": [
         "automation",
         "experiments",
@@ -59,6 +61,7 @@
       "type": "extension",
       "description": "Free-tier provider auto-rotation — select cheapskate/auto as your model and it transparently routes to Google Gemini, Cerebras, Groq, or SambaNova free tiers",
       "path": "addons/cheapskate",
+      "homepage": "https://rcarmo.github.io/piclaw-addons/addons/cheapskate/",
       "tags": [
         "cost-optimization",
         "free-tier",
@@ -85,6 +88,7 @@
       "type": "extension",
       "description": "Diagnostics tool for code validation (Python, JS/TS, JSON, extensible via validators.json)",
       "path": "addons/code-validator",
+      "homepage": "https://rcarmo.github.io/piclaw-addons/addons/code-validator/",
       "tags": [
         "diagnostics",
         "linting",
@@ -109,6 +113,7 @@
       "type": "extension",
       "description": "Delegate tasks to cheaper/faster models with auto model selection, tool access, and MCP support",
       "path": "addons/delegate",
+      "homepage": "https://rcarmo.github.io/piclaw-addons/addons/delegate/",
       "tags": [
         "cost-optimization",
         "delegation",
@@ -135,6 +140,7 @@
       "type": "extension",
       "description": "Developer tools for workspace diagnostics and environment inspection",
       "path": "addons/dev-tools",
+      "homepage": "https://rcarmo.github.io/piclaw-addons/addons/dev-tools/",
       "tags": [
         "developer",
         "diagnostics",
@@ -159,6 +165,7 @@
       "type": "extension",
       "description": "Self-hosted draw.io diagram editor with workspace file integration",
       "path": "addons/drawio-editor",
+      "homepage": "https://rcarmo.github.io/piclaw-addons/addons/drawio-editor/",
       "tags": [
         "diagrams",
         "drawio",
@@ -183,6 +190,7 @@
       "type": "extension",
       "description": "Editable Markdown table widget for the web UI — opens a themed spreadsheet-style grid and inserts the edited Markdown table back into chat",
       "path": "addons/editable-table",
+      "homepage": "https://rcarmo.github.io/piclaw-addons/addons/editable-table/",
       "tags": [
         "editor",
         "markdown",
@@ -211,6 +219,7 @@
       "type": "extension",
       "description": "Attachment preview route for email message (.eml) files in the web timeline",
       "path": "addons/eml-viewer",
+      "homepage": "https://rcarmo.github.io/piclaw-addons/addons/eml-viewer/",
       "tags": [
         "email",
         "eml",
@@ -235,6 +244,7 @@
       "type": "extension",
       "description": "Git history and JSON query tools for piclaw agents",
       "path": "addons/git-query-tools",
+      "homepage": "https://rcarmo.github.io/piclaw-addons/addons/git-query-tools/",
       "tags": [
         "git",
         "json",
@@ -255,10 +265,11 @@
     {
       "slug": "imap",
       "name": "@rcarmo/piclaw-addon-imap",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "type": "extension",
       "description": "IMAP email management tool — search/fetch, move/copy, flag, create drafts, file messages, and STARTTLS support",
       "path": "addons/imap",
+      "homepage": "https://rcarmo.github.io/piclaw-addons/addons/imap/",
       "tags": [
         "email",
         "imap",
@@ -268,7 +279,7 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-imap-0.1.0.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-imap-0.1.1.tgz"
       },
       "updatedAt": "2026-04-30",
       "owner": {
@@ -284,6 +295,7 @@
       "type": "extension",
       "description": "Interactive kanban board dashboard widget for the web timeline",
       "path": "addons/kanban-board-widget",
+      "homepage": "https://rcarmo.github.io/piclaw-addons/addons/kanban-board-widget/",
       "tags": [
         "dashboard",
         "kanban",
@@ -309,6 +321,7 @@
       "type": "extension",
       "description": "Workspace .kanban.md editor add-on with Obsidian-style [[links]] between boards",
       "path": "addons/kanban-editor",
+      "homepage": "https://rcarmo.github.io/piclaw-addons/addons/kanban-editor/",
       "tags": [
         "editor",
         "kanban",
@@ -335,6 +348,7 @@
       "type": "extension",
       "description": "OpenTelemetry observability — trace errors and agent turns across piclaw instances to Azure Application Insights (with Live Metrics) and local Graphite",
       "path": "addons/observability",
+      "homepage": "https://rcarmo.github.io/piclaw-addons/addons/observability/",
       "tags": [
         "application-insights",
         "graphite",
@@ -359,6 +373,7 @@
       "type": "extension",
       "description": "Portainer management tool — session-scoped API config, ad-hoc requests, and orchestration workflows for endpoints, stacks, containers, images, networks, and volumes",
       "path": "addons/portainer",
+      "homepage": "https://rcarmo.github.io/piclaw-addons/addons/portainer/",
       "tags": [
         "containers",
         "docker",
@@ -384,6 +399,7 @@
       "type": "extension",
       "description": "Proxmox VE management tool — session-scoped API config, ad-hoc requests, and orchestration workflows for VMs, LXC containers, storage, tasks, and metrics",
       "path": "addons/proxmox",
+      "homepage": "https://rcarmo.github.io/piclaw-addons/addons/proxmox/",
       "tags": [
         "homelab",
         "infrastructure",
@@ -409,6 +425,7 @@
       "type": "extension",
       "description": "Sample add-on — starter template showing a settings pane, keychain secret, SQLite KV config, and a test endpoint",
       "path": "addons/sample-addon",
+      "homepage": "https://rcarmo.github.io/piclaw-addons/addons/sample-addon/",
       "tags": [
         "developer",
         "sample",
@@ -428,6 +445,7 @@
       "type": "skill",
       "description": "Developer skill for capturing tightly cropped screenshots of the Pi web settings dialog only",
       "path": "addons/settings-dialog-screenshot",
+      "homepage": "https://rcarmo.github.io/piclaw-addons/addons/settings-dialog-screenshot/",
       "tags": [
         "developer",
         "documentation",
@@ -450,6 +468,7 @@
       "type": "extension",
       "description": "Workspace vent log add-on, adapted from pi-vent by Igor Warzocha, with a configurable output file",
       "path": "addons/vent",
+      "homepage": "https://rcarmo.github.io/piclaw-addons/addons/vent/",
       "tags": [
         "feedback",
         "postmortem",
@@ -481,6 +500,7 @@
       "type": "extension",
       "description": "ESPHome-only voice assistant pipeline for ThinkSmart/ESP32-Audio devices using Azure STT/TTS and the Flint chat runtime",
       "path": "addons/voice-pipeline",
+      "homepage": "https://rcarmo.github.io/piclaw-addons/addons/voice-pipeline/",
       "tags": [
         "audio",
         "esp32",
@@ -507,6 +527,7 @@
       "type": "skill",
       "description": "Zero-guardrail inter-instance messaging — lets Pi instances post and reply to each other over HTTP",
       "path": "addons/yolochat",
+      "homepage": "https://rcarmo.github.io/piclaw-addons/addons/yolochat/",
       "tags": [
         "chat",
         "experimental",

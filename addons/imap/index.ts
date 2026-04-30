@@ -94,8 +94,8 @@ function truncate(text: string, max = 8000): string {
   return text.length > max ? `${text.slice(0, max)}\n…(truncated)` : text;
 }
 
-async function resolveAccount(pi: ExtensionAPI, accountName?: string): Promise<ImapAccount> {
-  const resolved = await resolveAccountForRuntime(pi, accountName);
+async function resolveAccount(_pi: ExtensionAPI, accountName?: string): Promise<ImapAccount> {
+  const resolved = await resolveAccountForRuntime(accountName);
   return {
     ...resolved.config,
     from: resolved.config.from ?? resolved.config.user,
@@ -104,7 +104,7 @@ async function resolveAccount(pi: ExtensionAPI, accountName?: string): Promise<I
   };
 }
 
-async function handleSettingsRoute(pi: ExtensionAPI, req: Request, pathname: string): Promise<Response> {
+async function handleSettingsRoute(_pi: ExtensionAPI, req: Request, pathname: string): Promise<Response> {
   const path = pathname.replace(/^\/imap-settings/, "") || "/";
   const json = (payload: unknown, status = 200) => new Response(req.method === "HEAD" ? null : JSON.stringify(payload, null, 2), {
     status,
@@ -116,7 +116,7 @@ async function handleSettingsRoute(pi: ExtensionAPI, req: Request, pathname: str
 
   try {
     if (path === "/api/accounts" && req.method === "GET") {
-      const { accounts, defaultAccount } = await listAccounts(pi);
+      const { accounts, defaultAccount } = await listAccounts();
       return json({ accounts, defaultAccount });
     }
 
@@ -131,19 +131,19 @@ async function handleSettingsRoute(pi: ExtensionAPI, req: Request, pathname: str
     if (accountMatch?.[1]) {
       const name = decodeURIComponent(accountMatch[1]);
       if (req.method === "GET") {
-        const account = await getAccount(pi, name);
+        const account = await getAccount(name);
         if (!account) return json({ ok: false, error: "Account not found" }, 404);
         return json({ ok: true, account: { ...account, password: undefined }, hasPassword: account.hasPassword });
       }
 
       if (req.method === "PUT") {
         const body = await req.json().catch(() => ({}));
-        const saved = await saveAccount(pi, name, body ?? {}, typeof body?.password === "string" ? body.password : undefined, parseBoolean(body?.setDefault));
+        const saved = await saveAccount(name, body ?? {}, typeof body?.password === "string" ? body.password : undefined, parseBoolean(body?.setDefault));
         return json({ ok: true, account: saved, defaultAccount: getDefaultAccount() });
       }
 
       if (req.method === "DELETE") {
-        const deleted = await deleteAccount(pi, name);
+        const deleted = await deleteAccount(name);
         return json({ ok: true, deleted, defaultAccount: getDefaultAccount() });
       }
     }
@@ -227,7 +227,7 @@ export default function imapExtension(pi: ExtensionAPI) {
       const text = "text" as const;
       try {
         if (action === "list_accounts") {
-          const payload = await listAccounts(pi);
+          const payload = await listAccounts();
           return {
             content: [{ type: text, text: truncate(JSON.stringify(payload, null, 2)) }],
             details: payload,
@@ -236,7 +236,7 @@ export default function imapExtension(pi: ExtensionAPI) {
 
         if (action === "get_account") {
           if (!params.account) throw new Error("account required");
-          const payload = await getAccount(pi, params.account);
+          const payload = await getAccount(params.account);
           if (!payload) throw new Error(`Account not found: ${params.account}`);
           return {
             content: [{ type: text, text: truncate(JSON.stringify({ ...payload, password: undefined }, null, 2)) }],
@@ -246,7 +246,7 @@ export default function imapExtension(pi: ExtensionAPI) {
 
         if (action === "save_account") {
           if (!params.account) throw new Error("account required");
-          const saved = await saveAccount(pi, params.account, {
+          const saved = await saveAccount(params.account, {
             host: params.host,
             port: params.port,
             user: params.user,
@@ -263,7 +263,7 @@ export default function imapExtension(pi: ExtensionAPI) {
 
         if (action === "delete_account") {
           if (!params.account) throw new Error("account required");
-          const deleted = await deleteAccount(pi, params.account);
+          const deleted = await deleteAccount(params.account);
           return {
             content: [{ type: text, text: deleted ? `Deleted IMAP account ${params.account}.` : `No IMAP KV config existed for ${params.account}; password key was removed if present.` }],
             details: { deleted, defaultAccount: getDefaultAccount() },

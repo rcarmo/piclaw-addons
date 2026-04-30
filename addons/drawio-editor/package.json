@@ -16,7 +16,7 @@
   },
   "agents": {},
   "scripts": {
-    "postinstall": "echo 'draw.io addon installed. Vendor files must be provided separately — see README.'"
+    "postinstall": "echo 'draw.io addon installed. Vendor files must be provided separately \u2014 see README.'"
   },
   "license": "MIT",
   "keywords": [
@@ -31,5 +31,6 @@
         "web/index.ts"
       ]
     }
-  }
+  },
+  "homepage": "https://rcarmo.github.io/piclaw-addons/addons/drawio-editor/"
 }

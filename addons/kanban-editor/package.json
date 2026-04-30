@@ -35,5 +35,6 @@
     "kanban",
     "wiki-links"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "homepage": "https://rcarmo.github.io/piclaw-addons/addons/kanban-editor/"
 }

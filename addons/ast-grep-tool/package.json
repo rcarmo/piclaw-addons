@@ -29,5 +29,6 @@
     "piclaw",
     "piclaw-addon"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "homepage": "https://rcarmo.github.io/piclaw-addons/addons/ast-grep-tool/"
 }

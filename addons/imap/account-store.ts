@@ -1,4 +1,3 @@
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { createExtensionStorage, type ExtensionStorage } from "./compat/extension-kv.ts";
 
 export interface ImapAccountConfig {
@@ -75,20 +74,33 @@ function parseJsonFromMixedOutput(text: string): any {
   throw new Error("Could not parse CLI JSON output");
 }
 
-async function keychainSet(pi: ExtensionAPI, name: string, secret: string): Promise<void> {
-  const result = await pi.exec("piclaw", ["keychain", "set", name, "--secret", secret, "--type", "password"], { timeout: 10_000 });
+async function runPiclaw(args: string[]): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+  const proc = Bun.spawn(["piclaw", ...args], {
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  const [stdout, stderr, exitCode] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+    proc.exited,
+  ]);
+  return { stdout, stderr, exitCode };
+}
+
+async function keychainSet(name: string, secret: string): Promise<void> {
+  const result = await runPiclaw(["keychain", "set", name, "--secret", secret, "--type", "password"]);
   if (result.exitCode !== 0) throw new Error(result.stderr || `Failed to set keychain entry ${name}`);
 }
 
-async function keychainDelete(pi: ExtensionAPI, name: string): Promise<void> {
-  const result = await pi.exec("piclaw", ["keychain", "delete", name], { timeout: 10_000 });
+async function keychainDelete(name: string): Promise<void> {
+  const result = await runPiclaw(["keychain", "delete", name]);
   if (result.exitCode !== 0 && !/not found/i.test(result.stderr || result.stdout)) {
     throw new Error(result.stderr || `Failed to delete keychain entry ${name}`);
   }
 }
 
-async function keychainGetRaw(pi: ExtensionAPI, name: string): Promise<any | null> {
-  const result = await pi.exec("piclaw", ["keychain", "get", name], { timeout: 10_000 });
+async function keychainGetRaw(name: string): Promise<any | null> {
+  const result = await runPiclaw(["keychain", "get", name]);
   if (result.exitCode !== 0) return null;
   try {
     const parsed = parseJsonFromMixedOutput(result.stdout);
@@ -101,8 +113,8 @@ async function keychainGetRaw(pi: ExtensionAPI, name: string): Promise<any | nul
   }
 }
 
-async function keychainList(pi: ExtensionAPI): Promise<Array<{ name: string; type?: string }>> {
-  const result = await pi.exec("piclaw", ["keychain", "list"], { timeout: 10_000 });
+async function keychainList(): Promise<Array<{ name: string; type?: string }>> {
+  const result = await runPiclaw(["keychain", "list"]);
   if (result.exitCode !== 0) return [];
   try {
     const parsed = parseJsonFromMixedOutput(result.stdout);
@@ -112,7 +124,7 @@ async function keychainList(pi: ExtensionAPI): Promise<Array<{ name: string; typ
   }
 }
 
-export async function listAccounts(pi: ExtensionAPI): Promise<{ accounts: ImapStoredAccount[]; defaultAccount: string | null }> {
+export async function listAccounts(): Promise<{ accounts: ImapStoredAccount[]; defaultAccount: string | null }> {
   const kv = getStorage();
   const accounts = new Map<string, ImapStoredAccount>();
 
@@ -121,17 +133,17 @@ export async function listAccounts(pi: ExtensionAPI): Promise<{ accounts: ImapSt
     const stored = kv.get<ImapAccountConfig>(key, "global");
     if (!stored) continue;
     const config = sanitizeConfig(stored as Record<string, unknown>);
-    accounts.set(name, { name, ...config, hasPassword: Boolean(await keychainGetRaw(pi, passwordKeychainName(name))), source: "kv" });
+    accounts.set(name, { name, ...config, hasPassword: Boolean(await keychainGetRaw(passwordKeychainName(name))), source: "kv" });
   }
 
-  const entries = await keychainList(pi);
+  const entries = await keychainList();
   for (const entry of entries) {
     const name = String(entry.name || "");
     const legacy = name.match(/^imap\/([^/]+)$/);
     if (!legacy?.[1]) continue;
     const accountName = legacy[1];
     if (accounts.has(accountName)) continue;
-    const raw = await keychainGetRaw(pi, name);
+    const raw = await keychainGetRaw(name);
     if (!raw || typeof raw !== "object") continue;
     try {
       const config = sanitizeConfig(raw as Record<string, unknown>);
@@ -143,17 +155,17 @@ export async function listAccounts(pi: ExtensionAPI): Promise<{ accounts: ImapSt
   return { accounts: [...accounts.values()].sort((a, b) => a.name.localeCompare(b.name)), defaultAccount };
 }
 
-export async function getAccount(pi: ExtensionAPI, name: string): Promise<(ImapStoredAccount & { password?: string }) | null> {
+export async function getAccount(name: string): Promise<(ImapStoredAccount & { password?: string }) | null> {
   const normalized = normalizeName(name);
   if (!normalized) throw new Error("account name required");
   const kv = getStorage();
   const stored = kv.get<ImapAccountConfig>(accountKvKey(normalized), "global");
   if (stored) {
     const config = sanitizeConfig(stored as Record<string, unknown>);
-    const password = await keychainGetRaw(pi, passwordKeychainName(normalized));
+    const password = await keychainGetRaw(passwordKeychainName(normalized));
     return { name: normalized, ...config, hasPassword: typeof password === "string" && password.length > 0, password: typeof password === "string" ? password : undefined, source: "kv" };
   }
-  const legacy = await keychainGetRaw(pi, legacyKeychainName(normalized));
+  const legacy = await keychainGetRaw(legacyKeychainName(normalized));
   if (legacy && typeof legacy === "object") {
     const config = sanitizeConfig(legacy as Record<string, unknown>);
     return { name: normalized, ...config, hasPassword: typeof (legacy as any).pass === "string", password: typeof (legacy as any).pass === "string" ? (legacy as any).pass : undefined, source: "legacy-keychain" };
@@ -162,7 +174,6 @@ export async function getAccount(pi: ExtensionAPI, name: string): Promise<(ImapS
 }
 
 export async function saveAccount(
-  pi: ExtensionAPI,
   name: string,
   input: Record<string, unknown>,
   password?: string,
@@ -173,21 +184,21 @@ export async function saveAccount(
   const config = sanitizeConfig(input);
   getStorage().set(accountKvKey(normalized), config, "global");
   if (typeof password === "string" && password.length > 0) {
-    await keychainSet(pi, passwordKeychainName(normalized), password);
+    await keychainSet(passwordKeychainName(normalized), password);
   }
   if (setDefault) {
     getStorage().set(DEFAULT_ACCOUNT_KEY, normalized, "global");
   }
-  const savedPassword = await keychainGetRaw(pi, passwordKeychainName(normalized));
+  const savedPassword = await keychainGetRaw(passwordKeychainName(normalized));
   return { name: normalized, ...config, hasPassword: typeof savedPassword === "string" && savedPassword.length > 0, source: "kv" };
 }
 
-export async function deleteAccount(pi: ExtensionAPI, name: string): Promise<boolean> {
+export async function deleteAccount(name: string): Promise<boolean> {
   const normalized = normalizeName(name);
   if (!normalized) throw new Error("account name required");
   const kv = getStorage();
   const deleted = kv.delete(accountKvKey(normalized), "global");
-  await keychainDelete(pi, passwordKeychainName(normalized));
+  await keychainDelete(passwordKeychainName(normalized));
   const currentDefault = kv.get<string>(DEFAULT_ACCOUNT_KEY, "global");
   if (currentDefault === normalized) kv.delete(DEFAULT_ACCOUNT_KEY, "global");
   return deleted;
@@ -203,13 +214,13 @@ export function getDefaultAccount(): string | null {
   return getStorage().get<string>(DEFAULT_ACCOUNT_KEY, "global") ?? process.env.IMAP_DEFAULT_ACCOUNT ?? null;
 }
 
-export async function resolveAccountForRuntime(pi: ExtensionAPI, name?: string): Promise<{ name: string; config: ImapAccountConfig & { pass: string } }> {
+export async function resolveAccountForRuntime(name?: string): Promise<{ name: string; config: ImapAccountConfig & { pass: string } }> {
   const lookupOrder: string[] = [];
   if (name) lookupOrder.push(name);
   else {
     const defaultAccount = getDefaultAccount();
     if (defaultAccount) lookupOrder.push(defaultAccount);
-    const listed = await listAccounts(pi);
+    const listed = await listAccounts();
     for (const account of listed.accounts) {
       if (!lookupOrder.includes(account.name)) lookupOrder.push(account.name);
     }
@@ -218,7 +229,7 @@ export async function resolveAccountForRuntime(pi: ExtensionAPI, name?: string):
   }
 
   for (const candidate of lookupOrder) {
-    const account = await getAccount(pi, candidate);
+    const account = await getAccount(candidate);
     if (account?.password) {
       const { password, ...rest } = account;
       return { name: account.name, config: { ...rest, pass: password } };
