@@ -32,6 +32,10 @@ Open **Settings → Cheapskate** to:
 - Toggle safety caps on soft-cap providers (Cloudflare charges past the free tier)
 - See at a glance which backends have keys configured
 
+The pane reads/writes non-secret config through the direct backend add-on config API (`/agent/addons/api/cheapskate/config`) and uses `/agent/keychain` for secrets.
+
+![Cheapskate settings pane on the microVM test instance](./assets/settings-pane-microvm.png)
+
 A restart is needed after adding or changing a key for the runtime to pick it up.
 
 ## Storage model

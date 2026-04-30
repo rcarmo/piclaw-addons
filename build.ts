@@ -15,6 +15,7 @@ const OUT     = join(ROOT, "docs");  // GitHub Pages serves from /docs
 const SITE_URL  = "https://rcarmo.github.io/piclaw-addons";
 const SITE_NAME = "piclaw-addons";
 const ASSET_VER = Date.now().toString(36);
+const PI_DEV_FOOTER_NOTE = `PiClaw is not affiliated with <a href="https://pi.dev" target="_blank" rel="noopener">pi.dev</a> — we’re just <em>huge fans</em>.`;
 
 mkdirSync(OUT, { recursive: true });
 mkdirSync(join(OUT, "addons"), { recursive: true });
@@ -116,10 +117,13 @@ markdownRenderer.code = function ({ text, lang }) {
 function mdToHtml(md: string): string {
   const tokens = marked.lexer(md, { gfm: true }) as any[];
   const filteredTokens = tokens.filter((token) => !(token?.type === "heading" && token?.depth === 1));
-  return marked.parser(filteredTokens as any, {
+  const html = marked.parser(filteredTokens as any, {
     gfm: true,
     renderer: markdownRenderer,
   }) as string;
+  return html
+    .replace(/<p>\s*(<figure class="md-figure">[\s\S]*?<\/figure>)\s*<\/p>/g, "$1")
+    .replace(/<p>\s*(<table[\s\S]*?<\/table>)\s*<\/p>/g, "$1");
 }
 
 function tagBadge(tag: string) {
@@ -160,6 +164,13 @@ function installSnippet(addon: Addon): string {
     <svg class="install-icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.751.751 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Z"/></svg>
     <span class="install-text">Open <strong>Settings → Add-Ons</strong> and pick <strong>${esc(addon.slug)}</strong></span>
   </div>`;
+}
+
+function renderFooter(content: string): string {
+  return `<footer>
+  <div class="footer-links">${content}</div>
+  <div class="footer-note">${PI_DEV_FOOTER_NOTE}</div>
+</footer>`;
 }
 
 function collectLocalReadmeAssetPaths(readme: string): string[] {
@@ -367,6 +378,9 @@ html,body{min-height:100%;background:var(--bg);color:var(--ink);font-family:var(
 /* ── Footer ─── */
 footer{text-align:center;padding:1.5rem;font-size:.76rem;color:var(--ink-dim);border-top:1px solid var(--border)}
 footer a{color:var(--accent);text-decoration:none}
+.footer-links{display:block}
+.footer-note{margin-top:.55rem;max-width:46rem;margin-left:auto;margin-right:auto;line-height:1.55}
+.footer-note em{font-style:italic}
 `;
 
 // ── Index page ────────────────────────────────────────────────────────────────
@@ -429,10 +443,8 @@ ${addons.map(a => `  <a href="/piclaw-addons/addons/${esc(a.slug)}/" class="card
   </a>`).join("\n")}
 </main>
 
-<footer>
-  <a href="https://github.com/rcarmo/piclaw-addons">piclaw-addons</a> &nbsp;·&nbsp;
-  <a href="https://github.com/rcarmo/piclaw">piclaw</a>
-</footer>
+${renderFooter(`<a href="https://github.com/rcarmo/piclaw-addons">piclaw-addons</a> &nbsp;·&nbsp;
+  <a href="https://github.com/rcarmo/piclaw">piclaw</a>`)}
 
 <script>
 const search = document.getElementById('search');
@@ -517,10 +529,8 @@ ${CLARITY_SCRIPT}
 </div>
 ${skillList}
 
-<footer>
-  <a href="/piclaw-addons/">piclaw-addons</a> &nbsp;·&nbsp;
-  <a href="https://github.com/rcarmo/piclaw-addons/tree/main/${esc(addon.path)}">View source</a>
-</footer>
+${renderFooter(`<a href="/piclaw-addons/">piclaw-addons</a> &nbsp;·&nbsp;
+  <a href="https://github.com/rcarmo/piclaw-addons/tree/main/${esc(addon.path)}">View source</a>`)}
 <script type="module">
   import { mountDetail } from '/piclaw-addons/assets/js/addon-island.mjs';
   mountDetail('${esc(addon.slug)}');
@@ -590,7 +600,7 @@ ${CLARITY_SCRIPT}
     </tbody>
   </table>
 </div>
-<footer><a href="/piclaw-addons/">piclaw-addons</a></footer>
+${renderFooter(`<a href="/piclaw-addons/">piclaw-addons</a>`)}
 </body>
 </html>`;
 

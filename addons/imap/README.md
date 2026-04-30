@@ -8,7 +8,7 @@ IMAP email management addon for piclaw.
 
 Includes a web settings pane for managing accounts.
 
-![IMAP settings pane](./imap-settings-window.png)
+![IMAP settings pane on the microVM test instance](./assets/settings-pane-microvm.png)
 
 ## Features
 

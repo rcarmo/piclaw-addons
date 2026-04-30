@@ -305,38 +305,37 @@ function reRegisterWithBackend(pi: ExtensionAPI, backend: FreeBackend): void {
   });
 }
 
+function mergeCheapskateConfig(patch: Partial<CheapskateConfig>): CheapskateConfig {
+  const current = loadConfig();
+  const merged: CheapskateConfig = {
+    backends: { ...(current.backends || {}), ...(patch.backends || {}) },
+  };
+  for (const [id, fields] of Object.entries(patch.backends || {})) {
+    merged.backends![id] = { ...(current.backends?.[id] || {}), ...fields };
+  }
+  saveConfig(merged);
+  return merged;
+}
+
+type AddonConfigApiRegistrar = (
+  addonId: string,
+  action: string,
+  handlers: { get?: (payload: unknown, req: Request) => unknown | Promise<unknown>; set?: (payload: unknown, req: Request) => unknown | Promise<unknown> },
+  extensionPath?: string,
+) => "created" | "updated";
+
+const registerAddonConfigApi = (globalThis as Record<string, unknown>).__piclaw_registerAddonConfigApi as AddonConfigApiRegistrar | undefined;
+if (typeof registerAddonConfigApi === "function") {
+  registerAddonConfigApi("cheapskate", "config", {
+    get: async () => loadConfig(),
+    set: async (payload) => ({ ok: true, config: mergeCheapskateConfig((payload && typeof payload === "object" ? payload : {}) as Partial<CheapskateConfig>) }),
+  }, import.meta.dir);
+}
+
 // ── Extension ────────────────────────────────────────────────────
 
 const cheapskate: ExtensionFactory = (pi: ExtensionAPI) => {
   if (!registerCheapskateProvider(pi)) return;
-
-  // Config API for the web settings pane
-  pi.registerCommand("cheapskate-config-get", {
-    description: "Get cheapskate config (internal)",
-    handler: async () => {
-      pi.sendMessage({ customType: "cheapskate", content: JSON.stringify(loadConfig()), display: false });
-    },
-  });
-  pi.registerCommand("cheapskate-config-set", {
-    description: "Set cheapskate config (internal)",
-    handler: async (args: string) => {
-      try {
-        const patch = JSON.parse(args) as Partial<CheapskateConfig>;
-        const current = loadConfig();
-        const merged: CheapskateConfig = {
-          backends: { ...(current.backends || {}), ...(patch.backends || {}) },
-        };
-        // Deep merge per-backend fields
-        for (const [id, fields] of Object.entries(patch.backends || {})) {
-          merged.backends![id] = { ...(current.backends?.[id] || {}), ...fields };
-        }
-        saveConfig(merged);
-        pi.sendMessage({ customType: "cheapskate", content: JSON.stringify({ ok: true, config: merged }), display: false });
-      } catch (err) {
-        pi.sendMessage({ customType: "cheapskate", content: JSON.stringify({ ok: false, error: String(err) }), display: false });
-      }
-    },
-  });
 
   // Before each turn: ensure we're pointing at the best available backend
   pi.on("before_agent_start", async (event) => {

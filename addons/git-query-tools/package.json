@@ -29,9 +29,13 @@
     "@sinclair/typebox": "*"
   },
   "license": "MIT",
-  "publishConfig": { "registry": "https://npm.pkg.github.com", "access": "public" },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "public"
+  },
   "keywords": [
     "piclaw",
     "piclaw-addon"
-  ]
+  ],
+  "homepage": "https://rcarmo.github.io/piclaw-addons/addons/git-query-tools/"
 }

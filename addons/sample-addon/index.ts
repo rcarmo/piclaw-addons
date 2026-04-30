@@ -4,8 +4,8 @@
  * Demonstrates:
  *   - Reading/writing config to SQLite KV (extension_kv, global scope)
  *   - Storing a secret in the keychain via the web settings pane
+ *   - Registering a direct backend config API for the settings pane
  *   - Registering a tool that returns a value from config
- *   - Registering internal commands for the settings pane API
  *
  * Use this as a starting point for new add-ons.
  */
@@ -48,50 +48,36 @@ function saveConfig(config: SampleConfig): void {
   kv().set("config", config, "global");
 }
 
+function handleSetConfig(body: Partial<SampleConfig>): { ok: true; config: SampleConfig } {
+  const current = loadConfig();
+  const next: SampleConfig = {
+    enabled: body.enabled ?? current.enabled,
+    greeting: typeof body.greeting === "string" ? body.greeting : current.greeting,
+    secret_keychain: typeof body.secret_keychain === "string" ? body.secret_keychain.trim() : current.secret_keychain,
+  };
+  saveConfig(next);
+  return { ok: true, config: next };
+}
+
+type AddonConfigApiRegistrar = (
+  addonId: string,
+  action: string,
+  handlers: { get?: (payload: unknown, req: Request) => unknown | Promise<unknown>; set?: (payload: unknown, req: Request) => unknown | Promise<unknown> },
+  extensionPath?: string,
+) => "created" | "updated";
+
+const registerAddonConfigApi = (globalThis as Record<string, unknown>).__piclaw_registerAddonConfigApi as AddonConfigApiRegistrar | undefined;
+if (typeof registerAddonConfigApi === "function") {
+  registerAddonConfigApi("sample-addon", "config", {
+    get: async () => loadConfig(),
+    set: async (payload) => handleSetConfig((payload && typeof payload === "object" ? payload : {}) as Partial<SampleConfig>),
+  }, import.meta.dir);
+}
+
 // ── Extension entry point ────────────────────────────────────────
 
 export default function sampleAddon(pi: ExtensionAPI): void {
   const config = loadConfig();
-
-  // ── Config API (used by the settings pane) ─────────────────────
-
-  pi.registerCommand("sample-addon-config-get", {
-    description: "Get sample addon config (internal)",
-    handler: async () => {
-      pi.sendMessage({
-        customType: "sample-addon",
-        content: JSON.stringify(loadConfig()),
-        display: false,
-      });
-    },
-  });
-
-  pi.registerCommand("sample-addon-config-set", {
-    description: "Set sample addon config (internal)",
-    handler: async (args: string) => {
-      try {
-        const body = JSON.parse(args) as Partial<SampleConfig>;
-        const current = loadConfig();
-        const next: SampleConfig = {
-          enabled: body.enabled ?? current.enabled,
-          greeting: typeof body.greeting === "string" ? body.greeting : current.greeting,
-          secret_keychain: typeof body.secret_keychain === "string" ? body.secret_keychain.trim() : current.secret_keychain,
-        };
-        saveConfig(next);
-        pi.sendMessage({
-          customType: "sample-addon",
-          content: JSON.stringify({ ok: true, config: next }),
-          display: false,
-        });
-      } catch (err) {
-        pi.sendMessage({
-          customType: "sample-addon",
-          content: JSON.stringify({ ok: false, error: String(err) }),
-          display: false,
-        });
-      }
-    },
-  });
 
   // ── Tool: returns the greeting from config ─────────────────────
 

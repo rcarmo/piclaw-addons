@@ -766,20 +766,48 @@ function hostname() {
   try { return location?.hostname || ""; } catch { return ""; }
 }
 
+let observabilityPaneRegistered = false;
+
+function registerObservabilitySettingsPane() {
+  if (!HAS_RUNTIME || observabilityPaneRegistered) return observabilityPaneRegistered;
+  let reg, notify;
+  const r = globalThis.__piclawSettingsPaneRegistry;
+  if (r) { reg = r.registerSettingsPane; notify = r.notifySettingsPanesChanged; }
+  if (!reg && globalThis.__piclaw_web?.registerSettingsPane) {
+    reg = globalThis.__piclaw_web.registerSettingsPane;
+    notify = () => globalThis.dispatchEvent?.(new CustomEvent("piclaw:settings-panes-changed"));
+  }
+  if (!reg) return false;
+  reg({ id: "observability", label: "Observability", icon: ICON, component: ObservabilitySettings, order: 170 });
+  notify?.();
+  observabilityPaneRegistered = true;
+  return true;
+}
+
+function scheduleObservabilitySettingsPaneRegistration() {
+  if (!HAS_RUNTIME || observabilityPaneRegistered) return;
+  const attempt = () => {
+    try {
+      registerObservabilitySettingsPane();
+    } catch {}
+  };
+  attempt();
+  try { queueMicrotask(attempt); } catch {}
+  try { setTimeout(attempt, 0); } catch {}
+  try { setTimeout(attempt, 250); } catch {}
+  try { setTimeout(attempt, 1000); } catch {}
+  try { globalThis.requestAnimationFrame?.(() => attempt()); } catch {}
+  try { globalThis.addEventListener?.("load", attempt, { once: true }); } catch {}
+}
+
 try {
   installObservabilityFetchHeaders();
+} catch {}
+
+try {
   installAgentTelemetry();
-  if (HAS_RUNTIME) {
-    let reg, notify;
-    const r = globalThis.__piclawSettingsPaneRegistry;
-    if (r) { reg = r.registerSettingsPane; notify = r.notifySettingsPanesChanged; }
-    if (!reg && globalThis.__piclaw_web?.registerSettingsPane) {
-      reg = globalThis.__piclaw_web.registerSettingsPane;
-      notify = () => globalThis.dispatchEvent?.(new CustomEvent("piclaw:settings-panes-changed"));
-    }
-    if (reg) {
-      reg({ id: "observability", label: "Observability", icon: ICON, component: ObservabilitySettings, order: 170 });
-      notify?.();
-    }
-  }
+} catch {}
+
+try {
+  scheduleObservabilitySettingsPaneRegistration();
 } catch {}

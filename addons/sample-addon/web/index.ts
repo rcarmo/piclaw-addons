@@ -3,7 +3,7 @@
  *
  * Demonstrates:
  *   - Checkbox, text, and password (keychain secret) fields
- *   - Reading/writing config via the addon command API
+ *   - Reading/writing config via the direct backend addon config API
  *   - Saving secrets to keychain via POST /agent/keychain
  *   - Showing keychain key presence indicator (✓/✗)
  */

@@ -1,7 +1,7 @@
 {
   "name": "@rcarmo/piclaw-addon-yolochat",
   "version": "0.1.0",
-  "description": "Zero-guardrail inter-instance messaging — lets Pi instances post and reply to each other over HTTP",
+  "description": "Zero-guardrail inter-instance messaging \u2014 lets Pi instances post and reply to each other over HTTP",
   "type": "module",
   "piclaw": {
     "type": "skill",
@@ -24,5 +24,6 @@
     "skills": [
       "skills"
     ]
-  }
+  },
+  "homepage": "https://rcarmo.github.io/piclaw-addons/addons/yolochat/"
 }

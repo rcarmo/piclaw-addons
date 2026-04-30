@@ -232,6 +232,21 @@ function handleSetPortainerSettings(body: Partial<PortainerSettingsConfig>): { o
   return { ok: true, config: savePortainerSettingsConfig(body) };
 }
 
+type AddonConfigApiRegistrar = (
+  addonId: string,
+  action: string,
+  handlers: { get?: (payload: unknown, req: Request) => unknown | Promise<unknown>; set?: (payload: unknown, req: Request) => unknown | Promise<unknown> },
+  extensionPath?: string,
+) => "created" | "updated";
+
+const registerAddonConfigApi = (globalThis as Record<string, unknown>).__piclaw_registerAddonConfigApi as AddonConfigApiRegistrar | undefined;
+if (typeof registerAddonConfigApi === "function") {
+  registerAddonConfigApi("portainer", "config", {
+    get: async () => handleGetPortainerSettings(),
+    set: async (payload) => handleSetPortainerSettings((payload && typeof payload === "object" ? payload : {}) as Partial<PortainerSettingsConfig>),
+  }, import.meta.dir);
+}
+
 async function kvRequest(chatJid: string, input: { method: string; path: string; query?: unknown; body?: unknown; body_mode?: string }): Promise<PortainerRequestResult> {
   const apiConfig = resolveApiConfig(chatJid);
   if (!apiConfig) throw new Error(`No usable Portainer config for ${chatJid}. Use action=set or fill in the Portainer addon settings.`);
@@ -983,25 +998,6 @@ export const portainerTool: ExtensionFactory = (pi: ExtensionAPI) => {
   pi.on("before_agent_start", async (event) => ({
     systemPrompt: `${event.systemPrompt}\n\n${PORTAINER_TOOL_HINT}`,
   }));
-
-  pi.registerCommand("portainer-config-get", {
-    description: "Get Portainer addon settings (internal)",
-    handler: async () => {
-      pi.sendMessage({ customType: "portainer", content: JSON.stringify(handleGetPortainerSettings()), display: false });
-    },
-  });
-
-  pi.registerCommand("portainer-config-set", {
-    description: "Set Portainer addon settings (internal)",
-    handler: async (args: string) => {
-      try {
-        const body = JSON.parse(args) as Partial<PortainerSettingsConfig>;
-        pi.sendMessage({ customType: "portainer", content: JSON.stringify(handleSetPortainerSettings(body)), display: false });
-      } catch (err) {
-        pi.sendMessage({ customType: "portainer", content: JSON.stringify({ ok: false, error: String(err) }), display: false });
-      }
-    },
-  });
 
   pi.registerTool({
     name: "portainer",

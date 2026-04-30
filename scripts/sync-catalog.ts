@@ -12,6 +12,7 @@ interface AddonPackage {
   name?: string;
   version?: string;
   description?: string;
+  homepage?: string;
   keywords?: string[];
   main?: string;
   peerDependencies?: Record<string, string>;
@@ -51,6 +52,7 @@ interface CatalogEntry {
   type: string;
   description: string;
   path: string;
+  homepage?: string;
   tags: string[];
   skills: string[];
   install: {
@@ -204,6 +206,7 @@ async function buildMetadata() {
       type: pkg.piclaw?.type || 'extension',
       description: pkg.description,
       path: `addons/${slug}`,
+      ...(typeof pkg.homepage === 'string' && pkg.homepage.trim() ? { homepage: pkg.homepage.trim() } : {}),
       tags: dedupeSorted(pkg.piclaw?.tags || []),
       skills: dedupeSorted(addonSkillNames),
       install: {

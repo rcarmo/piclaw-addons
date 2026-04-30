@@ -1,0 +1,52 @@
+{
+  "name": "@rcarmo/piclaw-addon-editable-table",
+  "version": "0.1.0",
+  "description": "Editable Markdown table widget for the web UI \u2014 opens a themed spreadsheet-style grid and inserts the edited Markdown table back into chat",
+  "type": "module",
+  "main": "index.ts",
+  "piclaw": {
+    "type": "extension",
+    "compatibleVersions": ">=2.0.0",
+    "tags": [
+      "table",
+      "markdown",
+      "widget",
+      "editor",
+      "web-ui"
+    ]
+  },
+  "pi": {
+    "extensions": [
+      "index.ts"
+    ],
+    "web": {
+      "entries": [
+        "web/index.ts"
+      ]
+    },
+    "skills": [
+      "skills"
+    ]
+  },
+  "agents": {
+    "skills": [
+      {
+        "name": "editable-table",
+        "path": "./skills/editable-table"
+      }
+    ]
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-coding-agent": "*",
+    "@sinclair/typebox": "*"
+  },
+  "keywords": [
+    "pi-package",
+    "piclaw",
+    "piclaw-addon",
+    "markdown-table",
+    "spreadsheet"
+  ],
+  "license": "MIT",
+  "homepage": "https://rcarmo.github.io/piclaw-addons/addons/editable-table/"
+}

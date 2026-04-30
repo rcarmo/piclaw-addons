@@ -28,5 +28,6 @@
     "extensions": [
       "index.ts"
     ]
-  }
+  },
+  "homepage": "https://rcarmo.github.io/piclaw-addons/addons/voice-pipeline/"
 }

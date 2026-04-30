@@ -26,14 +26,17 @@
       "addons/delegate/index.ts",
       "addons/dev-tools/index.ts",
       "addons/drawio-editor/index.ts",
+      "addons/editable-table/index.ts",
       "addons/eml-viewer/index.ts",
       "addons/git-query-tools/index.ts",
       "addons/imap/index.ts",
       "addons/kanban-board-widget/index.ts",
+      "addons/kanban-editor/index.ts",
       "addons/observability/index.ts",
       "addons/portainer/index.ts",
       "addons/proxmox/index.ts",
       "addons/sample-addon/index.ts",
+      "addons/vent/index.ts",
       "addons/voice-pipeline/index.ts"
     ],
     "runtime": {
@@ -44,6 +47,7 @@
     "skills": [
       "addons/autoresearch/skills",
       "addons/delegate/skills",
+      "addons/editable-table/skills",
       "addons/settings-dialog-screenshot/skills"
     ]
   },
@@ -56,6 +60,10 @@
       {
         "name": "delegate",
         "path": "./addons/delegate/skills/delegate"
+      },
+      {
+        "name": "editable-table",
+        "path": "./addons/editable-table/skills/editable-table"
       },
       {
         "name": "settings-dialog-screenshot",

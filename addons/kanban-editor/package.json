@@ -1,0 +1,40 @@
+{
+  "name": "@rcarmo/piclaw-addon-kanban-editor",
+  "version": "0.1.1",
+  "description": "Workspace .kanban.md editor add-on with Obsidian-style [[links]] between boards",
+  "type": "module",
+  "main": "index.ts",
+  "piclaw": {
+    "type": "extension",
+    "compatibleVersions": ">=2.0.0",
+    "tags": [
+      "kanban",
+      "editor",
+      "workspace",
+      "markdown",
+      "wiki-links"
+    ]
+  },
+  "pi": {
+    "extensions": [
+      "index.ts"
+    ],
+    "web": {
+      "entries": [
+        "web/index.ts"
+      ]
+    }
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-coding-agent": "*"
+  },
+  "keywords": [
+    "pi-package",
+    "piclaw",
+    "piclaw-addon",
+    "kanban",
+    "wiki-links"
+  ],
+  "license": "MIT",
+  "homepage": "https://rcarmo.github.io/piclaw-addons/addons/kanban-editor/"
+}

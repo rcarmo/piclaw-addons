@@ -35,7 +35,9 @@ git add addons/my-addon && git commit -m "feat: add my-addon" && git push
 
 ```
 addons/<slug>/
-├── index.ts          # Entry point (default export)
+├── index.ts          # Runtime entry point (default export)
+├── web/
+│   └── index.ts      # Optional browser-side settings pane / web entry
 ├── package.json      # Package manifest
 ├── skills/           # Optional: agent skills
 │   └── my-skill/
@@ -92,6 +94,9 @@ export default function myAddon(pi: ExtensionAPI) {
   },
   "pi": {
     "extensions": ["index.ts"],
+    "web": {
+      "entries": ["web/index.ts"]
+    },
     "skills": ["skills"]
   },
   "peerDependencies": {
@@ -180,6 +185,44 @@ kv.set("config", value, "chat", chatJid);   // per-chat
 kv.set("prefs", value, "global");            // cross-chat
 ```
 
+### Settings panes and direct config API
+
+For add-ons that expose a **Settings** pane:
+
+#### Runtime side
+
+Register config handlers directly from the runtime entry using the global registrar exposed by piclaw:
+
+```ts
+const registerAddonConfigApi = globalThis.__piclaw_registerAddonConfigApi;
+
+registerAddonConfigApi?.("my-addon", "config", {
+  get: async () => loadConfig(),
+  set: async (payload) => {
+    const next = saveConfig(payload);
+    return { ok: true, config: next };
+  },
+}, import.meta.dir);
+```
+
+#### Browser side
+
+Use the browser globals provided by piclaw and fetch the authenticated local config API:
+
+```ts
+const API = "/agent/addons/api/my-addon";
+const preactHtm = globalThis.__piclawPreactHtm || globalThis.__piclawPreact;
+
+await fetch(`${API}/config`);
+await fetch(`${API}/config`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ enabled: true }),
+});
+```
+
+Use `/agent/keychain` only for secrets. Do **not** build new settings panes around internal slash commands.
+
 ---
 
 ## Testing
@@ -203,6 +246,32 @@ bunx tsc --noEmit
 ```bash
 bun run check:catalog
 ```
+
+### UI screenshot workflow (recommended)
+
+For add-ons with a settings pane or other meaningful web UI, contributors should capture a screenshot from the **microVM test instance** and commit it alongside the add-on docs.
+
+Recommended flow:
+
+1. deploy/test on the microVM using the `microvm-ui-test` skill
+2. prepare the microVM as a **clean screenshot fixture** for the target add-on:
+   - prefer a temporary **overlayfs** mount for the microVM add-on directory instead of destructive copy/delete cycles
+   - install or expose only the target add-on in that overlay
+   - if `cheapskate` is installed for general testing, remove it **before** the screenshot so it does not clutter the settings nav
+3. capture the UI with the shared script:
+   ```bash
+   cd /workspace/piclaw-addons
+   PLAYWRIGHT_BROWSERS_PATH=/workspace/.cache/ms-playwright \
+     bun run scripts/capture-addon-settings-screenshot.ts \
+     --url http://192.168.1.78:8080 \
+     --pane "<Pane Label>" \
+     --out addons/<slug>/assets/settings-pane-microvm.png
+   ```
+4. reference the screenshot from `addons/<slug>/README.md`
+5. reinstall `cheapskate` after the screenshot pass so the microVM remains ready for testing
+6. prefer at least one screenshot for settings-pane add-ons; for non-UI add-ons, screenshots are optional
+
+Store screenshots under `addons/<slug>/assets/` when possible so the README can reference them with a stable relative path.
 
 ---
 
@@ -239,6 +308,11 @@ Add `owner` and `contributors` to your new entry in `catalog.json` — these fie
 - Peer deps only — never bundle `@mariozechner/pi-coding-agent`
 - Never import from piclaw runtime internals
 - `lib/compat/` is for in-repo development only — published packages must vendor any shims they need
+- Browser-side settings panes must use the **direct backend add-on config API** (`/agent/addons/api/<addon>/<action>`) and secrets should still go through `/agent/keychain`
+- Runtime-side settings/config handlers should register via `globalThis.__piclaw_registerAddonConfigApi(...)` at module load time so the web pane does not depend on slash commands
+- Slash-command config bridges are legacy fallback only; do not add new settings-pane code that relies on `/addon-config-get` / `/addon-config-set`
+- Settings-pane add-ons should include at least one committed README screenshot captured from the microVM test instance when the UI meaningfully changes
+- For screenshot capture runs, use the microVM as a clean fixture: prefer overlayfs, expose the target add-on only, keep `cheapskate` out of the actual screenshot, then reinstall or restore `cheapskate` afterward
 - Skills go in `skills/<name>/SKILL.md`
 - Bump version for every functional change
 - Run `sync:catalog` after every `package.json` edit

@@ -1,7 +1,7 @@
 {
   "name": "@rcarmo/piclaw-addon-portainer",
-  "version": "0.1.3",
-  "description": "Portainer management tool — session-scoped API config, ad-hoc requests, and orchestration workflows for endpoints, stacks, containers, images, networks, and volumes",
+  "version": "0.1.4",
+  "description": "Portainer management tool \u2014 session-scoped API config, ad-hoc requests, and orchestration workflows for endpoints, stacks, containers, images, networks, and volumes",
   "type": "module",
   "main": "index.ts",
   "piclaw": {
@@ -37,5 +37,6 @@
     "skills": [
       "skills"
     ]
-  }
+  },
+  "homepage": "https://rcarmo.github.io/piclaw-addons/addons/portainer/"
 }
