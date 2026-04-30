@@ -254,7 +254,11 @@ For add-ons with a settings pane or other meaningful web UI, contributors should
 Recommended flow:
 
 1. deploy/test on the microVM using the `microvm-ui-test` skill
-2. capture the UI with the shared script:
+2. prepare the microVM as a **clean screenshot fixture** for the target add-on:
+   - prefer a temporary **overlayfs** mount for the microVM add-on directory instead of destructive copy/delete cycles
+   - install or expose only the target add-on in that overlay
+   - if `cheapskate` is installed for general testing, remove it **before** the screenshot so it does not clutter the settings nav
+3. capture the UI with the shared script:
    ```bash
    cd /workspace/piclaw-addons
    PLAYWRIGHT_BROWSERS_PATH=/workspace/.cache/ms-playwright \
@@ -263,8 +267,9 @@ Recommended flow:
      --pane "<Pane Label>" \
      --out addons/<slug>/assets/settings-pane-microvm.png
    ```
-3. reference the screenshot from `addons/<slug>/README.md`
-4. prefer at least one screenshot for settings-pane add-ons; for non-UI add-ons, screenshots are optional
+4. reference the screenshot from `addons/<slug>/README.md`
+5. reinstall `cheapskate` after the screenshot pass so the microVM remains ready for testing
+6. prefer at least one screenshot for settings-pane add-ons; for non-UI add-ons, screenshots are optional
 
 Store screenshots under `addons/<slug>/assets/` when possible so the README can reference them with a stable relative path.
 
@@ -307,6 +312,7 @@ Add `owner` and `contributors` to your new entry in `catalog.json` — these fie
 - Runtime-side settings/config handlers should register via `globalThis.__piclaw_registerAddonConfigApi(...)` at module load time so the web pane does not depend on slash commands
 - Slash-command config bridges are legacy fallback only; do not add new settings-pane code that relies on `/addon-config-get` / `/addon-config-set`
 - Settings-pane add-ons should include at least one committed README screenshot captured from the microVM test instance when the UI meaningfully changes
+- For screenshot capture runs, use the microVM as a clean fixture: prefer overlayfs, expose the target add-on only, keep `cheapskate` out of the actual screenshot, then reinstall or restore `cheapskate` afterward
 - Skills go in `skills/<name>/SKILL.md`
 - Bump version for every functional change
 - Run `sync:catalog` after every `package.json` edit

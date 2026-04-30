@@ -15,4 +15,10 @@ Open **Settings → Add-Ons** and install **proxmox** from the catalog.
 - Host/IP field that normalizes to the Proxmox `/api2/json` base URL
 - Agent skills for guided tool usage
 
+## Settings pane
+
+Open **Settings → Proxmox** to configure the default Proxmox host, username, and API token.
+
+![Proxmox settings pane on the microVM test instance](./assets/settings-pane-microvm.png)
+
 - Tags: proxmox, infrastructure, virtualization, homelab

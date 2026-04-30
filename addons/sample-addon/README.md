@@ -32,6 +32,8 @@ await fetch("/agent/addons/api/sample-addon/config", {
 - **Password field** — a secret (API key), saved directly to the keychain with a Save button
 - **Key presence indicator** — ✓/✗ showing whether the keychain entry exists
 
+![Sample Addon settings pane on the microVM test instance](./assets/settings-pane-microvm.png)
+
 ### 2. Direct backend config API
 
 The runtime entry registers config handlers directly with piclaw:
@@ -112,5 +114,5 @@ addons/sample-addon/
 3. Replace the greeting field with your config
 4. Replace the secret keychain entry name
 5. Replace the test tool with your tool
-6. If your add-on exposes a settings pane or other meaningful web UI, capture a screenshot on the microVM test instance and store it under `addons/your-addon/assets/`, then reference it from the README
+6. If your add-on exposes a settings pane or other meaningful web UI, capture a screenshot on the microVM test instance and store it under `addons/your-addon/assets/`, then reference it from the README. For settings panes, prefer an overlayfs-based clean fixture, show only the target pane during the screenshot, and restore `cheapskate` afterward.
 7. Run `bun run scripts/sync-catalog.ts --write` to update the catalog

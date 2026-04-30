@@ -57,6 +57,15 @@ async function main() {
     await page.waitForFunction(() => !!document.querySelector('.settings-dialog, .settings-dialog-backdrop'), { timeout: args.timeoutMs });
     await sleep(500);
 
+    await page.waitForFunction((paneLabel) => {
+      const label = String(paneLabel || "").trim().toLowerCase();
+      const nodes = Array.from(document.querySelectorAll('button, [role="tab"], [role="button"], .settings-nav-item')) as HTMLElement[];
+      return nodes.some((node) => {
+        const text = (node.textContent || "").trim().toLowerCase();
+        return text === label || text.includes(label);
+      });
+    }, args.pane, { timeout: args.timeoutMs });
+
     const clicked = await page.evaluate((paneLabel) => {
       const label = String(paneLabel || "").trim().toLowerCase();
       const nodes = Array.from(document.querySelectorAll('button, [role="tab"], [role="button"], .settings-nav-item')) as HTMLElement[];

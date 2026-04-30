@@ -117,10 +117,13 @@ markdownRenderer.code = function ({ text, lang }) {
 function mdToHtml(md: string): string {
   const tokens = marked.lexer(md, { gfm: true }) as any[];
   const filteredTokens = tokens.filter((token) => !(token?.type === "heading" && token?.depth === 1));
-  return marked.parser(filteredTokens as any, {
+  const html = marked.parser(filteredTokens as any, {
     gfm: true,
     renderer: markdownRenderer,
   }) as string;
+  return html
+    .replace(/<p>\s*(<figure class="md-figure">[\s\S]*?<\/figure>)\s*<\/p>/g, "$1")
+    .replace(/<p>\s*(<table[\s\S]*?<\/table>)\s*<\/p>/g, "$1");
 }
 
 function tagBadge(tag: string) {

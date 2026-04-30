@@ -16,6 +16,8 @@ Open **Settings → Add-Ons** and install **observability** from the catalog.
 
 The pane loads/saves non-secret settings through the direct backend add-on config API (`/agent/addons/api/observability/config` and `/agent/addons/api/observability/browser-config`). The connection string can be pasted directly into the settings pane — it is saved to the keychain automatically as `azure/appinsights-connection-string`. A restart is needed after setting or changing the connection string.
 
+![Observability settings pane on the microVM test instance](./assets/settings-pane-microvm.png)
+
 | Field | Type | Default | Description |
 |---|---|---|---|
 | **Enabled** | checkbox | off | Master switch |

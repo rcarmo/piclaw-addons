@@ -14,4 +14,10 @@ Open **Settings → Add-Ons** and install **portainer** from the catalog.
 - API token secret stored in the piclaw keychain
 - Agent skills for guided tool usage
 
+## Settings pane
+
+Open **Settings → Portainer** to configure the default Portainer host and API token.
+
+![Portainer settings pane on the microVM test instance](./assets/settings-pane-microvm.png)
+
 - Tags: portainer, docker, containers, infrastructure
