@@ -14,7 +14,7 @@ Open **Settings → Add-Ons** and install **observability** from the catalog.
 
 ### 2. Configure via Settings → Observability
 
-The connection string can be pasted directly into the settings pane — it is saved to the keychain automatically as `azure/appinsights-connection-string`. A restart is needed after setting or changing the connection string.
+The pane loads/saves non-secret settings through the direct backend add-on config API (`/agent/addons/api/observability/config` and `/agent/addons/api/observability/browser-config`). The connection string can be pasted directly into the settings pane — it is saved to the keychain automatically as `azure/appinsights-connection-string`. A restart is needed after setting or changing the connection string.
 
 | Field | Type | Default | Description |
 |---|---|---|---|

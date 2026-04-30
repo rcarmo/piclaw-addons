@@ -240,6 +240,21 @@ function handleSetProxmoxSettings(body: Partial<ProxmoxSettingsConfig>): { ok: t
   return { ok: true, config: saveProxmoxSettingsConfig(body) };
 }
 
+type AddonConfigApiRegistrar = (
+  addonId: string,
+  action: string,
+  handlers: { get?: (payload: unknown, req: Request) => unknown | Promise<unknown>; set?: (payload: unknown, req: Request) => unknown | Promise<unknown> },
+  extensionPath?: string,
+) => "created" | "updated";
+
+const registerAddonConfigApi = (globalThis as Record<string, unknown>).__piclaw_registerAddonConfigApi as AddonConfigApiRegistrar | undefined;
+if (typeof registerAddonConfigApi === "function") {
+  registerAddonConfigApi("proxmox", "config", {
+    get: async () => handleGetProxmoxSettings(),
+    set: async (payload) => handleSetProxmoxSettings((payload && typeof payload === "object" ? payload : {}) as Partial<ProxmoxSettingsConfig>),
+  }, import.meta.dir);
+}
+
 async function kvRequest(chatJid: string, input: { method: string; path: string; query?: unknown; body?: unknown; body_mode?: "form" | "json" }): Promise<ProxmoxRequestResult> {
   const apiConfig = resolveApiConfig(chatJid);
   if (!apiConfig) throw new Error(`No usable Proxmox config for ${chatJid}. Use action=set or fill in the Proxmox addon settings.`);
@@ -1125,25 +1140,6 @@ export const proxmoxTool: ExtensionFactory = (pi: ExtensionAPI) => {
   pi.on("before_agent_start", async (event) => ({
     systemPrompt: `${event.systemPrompt}\n\n${PROXMOX_TOOL_HINT}`,
   }));
-
-  pi.registerCommand("proxmox-config-get", {
-    description: "Get Proxmox addon settings (internal)",
-    handler: async () => {
-      pi.sendMessage({ customType: "proxmox", content: JSON.stringify(handleGetProxmoxSettings()), display: false });
-    },
-  });
-
-  pi.registerCommand("proxmox-config-set", {
-    description: "Set Proxmox addon settings (internal)",
-    handler: async (args: string) => {
-      try {
-        const body = JSON.parse(args) as Partial<ProxmoxSettingsConfig>;
-        pi.sendMessage({ customType: "proxmox", content: JSON.stringify(handleSetProxmoxSettings(body)), display: false });
-      } catch (err) {
-        pi.sendMessage({ customType: "proxmox", content: JSON.stringify({ ok: false, error: String(err) }), display: false });
-      }
-    },
-  });
 
   // @ts-expect-error TS2589 — Typebox Union schema depth exceeds TS limit in strict mode
   pi.registerTool({

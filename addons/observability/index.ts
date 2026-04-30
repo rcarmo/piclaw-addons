@@ -453,36 +453,27 @@ function handleSetConfig(body: Partial<ObservabilityConfig>): { ok: boolean; con
   return { ok: true, config: next };
 }
 
+type AddonConfigApiRegistrar = (
+  addonId: string,
+  action: string,
+  handlers: { get?: (payload: unknown, req: Request) => unknown | Promise<unknown>; set?: (payload: unknown, req: Request) => unknown | Promise<unknown> },
+  extensionPath?: string,
+) => "created" | "updated";
+
+const registerAddonConfigApi = (globalThis as Record<string, unknown>).__piclaw_registerAddonConfigApi as AddonConfigApiRegistrar | undefined;
+if (typeof registerAddonConfigApi === "function") {
+  registerAddonConfigApi("observability", "config", {
+    get: async () => handleGetConfig(),
+    set: async (payload) => handleSetConfig((payload && typeof payload === "object" ? payload : {}) as Partial<ObservabilityConfig>),
+  }, import.meta.dir);
+  registerAddonConfigApi("observability", "browser-config", {
+    get: async () => await handleGetBrowserConfig(),
+  }, import.meta.dir);
+}
+
 // ── Extension entry point ────────────────────────────────────────
 
 export default function observabilityExtension(pi: ExtensionAPI): void {
-
-  pi.registerCommand("observability-config-get", {
-    description: "Get observability config (internal)",
-    handler: async () => {
-      pi.sendMessage({ customType: "observability", content: JSON.stringify(handleGetConfig()), display: false });
-    },
-  });
-
-  pi.registerCommand("observability-config-set", {
-    description: "Set observability config (internal)",
-    handler: async (args: string) => {
-      try {
-        const result = handleSetConfig(JSON.parse(args));
-        pi.sendMessage({ customType: "observability", content: JSON.stringify(result), display: false });
-      } catch (err) {
-        pi.sendMessage({ customType: "observability", content: JSON.stringify({ ok: false, error: String(err) }), display: false });
-      }
-    },
-  });
-
-  pi.registerCommand("observability-browser-config-get", {
-    description: "Get observability browser config (internal)",
-    handler: async () => {
-      pi.sendMessage({ customType: "observability", content: JSON.stringify(await handleGetBrowserConfig()), display: false });
-    },
-  });
-
   pi.on("session_start", async () => {
     const config = loadConfig();
     if (config.enabled) {

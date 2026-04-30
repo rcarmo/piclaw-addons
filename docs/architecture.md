@@ -10,37 +10,55 @@ Each entry:
 {
   "slug": "proxmox",
   "name": "@rcarmo/piclaw-addon-proxmox",
-  "version": "0.1.3",
+  "version": "0.1.5",
   "install": {
-    "kind": "npm",
-    "spec": "@rcarmo/piclaw-addon-proxmox@0.1.3",
-    "registry": "https://npm.pkg.github.com",
-    "piSource": "npm:@rcarmo/piclaw-addon-proxmox@0.1.3"
+    "kind": "tarball",
+    "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-proxmox-0.1.5.tgz"
   },
   "owner": { "login": "rcarmo", "url": "https://github.com/rcarmo" },
   "contributors": [],
-  "updatedAt": "2026-04-27"
+  "updatedAt": "2026-04-29"
 }
 ```
 
 | Field | Purpose |
 |---|---|
-| `install.spec` | Passed to `bun add` — scoped package name + version |
-| `install.registry` | GitHub Packages npm registry URL |
-| `install.piSource` | Spec string for `pi install` |
+| `install.kind` | First-party add-ons use `tarball` |
+| `install.spec` | Public GitHub Pages tarball URL used by the runtime installer |
 | `owner` | Primary maintainer — hand-managed, preserved by sync |
 | `contributors` | Additional contributors — hand-managed |
 | `updatedAt` | Date of last git commit to the addon directory (auto) |
 
 ## Installation flow
 
-![Installation architecture](../assets/install-architecture.svg)
-
 1. The piclaw web UI fetches `catalog.json` from GitHub Pages.
-2. The user picks an addon and clicks Install.
-3. The runtime calls `bun add --force <install.spec>` in `.piclaw/addons/`.
-4. piclaw configures `.npmrc` with the GitHub Packages registry and an auth token from the keychain (`GITHUB_PICLAW_BOT_PAT` or `GITHUB_TOKEN`). Any token with `read:packages` scope is sufficient.
-5. If `bun add` fails (no token, network issue), the runtime falls back to downloading individual files from the addon's GitHub repository path. Slower, but requires no registry auth.
+2. The user picks an add-on and clicks Install.
+3. The runtime downloads the public tarball URL from `install.spec` and installs it into `/workspace/.pi/extensions/node_modules/`.
+4. The local `.pi/extensions/package.json` dependency record is updated to keep the same public tarball URL for later upgrade/remove flows.
+5. Piclaw restarts to load the runtime entry (`pi.extensions`) and browser entry (`pi.web.entries`).
+
+First-party install/remove must remain **zero-auth**. Do not route these flows back through npmjs.org or authenticated GitHub Packages reads.
+
+## Settings-pane config flow
+
+Settings panes are split across two environments:
+
+### Browser side (`web/index.ts`)
+
+- registers a settings pane via the runtime globals exposed by piclaw
+- renders with `globalThis.__piclawPreactHtm` / `globalThis.__piclawPreact`
+- reads/writes non-secret config through the local authenticated config API:
+  - `GET /agent/addons/api/<addon>/config`
+  - `POST /agent/addons/api/<addon>/config`
+- uses `/agent/keychain` for secrets
+
+### Runtime side (`index.ts` / `extension.ts`)
+
+- registers direct config handlers with `globalThis.__piclaw_registerAddonConfigApi(...)`
+- persists non-secret settings in extension KV / runtime storage
+- resolves secrets from the keychain at runtime
+
+The old browser → slash-command config bridge is now legacy-only compatibility behavior. New or updated add-ons should register direct config handlers instead.
 
 ## Repo layout
 
