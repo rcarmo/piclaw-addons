@@ -18,6 +18,7 @@ import { resolve, join } from "node:path";
 
 const DEFAULT_TIMEOUT_SEC = 120;
 const MAX_OUTPUT_CHARS = 50_000;
+const DELEGATE_STATUS_KEY = "delegate";
 const MAX_TEXT_FILE_BYTES = 100_000; // 100KB limit for text file inlining
 const WORKSPACE_ROOT = "/workspace";
 
@@ -220,6 +221,24 @@ function result(text: string) {
   return { content: [{ type: "text" as const, text }] };
 }
 
+export function delegateTaskPreview(prompt: string, maxLength = 96): string {
+  const collapsed = String(prompt || "").replace(/\s+/g, " ").trim();
+  if (!collapsed) return "delegated task";
+  return collapsed.length > maxLength ? `${collapsed.slice(0, maxLength - 1)}…` : collapsed;
+}
+
+function setDelegateProgress(ctx: any, options: { model: string; category: TaskCategory; prompt: string }): void {
+  const preview = delegateTaskPreview(options.prompt);
+  const message = `Delegating ${options.category} to ${options.model}: ${preview}`;
+  try { ctx?.ui?.setStatus?.(DELEGATE_STATUS_KEY, `🤝 ${message}`); } catch { /* UI may not support status in all modes */ }
+  try { ctx?.ui?.setWorkingMessage?.(message); } catch { /* UI may not support working messages in all modes */ }
+}
+
+function clearDelegateProgress(ctx: any): void {
+  try { ctx?.ui?.setStatus?.(DELEGATE_STATUS_KEY, undefined); } catch { /* ignore */ }
+  try { ctx?.ui?.setWorkingMessage?.(undefined); } catch { /* ignore */ }
+}
+
 // ── Extension ──────────────────────────────────────────────────
 
 export default function (pi: ExtensionAPI) {
@@ -231,6 +250,7 @@ export default function (pi: ExtensionAPI) {
     "Pass file paths in the `files` array to include file contents in the delegated prompt.",
     "The delegate runs in a fresh context (no conversation history, no tools) — pure prompt → response.",
     "Proactively delegate when a task is self-contained and doesn't need conversation history.",
+    "When you call delegate, produce a visible one-sentence timeline update that says what you are delegating and why; do not leave the user with zero feedback while the delegated process runs.",
     "When the user asks to 'double check', 'verify', or 'review' your answer, use delegate with task_category='judge' to get a second opinion from a different model family.",
   ].join("\n");
 
@@ -369,6 +389,8 @@ export default function (pi: ExtensionAPI) {
         }
       }
 
+      setDelegateProgress(ctx, { model: effectiveModel, category, prompt: params.prompt });
+
       // Build pi args (direct spawn, no shell wrapper)
       const piArgs: string[] = [
         "--print",
@@ -432,6 +454,8 @@ export default function (pi: ExtensionAPI) {
         }
 
         return result(`❌ Delegate failed (model: ${effectiveModel}): ${err.message || String(err)}`);
+      } finally {
+        clearDelegateProgress(ctx);
       }
     },
   });
