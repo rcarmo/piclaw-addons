@@ -1,9 +1,10 @@
 /**
  * compat/keychain.ts — runtime keychain shim for the IMAP addon.
  *
- * Avoids spawning `piclaw keychain ...` from inside the running piclaw process.
- * A nested CLI launch trips the live-DB guard, so add-ons must use the runtime
- * keychain module/interop directly when available.
+ * Reads secrets from piclaw's injected environment variables first, then from
+ * the runtime interop bridge when running inside piclaw. It deliberately avoids
+ * importing piclaw runtime internals or spawning the piclaw CLI from inside the
+ * running process.
  */
 
 export interface KeychainEntry {
@@ -35,14 +36,6 @@ function getRuntimeInterop(): RuntimeKeychainInterop | null {
   return ((globalThis as any).__piclawRuntimeInterop || null) as RuntimeKeychainInterop | null;
 }
 
-function getRuntimeModule(): RuntimeKeychainInterop | null {
-  try {
-    return require("piclaw/runtime/src/secure/keychain.js") as RuntimeKeychainInterop;
-  } catch {
-    return null;
-  }
-}
-
 function resolveFromEnv(name: string): KeychainEntry | null {
   const envValue = process.env[sanitizeEnvName(name)];
   if (!envValue) return null;
@@ -55,12 +48,15 @@ export async function getKeychainEntry(name: string): Promise<KeychainEntry> {
 
   const interop = getRuntimeInterop();
   if (typeof interop?.getKeychainEntry === "function") {
-    return await interop.getKeychainEntry(name);
-  }
-
-  const mod = getRuntimeModule();
-  if (typeof mod?.getKeychainEntry === "function") {
-    return await mod.getKeychainEntry(name);
+    const entry = await interop.getKeychainEntry(name);
+    if (entry?.secret) {
+      return {
+        name,
+        type: entry.type || "secret",
+        secret: String(entry.secret),
+        username: entry.username || undefined,
+      };
+    }
   }
 
   throw new Error(`Keychain entry not found: ${name}`);
@@ -73,24 +69,13 @@ export async function setKeychainEntry(entry: KeychainEntry): Promise<void> {
     return;
   }
 
-  const mod = getRuntimeModule();
-  if (typeof mod?.setKeychainEntry === "function") {
-    await mod.setKeychainEntry(entry);
-    return;
-  }
-
-  throw new Error("Runtime keychain write API is not available.");
+  throw new Error("Runtime keychain write API is not available. Save secrets from the settings pane via /agent/keychain.");
 }
 
 export async function deleteKeychainEntry(name: string): Promise<boolean> {
   const interop = getRuntimeInterop();
   if (typeof interop?.deleteKeychainEntry === "function") {
     return Boolean(await interop.deleteKeychainEntry(name));
-  }
-
-  const mod = getRuntimeModule();
-  if (typeof mod?.deleteKeychainEntry === "function") {
-    return Boolean(await mod.deleteKeychainEntry(name));
   }
 
   return false;
@@ -100,11 +85,6 @@ export async function listKeychainEntries(): Promise<KeychainEntryMetadata[]> {
   const interop = getRuntimeInterop();
   if (typeof interop?.listKeychainEntries === "function") {
     return await interop.listKeychainEntries();
-  }
-
-  const mod = getRuntimeModule();
-  if (typeof mod?.listKeychainEntries === "function") {
-    return await mod.listKeychainEntries();
   }
 
   return Object.entries(process.env)

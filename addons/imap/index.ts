@@ -104,6 +104,41 @@ async function resolveAccount(_pi: ExtensionAPI, accountName?: string): Promise<
   };
 }
 
+async function handleAccountsSet(input: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const action = String(input.action ?? input.op ?? "").toLowerCase().trim();
+  const name = typeof input.name === "string" ? input.name.trim() : "";
+
+  if (action === "save") {
+    if (!name) throw new Error("account name required");
+    const account = (input.account && typeof input.account === "object" ? input.account : input) as Record<string, unknown>;
+    const saved = await saveAccount(
+      name,
+      account,
+      typeof account.password === "string" ? account.password : typeof input.password === "string" ? input.password : undefined,
+      parseBoolean(account.setDefault ?? input.setDefault),
+    );
+    return { ok: true, account: saved, defaultAccount: getDefaultAccount() };
+  }
+
+  if (action === "delete") {
+    if (!name) throw new Error("account name required");
+    const deleted = await deleteAccount(name);
+    return { ok: true, deleted, defaultAccount: getDefaultAccount() };
+  }
+
+  if (action === "set_default" || action === "set-default") {
+    const nextDefault = name || null;
+    if (nextDefault) {
+      const account = await getAccount(nextDefault);
+      if (!account) throw new Error(`Account not found: ${nextDefault}`);
+    }
+    setDefaultAccount(nextDefault);
+    return { ok: true, defaultAccount: getDefaultAccount() };
+  }
+
+  throw new Error("Unsupported IMAP accounts action");
+}
+
 async function handleSettingsRoute(_pi: ExtensionAPI, req: Request, pathname: string): Promise<Response> {
   const path = pathname.replace(/^\/imap-settings/, "") || "/";
   const json = (payload: unknown, status = 200) => new Response(req.method === "HEAD" ? null : JSON.stringify(payload, null, 2), {
@@ -152,6 +187,21 @@ async function handleSettingsRoute(_pi: ExtensionAPI, req: Request, pathname: st
   } catch (error) {
     return json({ ok: false, error: error instanceof Error ? error.message : String(error) }, 500);
   }
+}
+
+type AddonConfigApiRegistrar = (
+  addonId: string,
+  action: string,
+  handlers: { get?: (payload: unknown, req: Request) => unknown | Promise<unknown>; set?: (payload: unknown, req: Request) => unknown | Promise<unknown> },
+  extensionPath?: string,
+) => "created" | "updated";
+
+const registerAddonConfigApi = (globalThis as Record<string, unknown>).__piclaw_registerAddonConfigApi as AddonConfigApiRegistrar | undefined;
+if (typeof registerAddonConfigApi === "function") {
+  registerAddonConfigApi("imap", "accounts", {
+    get: async () => await listAccounts(),
+    set: async (payload) => await handleAccountsSet((payload && typeof payload === "object" ? payload : {}) as Record<string, unknown>),
+  }, EXT_DIR);
 }
 
 export default function imapExtension(pi: ExtensionAPI) {

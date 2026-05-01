@@ -265,7 +265,7 @@
     {
       "slug": "imap",
       "name": "@rcarmo/piclaw-addon-imap",
-      "version": "0.1.4",
+      "version": "0.1.5",
       "type": "extension",
       "description": "IMAP email management tool — search/fetch, move/copy, flag, create drafts, file messages, and STARTTLS support",
       "path": "addons/imap",
@@ -279,9 +279,9 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-imap-0.1.4.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-imap-0.1.5.tgz"
       },
-      "updatedAt": "2026-04-30",
+      "updatedAt": "2026-05-01",
       "owner": {
         "login": "rcarmo",
         "url": "https://github.com/rcarmo"

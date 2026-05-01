@@ -101,4 +101,25 @@ describe("ImapClient protocol handling", () => {
 		socket.emit("data", Buffer.from("A0001 OK APPEND completed\r\n"));
 		await expect(pending).resolves.toBeUndefined();
 	});
+
+	test("serializes concurrent commands on one connection", async () => {
+		const client = makeClient();
+		const socket = new FakeSocket();
+		(client as any).sock = socket;
+		socket.on("data", (chunk) => (client as any).feed(chunk));
+
+		const first = client.noop();
+		const second = client.list();
+		expect(socket.writes.length).toBe(1);
+		expect(String(socket.writes[0])).toContain("NOOP");
+
+		socket.emit("data", Buffer.from("A0001 OK NOOP completed\r\n"));
+		await expect(first).resolves.toBeUndefined();
+		expect(String(socket.writes[1])).toContain('LIST "" "*"');
+
+		socket.emit("data", Buffer.from('* LIST (\\HasNoChildren) "/" INBOX\r\nA0002 OK LIST completed\r\n'));
+		await expect(second).resolves.toEqual([
+			{ path: "INBOX", name: "INBOX", delimiter: "/", flags: ["\\HasNoChildren"], specialUse: null },
+		]);
+	});
 });
