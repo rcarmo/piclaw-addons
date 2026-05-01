@@ -41,6 +41,19 @@ async function setKeychainSecret(name, secret) {
   return payload;
 }
 
+async function deleteKeychainSecret(name) {
+  const resp = await fetch('/agent/keychain', {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  });
+  const payload = await resp.json().catch(() => ({}));
+  if (!resp.ok || payload?.ok === false) {
+    throw new Error(payload?.error || `Failed to delete keychain entry ${name}`);
+  }
+  return payload;
+}
+
 function normalizeAccountName(name) {
   return String(name || '').trim().toLowerCase().replace(/[^a-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '');
 }
@@ -49,10 +62,12 @@ function passwordKeychainName(name) {
   return `imap/${normalizeAccountName(name)}/password`;
 }
 
+let paneRegistered = false;
+
 function registerPane() {
   const registry = globalThis.__piclawSettingsPaneRegistry || {};
   const registerSettingsPane = registry.registerSettingsPane;
-  if (!registerSettingsPane || !HAS_RUNTIME) return;
+  if (!registerSettingsPane || !HAS_RUNTIME || paneRegistered) return;
 
   registerSettingsPane({
     id: 'imap',
@@ -62,6 +77,8 @@ function registerPane() {
     searchable: true,
     component: ImapPane,
   });
+  paneRegistered = true;
+  try { registry.notifySettingsPanesChanged?.(); } catch {}
 }
 
 function emptyDraft(name = '') {
@@ -85,6 +102,7 @@ function ImapPane() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
   const [accounts, setAccounts] = useState([]);
   const [defaultAccount, setDefaultAccount] = useState('');
   const [selected, setSelected] = useState('');
@@ -98,7 +116,8 @@ function ImapPane() {
       const list = payload.accounts || [];
       setAccounts(list);
       setDefaultAccount(payload.defaultAccount || '');
-      const nextSelected = preferredName || selected || payload.defaultAccount || list[0]?.name || '';
+      const hasPreferred = typeof preferredName === 'string';
+      const nextSelected = hasPreferred ? preferredName : (selected || payload.defaultAccount || list[0]?.name || '');
       setSelected(nextSelected);
       if (nextSelected) {
         const account = list.find((item) => item.name === nextSelected);
@@ -122,17 +141,33 @@ function ImapPane() {
   }
 
   function selectAccount(account) {
+    setMessage('');
     setSelected(account.name);
     setDraft({ ...emptyDraft(account.name), ...account, password: '', setDefault: account.name === defaultAccount });
   }
 
   async function saveCurrent() {
-    if (!draft.name) {
+    const normalizedName = normalizeAccountName(draft.name);
+    const existingMeta = accounts.find((item) => item.name === normalizedName) || null;
+    if (!normalizedName) {
       setError('Account name is required.');
+      return;
+    }
+    if (!String(draft.host || '').trim()) {
+      setError('Host is required.');
+      return;
+    }
+    if (!String(draft.user || '').trim()) {
+      setError('Username is required.');
+      return;
+    }
+    if (!existingMeta?.hasPassword && !String(draft.password || '').length) {
+      setError('Password is required for new accounts.');
       return;
     }
     setSaving(true);
     setError('');
+    setMessage('');
     try {
       const body = {
         host: draft.host,
@@ -144,12 +179,24 @@ function ImapPane() {
         allowInsecureTls: !!draft.allowInsecureTls,
         setDefault: !!draft.setDefault,
       };
-      if (draft.password) {
-        await setKeychainSecret(passwordKeychainName(draft.name), draft.password);
+      const passwordKey = passwordKeychainName(normalizedName);
+      const wroteNewPassword = Boolean(draft.password);
+      const shouldRollbackPassword = wroteNewPassword && !existingMeta?.hasPassword;
+      if (wroteNewPassword) {
+        await setKeychainSecret(passwordKey, draft.password);
       }
-      const payload = await api('/accounts', { method: 'POST', body: JSON.stringify({ action: 'save', name: draft.name, account: body }) });
-      await refresh(payload.account?.name || draft.name);
+      let payload;
+      try {
+        payload = await api('/accounts', { method: 'POST', body: JSON.stringify({ action: 'save', name: normalizedName, account: body }) });
+      } catch (e) {
+        if (shouldRollbackPassword) {
+          try { await deleteKeychainSecret(passwordKey); } catch {}
+        }
+        throw e;
+      }
+      await refresh(payload.account?.name || normalizedName);
       setDraft((prev) => ({ ...prev, password: '' }));
+      setMessage(`Saved IMAP account ${payload.account?.name || normalizedName}.`);
     } catch (e) {
       setError(String(e?.message || e));
     } finally {
@@ -162,6 +209,7 @@ function ImapPane() {
     if (!confirm(`Delete IMAP account ${selected}?`)) return;
     setSaving(true);
     setError('');
+    setMessage('');
     try {
       await api('/accounts', { method: 'POST', body: JSON.stringify({ action: 'delete', name: selected }) });
       setSelected('');
@@ -177,6 +225,7 @@ function ImapPane() {
   async function setDefault(name) {
     setSaving(true);
     setError('');
+    setMessage('');
     try {
       await api('/accounts', { method: 'POST', body: JSON.stringify({ action: 'set_default', name }) });
       await refresh(name || '');
@@ -197,7 +246,7 @@ function ImapPane() {
           Passwords live in keychain. Connection settings and defaults live in the SQLite KV store.
         </div>
         <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
-          <button onClick=${() => { setSelected(''); setDraft(emptyDraft()); }}>New account</button>
+          <button onClick=${() => { setMessage(''); setSelected(''); setDraft(emptyDraft()); }}>New account</button>
         </div>
         ${accounts.length === 0 ? html`<div class="settings-hint">No IMAP accounts yet.</div>` : html`
           <table class="settings-table">
@@ -234,6 +283,7 @@ function ImapPane() {
       <div class="settings-section">
         <h3>${selected ? `Edit account: ${selected}` : 'New account'}</h3>
         ${error ? html`<div style="color:var(--danger-color,#ff8080);margin-bottom:12px;">${error}</div>` : null}
+        ${message ? html`<div style="color:var(--success-color,#4ade80);margin-bottom:12px;">${message}</div>` : null}
 
         <div class="settings-row">
           <label>Name</label>
@@ -253,7 +303,12 @@ function ImapPane() {
         </div>
         <div class="settings-row">
           <label>Password</label>
-          <input type="password" value=${draft.password} onInput=${(e) => patch('password', e.currentTarget.value)} placeholder=${selectedMeta?.hasPassword ? 'Leave blank to keep existing password' : 'Required for new accounts'} />
+          <div style="display:flex;align-items:center;gap:8px;flex:1;">
+            <input type="password" value=${draft.password} onInput=${(e) => patch('password', e.currentTarget.value)} placeholder=${selectedMeta?.hasPassword ? 'Leave blank to keep existing password' : 'Required for new accounts'} />
+            ${selectedMeta?.hasPassword
+              ? html`<span style="font-size:0.72rem;color:var(--accent-color,#2563eb);font-weight:600;white-space:nowrap;" title=${`Stored as ${passwordKeychainName(selectedMeta.name)}`}>✓ keychain</span>`
+              : html`<span style="font-size:0.72rem;color:var(--danger-color,#dc2626);font-weight:600;white-space:nowrap;" title="No password in keychain">✗ missing</span>`}
+          </div>
         </div>
         <div class="settings-row">
           <label>From</label>

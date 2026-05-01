@@ -55,6 +55,7 @@ export class ImapClient {
 	private tagCounter = 0;
 	private buffer: Buffer<ArrayBufferLike> = Buffer.alloc(0);
 	private pending = new Map<string, PendingCommand>();
+	private commandQueue: Promise<void> | null = null;
 	private capabilities = new Set<string>();
 	private selected: string | null = null;
 	private greetingResolved = false;
@@ -364,6 +365,20 @@ export class ImapClient {
 	}
 
 	private async command(cmd: string, options?: { literal?: Buffer }): Promise<string[]> {
+		let release: () => void = () => {};
+		const previous = this.commandQueue;
+		const current = new Promise<void>((resolve) => { release = resolve; });
+		this.commandQueue = current;
+		if (previous) await previous.catch(() => {});
+		try {
+			return await this.runCommand(cmd, options);
+		} finally {
+			release();
+			if (this.commandQueue === current) this.commandQueue = null;
+		}
+	}
+
+	private async runCommand(cmd: string, options?: { literal?: Buffer }): Promise<string[]> {
 		if (!this.sock) throw new Error("IMAP socket is not connected");
 
 		const tag = this.nextTag();

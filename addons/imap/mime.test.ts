@@ -33,4 +33,30 @@ describe("createMimeMessage", () => {
 			expect(line.length).toBeLessThanOrEqual(76);
 		}
 	});
+
+	test("rejects header injection", () => {
+		expect(() => createMimeMessage({
+			from: "rui@example.com\r\nBcc: victim@example.com",
+			to: "test@example.com",
+			subject: "Hello",
+			body: "hello",
+		})).toThrow(/From must not contain/);
+
+		expect(() => createMimeMessage({
+			from: "rui@example.com",
+			to: "test@example.com",
+			subject: "Hello\nInjected: yes",
+			body: "hello",
+		})).toThrow(/Subject must not contain/);
+	});
+
+	test("rejects invalid dates", () => {
+		expect(() => createMimeMessage({
+			from: "rui@example.com",
+			to: "test@example.com",
+			subject: "Bad date",
+			body: "hello",
+			date: new Date("not a date"),
+		})).toThrow(/date must be valid/);
+	});
 });

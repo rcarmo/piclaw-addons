@@ -24,9 +24,15 @@ function generateMessageId(): string {
 	return `<${ts}.${rand}@piclaw.local>`;
 }
 
+function sanitizeHeaderValue(value: string, field = "header"): string {
+	if (/[\r\n]/.test(value)) throw new Error(`${field} must not contain CR or LF characters`);
+	return value.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "").trim();
+}
+
 function foldHeader(name: string, value: string): string {
 	// RFC 5322: lines should be <= 78 chars, fold with CRLF + space
-	const line = `${name}: ${value}`;
+	const safeValue = sanitizeHeaderValue(value, name);
+	const line = `${name}: ${safeValue}`;
 	if (line.length <= 78) return line;
 	// Simple fold at spaces
 	const parts: string[] = [];
@@ -42,10 +48,11 @@ function foldHeader(name: string, value: string): string {
 }
 
 function encodeUtf8Header(value: string): string {
+	const safeValue = sanitizeHeaderValue(value, "Subject");
 	// If ASCII-safe, return as-is
-	if (/^[\x20-\x7E]*$/.test(value)) return value;
+	if (/^[\x20-\x7E]*$/.test(safeValue)) return safeValue;
 	// RFC 2047 encoded-word
-	const encoded = Buffer.from(value, "utf-8").toString("base64");
+	const encoded = Buffer.from(safeValue, "utf-8").toString("base64");
 	return `=?UTF-8?B?${encoded}?=`;
 }
 
@@ -65,6 +72,7 @@ function formatDate(date: Date): string {
 
 export function createMimeMessage(opts: MimeMessageOptions): string {
 	const date = opts.date ?? new Date();
+	if (Number.isNaN(date.getTime())) throw new Error("date must be valid");
 	const messageId = opts.messageId ?? generateMessageId();
 	const contentType = opts.isHtml ? "text/html; charset=UTF-8" : "text/plain; charset=UTF-8";
 

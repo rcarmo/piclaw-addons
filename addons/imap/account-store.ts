@@ -1,4 +1,10 @@
 import { createExtensionStorage, type ExtensionStorage } from "./compat/extension-kv.ts";
+import {
+  deleteKeychainEntry,
+  getKeychainEntry,
+  listKeychainEntries,
+  setKeychainEntry,
+} from "./compat/keychain.ts";
 
 export interface ImapAccountConfig {
   host: string;
@@ -62,66 +68,36 @@ function sanitizeConfig(config: Record<string, unknown>): ImapAccountConfig {
   };
 }
 
-function parseJsonFromMixedOutput(text: string): any {
-  const lines = text.trim().split("\n");
-  for (let i = 0; i < lines.length; i++) {
-    const candidate = lines.slice(i).join("\n").trim();
-    if (!candidate.startsWith("[") && !candidate.startsWith("{")) continue;
-    try {
-      return JSON.parse(candidate);
-    } catch {}
-  }
-  throw new Error("Could not parse CLI JSON output");
-}
-
-async function runPiclaw(args: string[]): Promise<{ stdout: string; stderr: string; exitCode: number }> {
-  const proc = Bun.spawn(["piclaw", ...args], {
-    stdout: "pipe",
-    stderr: "pipe",
-  });
-  const [stdout, stderr, exitCode] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited,
-  ]);
-  return { stdout, stderr, exitCode };
-}
-
 async function keychainSet(name: string, secret: string): Promise<void> {
-  const result = await runPiclaw(["keychain", "set", name, "--secret", secret, "--type", "password"]);
-  if (result.exitCode !== 0) throw new Error(result.stderr || `Failed to set keychain entry ${name}`);
+  await setKeychainEntry({ name, type: "password", secret });
 }
 
 async function keychainDelete(name: string): Promise<void> {
-  const result = await runPiclaw(["keychain", "delete", name]);
-  if (result.exitCode !== 0 && !/not found/i.test(result.stderr || result.stdout)) {
-    throw new Error(result.stderr || `Failed to delete keychain entry ${name}`);
+  await deleteKeychainEntry(name);
+}
+
+async function keychainGetSecret(name: string): Promise<string | null> {
+  try {
+    const entry = await getKeychainEntry(name);
+    return typeof entry.secret === "string" ? entry.secret : null;
+  } catch {
+    return null;
   }
 }
 
-async function keychainGetRaw(name: string): Promise<any | null> {
-  const result = await runPiclaw(["keychain", "get", name]);
-  if (result.exitCode !== 0) return null;
+async function keychainGetJson(name: string): Promise<Record<string, unknown> | null> {
+  const secret = await keychainGetSecret(name);
+  if (!secret) return null;
   try {
-    const parsed = parseJsonFromMixedOutput(result.stdout);
-    if (parsed?.secret && typeof parsed.secret === "string") {
-      try { return JSON.parse(parsed.secret); } catch { return parsed.secret; }
-    }
-    return parsed?.secret ?? parsed;
+    const parsed = JSON.parse(secret) as unknown;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : null;
   } catch {
     return null;
   }
 }
 
 async function keychainList(): Promise<Array<{ name: string; type?: string }>> {
-  const result = await runPiclaw(["keychain", "list"]);
-  if (result.exitCode !== 0) return [];
-  try {
-    const parsed = parseJsonFromMixedOutput(result.stdout);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
+  return await listKeychainEntries();
 }
 
 export async function listAccounts(): Promise<{ accounts: ImapStoredAccount[]; defaultAccount: string | null }> {
@@ -133,7 +109,8 @@ export async function listAccounts(): Promise<{ accounts: ImapStoredAccount[]; d
     const stored = kv.get<ImapAccountConfig>(key, "global");
     if (!stored) continue;
     const config = sanitizeConfig(stored as Record<string, unknown>);
-    accounts.set(name, { name, ...config, hasPassword: Boolean(await keychainGetRaw(passwordKeychainName(name))), source: "kv" });
+    const password = await keychainGetSecret(passwordKeychainName(name));
+    accounts.set(name, { name, ...config, hasPassword: typeof password === "string" && password.length > 0, source: "kv" });
   }
 
   const entries = await keychainList();
@@ -143,10 +120,10 @@ export async function listAccounts(): Promise<{ accounts: ImapStoredAccount[]; d
     if (!legacy?.[1]) continue;
     const accountName = legacy[1];
     if (accounts.has(accountName)) continue;
-    const raw = await keychainGetRaw(name);
-    if (!raw || typeof raw !== "object") continue;
+    const raw = await keychainGetJson(name);
+    if (!raw) continue;
     try {
-      const config = sanitizeConfig(raw as Record<string, unknown>);
+      const config = sanitizeConfig(raw);
       accounts.set(accountName, { name: accountName, ...config, hasPassword: true, source: "legacy-keychain" });
     } catch {}
   }
@@ -162,12 +139,12 @@ export async function getAccount(name: string): Promise<(ImapStoredAccount & { p
   const stored = kv.get<ImapAccountConfig>(accountKvKey(normalized), "global");
   if (stored) {
     const config = sanitizeConfig(stored as Record<string, unknown>);
-    const password = await keychainGetRaw(passwordKeychainName(normalized));
+    const password = await keychainGetSecret(passwordKeychainName(normalized));
     return { name: normalized, ...config, hasPassword: typeof password === "string" && password.length > 0, password: typeof password === "string" ? password : undefined, source: "kv" };
   }
-  const legacy = await keychainGetRaw(legacyKeychainName(normalized));
-  if (legacy && typeof legacy === "object") {
-    const config = sanitizeConfig(legacy as Record<string, unknown>);
+  const legacy = await keychainGetJson(legacyKeychainName(normalized));
+  if (legacy) {
+    const config = sanitizeConfig(legacy);
     return { name: normalized, ...config, hasPassword: typeof (legacy as any).pass === "string", password: typeof (legacy as any).pass === "string" ? (legacy as any).pass : undefined, source: "legacy-keychain" };
   }
   return null;
@@ -182,14 +159,14 @@ export async function saveAccount(
   const normalized = normalizeName(name);
   if (!normalized) throw new Error("account name required");
   const config = sanitizeConfig(input);
-  getStorage().set(accountKvKey(normalized), config, "global");
   if (typeof password === "string" && password.length > 0) {
     await keychainSet(passwordKeychainName(normalized), password);
   }
+  getStorage().set(accountKvKey(normalized), config, "global");
   if (setDefault) {
     getStorage().set(DEFAULT_ACCOUNT_KEY, normalized, "global");
   }
-  const savedPassword = await keychainGetRaw(passwordKeychainName(normalized));
+  const savedPassword = await keychainGetSecret(passwordKeychainName(normalized));
   return { name: normalized, ...config, hasPassword: typeof savedPassword === "string" && savedPassword.length > 0, source: "kv" };
 }
 
