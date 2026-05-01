@@ -1,4 +1,5 @@
 import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext } from "@mariozechner/pi-coding-agent";
+import { basename } from "node:path";
 import { Type } from "@sinclair/typebox";
 import { createExtensionStorage, type ExtensionStorage } from "./compat/extension-kv.js";
 import { getChatJid } from "./compat/chat-context.js";
@@ -128,6 +129,32 @@ function normalizeText(value: unknown, fallback = ""): string {
 export function normalizeChatJid(value: unknown): string {
   const trimmed = typeof value === "string" ? value.trim() : "";
   return trimmed || getChatJid("web:default");
+}
+
+type GoalRuntimeContext = Pick<ExtensionContext, "sessionManager"> | Pick<ExtensionCommandContext, "sessionManager"> | undefined;
+
+function unsanitizeWebChatJidFromSessionDir(sessionDir: unknown): string | null {
+  const leaf = typeof sessionDir === "string" ? basename(sessionDir).trim() : "";
+  if (!leaf || leaf.includes("__")) return null;
+  if (leaf === "web_default") return "web:default";
+  if (leaf.startsWith("web_")) return `web:${leaf.slice("web_".length)}`;
+  return null;
+}
+
+function chatJidFromContext(ctx: GoalRuntimeContext): string | null {
+  try {
+    const sessionDir = ctx?.sessionManager?.getSessionDir?.();
+    return unsanitizeWebChatJidFromSessionDir(sessionDir);
+  } catch {
+    return null;
+  }
+}
+
+export function resolveActiveChatJid(ctx?: GoalRuntimeContext, defaultValue = "web:default"): string {
+  const ambient = getChatJid("");
+  const fromContext = chatJidFromContext(ctx);
+  if (fromContext && (!ambient || ambient === defaultValue)) return fromContext;
+  return normalizeChatJid(ambient || fromContext || defaultValue);
 }
 
 export function loadGoalConfig(): GoalConfig {
@@ -390,8 +417,8 @@ export default function goalAddon(pi: ExtensionAPI): void {
     description: "Internal goal-control tool. Mark the active session goal complete only after it has been verified against the actual current state.",
     promptSnippet: "update_goal: mark the active session goal complete after verifying it against real evidence.",
     parameters: GoalUpdateSchema,
-    async execute(_toolCallId, params) {
-      const chatJid = getChatJid("web:default");
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      const chatJid = resolveActiveChatJid(ctx);
       const session = loadGoalSession(chatJid);
       if (!session.objective) {
         throw new Error(`No active goal session for ${chatJid}.`);
@@ -413,7 +440,7 @@ export default function goalAddon(pi: ExtensionAPI): void {
   pi.registerCommand("goal", {
     description: "Start, pause, resume, clear, or inspect a goal-seeking loop for the current session.",
     handler: async (args, ctx) => {
-      const chatJid = getChatJid("web:default");
+      const chatJid = resolveActiveChatJid(ctx);
       const current = loadGoalSession(chatJid);
       const config = loadGoalConfig();
       const parsed = parseGoalCommandInput(args || "");
@@ -492,10 +519,10 @@ export default function goalAddon(pi: ExtensionAPI): void {
     },
   });
 
-  pi.on("message_end", async (event, _ctx) => {
+  pi.on("message_end", async (event, ctx) => {
     const message = (event as { message?: { role?: unknown; usage?: unknown } }).message;
     if (message?.role !== "assistant") return;
-    const chatJid = getChatJid("web:default");
+    const chatJid = resolveActiveChatJid(ctx);
     const session = loadGoalSession(chatJid);
     if (!session.objective || !session.enabled || session.status !== "running") return;
     const tokens = extractUsageTokens(message);
@@ -503,8 +530,8 @@ export default function goalAddon(pi: ExtensionAPI): void {
     saveGoalSession(chatJid, { tokens_used: session.tokens_used + tokens });
   });
 
-  pi.on("before_agent_start", async (event) => {
-    const chatJid = getChatJid("web:default");
+  pi.on("before_agent_start", async (event, ctx) => {
+    const chatJid = resolveActiveChatJid(ctx);
     const session = loadGoalSession(chatJid);
     if (!session.enabled || !session.objective || session.status !== "running") return {};
     const prompt = getGoalSystemPrompt(session, loadGoalConfig()).trim();
@@ -515,7 +542,7 @@ export default function goalAddon(pi: ExtensionAPI): void {
   });
 
   pi.on("agent_end", async (_event, ctx) => {
-    const chatJid = getChatJid("web:default");
+    const chatJid = resolveActiveChatJid(ctx);
     const session = loadGoalSession(chatJid);
     if (!session.objective || !session.enabled || session.status !== "running") return;
 

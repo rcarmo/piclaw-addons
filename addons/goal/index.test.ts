@@ -6,6 +6,7 @@ import goalAddon, {
   loadGoalSession,
   renderGoalTemplate,
   resetGoalAddonForTests,
+  resolveActiveChatJid,
   saveGoalSession,
 } from "./index.ts";
 import { withChatContext } from "./compat/chat-context.ts";
@@ -120,6 +121,15 @@ test("renderGoalTemplate replaces prompt placeholders", () => {
   expect(rendered).toBe("Goal: Ship docs / 42 / ");
 });
 
+test("resolveActiveChatJid falls back to the session directory for web branches", () => {
+  const ctx = {
+    sessionManager: {
+      getSessionDir: () => "/workspace/.pi/agent/sessions/web_branch-123",
+    },
+  } as any;
+  expect(resolveActiveChatJid(ctx)).toBe("web:branch-123");
+});
+
 describe("goal command and loop behavior", () => {
   test("/goal uses Piclaw runtime chat context when not on web:default", async () => {
     (globalThis as { __piclawRuntimeInterop?: { getChatJid?: () => string; getChatChannel?: () => string } }).__piclawRuntimeInterop = {
@@ -138,6 +148,21 @@ describe("goal command and loop behavior", () => {
     expect(defaultSession.objective).toBe("");
     expect(String(sentUserMessages[0]?.content)).toContain("Finish the branch-local task");
     expect(notifications.at(-1)?.message).toContain("web:branch-123");
+  });
+
+  test("/goal uses the session directory when Piclaw runtime interop is unavailable", async () => {
+    const { commands, ctx, sentUserMessages, notifications } = createHarness();
+    ctx.sessionManager.getSessionDir = () => "/workspace/.pi/agent/sessions/web_branch-456";
+    const command = commands.get("goal");
+
+    await command.handler("Finish the actual branch task", ctx);
+
+    const branchSession = loadGoalSession("web:branch-456");
+    const defaultSession = loadGoalSession("web:default");
+    expect(branchSession.objective).toBe("Finish the actual branch task");
+    expect(defaultSession.objective).toBe("");
+    expect(String(sentUserMessages[0]?.content)).toContain("Finish the actual branch task");
+    expect(notifications.at(-1)?.message).toContain("web:branch-456");
   });
 
   test("/goal starts a run and queues the initial kickoff prompt", async () => {
