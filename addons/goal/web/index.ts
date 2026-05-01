@@ -20,6 +20,10 @@ function normalizeChatJid(value) {
 }
 
 function getCurrentChatJid() {
+  const fromApi = normalizeChatJid(globalThis.__piclaw_web?.getCurrentChatJid?.());
+  if (fromApi !== DEFAULT_CHAT_JID) return fromApi;
+  const fromGlobal = normalizeChatJid(globalThis.__piclawCurrentChatJid);
+  if (fromGlobal !== DEFAULT_CHAT_JID) return fromGlobal;
   try {
     const url = new URL(globalThis.location?.href || "https://example.test/");
     return normalizeChatJid(url.searchParams.get("chat_jid"));
@@ -85,7 +89,7 @@ function registerPane() {
 
 function GoalSettingsPane() {
   if (!HAS_RUNTIME) return null;
-  const chatJid = getCurrentChatJid();
+  const [chatJid, setChatJid] = useState(getCurrentChatJid);
   const [config, setConfig] = useState(null);
   const [session, setSession] = useState(null);
   const [message, setMessage] = useState("");
@@ -99,6 +103,16 @@ function GoalSettingsPane() {
   }, [chatJid]);
 
   useEffect(() => { load().catch((error) => setMessage(String(error?.message || error))); }, [load]);
+
+  useEffect(() => {
+    const updateChatJid = () => setChatJid(getCurrentChatJid());
+    globalThis.addEventListener?.("piclaw:current-chat-changed", updateChatJid);
+    globalThis.addEventListener?.("popstate", updateChatJid);
+    return () => {
+      globalThis.removeEventListener?.("piclaw:current-chat-changed", updateChatJid);
+      globalThis.removeEventListener?.("popstate", updateChatJid);
+    };
+  }, []);
 
   const saveGlobal = useCallback(async (patch) => {
     setSaving(true);

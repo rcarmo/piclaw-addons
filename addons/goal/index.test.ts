@@ -14,6 +14,7 @@ const addonDir = import.meta.dir;
 
 afterEach(() => {
   resetGoalAddonForTests();
+  delete (globalThis as { __piclawRuntimeInterop?: unknown }).__piclawRuntimeInterop;
 });
 
 function createHarness() {
@@ -92,12 +93,14 @@ test("goal README documents /goal and editable prompts", () => {
   expect(readme).toContain("update_goal");
 });
 
-test("goal web entry targets config and session addon APIs", () => {
+test("goal web entry targets config/session addon APIs and active chat context", () => {
   const source = readFileSync(resolve(addonDir, "web", "index.ts"), "utf8");
   expect(source).toContain("const API = `/agent/addons/api/${ADDON_ID}`");
   expect(source).toContain("`${API}/config`");
   expect(source).toContain("`${API}/session`");
   expect(source).toContain("registerSettingsPane");
+  expect(source).toContain("__piclaw_web?.getCurrentChatJid");
+  expect(source).toContain("piclaw:current-chat-changed");
 });
 
 test("goal prompt editors are monospaced textareas", () => {
@@ -118,6 +121,25 @@ test("renderGoalTemplate replaces prompt placeholders", () => {
 });
 
 describe("goal command and loop behavior", () => {
+  test("/goal uses Piclaw runtime chat context when not on web:default", async () => {
+    (globalThis as { __piclawRuntimeInterop?: { getChatJid?: () => string; getChatChannel?: () => string } }).__piclawRuntimeInterop = {
+      getChatJid: () => "web:branch-123",
+      getChatChannel: () => "web",
+    };
+    const { commands, sentUserMessages, notifications, ctx } = createHarness();
+    const command = commands.get("goal");
+
+    await command.handler("Finish the branch-local task", ctx);
+
+    const branchSession = loadGoalSession("web:branch-123");
+    const defaultSession = loadGoalSession("web:default");
+    expect(branchSession.objective).toBe("Finish the branch-local task");
+    expect(branchSession.enabled).toBe(true);
+    expect(defaultSession.objective).toBe("");
+    expect(String(sentUserMessages[0]?.content)).toContain("Finish the branch-local task");
+    expect(notifications.at(-1)?.message).toContain("web:branch-123");
+  });
+
   test("/goal starts a run and queues the initial kickoff prompt", async () => {
     const { commands, sentUserMessages, notifications, ctx } = createHarness();
     const command = commands.get("goal");

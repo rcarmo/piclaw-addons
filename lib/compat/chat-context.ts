@@ -1,6 +1,11 @@
 /**
  * compat/chat-context.ts — Chat context shim for standalone addons.
- * Provides getChatJid() using AsyncLocalStorage, matching piclaw's core/chat-context.ts.
+ *
+ * In Piclaw, addon modules are loaded outside the runtime source tree, so they
+ * cannot import the runtime's AsyncLocalStorage singleton directly. When Piclaw
+ * exposes __piclawRuntimeInterop.getChatJid/getChatChannel, prefer that active
+ * runtime context; fall back to this local AsyncLocalStorage for standalone
+ * tests and non-Piclaw hosts.
  */
 
 import { AsyncLocalStorage } from "async_hooks";
@@ -10,7 +15,21 @@ interface ChatContext {
   channel: string;
 }
 
+interface RuntimeInteropBridge {
+  getChatJid?: (defaultValue?: string) => string;
+  getChatChannel?: (defaultValue?: string) => string;
+}
+
 const storage = new AsyncLocalStorage<ChatContext>();
+
+function runtimeInterop(): RuntimeInteropBridge | undefined {
+  return (globalThis as { __piclawRuntimeInterop?: RuntimeInteropBridge }).__piclawRuntimeInterop;
+}
+
+function nonEmptyString(value: unknown): string | null {
+  const trimmed = typeof value === "string" ? value.trim() : "";
+  return trimmed || null;
+}
 
 export async function withChatContext<T>(
   chatJid: string,
@@ -21,9 +40,21 @@ export async function withChatContext<T>(
 }
 
 export function getChatJid(defaultValue = "web:default"): string {
-  return storage.getStore()?.chatJid ?? defaultValue;
+  const local = nonEmptyString(storage.getStore()?.chatJid);
+  if (local) return local;
+  try {
+    return nonEmptyString(runtimeInterop()?.getChatJid?.(defaultValue)) || defaultValue;
+  } catch {
+    return defaultValue;
+  }
 }
 
 export function getChatChannel(defaultValue = "web"): string {
-  return storage.getStore()?.channel ?? defaultValue;
+  const local = nonEmptyString(storage.getStore()?.channel);
+  if (local) return local;
+  try {
+    return nonEmptyString(runtimeInterop()?.getChatChannel?.(defaultValue)) || defaultValue;
+  } catch {
+    return defaultValue;
+  }
 }
