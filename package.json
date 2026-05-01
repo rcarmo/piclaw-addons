@@ -29,6 +29,7 @@
       "addons/editable-table/index.ts",
       "addons/eml-viewer/index.ts",
       "addons/git-query-tools/index.ts",
+      "addons/goal/index.ts",
       "addons/imap/index.ts",
       "addons/kanban-board-widget/index.ts",
       "addons/kanban-editor/index.ts",

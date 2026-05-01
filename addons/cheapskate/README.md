@@ -10,7 +10,7 @@ Open **Settings → Add-Ons** and install **cheapskate** from the catalog.
 
 The addon registers a `cheapskate` provider with an `auto` model. When selected, it tries each enabled backend in order, skipping any that are rate-limited or have exhausted their free quota. If one backend fails, it rotates to the next.
 
-Context-length errors also trigger rotation, so long conversations don't get stuck on a backend with a small context window.
+Context-length errors also trigger rotation, so long conversations don't get stuck on a backend with a small context window. The registered model metadata always reflects the currently active backend's real limits — context window, max tokens, and reasoning support are not merged across all configured backends.
 
 ## Backends
 
@@ -47,3 +47,5 @@ A restart is needed after adding or changing a key for the runtime to pick it up
 | Safety cap toggles | **Runtime database** — same KV store as above |
 
 No config files are written to disk. Legacy `.pi/cheapskate.json` is auto-migrated to the runtime database on first load.
+
+Outside piclaw, the extension still imports and runs in a vanilla Pi/Bun environment: piclaw-specific config hooks are optional, and KV storage falls back to an in-memory store.

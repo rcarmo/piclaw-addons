@@ -15,7 +15,6 @@ import { Type } from "@sinclair/typebox";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { createExtensionStorage, type ExtensionStorage } from "./compat/extension-kv.js";
-import { createExtensionStorage, type ExtensionStorage } from "./compat/extension-kv.js";
 
 // ── Free-tier backend definitions ────────────────────────────────
 
@@ -236,11 +235,26 @@ function getCurrentBackend(): FreeBackend | null {
   return best;
 }
 
-function rotateBackend(): FreeBackend | null {
-  if (currentBackendId) recordError(currentBackendId);
-  const available = getAvailableBackends().filter((b) => b.id !== currentBackendId);
+function rotateBackend(reason: "rate_limit" | "context_limit" | "manual" = "rate_limit"): FreeBackend | null {
+  const current = currentBackendId ? BACKENDS.find((x) => x.id === currentBackendId) ?? null : null;
+  if (currentBackendId && reason !== "manual") recordError(currentBackendId);
+
+  let available = getAvailableBackends().filter((b) => b.id !== currentBackendId);
+  if (reason === "context_limit" && current) {
+    const larger = available.filter((b) => b.contextWindow > current.contextWindow);
+    if (larger.length > 0) available = larger;
+  }
   if (available.length === 0) return selectBestBackend();
-  available.sort((a, b) => getUsage(a.id).lastUsed - getUsage(b.id).lastUsed);
+
+  available.sort((a, b) => {
+    const usageDelta = getUsage(a.id).lastUsed - getUsage(b.id).lastUsed;
+    if (usageDelta !== 0) return usageDelta;
+    if (reason === "context_limit" && a.contextWindow !== b.contextWindow) {
+      return b.contextWindow - a.contextWindow;
+    }
+    return b.contextWindow - a.contextWindow;
+  });
+
   const next = available[0]!;
   currentBackendId = next.id;
   return next;
@@ -253,29 +267,31 @@ function buildModelName(backend: FreeBackend | null, configured: FreeBackend[]):
   return `Free \u2192 ${backend.name} / ${backend.modelName} \u00b7 $0`;
 }
 
+function buildProviderModel(backend: FreeBackend, configured: FreeBackend[]) {
+  return {
+    id: "auto",
+    name: buildModelName(backend, configured),
+    api: "openai",
+    reasoning: backend.reasoning,
+    input: ["text", "image"] as ("text" | "image")[],
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    contextWindow: backend.contextWindow,
+    maxTokens: backend.maxTokens,
+    compat: { modelId: backend.modelId } as any,
+  };
+}
+
 function registerCheapskateProvider(pi: ExtensionAPI): boolean {
   const configured = getConfiguredBackends();
   if (configured.length === 0) return false;
 
   const best = getCurrentBackend() || configured[0]!;
-  const bestContext = Math.max(...configured.map((b) => b.contextWindow));
-  const anyReasoning = configured.some((b) => b.reasoning);
 
   pi.registerProvider("cheapskate", {
     baseUrl: resolveBaseUrl(best),
     apiKey: best.apiKeyEnv,
     api: "openai",
-    models: [{
-      id: "auto",
-      name: buildModelName(best, configured),
-      api: "openai",
-      reasoning: anyReasoning,
-      input: ["text", "image"] as ("text" | "image")[],
-      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-      contextWindow: bestContext,
-      maxTokens: Math.max(...configured.map((b) => b.maxTokens)),
-      compat: { modelId: best.modelId } as any,
-    }],
+    models: [buildProviderModel(best, configured)],
   });
 
   currentBackendId = best.id;
@@ -284,24 +300,11 @@ function registerCheapskateProvider(pi: ExtensionAPI): boolean {
 
 function reRegisterWithBackend(pi: ExtensionAPI, backend: FreeBackend): void {
   const configured = getConfiguredBackends();
-  const bestContext = Math.max(...configured.map((b) => b.contextWindow));
-  const anyReasoning = configured.some((b) => b.reasoning);
-
   pi.registerProvider("cheapskate", {
     baseUrl: resolveBaseUrl(backend),
     apiKey: backend.apiKeyEnv,
     api: "openai",
-    models: [{
-      id: "auto",
-      name: buildModelName(backend, configured),
-      api: "openai",
-      reasoning: anyReasoning,
-      input: ["text", "image"] as ("text" | "image")[],
-      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-      contextWindow: bestContext,
-      maxTokens: Math.max(...configured.map((b) => b.maxTokens)),
-      compat: { modelId: backend.modelId } as any,
-    }],
+    models: [buildProviderModel(backend, configured)],
   });
 }
 
@@ -332,6 +335,27 @@ if (typeof registerAddonConfigApi === "function") {
   }, import.meta.dir);
 }
 
+function isCheapskateModel(model: unknown): boolean {
+  return Boolean(model && typeof model === "object" && (model as { provider?: unknown }).provider === "cheapskate");
+}
+
+function isContextLimitError(event: unknown): boolean {
+  const candidate = event as { error?: unknown; bodyText?: unknown; body?: unknown; status?: unknown } | null;
+  const status = Number(candidate?.status);
+  if (status === 413) return true;
+  const text = [candidate?.error, candidate?.bodyText, candidate?.body]
+    .map((value) => typeof value === "string" ? value : value ? JSON.stringify(value) : "")
+    .filter(Boolean)
+    .join("\n");
+  return /context length|context window|maximum context|max context|too many tokens|input (?:is )?too long|prompt (?:is )?too long|reduce the length/i.test(text);
+}
+
+export function resetCheapskateForTests(): void {
+  currentBackendId = null;
+  usageMap.clear();
+  kvStore = null;
+}
+
 // ── Extension ────────────────────────────────────────────────────
 
 const cheapskate: ExtensionFactory = (pi: ExtensionAPI) => {
@@ -340,8 +364,7 @@ const cheapskate: ExtensionFactory = (pi: ExtensionAPI) => {
   // Before each turn: ensure we're pointing at the best available backend
   pi.on("before_agent_start", async (event) => {
     const model = (event as any).model;
-    const isCheapskate = model?.provider === "cheapskate" || model?.id === "auto";
-    if (!isCheapskate) return {};
+    if (!isCheapskateModel(model)) return {};
 
     const backend = getCurrentBackend();
     if (backend) reRegisterWithBackend(pi, backend);
@@ -355,16 +378,19 @@ const cheapskate: ExtensionFactory = (pi: ExtensionAPI) => {
   // After provider errors: rotate to next backend
   pi.on("after_provider_response", (event) => {
     const model = (event as any).model;
-    if (model?.provider !== "cheapskate") return;
+    if (!isCheapskateModel(model)) return;
 
+    const status = Number((event as any).status);
     const errorText = typeof (event as any).error === "string" ? (event as any).error : "";
-    const isRateLimit = /429|rate.limit|too many requests|quota|resource.*exhausted/i.test(errorText);
+    const isRateLimit = status === 429 || /429|rate.limit|too many requests|quota|resource.*exhausted/i.test(errorText);
+    const isContextLimit = isContextLimitError(event);
 
-    if (isRateLimit && currentBackendId) {
-      const next = rotateBackend();
+    if ((isRateLimit || isContextLimit) && currentBackendId) {
+      const previousBackendId = currentBackendId;
+      const next = rotateBackend(isContextLimit ? "context_limit" : "rate_limit");
       if (next) {
         reRegisterWithBackend(pi, next);
-        console.log(`[cheapskate] Rotated from ${currentBackendId} to ${next.id} (${next.name})`);
+        console.log(`[cheapskate] Rotated from ${previousBackendId} to ${next.id} (${next.name})`);
       }
     } else if (currentBackendId) {
       const usage = (event as any).usage;
@@ -429,7 +455,7 @@ const cheapskate: ExtensionFactory = (pi: ExtensionAPI) => {
       }
 
       if (params.action === "rotate") {
-        const next = rotateBackend();
+        const next = rotateBackend("manual");
         if (!next) {
           return { content: [{ type: "text", text: "No free-tier backends available right now." }], details: { rotated: false } };
         }
@@ -456,4 +482,4 @@ const cheapskate: ExtensionFactory = (pi: ExtensionAPI) => {
 };
 
 export default cheapskate;
-export { cheapskate, BACKENDS, getConfiguredBackends, getAvailableBackends, getCurrentBackend, getUsage, currentBackendId };
+export { cheapskate, BACKENDS, getConfiguredBackends, getAvailableBackends, getCurrentBackend, getUsage, currentBackendId, buildProviderModel, isContextLimitError };

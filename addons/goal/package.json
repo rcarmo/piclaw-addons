@@ -1,0 +1,41 @@
+{
+  "name": "@rcarmo/piclaw-addon-goal",
+  "version": "0.1.0",
+  "description": "Session-scoped goal seeking loop with editable prompts, a settings pane, and /goal command support",
+  "type": "module",
+  "main": "index.ts",
+  "piclaw": {
+    "type": "extension",
+    "compatibleVersions": ">=2.0.0",
+    "tags": [
+      "automation",
+      "goal-seeking",
+      "loop",
+      "productivity",
+      "session"
+    ]
+  },
+  "pi": {
+    "extensions": [
+      "index.ts"
+    ],
+    "web": {
+      "entries": [
+        "web/index.ts"
+      ]
+    }
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-coding-agent": "*",
+    "@sinclair/typebox": "*"
+  },
+  "keywords": [
+    "goal",
+    "goal-seeking",
+    "loop",
+    "pi-package",
+    "piclaw-addon"
+  ],
+  "license": "MIT",
+  "homepage": "https://rcarmo.github.io/piclaw-addons/addons/goal/"
+}

@@ -71,6 +71,7 @@ See:
 | [`drawio-editor`](addons/drawio-editor/) | Self-hosted draw.io diagram editor |
 | [`editable-table`](addons/editable-table/) | Spreadsheet-style Markdown table editor for the web UI |
 | [`eml-viewer`](addons/eml-viewer/) | Email (.eml) viewer for the web timeline |
+| [`goal`](addons/goal/) | Session-scoped goal seeking with `/goal`, editable prompts, and a settings pane |
 | [`imap`](addons/imap/) | IMAP email management with drafts and STARTTLS |
 | [`kanban-board-widget`](addons/kanban-board-widget/) | Kanban board dashboard widget |
 | [`kanban-editor`](addons/kanban-editor/) | `.kanban.md` editor add-on with Obsidian-style `[[links]]` |

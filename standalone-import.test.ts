@@ -13,7 +13,7 @@ afterEach(() => {
   }
 });
 
-async function importStandaloneAddon(slug: "autoresearch" | "editable-table" | "imap" | "kanban-editor" | "portainer" | "proxmox" | "vent") {
+async function importStandaloneAddon(slug: "autoresearch" | "cheapskate" | "editable-table" | "goal" | "imap" | "kanban-editor" | "portainer" | "proxmox" | "vent") {
   const tempRoot = mkdtempSync(join(tmpdir(), `piclaw-addon-${slug}-`));
   tempDirs.push(tempRoot);
 
@@ -29,8 +29,18 @@ test("standalone piclaw-addon-autoresearch imports outside the monorepo root", a
   expect(typeof mod.default).toBe("function");
 });
 
+test("standalone piclaw-addon-cheapskate imports outside the monorepo root", async () => {
+  const mod = await importStandaloneAddon("cheapskate");
+  expect(typeof mod.default).toBe("function");
+});
+
 test("standalone piclaw-addon-editable-table imports outside the monorepo root", async () => {
   const mod = await importStandaloneAddon("editable-table");
+  expect(typeof mod.default).toBe("function");
+});
+
+test("standalone piclaw-addon-goal imports outside the monorepo root", async () => {
+  const mod = await importStandaloneAddon("goal");
   expect(typeof mod.default).toBe("function");
 });
 
