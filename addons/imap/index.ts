@@ -9,7 +9,6 @@
  * Account storage model:
  * - non-secret settings in extension SQLite KV (global scope)
  * - password in keychain at imap/<name>/password
- * - legacy single-secret keychain entries imap/<name> still read as fallback
  */
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";

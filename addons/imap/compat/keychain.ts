@@ -14,18 +14,10 @@ export interface KeychainEntry {
   username?: string;
 }
 
-export interface KeychainEntryMetadata {
-  name: string;
-  type?: string;
-  createdAt?: string | null;
-  updatedAt?: string | null;
-}
-
 type RuntimeKeychainInterop = {
   getKeychainEntry?: (name: string) => Promise<KeychainEntry>;
   setKeychainEntry?: (entry: KeychainEntry) => Promise<void>;
   deleteKeychainEntry?: (name: string) => boolean | Promise<boolean>;
-  listKeychainEntries?: () => KeychainEntryMetadata[] | Promise<KeychainEntryMetadata[]>;
 };
 
 function sanitizeEnvName(name: string): string {
@@ -79,15 +71,4 @@ export async function deleteKeychainEntry(name: string): Promise<boolean> {
   }
 
   return false;
-}
-
-export async function listKeychainEntries(): Promise<KeychainEntryMetadata[]> {
-  const interop = getRuntimeInterop();
-  if (typeof interop?.listKeychainEntries === "function") {
-    return await interop.listKeychainEntries();
-  }
-
-  return Object.entries(process.env)
-    .filter(([, value]) => Boolean(value))
-    .map(([name]) => ({ name, type: "secret" }));
 }
