@@ -18,6 +18,61 @@ function sanitizeEnvName(keychainName: string): string {
   return keychainName.replace(/[/\-.]/g, "_").toUpperCase();
 }
 
+function parseJsonFromMixedOutput(text: string): unknown | null {
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+  const lines = trimmed.split(/\r?\n/);
+  for (let i = 0; i < lines.length; i++) {
+    const candidate = lines.slice(i).join("\n").trim();
+    if (!candidate.startsWith("{") && !candidate.startsWith("[") && !candidate.startsWith('"')) continue;
+    try {
+      return JSON.parse(candidate);
+    } catch {
+      // keep scanning
+    }
+  }
+  return null;
+}
+
+function extractStructuredSecret(text: string): { secret: string; username?: string } | null {
+  const parsed = parseJsonFromMixedOutput(text);
+  if (!parsed || typeof parsed !== "object") return null;
+  const record = parsed as Record<string, unknown>;
+  const secret = typeof record.secret === "string"
+    ? record.secret.trim()
+    : typeof record.token === "string"
+      ? record.token.trim()
+      : typeof record.api_token === "string"
+        ? record.api_token.trim()
+        : "";
+  if (!secret) return null;
+  const username = typeof record.username === "string"
+    ? record.username.trim()
+    : typeof record.user === "string"
+      ? record.user.trim()
+      : "";
+  return {
+    secret,
+    ...(username ? { username } : {}),
+  };
+}
+
+function normalizeKeychainEntry(name: string, entry: { type?: unknown; secret?: unknown; username?: unknown }): KeychainEntry | null {
+  if (typeof entry?.secret !== "string") return null;
+  const structured = extractStructuredSecret(entry.secret);
+  const secret = structured?.secret || entry.secret.trim();
+  if (!secret) return null;
+  const username = typeof entry.username === "string"
+    ? entry.username.trim()
+    : structured?.username || "";
+  return {
+    name,
+    type: typeof entry.type === "string" && entry.type.trim() ? entry.type : "secret",
+    secret,
+    ...(username ? { username } : {}),
+  };
+}
+
 // ── Types matching piclaw's keychain ─────────────────────────────
 
 export interface KeychainEntry {
@@ -41,18 +96,14 @@ function resolveFromEnv(name: string): KeychainEntry | null {
   const envValue = process.env[envName];
   if (!envValue) return null;
 
-  try {
-    const parsed = JSON.parse(envValue);
-    if (typeof parsed === "object" && parsed !== null) {
-      const secret = parsed.secret || parsed.token || parsed.api_token;
-      if (typeof secret === "string" && secret) {
-        return { name, type: "secret", secret, username: parsed.username || parsed.user || undefined };
-      }
-    }
-  } catch {
-    // Not JSON — treat as raw secret
+  const structured = extractStructuredSecret(envValue);
+  if (structured) {
+    return { name, type: "secret", secret: structured.secret, username: structured.username };
   }
-  return { name, type: "secret", secret: envValue };
+
+  const secret = envValue.trim();
+  if (!secret) return null;
+  return { name, type: "secret", secret };
 }
 
 // ── Compatibility API matching piclaw's secure/keychain.ts ───────
@@ -74,14 +125,8 @@ export async function getKeychainEntry(name: string): Promise<KeychainEntry> {
     }).__piclawRuntimeInterop;
     if (typeof interop?.getKeychainEntry === "function") {
       const entry = await interop.getKeychainEntry(name);
-      if (entry?.secret) {
-        return {
-          name,
-          type: entry.type || "secret",
-          secret: String(entry.secret),
-          username: entry.username || undefined,
-        };
-      }
+      const normalized = normalizeKeychainEntry(name, entry || {});
+      if (normalized) return normalized;
     }
   } catch {
     // continue to module fallback
@@ -91,14 +136,8 @@ export async function getKeychainEntry(name: string): Promise<KeychainEntry> {
     const mod = require("piclaw/runtime/src/secure/keychain.js");
     if (typeof mod?.getKeychainEntry === "function") {
       const entry = await mod.getKeychainEntry(name);
-      if (entry?.secret) {
-        return {
-          name,
-          type: entry.type || "secret",
-          secret: String(entry.secret),
-          username: entry.username || undefined,
-        };
-      }
+      const normalized = normalizeKeychainEntry(name, entry || {});
+      if (normalized) return normalized;
     }
   } catch {
     // Not running inside piclaw runtime — continue to CLI fallback.
@@ -113,14 +152,11 @@ export async function getKeychainEntry(name: string): Promise<KeychainEntry> {
     if (proc.exitCode === 0 && proc.stdout) {
       const text = proc.stdout.toString().trim();
       if (text) {
-        try {
-          const parsed = JSON.parse(text);
-          if (typeof parsed?.secret === "string" && parsed.secret) {
-            return { name, type: parsed.type || "secret", secret: parsed.secret, username: parsed.username };
-          }
-        } catch {
-          // Some CLI outputs are human-readable wrappers, not raw secrets.
+        const structured = extractStructuredSecret(text);
+        if (structured) {
+          return { name, type: "secret", secret: structured.secret, username: structured.username };
         }
+        return { name, type: "secret", secret: text };
       }
     }
   } catch {
