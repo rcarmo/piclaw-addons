@@ -24,6 +24,8 @@ function createHarness() {
   const handlers: Array<{ event: string; handler: (...args: any[]) => any }> = [];
   const sentUserMessages: Array<{ content: unknown; options?: unknown }> = [];
   const notifications: Array<{ message: string; level: string }> = [];
+  const statuses: Array<{ key: string; text: string | undefined }> = [];
+  const workingMessages: Array<string | undefined> = [];
 
   const api = {
     on(event: string, handler: (...args: any[]) => any) { handlers.push({ event, handler }); },
@@ -57,6 +59,12 @@ function createHarness() {
       notify(message: string, level = "info") {
         notifications.push({ message, level });
       },
+      setStatus(key: string, text: string | undefined) {
+        statuses.push({ key, text });
+      },
+      setWorkingMessage(message?: string) {
+        workingMessages.push(message);
+      },
     },
     hasUI: false,
     cwd: "/workspace",
@@ -74,7 +82,7 @@ function createHarness() {
   } as any;
 
   goalAddon(api);
-  return { api, commands, tools, handlers, sentUserMessages, notifications, ctx };
+  return { api, commands, tools, handlers, sentUserMessages, notifications, statuses, workingMessages, ctx };
 }
 
 test("goal addon exports an extension entrypoint", () => {
@@ -121,6 +129,18 @@ test("renderGoalTemplate replaces prompt placeholders", () => {
   expect(rendered).toBe("Goal: Ship docs / 42 / ");
 });
 
+test("goal continuation prompts require visible timeline feedback", async () => {
+  const { commands, sentUserMessages, ctx } = createHarness();
+  const command = commands.get("goal");
+
+  await withChatContext("web:goal", "web", async () => {
+    await command.handler("Ship docs", ctx);
+  });
+
+  expect(String(sentUserMessages[0]?.content)).toContain("Timeline feedback requirement");
+  expect(String(sentUserMessages[0]?.content)).toContain("visible user feedback in the timeline");
+});
+
 test("resolveActiveChatJid falls back to the session directory for web branches", () => {
   const ctx = {
     sessionManager: {
@@ -165,8 +185,8 @@ describe("goal command and loop behavior", () => {
     expect(notifications.at(-1)?.message).toContain("web:branch-456");
   });
 
-  test("/goal starts a run and queues the initial kickoff prompt", async () => {
-    const { commands, sentUserMessages, notifications, ctx } = createHarness();
+  test("/goal starts a run with UI progress and queues the initial kickoff prompt", async () => {
+    const { commands, sentUserMessages, notifications, statuses, workingMessages, ctx } = createHarness();
     const command = commands.get("goal");
 
     await withChatContext("web:goal", "web", async () => {
@@ -179,6 +199,9 @@ describe("goal command and loop behavior", () => {
     expect(session.status).toBe("running");
     expect(sentUserMessages).toHaveLength(1);
     expect(String(sentUserMessages[0]?.content)).toContain("Ship the release");
+    expect(statuses.at(-1)?.key).toBe("goal");
+    expect(statuses.at(-1)?.text).toContain("Goal starting");
+    expect(workingMessages.at(-1)).toContain("Goal starting");
     expect(notifications.at(-1)?.message).toContain("Started goal run");
   });
 

@@ -7,6 +7,7 @@ import { getChatJid } from "./compat/chat-context.js";
 const EXTENSION_ID = "goal";
 const SESSION_KEY = "session";
 const CONFIG_KEY = "config";
+const UI_STATUS_KEY = "goal";
 
 export type GoalStatus = "idle" | "running" | "paused" | "complete" | "budget_limited";
 export type GoalPromptKind = "continuation" | "budget_limit" | null;
@@ -31,6 +32,14 @@ export interface GoalSession {
   completion_summary: string;
   last_prompt_kind: GoalPromptKind;
 }
+
+export const GOAL_TIMELINE_FEEDBACK_INSTRUCTION = [
+  "## Timeline feedback requirement",
+  "Every goal-seeking turn must produce visible user feedback in the timeline.",
+  "Start the assistant response with a concise progress note that says what you are doing next for the goal.",
+  "If you call tools, do not stay silent: include a brief textual update in the same assistant turn before or alongside tool use.",
+  "End the turn with a short progress summary or next step unless you mark the goal complete.",
+].join("\n");
 
 export const DEFAULT_GOAL_CONFIG: GoalConfig = {
   default_token_budget: 20000,
@@ -63,6 +72,7 @@ export const DEFAULT_GOAL_CONFIG: GoalConfig = {
     "- Tokens remaining: {{ remaining_tokens }}",
     "",
     "Avoid repeating work that is already done. Choose the next concrete action toward the objective.",
+    "Produce a visible assistant response for the timeline on every goal turn: start with a brief progress note and end with a short progress summary or next step unless the goal is complete.",
     "",
     "Before deciding that the goal is achieved, perform a completion audit against the actual current state:",
     "- Restate the objective as concrete deliverables or success criteria.",
@@ -302,12 +312,19 @@ function getGoalSystemPrompt(session: GoalSession, config: GoalConfig): string {
   return renderGoalTemplate(config.system_prompt, buildGoalPromptVars(session));
 }
 
+function appendTimelineFeedbackInstruction(prompt: string): string {
+  const trimmed = String(prompt || "").trim();
+  if (!trimmed) return GOAL_TIMELINE_FEEDBACK_INSTRUCTION;
+  if (trimmed.includes("## Timeline feedback requirement")) return trimmed;
+  return `${trimmed}\n\n${GOAL_TIMELINE_FEEDBACK_INSTRUCTION}`;
+}
+
 function getContinuationPrompt(session: GoalSession, config: GoalConfig): string {
-  return renderGoalTemplate(config.continuation_prompt, buildGoalPromptVars(session));
+  return appendTimelineFeedbackInstruction(renderGoalTemplate(config.continuation_prompt, buildGoalPromptVars(session)));
 }
 
 function getBudgetLimitPrompt(session: GoalSession, config: GoalConfig): string {
-  return renderGoalTemplate(config.budget_limit_prompt, buildGoalPromptVars(session));
+  return appendTimelineFeedbackInstruction(renderGoalTemplate(config.budget_limit_prompt, buildGoalPromptVars(session)));
 }
 
 function goalStatusSummary(session: GoalSession): string {
@@ -320,6 +337,24 @@ function goalStatusSummary(session: GoalSession): string {
     session.completed_at ? `Completed: ${session.completed_at}` : null,
     session.completion_summary ? `Summary: ${session.completion_summary}` : null,
   ].filter(Boolean).join("\n");
+}
+
+function goalObjectivePreview(objective: string, maxLength = 72): string {
+  const collapsed = String(objective || "").replace(/\s+/g, " ").trim();
+  if (!collapsed) return "no objective";
+  return collapsed.length > maxLength ? `${collapsed.slice(0, maxLength - 1)}…` : collapsed;
+}
+
+function setGoalProgressUi(ctx: ExtensionContext | ExtensionCommandContext, session: GoalSession, phase = "running"): void {
+  const remaining = Math.max(0, session.token_budget - session.tokens_used);
+  const message = `Goal ${phase}: ${goalObjectivePreview(session.objective)} (${remaining} tokens left)`;
+  try { ctx.ui.setStatus(UI_STATUS_KEY, `🎯 ${message}`); } catch { /* UI may not support status in all modes */ }
+  try { ctx.ui.setWorkingMessage(message); } catch { /* UI may not support working messages in all modes */ }
+}
+
+function clearGoalProgressUi(ctx: ExtensionContext | ExtensionCommandContext): void {
+  try { ctx.ui.setStatus(UI_STATUS_KEY, undefined); } catch { /* ignore */ }
+  try { ctx.ui.setWorkingMessage(undefined); } catch { /* ignore */ }
 }
 
 function sendGoalPrompt(pi: ExtensionAPI, ctx: ExtensionContext | ExtensionCommandContext, prompt: string): void {
@@ -430,6 +465,8 @@ export default function goalAddon(pi: ExtensionAPI): void {
         completion_summary: normalizeText(params.summary),
         last_prompt_kind: null,
       });
+      clearGoalProgressUi(ctx);
+      try { ctx.ui.notify(`Goal complete for ${chatJid}.`, "info"); } catch { /* ignore */ }
       return {
         content: [{ type: "text", text: `Marked goal complete for ${chatJid}.` }],
         details: next,
@@ -469,12 +506,14 @@ export default function goalAddon(pi: ExtensionAPI): void {
           status: current.objective ? "paused" : "idle",
           last_prompt_kind: null,
         });
+        clearGoalProgressUi(ctx);
         ctx.ui.notify(`Goal seeking OFF for ${chatJid}.`, "info");
         return next;
       }
 
       if (parsed.mode === "clear") {
         clearGoalSession(chatJid);
+        clearGoalProgressUi(ctx);
         ctx.ui.notify(`Cleared goal state for ${chatJid}.`, "info");
         return;
       }
@@ -492,6 +531,7 @@ export default function goalAddon(pi: ExtensionAPI): void {
           started_at: current.started_at || nowIso(),
           last_prompt_kind: "continuation",
         });
+        setGoalProgressUi(ctx, next, "resuming");
         sendGoalPrompt(pi, ctx, getContinuationPrompt(next, config));
         ctx.ui.notify(`Goal seeking ON for ${chatJid}.`, "info");
         return;
@@ -514,6 +554,7 @@ export default function goalAddon(pi: ExtensionAPI): void {
         completion_summary: "",
         last_prompt_kind: "continuation",
       });
+      setGoalProgressUi(ctx, next, "starting");
       sendGoalPrompt(pi, ctx, getContinuationPrompt(next, config));
       ctx.ui.notify(`Started goal run for ${chatJid}.`, "info");
     },
@@ -534,6 +575,7 @@ export default function goalAddon(pi: ExtensionAPI): void {
     const chatJid = resolveActiveChatJid(ctx);
     const session = loadGoalSession(chatJid);
     if (!session.enabled || !session.objective || session.status !== "running") return {};
+    setGoalProgressUi(ctx, session, "running");
     const prompt = getGoalSystemPrompt(session, loadGoalConfig()).trim();
     if (!prompt) return {};
     return {
@@ -544,7 +586,10 @@ export default function goalAddon(pi: ExtensionAPI): void {
   pi.on("agent_end", async (_event, ctx) => {
     const chatJid = resolveActiveChatJid(ctx);
     const session = loadGoalSession(chatJid);
-    if (!session.objective || !session.enabled || session.status !== "running") return;
+    if (!session.objective || !session.enabled || session.status !== "running") {
+      clearGoalProgressUi(ctx);
+      return;
+    }
 
     const config = loadGoalConfig();
     if (session.tokens_used >= session.token_budget) {
@@ -553,11 +598,13 @@ export default function goalAddon(pi: ExtensionAPI): void {
         status: "budget_limited",
         last_prompt_kind: "budget_limit",
       });
+      setGoalProgressUi(ctx, next, "budget-limited");
       sendGoalPrompt(pi, ctx, getBudgetLimitPrompt(next, config));
       return;
     }
 
     const next = saveGoalSession(chatJid, { last_prompt_kind: "continuation" });
+    setGoalProgressUi(ctx, next, "continuing");
     sendGoalPrompt(pi, ctx, getContinuationPrompt(next, config));
   });
 }
