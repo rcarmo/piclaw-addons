@@ -20,7 +20,12 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-ast-grep-0.1.3.tgz"
       },
-      "updatedAt": "2026-04-30"
+      "updatedAt": "2026-04-30",
+      "owner": {
+        "login": "cjnova",
+        "url": "https://github.com/cjnova"
+      },
+      "contributors": []
     },
     {
       "slug": "autoresearch",
@@ -42,7 +47,12 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-autoresearch-0.1.1.tgz"
       },
-      "updatedAt": "2026-04-30"
+      "updatedAt": "2026-04-30",
+      "owner": {
+        "login": "rcarmo",
+        "url": "https://github.com/rcarmo"
+      },
+      "contributors": []
     },
     {
       "slug": "cheapskate",
@@ -64,7 +74,12 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-cheapskate-0.4.1.tgz"
       },
-      "updatedAt": "2026-04-30"
+      "updatedAt": "2026-04-30",
+      "owner": {
+        "login": "rcarmo",
+        "url": "https://github.com/rcarmo"
+      },
+      "contributors": []
     },
     {
       "slug": "code-validator",
@@ -84,7 +99,12 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-code-validator-0.1.0.tgz"
       },
-      "updatedAt": "2026-04-30"
+      "updatedAt": "2026-04-30",
+      "owner": {
+        "login": "cjnova",
+        "url": "https://github.com/cjnova"
+      },
+      "contributors": []
     },
     {
       "slug": "delegate",
@@ -106,7 +126,12 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-delegate-0.1.0.tgz"
       },
-      "updatedAt": "2026-04-30"
+      "updatedAt": "2026-04-30",
+      "owner": {
+        "login": "cjnova",
+        "url": "https://github.com/cjnova"
+      },
+      "contributors": []
     },
     {
       "slug": "dev-tools",
@@ -126,7 +151,12 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-dev-tools-0.1.0.tgz"
       },
-      "updatedAt": "2026-04-30"
+      "updatedAt": "2026-04-30",
+      "owner": {
+        "login": "rcarmo",
+        "url": "https://github.com/rcarmo"
+      },
+      "contributors": []
     },
     {
       "slug": "drawio-editor",
@@ -146,7 +176,12 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-drawio-editor-0.1.0.tgz"
       },
-      "updatedAt": "2026-04-30"
+      "updatedAt": "2026-04-30",
+      "owner": {
+        "login": "rcarmo",
+        "url": "https://github.com/rcarmo"
+      },
+      "contributors": []
     },
     {
       "slug": "editable-table",
@@ -170,7 +205,12 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-editable-table-0.1.0.tgz"
       },
-      "updatedAt": "2026-04-30"
+      "updatedAt": "2026-04-30",
+      "owner": {
+        "login": "rcarmo",
+        "url": "https://github.com/rcarmo"
+      },
+      "contributors": []
     },
     {
       "slug": "eml-viewer",
@@ -190,7 +230,12 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-eml-viewer-0.2.1.tgz"
       },
-      "updatedAt": "2026-04-30"
+      "updatedAt": "2026-04-30",
+      "owner": {
+        "login": "rcarmo",
+        "url": "https://github.com/rcarmo"
+      },
+      "contributors": []
     },
     {
       "slug": "git-query-tools",
@@ -210,7 +255,12 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-git-query-tools-0.1.1.tgz"
       },
-      "updatedAt": "2026-04-30"
+      "updatedAt": "2026-04-30",
+      "owner": {
+        "login": "cjnova",
+        "url": "https://github.com/cjnova"
+      },
+      "contributors": []
     },
     {
       "slug": "imap",
@@ -231,7 +281,12 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-imap-0.1.4.tgz"
       },
-      "updatedAt": "2026-04-30"
+      "updatedAt": "2026-04-30",
+      "owner": {
+        "login": "rcarmo",
+        "url": "https://github.com/rcarmo"
+      },
+      "contributors": []
     },
     {
       "slug": "kanban-board-widget",
@@ -252,7 +307,12 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-kanban-board-widget-0.1.0.tgz"
       },
-      "updatedAt": "2026-04-30"
+      "updatedAt": "2026-04-30",
+      "owner": {
+        "login": "cjnova",
+        "url": "https://github.com/cjnova"
+      },
+      "contributors": []
     },
     {
       "slug": "kanban-editor",
@@ -274,7 +334,12 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-kanban-editor-0.1.1.tgz"
       },
-      "updatedAt": "2026-04-30"
+      "updatedAt": "2026-04-30",
+      "owner": {
+        "login": "rcarmo",
+        "url": "https://github.com/rcarmo"
+      },
+      "contributors": []
     },
     {
       "slug": "observability",
@@ -320,7 +385,12 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-portainer-0.1.4.tgz"
       },
-      "updatedAt": "2026-04-30"
+      "updatedAt": "2026-04-30",
+      "owner": {
+        "login": "rcarmo",
+        "url": "https://github.com/rcarmo"
+      },
+      "contributors": []
     },
     {
       "slug": "proxmox",
@@ -341,7 +411,12 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-proxmox-0.1.5.tgz"
       },
-      "updatedAt": "2026-04-30"
+      "updatedAt": "2026-04-30",
+      "owner": {
+        "login": "rcarmo",
+        "url": "https://github.com/rcarmo"
+      },
+      "contributors": []
     },
     {
       "slug": "sample-addon",
@@ -406,7 +481,17 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-vent-0.1.0.tgz"
       },
-      "updatedAt": "2026-04-30"
+      "updatedAt": "2026-04-30",
+      "owner": {
+        "login": "rcarmo",
+        "url": "https://github.com/rcarmo"
+      },
+      "contributors": [
+        {
+          "login": "IgorWarzocha",
+          "url": "https://github.com/IgorWarzocha"
+        }
+      ]
     },
     {
       "slug": "voice-pipeline",
@@ -428,7 +513,12 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-voice-pipeline-0.1.0.tgz"
       },
-      "updatedAt": "2026-04-30"
+      "updatedAt": "2026-04-30",
+      "owner": {
+        "login": "rcarmo",
+        "url": "https://github.com/rcarmo"
+      },
+      "contributors": []
     },
     {
       "slug": "yolochat",
@@ -449,7 +539,12 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-yolochat-0.1.0.tgz"
       },
-      "updatedAt": "2026-04-30"
+      "updatedAt": "2026-04-30",
+      "owner": {
+        "login": "rcarmo",
+        "url": "https://github.com/rcarmo"
+      },
+      "contributors": []
     }
   ]
 }
