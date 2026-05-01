@@ -2,7 +2,6 @@ import { createExtensionStorage, type ExtensionStorage } from "./compat/extensio
 import {
   deleteKeychainEntry,
   getKeychainEntry,
-  listKeychainEntries,
   setKeychainEntry,
 } from "./compat/keychain.ts";
 
@@ -19,7 +18,6 @@ export interface ImapAccountConfig {
 export interface ImapStoredAccount extends ImapAccountConfig {
   name: string;
   hasPassword: boolean;
-  source: "kv" | "legacy-keychain";
 }
 
 const ACCOUNT_PREFIX = "accounts/";
@@ -38,10 +36,6 @@ function accountKvKey(name: string): string {
 
 function passwordKeychainName(name: string): string {
   return `${PASSWORD_KEY_PREFIX}${name}/password`;
-}
-
-function legacyKeychainName(name: string): string {
-  return `${PASSWORD_KEY_PREFIX}${name}`;
 }
 
 function normalizeName(name: string): string {
@@ -85,21 +79,6 @@ async function keychainGetSecret(name: string): Promise<string | null> {
   }
 }
 
-async function keychainGetJson(name: string): Promise<Record<string, unknown> | null> {
-  const secret = await keychainGetSecret(name);
-  if (!secret) return null;
-  try {
-    const parsed = JSON.parse(secret) as unknown;
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : null;
-  } catch {
-    return null;
-  }
-}
-
-async function keychainList(): Promise<Array<{ name: string; type?: string }>> {
-  return await listKeychainEntries();
-}
-
 export async function listAccounts(): Promise<{ accounts: ImapStoredAccount[]; defaultAccount: string | null }> {
   const kv = getStorage();
   const accounts = new Map<string, ImapStoredAccount>();
@@ -110,22 +89,7 @@ export async function listAccounts(): Promise<{ accounts: ImapStoredAccount[]; d
     if (!stored) continue;
     const config = sanitizeConfig(stored as Record<string, unknown>);
     const password = await keychainGetSecret(passwordKeychainName(name));
-    accounts.set(name, { name, ...config, hasPassword: typeof password === "string" && password.length > 0, source: "kv" });
-  }
-
-  const entries = await keychainList();
-  for (const entry of entries) {
-    const name = String(entry.name || "");
-    const legacy = name.match(/^imap\/([^/]+)$/);
-    if (!legacy?.[1]) continue;
-    const accountName = legacy[1];
-    if (accounts.has(accountName)) continue;
-    const raw = await keychainGetJson(name);
-    if (!raw) continue;
-    try {
-      const config = sanitizeConfig(raw);
-      accounts.set(accountName, { name: accountName, ...config, hasPassword: true, source: "legacy-keychain" });
-    } catch {}
+    accounts.set(name, { name, ...config, hasPassword: typeof password === "string" && password.length > 0 });
   }
 
   const defaultAccount = kv.get<string>(DEFAULT_ACCOUNT_KEY, "global") ?? process.env.IMAP_DEFAULT_ACCOUNT ?? null;
@@ -140,12 +104,7 @@ export async function getAccount(name: string): Promise<(ImapStoredAccount & { p
   if (stored) {
     const config = sanitizeConfig(stored as Record<string, unknown>);
     const password = await keychainGetSecret(passwordKeychainName(normalized));
-    return { name: normalized, ...config, hasPassword: typeof password === "string" && password.length > 0, password: typeof password === "string" ? password : undefined, source: "kv" };
-  }
-  const legacy = await keychainGetJson(legacyKeychainName(normalized));
-  if (legacy) {
-    const config = sanitizeConfig(legacy);
-    return { name: normalized, ...config, hasPassword: typeof (legacy as any).pass === "string", password: typeof (legacy as any).pass === "string" ? (legacy as any).pass : undefined, source: "legacy-keychain" };
+    return { name: normalized, ...config, hasPassword: typeof password === "string" && password.length > 0, password: typeof password === "string" ? password : undefined };
   }
   return null;
 }
@@ -167,7 +126,7 @@ export async function saveAccount(
     getStorage().set(DEFAULT_ACCOUNT_KEY, normalized, "global");
   }
   const savedPassword = await keychainGetSecret(passwordKeychainName(normalized));
-  return { name: normalized, ...config, hasPassword: typeof savedPassword === "string" && savedPassword.length > 0, source: "kv" };
+  return { name: normalized, ...config, hasPassword: typeof savedPassword === "string" && savedPassword.length > 0 };
 }
 
 export async function deleteAccount(name: string): Promise<boolean> {
@@ -213,5 +172,5 @@ export async function resolveAccountForRuntime(name?: string): Promise<{ name: s
     }
   }
 
-  throw new Error("No IMAP accounts found. Add one in the IMAP settings pane or store a legacy keychain entry.");
+  throw new Error("No IMAP accounts found. Add one in the IMAP settings pane.");
 }

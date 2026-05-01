@@ -265,7 +265,6 @@ function ImapPane() {
                     <button onClick=${() => selectAccount(account)} style=${`text-align:left;background:none;border:none;padding:0;color:inherit;font:inherit;cursor:pointer;${selected===account.name ? 'font-weight:600;' : ''}`}>
                       ${account.name}
                     </button>
-                    ${account.source === 'legacy-keychain' ? html`<div class="settings-hint" style="margin-top:4px;">Legacy config</div>` : null}
                   </td>
                   <td>${account.user}@${account.host}:${account.port}</td>
                   <td>

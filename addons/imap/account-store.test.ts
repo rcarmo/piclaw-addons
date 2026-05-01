@@ -54,7 +54,6 @@ const keychain = new Map<string, { name: string; type: string; secret: string; u
     keychain.set(entry.name, { ...entry, secret: String(entry.secret) });
   },
   deleteKeychainEntry: async (name: string) => keychain.delete(name),
-  listKeychainEntries: async () => [...keychain.values()].map(({ name, type }) => ({ name, type })),
 };
 
 const store = await import("./account-store.ts");
@@ -84,24 +83,23 @@ describe("IMAP account store", () => {
     expect(account?.hasPassword).toBe(true);
   });
 
-  test("still reads legacy JSON keychain account blobs", async () => {
-    keychain.set("imap/legacytest", {
-      name: "imap/legacytest",
+  test("ignores old combined keychain account blobs", async () => {
+    keychain.set("imap/oldstyle", {
+      name: "imap/oldstyle",
       type: "secret",
       secret: JSON.stringify({
-        host: "legacy.example.com",
+        host: "old.example.com",
         port: 143,
-        user: "legacy@example.com",
-        pass: "legacy-pass",
+        user: "old@example.com",
+        pass: "old-pass",
         tls: false,
         starttls: true,
       }),
     });
 
-    const account = await store.getAccount("legacytest");
-    expect(account?.source).toBe("legacy-keychain");
-    expect(account?.password).toBe("legacy-pass");
-    expect(account?.starttls).toBe(true);
+    const listed = await store.listAccounts();
+    expect(listed.accounts.some((account) => account.name === "oldstyle")).toBe(false);
+    await expect(store.getAccount("oldstyle")).resolves.toBeNull();
   });
 
   test("does not persist metadata if keychain write fails", async () => {

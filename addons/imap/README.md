@@ -56,14 +56,6 @@ Passwords are stored in keychain only:
 
 - `imap/<name>/password`
 
-### Legacy compatibility
-Older single-secret entries like:
-
-- `imap/personal`
-- `imap/local`
-
-are still read as fallback.
-
 ## Settings pane
 
 The settings pane supports:
