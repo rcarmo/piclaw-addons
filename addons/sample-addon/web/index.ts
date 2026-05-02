@@ -72,10 +72,12 @@ function SampleAddonSettings() {
   const [msg, setMsg] = useState("");
   const [hasKey, setHasKey] = useState(false);
   const [keyInput, setKeyInput] = useState("");
+  const [greetingDraft, setGreetingDraft] = useState("");
 
   const load = useCallback(async () => {
     const c = await loadConfig();
     setCfg(c);
+    setGreetingDraft(c.greeting ?? "");
     setHasKey(await loadKeychainHas(c.secret_keychain || DEFAULT_KEYCHAIN_ENTRY));
   }, []);
 
@@ -86,6 +88,7 @@ function SampleAddonSettings() {
     const result = await saveConfig(patch);
     if (result.ok && result.config) {
       setCfg(result.config);
+      setGreetingDraft(result.config.greeting ?? "");
       setMsg("Saved"); setTimeout(() => setMsg(""), 2000);
     } else {
       setMsg(result.error || "Save failed");
@@ -132,9 +135,10 @@ function SampleAddonSettings() {
 
       <label style=${S}>
         <span style=${L}>Greeting</span>
-        <input type="text" value=${cfg.greeting ?? ""} style=${I}
+        <input type="text" value=${greetingDraft} style=${I}
           placeholder="Hello from sample addon!"
-          onBlur=${(e) => { if (e.target.value !== (cfg.greeting ?? "")) save({ greeting: e.target.value }); }}
+          onInput=${(e) => setGreetingDraft(e.target.value)}
+          onBlur=${() => { if (greetingDraft !== (cfg.greeting ?? "")) save({ greeting: greetingDraft }); }}
           onKeyDown=${(e) => { if (e.key === "Enter") e.target.blur(); }}
           disabled=${saving} />
       </label>

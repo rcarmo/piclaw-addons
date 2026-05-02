@@ -9,6 +9,7 @@ on:
     paths:
       - 'catalog.json'
       - 'build.ts'
+      - '.github/workflows/build.yml'
       - 'assets/**'
       - 'addons/**'
       - 'addons/**/package.json'
@@ -76,7 +77,7 @@ jobs:
 
           PICLAW_ADDON=all PICLAW_RUNTIME_ROOT="$GITHUB_WORKSPACE/.piclaw-runtime/runtime" bun run tests/addon-e2e/scripts/prepare-addon-test-instance.ts
 
-          timeout 90 bun run .piclaw-runtime/runtime/src/index.ts > /tmp/piclaw-addon-e2e.log 2>&1 &
+          bun run .piclaw-runtime/runtime/src/index.ts > /tmp/piclaw-addon-e2e.log 2>&1 &
           SERVER_PID=$!
           echo "SERVER_PID=$SERVER_PID" >> "$GITHUB_ENV"
 
