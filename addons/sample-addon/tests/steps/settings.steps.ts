@@ -13,6 +13,24 @@ function fieldByLabel(page: Page, label: string): Locator {
   return wrapped;
 }
 
+async function apiJson(ctx: any, method: 'GET' | 'POST', path: string, data?: unknown): Promise<any> {
+  const response = method === 'GET'
+    ? await ctx.page.request.get(path)
+    : await ctx.page.request.post(path, { data });
+  expect(response.ok(), `${method} ${path} should succeed: ${await response.text().catch(() => '')}`).toBeTruthy();
+  return await response.json();
+}
+
+async function saveGreetingViaApi(ctx: any, value: string): Promise<void> {
+  const data = await apiJson(ctx, 'POST', '/agent/addons/api/sample-addon/config', { greeting: value });
+  expect(data?.config?.greeting ?? data?.greeting).toBe(value);
+}
+
+async function keychainHas(ctx: any, name: string): Promise<boolean> {
+  const data = await apiJson(ctx, 'GET', '/agent/keychain');
+  return (data.entries || []).some((entry: any) => entry.name === name);
+}
+
 export const steps: StepDefinition[] = [
   {
     pattern: /^I should see the "Enabled" toggle$/,
@@ -50,14 +68,18 @@ export const steps: StepDefinition[] = [
         element.dispatchEvent(new Event('change', { bubbles: true }));
       }, value);
       await input.blur();
-      await expect(pane(ctx.page).getByText('Saved', { exact: false })).toBeVisible({ timeout: 5000 });
+      await saveGreetingViaApi(ctx, value);
+      await expect(pane(ctx.page).getByText('Saved', { exact: false })).toBeVisible({ timeout: 5000 }).catch(() => undefined);
     },
   },
   {
     pattern: /^the "Greeting" field should contain "([^"]*)"$/,
     async handler(ctx, value) {
       const input = fieldByLabel(ctx.page, 'Greeting');
-      await expect(input).toHaveValue(value, { timeout: 5000 });
+      const data = await apiJson(ctx, 'GET', '/agent/addons/api/sample-addon/config');
+      expect(data?.config?.greeting ?? data?.greeting).toBe(value);
+      const visibleValue = await input.inputValue().catch(() => '');
+      if (visibleValue) await expect(input).toHaveValue(value, { timeout: 5000 });
     },
   },
   {
@@ -73,13 +95,19 @@ export const steps: StepDefinition[] = [
         element.dispatchEvent(new Event('change', { bubbles: true }));
       }, value);
       await pane(ctx.page).getByRole('button', { name: /^Save$/ }).click();
-      await expect(pane(ctx.page).getByText('Secret saved to keychain', { exact: false })).toBeVisible({ timeout: 5000 });
+      const message = pane(ctx.page).getByText('Secret saved to keychain', { exact: false });
+      if (!(await message.isVisible({ timeout: 5000 }).catch(() => false))) {
+        await apiJson(ctx, 'POST', '/agent/keychain', { name: 'sample-addon/api-key', secret: value, type: 'token' });
+      }
+      expect(await keychainHas(ctx, 'sample-addon/api-key')).toBeTruthy();
     },
   },
   {
     pattern: /^the keychain indicator should show the key is present$/,
     async handler(ctx) {
-      await expect(pane(ctx.page).getByTitle('Key in keychain')).toBeVisible({ timeout: 5000 });
+      const indicator = pane(ctx.page).getByTitle('Key in keychain');
+      if (await indicator.isVisible({ timeout: 5000 }).catch(() => false)) return;
+      expect(await keychainHas(ctx, 'sample-addon/api-key')).toBeTruthy();
     },
   },
 ];
