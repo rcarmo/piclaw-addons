@@ -57,7 +57,7 @@
     {
       "slug": "cheapskate",
       "name": "@rcarmo/piclaw-addon-cheapskate",
-      "version": "0.4.1",
+      "version": "0.4.2",
       "type": "extension",
       "description": "Free-tier provider auto-rotation — select cheapskate/auto as your model and it transparently routes to Google Gemini, Cerebras, Groq, or SambaNova free tiers",
       "path": "addons/cheapskate",
@@ -72,9 +72,9 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-cheapskate-0.4.1.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-cheapskate-0.4.2.tgz"
       },
-      "updatedAt": "2026-05-01",
+      "updatedAt": "2026-05-02",
       "owner": {
         "login": "rcarmo",
         "url": "https://github.com/rcarmo"

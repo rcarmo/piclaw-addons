@@ -6,23 +6,17 @@ Architecture diagram workflow for the portfolio site — JSON graph definitions 
 
 ![diagram-tools workflow](assets/workflow.svg)
 
-1. Define a compact graph JSON file with nodes, semantic tags, and edges.
-2. Use the `diagram-workflow` skill and `diagram-render.ts` tooling to render a themed SVG with orthogonal rounded arrows.
-3. Embed the SVG in Markdown and rebuild/publish the generated site page.
+Define a graph in JSON (nodes, edges, semantic tags), render it to SVG with automatic left-to-right layout and orthogonal arrow routing, inject it into project markdown, and rebuild the site. An interactive colour picker widget lets you adjust the 11-tag palette visually.
 
 ## What's included
 
-| Skill | Description |
+| Component | Description |
 |---|---|
-| `diagram-workflow` | End-to-end: define a graph in JSON, render SVG, inject into markdown, rebuild |
-| `diagram-colour-picker` | Interactive widget for adjusting the 11-tag colour palette |
-
-## Scripts
-
-| Script | Description |
-|---|---|
-| `diagram-render.ts` | Build-time SVG layout engine (import or CLI) |
+| **diagram-workflow** skill | End-to-end: define JSON → render SVG → inject into markdown → rebuild |
+| **diagram-colour-picker** skill | Interactive widget for adjusting the colour palette |
+| `diagram-render.ts` | Build-time SVG layout engine (importable module + CLI) |
 | `convert-diagrams.ts` | Batch-convert hand-crafted SVG diagrams to JSON definitions |
+| `colour-picker-widget.html` | Self-contained HTML widget with live swatch preview |
 
 ## Graph JSON spec
 
@@ -34,9 +28,8 @@ Architecture diagram workflow for the portfolio site — JSON graph definitions 
       "id": "unique-id",
       "label": "Display name",
       "sub": "Subtitle line",
-      "tag": "web|backend|state|artifacts|processing|scripting|infra|external|input|output|monitor",
-      "column": 0,
-      "row": 0,
+      "tag": "web",
+      "column": 0, "row": 0,
       "children": [
         { "id": "child-id", "label": "Child", "sub": "detail", "tag": "scripting" }
       ]
@@ -63,3 +56,27 @@ Architecture diagram workflow for the portfolio site — JSON graph definitions 
 | `input` | green | user input, sources, triggers |
 | `output` | orange | results, exports, destinations |
 | `monitor` | purple | monitoring, logging, observability |
+
+## Layout features
+
+- **Left-to-right columns** with automatic spacing based on content width
+- **Children/sub-steps** rendered as smaller boxes in a dashed group below the parent
+- **Orthogonal arrow routing** with r=14 rounded corners
+- **Arrows connect to inner parent rect**, not group bounding box
+- **Dark/light theme** via `prefers-color-scheme` (light as default for rsvg-convert)
+- **Edge labels** positioned on the horizontal segment, just above the line
+
+## Quick start
+
+```bash
+# Render a single diagram
+bun scripts/diagram-render.ts _diagrams/my-project.json _diagrams/my-project.svg
+
+# Batch-convert existing hand-crafted SVGs to JSON
+bun scripts/convert-diagrams.ts
+
+# Regenerate all after palette change
+for f in _diagrams/*.json; do
+  bun scripts/diagram-render.ts "$f" "_diagrams/$(basename $f .json).svg"
+done
+```

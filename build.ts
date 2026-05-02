@@ -52,6 +52,111 @@ function esc(s: string) {
     .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
+// ── OG card generation (1280×640) ─────────────────────────────────────────
+
+const RSVG_CONVERT = ['/home/linuxbrew/.linuxbrew/bin/rsvg-convert', 'rsvg-convert']
+  .find(p => { try { return Bun.spawnSync([p,'--version']).exitCode === 0; } catch { return false; } }) ?? 'rsvg-convert';
+
+const OG_OUT = join(OUT, 'assets', 'og');
+mkdirSync(OG_OUT, { recursive: true });
+
+function wrapOgText(text: string, maxChars: number, maxLines: number): string[] {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  const lines: string[] = []; let current = "";
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word;
+    if (candidate.length <= maxChars) { current = candidate; continue; }
+    if (current) lines.push(current);
+    current = word;
+    if (lines.length === maxLines - 1) break;
+  }
+  if (lines.length < maxLines && current) lines.push(current);
+  return lines;
+}
+
+function mimeTypeFor(path: string): string {
+  if (path.endsWith('.png')) return 'image/png';
+  if (path.endsWith('.jpg') || path.endsWith('.jpeg')) return 'image/jpeg';
+  if (path.endsWith('.gif')) return 'image/gif';
+  if (path.endsWith('.svg')) return 'image/svg+xml';
+  return 'image/png';
+}
+
+function assetDataUri(relPath: string): string | null {
+  const full = join(ROOT, relPath.replace(/^\/piclaw-addons\//, ''));
+  if (!existsSync(full)) return null;
+  const buf = readFileSync(full);
+  return `data:${mimeTypeFor(full)};base64,${Buffer.from(buf).toString('base64')}`;
+}
+
+function buildOgCardSvg(opts: { title: string; description: string; kicker: string; imageDataUri?: string | null; meta?: string }): string {
+  const title = esc(opts.title);
+  const kicker = esc(opts.kicker);
+  const meta = esc(opts.meta || 'piclaw-addons');
+  const imageDataUri = opts.imageDataUri || '';
+  // Less violet blue + orange-ish warm tones
+  const accent = '#2563eb';
+  const safeX = 80, safeY = 80, safeW = 1120, safeH = 480;
+  const logoSize = 320, logoX = safeX + 24;
+  const logoY = safeY + Math.round((safeH - logoSize) / 2);
+  const textX = logoX + logoSize + 44;
+  const descLines = wrapOgText(opts.description, 30, 3);
+  const nameFontSize = title.length > 24 ? 44 : title.length > 18 ? 52 : 60;
+  const rw = Math.max(meta.length * 11 + 28, 120);
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="1280" height="640" viewBox="0 0 1280 640" role="img" aria-label="${title}">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fef3e2"/>
+      <stop offset="100%" stop-color="#fde8d0"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1d6ddb"/>
+      <stop offset="100%" stop-color="#1558b8"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="16" stdDeviation="24" flood-color="#c4956a" flood-opacity="0.18"/>
+    </filter>
+    <clipPath id="logoClip">
+      <rect x="${logoX}" y="${logoY}" width="${logoSize}" height="${logoSize}" rx="36"/>
+    </clipPath>
+  </defs>
+  <rect width="1280" height="640" fill="url(#bg)"/>
+  <circle cx="1180" cy="100" r="240" fill="#fde1c0" opacity="0.7"/>
+  <circle cx="110" cy="590" r="200" fill="#fef6ee" opacity="0.85"/>
+  <g filter="url(#shadow)">
+    <rect x="${safeX}" y="${safeY}" width="${safeW}" height="${safeH}" rx="20" fill="#ffffff"/>
+    <rect x="${safeX}" y="${safeY}" width="${safeW}" height="${safeH}" rx="20" fill="none" stroke="#e8d5c0"/>
+    <rect x="${safeX}" y="${safeY}" width="${safeW}" height="24" fill="url(#accent)"/>
+    <rect x="${safeX + safeW - rw - 20}" y="${safeY + 38}" width="${rw}" height="44" rx="8" fill="#eff6ff" stroke="#dbeafe"/>
+    <text x="${safeX + safeW - 20 - rw/2}" y="${safeY + 67}" text-anchor="middle" font-family="JetBrains Mono,ui-monospace,monospace" font-size="18" font-weight="700" fill="#1e3a8a">${meta}</text>
+    <rect x="${logoX}" y="${logoY}" width="${logoSize}" height="${logoSize}" rx="36" fill="#eff6ff" stroke="#dbe5f1"/>
+    ${imageDataUri
+      ? `<image href="${imageDataUri}" x="${logoX + 10}" y="${logoY + 10}" width="${logoSize - 20}" height="${logoSize - 20}" preserveAspectRatio="xMidYMid meet" clip-path="url(#logoClip)"/>`
+      : `<text x="${logoX + logoSize/2}" y="${logoY + logoSize * 0.62}" text-anchor="middle" font-family="Inter,system-ui,sans-serif" font-size="96" font-weight="700" fill="#2563eb">\u25c9</text>`}
+    <text x="${textX}" y="${safeY + 120}" font-family="Inter,system-ui,sans-serif" font-size="24" font-weight="700" letter-spacing="1.5" fill="${accent}">${kicker}</text>
+    <text x="${textX}" y="${safeY + 195}" font-family="Inter,system-ui,sans-serif" font-size="${nameFontSize}" font-weight="700" fill="#0f172a">${title}</text>
+    ${descLines.map((line, i) =>
+      `<text x="${textX}" y="${safeY + 262 + i * 48}" font-family="Inter,system-ui,sans-serif" font-size="34" fill="#334155">${esc(line)}</text>`
+    ).join('\n    ')}
+    <text x="${safeX + safeW - 24}" y="${safeY + safeH - 28}" text-anchor="end" font-family="Inter,system-ui,sans-serif" font-size="22" font-weight="600" fill="#64748b">rcarmo.github.io/piclaw-addons</text>
+  </g>
+</svg>`;
+}
+
+function writeOgCard(name: string, svg: string): void {
+  const svgPath = join(OG_OUT, `${name}.svg`);
+  const pngPath = join(OG_OUT, `${name}.png`);
+  writeFileSync(svgPath, svg);
+  try {
+    const result = Bun.spawnSync([RSVG_CONVERT, '-w', '1280', '-h', '640', '-o', pngPath, svgPath]);
+    if (result.exitCode !== 0) console.warn(`  \u26a0 rsvg-convert failed for ${name}`);
+  } catch {
+    console.warn(`  \u26a0 rsvg-convert not available, skipping PNG for ${name}`);
+  }
+}
+
 function freshnessIndex(addon: Addon): number {
   // 05 — has open issues: needs attention
   if ((addon.openIssues ?? 0) > 0) return 5;
@@ -433,6 +538,15 @@ footer a{color:var(--accent);text-decoration:none}
 `;
 
 // ── Index page ────────────────────────────────────────────────────────────────
+// Index OG card
+writeOgCard('index', buildOgCardSvg({
+  title: 'piclaw-addons',
+  description: 'Community extensions, tools and add-ons for piclaw.',
+  kicker: `${addons.length} ADD-ONS`,
+  imageDataUri: assetDataUri('/piclaw-addons/assets/icons/piclaw.png'),
+  meta: 'rcarmo/piclaw-addons',
+}));
+
 const indexHtml = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -443,12 +557,14 @@ const indexHtml = `<!DOCTYPE html>
 <meta property="og:title" content="piclaw-addons">
 <meta property="og:description" content="Community extensions, tools and add-ons for piclaw.">
 <meta property="og:url" content="${SITE_URL}/">
-<meta property="og:image" content="${SITE_URL}/assets/icons/piclaw.png">
+<meta property="og:image" content="${SITE_URL}/assets/og/index.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
 <meta property="og:type" content="website">
-<meta name="twitter:card" content="summary">
+<meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="piclaw-addons">
 <meta name="twitter:description" content="Community extensions, tools and add-ons for piclaw.">
-<meta name="twitter:image" content="${SITE_URL}/assets/icons/piclaw.png">
+<meta name="twitter:image" content="${SITE_URL}/assets/og/index.png">
 <link rel="canonical" href="${SITE_URL}/">
 ${CLARITY_SCRIPT}
 <style>${CSS}</style>
@@ -525,6 +641,18 @@ for (const addon of addons) {
   const bodyHtml  = readme ? mdToHtml(readme) : `<p>${esc(addon.description)}</p>`;
   if (readme) copyAddonReadmeAssets(addon, readme, dir);
   const hasUxReport = copyAddonUxReports(addon, dir);
+
+  // Generate OG card
+  const addonIcon = iconSrc(addon);
+  writeOgCard(addon.slug, buildOgCardSvg({
+    title: addon.slug,
+    description: addon.description,
+    kicker: (addon.tags?.[0] || 'addon').toUpperCase(),
+    imageDataUri: assetDataUri(addonIcon),
+    meta: `@rcarmo/${addon.name?.split('/').pop() || addon.slug}`,
+  }));
+  const ogImageUrl = `${SITE_URL}/assets/og/${addon.slug}.png`;
+
   const skillList = addon.skills.length
     ? `<div class="detail-body"><h2>Skills</h2><ul>${addon.skills.map(s => `<li><code>${esc(s)}</code></li>`).join("")}</ul></div>`
     : "";
@@ -539,12 +667,14 @@ for (const addon of addons) {
 <meta property="og:title" content="${esc(addon.slug)} — piclaw-addons">
 <meta property="og:description" content="${esc(addon.description)}">
 <meta property="og:url" content="${SITE_URL}/addons/${esc(addon.slug)}/">
-<meta property="og:image" content="${SITE_URL}/${iconSrc(addon).replace('/piclaw-addons/', '')}">
+<meta property="og:image" content="${ogImageUrl}">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
 <meta property="og:type" content="website">
-<meta name="twitter:card" content="summary">
+<meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="${esc(addon.slug)} — piclaw-addons">
 <meta name="twitter:description" content="${esc(addon.description)}">
-<meta name="twitter:image" content="${SITE_URL}/${iconSrc(addon).replace('/piclaw-addons/', '')}">
+<meta name="twitter:image" content="${ogImageUrl}">
 <link rel="canonical" href="${SITE_URL}/addons/${esc(addon.slug)}/">
 ${CLARITY_SCRIPT}
 <style>${CSS}</style>

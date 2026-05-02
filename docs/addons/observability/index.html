@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>observability — piclaw-addons</title>
+<meta name="description" content="OpenTelemetry observability — trace errors and agent turns across piclaw instances to Azure Application Insights (with Live Metrics) and local Graphite">
+<meta property="og:title" content="observability — piclaw-addons">
+<meta property="og:description" content="OpenTelemetry observability — trace errors and agent turns across piclaw instances to Azure Application Insights (with Live Metrics) and local Graphite">
+<meta property="og:url" content="https://rcarmo.github.io/piclaw-addons/addons/observability/">
+<meta property="og:image" content="https://rcarmo.github.io/piclaw-addons/assets/og/observability.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="observability — piclaw-addons">
+<meta name="twitter:description" content="OpenTelemetry observability — trace errors and agent turns across piclaw instances to Azure Application Insights (with Live Metrics) and local Graphite">
+<meta name="twitter:image" content="https://rcarmo.github.io/piclaw-addons/assets/og/observability.png">
+<link rel="canonical" href="https://rcarmo.github.io/piclaw-addons/addons/observability/">
+<script type="text/javascript">
+(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);})(window, document, "clarity", "script", "wipi60y9s3");
+</script>
+<style>
+@font-face{font-family:'IBM Plex Sans';src:url('/piclaw-addons/assets/fonts/ibm-plex-sans-400.woff2') format('woff2');font-weight:400;font-display:swap}
+@font-face{font-family:'IBM Plex Sans';src:url('/piclaw-addons/assets/fonts/ibm-plex-sans-500.woff2') format('woff2');font-weight:500;font-display:swap}
+@font-face{font-family:'IBM Plex Sans';src:url('/piclaw-addons/assets/fonts/ibm-plex-sans-600.woff2') format('woff2');font-weight:600;font-display:swap}
+@font-face{font-family:'IBM Plex Sans';src:url('/piclaw-addons/assets/fonts/ibm-plex-sans-700.woff2') format('woff2');font-weight:700;font-display:swap}
+@font-face{font-family:'Inter';src:url('/piclaw-addons/assets/fonts/inter-var.woff2') format('woff2');font-weight:100 900;font-display:swap}
+@font-face{font-family:'JetBrains Mono';src:url('/piclaw-addons/assets/fonts/jetbrains-mono-400.woff2') format('woff2');font-weight:400;font-display:swap}
+@font-face{font-family:'JetBrains Mono';src:url('/piclaw-addons/assets/fonts/jetbrains-mono-500.woff2') format('woff2');font-weight:500;font-display:swap}
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f0f4ff;--ink:#0f1c2e;--ink-dim:rgba(15,28,46,.6);
+  --surface:#fff;--border:rgba(30,60,120,.12);
+  --accent:#2563eb;--accent-bg:rgba(37,99,235,.07);--blue:#2563eb;
+  --radius:14px;--max-w:900px;
+  --font-head:'IBM Plex Sans',system-ui,sans-serif;
+  --font-body:'Inter',system-ui,sans-serif;
+  --font-mono:'JetBrains Mono','Fira Mono',monospace;
+  --shadow:0 8px 32px rgba(15,28,46,.09);
+}
+@media(prefers-color-scheme:dark){:root{
+  --bg:#0d1117;--ink:#e0e8f0;--ink-dim:rgba(224,232,240,.55);
+  --surface:#141b27;--border:rgba(100,160,255,.13);
+  --accent:#4f8cff;--accent-bg:rgba(79,140,255,.09);
+}}
+html,body{min-height:100%;background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:16px;line-height:1.65}
+
+/* ── Index hero ─── */
+.hero{background:linear-gradient(135deg,#1e3a5f 0%,#2563eb 100%);color:#fff;padding:3.5rem 2rem 3rem}
+.hero-inner{max-width:var(--max-w);margin:0 auto;display:flex;align-items:center;gap:2.5rem}
+.hero-logo{width:240px;height:240px;border-radius:0;flex-shrink:0;object-fit:contain}
+.hero-text{flex:1;min-width:0}
+.hero-title{font-family:var(--font-head);font-size:3rem;font-weight:800;letter-spacing:-.045em;
+  line-height:1.04;margin-bottom:.6rem}
+.hero-sub{font-size:1.1rem;opacity:.78;max-width:540px;margin:0 0 1.4rem;line-height:1.6}
+.hero-meta{font-size:.82rem;opacity:.55}
+.hero-source{display:inline-flex;align-items:center;gap:.4rem;margin-top:1rem;
+  padding:.5rem 1rem;border-radius:10px;border:1px solid rgba(255,255,255,.25);
+  color:rgba(255,255,255,.85);text-decoration:none;font-size:.8rem;font-weight:700}
+.hero-source:hover{background:rgba(255,255,255,.1)}
+@media(max-width:640px){
+  .hero-inner{flex-direction:column;text-align:center}
+  .hero-logo{width:120px;height:120px}
+  .hero-sub{margin:0 auto 1.4rem}
+}
+
+/* ── Search ─── */
+.search-bar{max-width:var(--max-w);margin:2rem auto .4rem;padding:0 1.25rem}
+#search{width:100%;padding:.75rem 1.1rem;border-radius:10px;border:1.5px solid var(--border);
+  background:var(--surface);color:var(--ink);font-size:1rem;outline:none;font-family:var(--font-body)}
+#search:focus{border-color:var(--accent)}
+
+/* ── Grid ─── */
+.grid{max-width:var(--max-w);margin:0 auto 3rem;padding:0 1.25rem;display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1.1rem}
+.card{display:flex;flex-direction:column;gap:.55rem;padding:1.25rem;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  text-decoration:none;color:var(--ink);transition:box-shadow .15s,border-color .15s}
+.card:hover{box-shadow:var(--shadow);border-color:var(--accent)}
+.card-header{display:flex;align-items:center;gap:.85rem}
+.card-icon{width:48px;height:48px;object-fit:contain;flex-shrink:0}
+.card-name{font-family:var(--font-head);font-weight:700;font-size:1.05rem;letter-spacing:-.025em}
+.card-sub-row{display:flex;align-items:center;gap:.45rem;flex-wrap:wrap;margin-top:.18rem}
+.card-version{font-size:.72rem;color:var(--ink-dim);font-family:var(--font-mono)}
+.card-sub-row .owner-row{margin:0}
+.card-desc{font-size:.875rem;color:var(--ink-dim);line-height:1.55;flex:1}
+.card-tags{display:flex;flex-wrap:wrap;gap:.3rem;margin-top:.35rem}
+.badge{display:inline-block;padding:.2rem .55rem;border-radius:6px;font-size:.7rem;font-weight:700;
+  letter-spacing:.04em;background:var(--accent-bg);color:var(--accent);text-transform:lowercase}
+.card[hidden]{display:none}
+
+/* ── Detail nav (pinned top-left) ─── */
+.detail-nav{padding:.75rem 1.5rem;background:var(--bg);border-bottom:1px solid var(--border)}
+.back{display:inline-flex;align-items:center;gap:.35rem;color:var(--accent);
+  text-decoration:none;font-size:.82rem;font-weight:700}
+.back:hover{text-decoration:underline}
+
+/* ── Detail hero ─── */
+.detail-hero{background:linear-gradient(135deg,#1e3a5f 0%,#2563eb 100%);color:#fff;padding:3.2rem 1.5rem 2.4rem}
+.detail-hero-inner{max-width:760px;margin:0 auto;display:flex;gap:2rem;align-items:flex-start}
+.detail-icon{width:180px;height:180px;border-radius:0;flex-shrink:0;object-fit:contain}
+.detail-kicker{font-family:var(--font-head);font-size:.72rem;font-weight:800;letter-spacing:.1em;
+  text-transform:uppercase;opacity:.6;margin-bottom:.55rem}
+.detail-title{font-family:var(--font-head);font-size:clamp(2.2rem,4vw,3rem);font-weight:800;
+  letter-spacing:-.045em;line-height:1.04;margin-bottom:.65rem}
+.detail-sub{font-size:1.05rem;opacity:.8;line-height:1.6;max-width:55ch;margin-bottom:.9rem}
+.detail-tags{display:flex;flex-wrap:wrap;gap:.35rem;margin-bottom:.75rem}
+.detail-tags .badge{background:rgba(255,255,255,.16);color:#fff}
+.detail-meta{display:flex;align-items:center;gap:.8rem;flex-wrap:wrap;margin-top:.55rem}
+.detail-version{font-family:var(--font-mono);font-size:.78rem;opacity:.6}
+.detail-type-row,.detail-title-row{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.6rem}
+.type-badge{display:inline-block;padding:.2rem .6rem;border-radius:6px;font-size:.72rem;
+  font-weight:800;letter-spacing:.05em;text-transform:uppercase;
+  background:rgba(255,255,255,.18);color:#fff;border:1px solid rgba(255,255,255,.25)}
+.type-badge.skills{background:rgba(134,239,172,.2);border-color:rgba(134,239,172,.4);color:#bbf7d0}
+.detail-issues{font-size:.76rem;font-weight:700;color:#fbbf24;background:rgba(251,191,36,.15);
+  border:1px solid rgba(251,191,36,.3);padding:.18rem .5rem;border-radius:6px}
+.issue-badge{display:inline-block;font-size:.7rem;font-weight:700;color:#f59e0b;
+  background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.28);
+  padding:.18rem .5rem;border-radius:6px;margin-top:.3rem}
+.detail-body{max-width:760px;margin:2.2rem auto 3rem;padding:0 1.5rem}
+.detail-body h2{font-family:var(--font-head);font-size:1.2rem;font-weight:700;margin:2rem 0 .65rem;color:var(--ink)}
+.detail-body h3{font-family:var(--font-head);font-size:1rem;font-weight:600;margin:1.3rem 0 .45rem}
+.detail-body p{margin:.55rem 0;font-size:.925rem;color:var(--ink-dim)}
+.detail-body ul,.detail-body ol{padding-left:1.4rem;margin:.45rem 0}
+.detail-body li{font-size:.925rem;color:var(--ink-dim);margin:.25rem 0}
+.detail-body blockquote{margin:.9rem 0;padding:.15rem 0 .15rem 1rem;border-left:3px solid color-mix(in srgb, var(--accent) 45%, var(--border));color:var(--ink-dim);background:color-mix(in srgb, var(--accent-bg) 55%, transparent);border-radius:0 10px 10px 0}
+.detail-body blockquote > :first-child{margin-top:0}
+.detail-body blockquote > :last-child{margin-bottom:0}
+.detail-body pre{background:rgba(0,0,0,.04);border:1px solid var(--border);border-radius:8px;
+  padding:.95rem 1.1rem;overflow-x:auto;margin:.7rem 0}
+.detail-body code{font-family:var(--font-mono);font-size:.83rem}
+.addon-code-block{margin:.9rem 0;border:1px solid var(--border);border-radius:10px;overflow:hidden;background:color-mix(in srgb, var(--surface) 92%, var(--accent-bg))}
+.addon-code-block-header{display:flex;align-items:center;justify-content:space-between;gap:.65rem;padding:.55rem .7rem;border-bottom:1px solid var(--border);background:color-mix(in srgb, var(--accent-bg) 35%, var(--surface))}
+.addon-code-lang{display:inline-flex;align-items:center;min-width:0;font-family:var(--font-body);font-size:.72rem;line-height:1;text-transform:none;color:var(--ink-dim);letter-spacing:.02em}
+.addon-code-copy-btn{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--border);border-radius:999px;padding:4px 9px;background:transparent;color:var(--ink-dim);font-size:.72rem;line-height:1;cursor:pointer;white-space:nowrap}
+.addon-code-copy-btn:hover{background:color-mix(in srgb, var(--accent) 10%, transparent);border-color:color-mix(in srgb, var(--accent) 28%, var(--border));color:var(--ink)}
+.addon-code-copy-btn:focus-visible{outline:none;box-shadow:0 0 0 2px color-mix(in srgb, var(--accent) 36%, transparent)}
+.addon-code-copy-btn[data-copy-state="success"]{color:#10b981;border-color:color-mix(in srgb, #10b981 35%, var(--border))}
+.addon-code-copy-btn[data-copy-state="error"]{color:#ef4444;border-color:color-mix(in srgb, #ef4444 35%, var(--border))}
+.addon-code-copy-icon{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px}
+.addon-code-copy-icon svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.addon-code-copy-label{font-weight:600}
+.addon-code-block pre{margin:0;border:none;border-radius:0;background:transparent;padding:1rem 1.1rem;overflow-x:auto}
+.addon-code-block pre code{background:none;padding:0;border:none;font-size:.82rem;display:block;white-space:pre}
+.md-figure{margin:1rem 0}
+.md-figure img,.detail-body p img,.detail-body li img{display:block;max-width:100%;height:auto;border-radius:10px;border:1px solid var(--border);box-shadow:var(--shadow)}
+.detail-body table{width:100%;border-collapse:collapse;margin:.75rem 0;font-size:var(--font-size-sm,.88rem);line-height:1.55;background:color-mix(in srgb,var(--surface) 94%,var(--accent-bg))}
+.detail-body th,.detail-body td{padding:4px 10px;border:1px solid var(--border);text-align:left;vertical-align:top}
+.detail-body th{background:color-mix(in srgb,var(--accent-bg) 58%,transparent);font-family:var(--font-head);font-weight:700;font-size:.78rem;color:var(--ink);letter-spacing:.015em}
+.detail-body td{color:var(--ink-dim)}
+.detail-body tbody tr:nth-child(even) td{background:color-mix(in srgb,var(--accent-bg) 24%,transparent)}
+.detail-body tbody tr:hover td{background:color-mix(in srgb,var(--accent-bg) 48%,transparent)}
+.detail-body th:first-child,.detail-body td:first-child{white-space:normal}
+.detail-body table code{font-size:.78rem}
+.detail-body :not(pre) > code{background:rgba(0,0,0,.04);padding:.1em .35em;border-radius:4px}
+.detail-body a{color:var(--accent)}
+@media(prefers-color-scheme:dark){.detail-body pre{background:rgba(255,255,255,.04)}}
+@media(max-width:640px){
+  .detail-hero-inner{flex-direction:column;align-items:center;text-align:center}
+  .detail-icon{width:120px;height:120px}
+  .detail-title{font-size:2rem}
+  .detail-tags,.detail-meta,.owner-row{justify-content:center}
+}
+
+/* ── Install block ─── */
+.install-block{display:flex;align-items:center;gap:.7rem;padding:.85rem 1.1rem;
+  background:var(--accent-bg);border:1px solid var(--border);border-radius:10px;margin:1.4rem 0}
+.install-icon{color:var(--accent);flex-shrink:0}
+.install-text{font-size:.95rem;color:var(--ink-dim)}
+.install-text strong{color:var(--ink)}
+.install-alt{margin-top:.6rem;font-size:.85rem;color:var(--ink-dim)}
+.install-alt summary{cursor:pointer;font-size:.82rem;color:var(--accent);font-weight:600;
+  list-style:none;display:flex;align-items:center;gap:.3rem}
+.install-alt summary::-webkit-details-marker{display:none}
+.install-alt summary::before{content:'›';font-size:1rem;transition:transform .15s}
+.install-alt[open] summary::before{transform:rotate(90deg)}
+.install-alt pre{margin:.5rem 0 0;background:rgba(0,0,0,.04);border:1px solid var(--border);
+  border-radius:8px;padding:.75rem 1rem;overflow-x:auto}
+.install-alt code{font-family:var(--font-mono);font-size:.82rem;white-space:pre}
+@media(prefers-color-scheme:dark){.install-alt pre{background:rgba(255,255,255,.04)}}
+
+/* ── Owner / contributors ─── */
+.owner-row{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.5rem}
+.person-link,.person-chip{display:inline-flex;align-items:center;gap:.28rem;padding:.22rem .6rem;
+  border-radius:7px;border:1px solid var(--border);font-size:.76rem;font-weight:600;
+  color:var(--ink-dim);text-decoration:none;background:var(--surface)}
+.person-link:hover{background:var(--accent-bg);color:var(--accent);border-color:var(--accent)}
+.person-link.dim,.person-chip.dim{opacity:.65}
+.detail-hero .person-chip,.detail-hero .person-link{background:rgba(255,255,255,.12);
+  border-color:rgba(255,255,255,.22);color:rgba(255,255,255,.85)}
+.detail-hero .person-link:hover{background:rgba(255,255,255,.22)}
+.card .person-chip,.card .person-link{font-size:.69rem;padding:.13rem .42rem}
+
+/* ── Footer ─── */
+footer{text-align:center;padding:1.5rem;font-size:.76rem;color:var(--ink-dim);border-top:1px solid var(--border)}
+footer a{color:var(--accent);text-decoration:none}
+.footer-links{display:block}
+.footer-note{margin-top:.55rem;max-width:46rem;margin-left:auto;margin-right:auto;line-height:1.55}
+.footer-note em{font-style:italic}
+</style>
+</head>
+<body>
+
+<nav class="detail-nav">
+  <a href="/piclaw-addons/" class="back">← all add-ons</a>
+</nav>
+
+<div class="detail-hero">
+  <div class="detail-hero-inner">
+    <img class="detail-icon" src="/piclaw-addons/assets/icons/default-00.png" alt="">
+    <div>
+      <div class="detail-title-row">
+        <div class="detail-title">observability</div>
+        <span class="type-badge">extension</span>
+        
+      </div>
+      <div class="detail-sub">OpenTelemetry observability — trace errors and agent turns across piclaw instances to Azure Application Insights (with Live Metrics) and local Graphite</div>
+      <div class="detail-tags"><span class="badge">application-insights</span><span class="badge">graphite</span><span class="badge">live-metrics</span><span class="badge">metrics</span><span class="badge">observability</span><span class="badge">opentelemetry</span><span class="badge">otel</span><span class="badge">tracing</span></div>
+      <div class="detail-meta">
+        <span class="detail-version">v0.1.5</span>
+        
+        
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="detail-body">
+  <div class="install-block">
+    <svg class="install-icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.751.751 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Z"/></svg>
+    <span class="install-text">Open <strong>Settings → Add-Ons</strong> and pick <strong>observability</strong></span>
+  </div>
+  <div class="install-block source-block">
+    <svg class="install-icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+    <span class="install-text"><strong>Source:</strong> <a href="https://github.com/rcarmo/piclaw-addons/tree/main/addons/observability" target="_blank" rel="noopener">addons/observability</a></span>
+  </div>
+  
+  <p>OpenTelemetry observability for piclaw — trace errors and agent turns across multiple instances to <strong>Azure Application Insights</strong> (with Live Metrics Stream) and <strong>local Graphite</strong>.</p>
+<figure class="md-figure"><img src="./azure-app-insights-live-metrics.jpg" alt="Azure App Insights Live Metrics example" loading="lazy"></figure>
+<p>Uses the runtime&#39;s structured log-sink contract. The runtime never imports OTel — it just logs structured records. This addon subscribes to those records and creates OTel spans, exceptions, and Graphite metrics from them.</p>
+<h2>Setup</h2><h3>1. Install</h3><p>Open <strong>Settings → Add-Ons</strong> and install <strong>observability</strong> from the catalog.</p>
+<h3>2. Configure via Settings → Observability</h3><p>The pane loads/saves non-secret settings through the direct backend add-on config API (<code>/agent/addons/api/observability/config</code> and <code>/agent/addons/api/observability/browser-config</code>). The connection string can be pasted directly into the settings pane — it is saved to the keychain automatically as <code>azure/appinsights-connection-string</code>. A restart is needed after setting or changing the connection string.</p>
+<figure class="md-figure"><img src="./assets/settings-pane-microvm.png" alt="Observability settings pane on the microVM test instance" loading="lazy"></figure>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Enabled</strong></td>
+<td>checkbox</td>
+<td>off</td>
+<td>Master switch</td>
+</tr>
+<tr>
+<td><strong>Instance name</strong></td>
+<td>text</td>
+<td><code>hostname()</code></td>
+<td>Identifies this instance in App Insights (<code>cloud_RoleInstance</code>). Set to e.g. <code>smith</code>, <code>relay</code>, <code>orangepi</code>.</td>
+</tr>
+<tr>
+<td><strong>App Insights enabled</strong></td>
+<td>checkbox</td>
+<td>on</td>
+<td>Sub-toggle for the Azure backend</td>
+</tr>
+<tr>
+<td><strong>Connection string</strong></td>
+<td>password</td>
+<td>—</td>
+<td>Paste the App Insights connection string directly. Saved to keychain as <code>azure/appinsights-connection-string</code>.</td>
+</tr>
+<tr>
+<td><strong>Live Metrics Stream</strong></td>
+<td>checkbox</td>
+<td>on</td>
+<td>Real-time telemetry in the Azure portal (<a href="https://learn.microsoft.com/en-us/azure/azure-monitor/app/live-stream" target="_blank" rel="noopener">QuickPulse</a>)</td>
+</tr>
+<tr>
+<td><strong>Standard metrics</strong></td>
+<td>checkbox</td>
+<td>on</td>
+<td>OTel standard metrics collection (CPU, memory, request rate)</td>
+</tr>
+<tr>
+<td><strong>Sampling ratio</strong></td>
+<td>number</td>
+<td>1</td>
+<td>0–1. 1 = send all traces. 0.5 = sample 50%.</td>
+</tr>
+<tr>
+<td><strong>Browser agent telemetry</strong></td>
+<td>checkbox</td>
+<td>on</td>
+<td>Loads the App Insights browser SDK and translates agent SSE/follow-up activity into custom events keyed by chat JID.</td>
+</tr>
+<tr>
+<td><strong>Graphite enabled</strong></td>
+<td>checkbox</td>
+<td>off</td>
+<td>Sub-toggle for Carbon plaintext push</td>
+</tr>
+<tr>
+<td><strong>Host</strong></td>
+<td>text</td>
+<td>—</td>
+<td>Graphite/Carbon receiver host, e.g. <code>192.168.1.250</code></td>
+</tr>
+<tr>
+<td><strong>Port</strong></td>
+<td>number</td>
+<td>2003</td>
+<td>Carbon plaintext port</td>
+</tr>
+<tr>
+<td><strong>Metric prefix</strong></td>
+<td>text</td>
+<td><code>piclaw</code></td>
+<td>Root prefix for all Graphite metric paths</td>
+</tr>
+</tbody></table>
+<h2>Storage model</h2><table>
+<thead>
+<tr>
+<th>What</th>
+<th>Where</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>App Insights connection string</td>
+<td><strong>Keychain</strong> — entry <code>azure/appinsights-connection-string</code>. Entered directly in the settings pane.</td>
+</tr>
+<tr>
+<td>All other settings</td>
+<td><strong>Runtime database</strong> — extension KV store (SQLite, global scope, extension ID <code>observability</code>)</td>
+</tr>
+<tr>
+<td>Browser actor identity</td>
+<td><strong>Derived at runtime</strong> — the browser SDK maps App Insights actor identity to <code>chatJid</code> and preserves browser IDs as separate custom dimensions</td>
+</tr>
+</tbody></table>
+<p>No config files are written to disk.</p>
+<h3>3. Deploy to other instances</h3><p>Each piclaw instance needs:</p>
+<ul>
+<li>The addon installed</li>
+<li>The same keychain entry with the App Insights connection string</li>
+<li><code>instance_name</code> set to a unique value in Settings → Observability</li>
+</ul>
+<hr>
+<h2>Architecture</h2><svg viewBox="0 0 680 260" xmlns="http://www.w3.org/2000/svg" style="max-width:680px;width:100%;height:auto;font-family:system-ui,sans-serif;font-size:13px">
+  <defs>
+    <marker id="ah" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#2563eb"/></marker>
+  </defs>
+  <!-- Instances -->
+  <rect x="10" y="10" width="140" height="150" rx="8" fill="#f0f4ff" stroke="#2563eb" stroke-width="1.5"/>
+  <text x="80" y="32" text-anchor="middle" font-weight="700" fill="#0f1c2e">Instances</text>
+  <text x="80" y="54" text-anchor="middle" fill="#555" font-size="12">smith (LXC)</text>
+  <text x="80" y="72" text-anchor="middle" fill="#555" font-size="12">relay (Docker)</text>
+  <text x="80" y="90" text-anchor="middle" fill="#555" font-size="12">orangepi (host)</text>
+  <text x="80" y="108" text-anchor="middle" fill="#555" font-size="12">sandbox (Docker)</text>
+  <text x="80" y="126" text-anchor="middle" fill="#555" font-size="12">microvm (systemd)</text>
+  <!-- App Insights -->
+  <rect x="280" y="10" width="260" height="150" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/>
+  <text x="410" y="32" text-anchor="middle" font-weight="700" fill="#1e3a5f">Azure Application Insights</text>
+  <text x="410" y="56" text-anchor="middle" fill="#555" font-size="11">Failures blade — errors by instance</text>
+  <text x="410" y="74" text-anchor="middle" fill="#555" font-size="11">Application Map — topology</text>
+  <text x="410" y="92" text-anchor="middle" fill="#555" font-size="11">Transaction Search — per-turn traces</text>
+  <text x="410" y="110" text-anchor="middle" fill="#555" font-size="11">Live Metrics — real-time stream</text>
+  <!-- Arrow instances → App Insights -->
+  <line x1="150" y1="85" x2="275" y2="85" stroke="#2563eb" stroke-width="2" marker-end="url(#ah)"/>
+  <text x="212" y="78" text-anchor="middle" fill="#2563eb" font-size="10" font-weight="600">OTLP/HTTP</text>
+  <!-- Graphite -->
+  <rect x="280" y="190" width="200" height="50" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="1.5"/>
+  <text x="380" y="220" text-anchor="middle" font-weight="600" fill="#166534">Graphite :2003</text>
+  <!-- Arrow instances → Graphite -->
+  <line x1="120" y1="160" x2="275" y2="215" stroke="#16a34a" stroke-width="1.5" stroke-dasharray="6 3" marker-end="url(#ah)"/>
+  <text x="180" y="200" text-anchor="middle" fill="#16a34a" font-size="10" font-weight="600">Carbon plaintext</text>
+</svg><hr>
+<h2>How it works</h2><p>The addon uses piclaw&#39;s <strong>log-sink contract</strong> — a generic API that any addon can use. Server-side spans are derived from runtime records, and the browser layer translates agent SSE/follow-up activity into App Insights <code>customEvents</code> keyed by <code>chatJid</code>.</p>
+<p>Server side:</p>
+<div class="addon-code-block"><div class="addon-code-block-header"><span class="addon-code-lang">text</span><button type="button" class="addon-code-copy-btn" aria-label="Copy code" title="Copy code" data-copy-state="idle"><span class="addon-code-copy-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg></span><span class="addon-code-copy-label">Copy</span></button></div><pre><code>runtime                              addon
+───────                              ─────
+log.info(&quot;Prompting session&quot;, {
+  operation: &quot;run_agent.prompt&quot;,     ──►  sink receives record
+  chatJid: &quot;web:default&quot;,                 creates Span &quot;agent.turn&quot;
+  model: &quot;azure-openai/gpt-5-4&quot;,         stores in inflightTurns map
+})
+
+  ... model runs, tools fire ...
+
+log.info(&quot;Tool execution ended&quot;, {
+  operation: &quot;tool.call.end&quot;,        ──►  sink receives record
+  chatJid: &quot;web:default&quot;,                 creates child Span &quot;tool.call&quot;
+  toolName: &quot;bash&quot;,                       pushes Graphite metric
+  durationMs: 320,
+})
+
+log.info(&quot;Agent run completed&quot;, {
+  operation: &quot;run_agent.complete&quot;,   ──►  sink receives record
+  chatJid: &quot;web:default&quot;,                 finds inflight span
+  durationMs: 4523,                       ends span → App Insights
+})                                        pushes Graphite metrics</code></pre></div><p>If the addon isn&#39;t installed, no sink is registered and there is zero overhead.</p>
+<p>See the <a href="https://github.com/rcarmo/piclaw/blob/main/docs/observability.md" target="_blank" rel="noopener">runtime observability docs</a> for the full log-sink API and operation reference.</p>
+<hr>
+<h2>Instance identity</h2><table>
+<thead>
+<tr>
+<th>OTel Resource attribute</th>
+<th>App Insights field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>service.name</code></td>
+<td><code>cloud_RoleName</code></td>
+<td><code>piclaw</code></td>
+</tr>
+<tr>
+<td><code>service.instance.id</code></td>
+<td><code>cloud_RoleInstance</code></td>
+<td>config <code>instance_name</code> (or hostname)</td>
+</tr>
+<tr>
+<td><code>host.name</code></td>
+<td>—</td>
+<td>always OS <code>hostname()</code></td>
+</tr>
+<tr>
+<td><code>deployment.environment</code></td>
+<td>custom dimension</td>
+<td>auto-detected: <code>docker</code> / <code>lxc</code> / <code>host-native</code></td>
+</tr>
+<tr>
+<td><code>service.version</code></td>
+<td>—</td>
+<td>piclaw package version</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>Agent identity mapping</h2><table>
+<thead>
+<tr>
+<th>Concept</th>
+<th>Mapping</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Primary actor</td>
+<td><code>chatJid</code></td>
+</tr>
+<tr>
+<td>Primary transaction</td>
+<td><code>turnId</code></td>
+</tr>
+<tr>
+<td>Runtime session / fork identity</td>
+<td><code>sessionLeafId</code> when present</td>
+</tr>
+<tr>
+<td>Browser correlation</td>
+<td><code>piclaw.browser_user_id</code>, <code>piclaw.browser_session_id</code>, <code>piclaw.browser_client_id</code></td>
+</tr>
+<tr>
+<td>App Insights user-style field</td>
+<td><code>enduser.id = chatJid</code></td>
+</tr>
+</tbody></table>
+<p>This makes App Insights charts and <code>customEvents</code> more useful for agent analytics: the actor is the chat/agent JID, not the anonymous browser user.</p>
+<hr>
+<h2>Data sent</h2><h3>Log operation → Span / Metric mapping</h3><table>
+<thead>
+<tr>
+<th>Log operation</th>
+<th>OTel Span</th>
+<th>Graphite metric</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>run_agent.prompt</code> → <code>run_agent.complete</code></td>
+<td><code>agent.turn</code> (<strong>request-style</strong> span; paired by <code>turnId</code>, fallback <code>chatJid</code>)</td>
+<td><code>agent.turn.count</code>, <code>agent.turn.duration_ms</code>, <code>agent.turn.success</code></td>
+</tr>
+<tr>
+<td><code>run_agent.prompt</code> → <code>run_agent</code> (error)</td>
+<td><code>agent.turn</code> (<strong>request-style</strong> span; ERROR + exception)</td>
+<td><code>agent.turn.count</code>, <code>agent.turn.error</code></td>
+</tr>
+<tr>
+<td><code>run_agent.no_terminal_reply</code></td>
+<td><code>agent.turn</code> (<strong>request-style</strong> span; ERROR)</td>
+<td><code>agent.turn.error</code></td>
+</tr>
+<tr>
+<td><code>model.response.start/end</code></td>
+<td><code>model.call</code> (<strong>dependency-style</strong> child span of <code>agent.turn</code>)</td>
+<td><code>model.call.count</code>, <code>model.call.duration_ms</code></td>
+</tr>
+<tr>
+<td><code>run_agent.attempt_failed</code></td>
+<td><code>provider.error</code> (exception)</td>
+<td><code>recovery.attempts</code>, <code>provider.error.&lt;classifier&gt;</code></td>
+</tr>
+<tr>
+<td><code>tool.call.start/end</code></td>
+<td><code>tool.call</code> (<strong>dependency-style</strong> child span of <code>agent.turn</code>)</td>
+<td><code>tool.&lt;name&gt;.count</code>, <code>tool.&lt;name&gt;.duration_ms</code></td>
+</tr>
+<tr>
+<td><code>dream.complete</code></td>
+<td><code>dream</code></td>
+<td><code>dream.duration_ms</code></td>
+</tr>
+<tr>
+<td><code>get_or_create.create_main_session</code></td>
+<td>—</td>
+<td><code>session.created</code></td>
+</tr>
+<tr>
+<td><code>evict_idle.*</code></td>
+<td>—</td>
+<td><code>session.evicted</code></td>
+</tr>
+<tr>
+<td>Any warn/error with <code>operation</code></td>
+<td><code>log.warn</code> / <code>log.error</code></td>
+<td>—</td>
+</tr>
+</tbody></table>
+<h3>Browser custom events</h3><table>
+<thead>
+<tr>
+<th>Browser event</th>
+<th>Source</th>
+<th>Primary identity</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>agent.turn.start</code> / <code>agent.turn.phase</code> / <code>agent.turn.complete</code> / <code>agent.turn.fail</code></td>
+<td>translated from <code>agent_status</code> SSE</td>
+<td><code>chatJid</code></td>
+</tr>
+<tr>
+<td><code>agent.followup.queued</code> / <code>agent.followup.consumed</code> / <code>agent.followup.removed</code></td>
+<td>translated from follow-up SSE</td>
+<td><code>chatJid</code></td>
+</tr>
+<tr>
+<td><code>agent.steer.queued</code></td>
+<td>translated from <code>agent_steer_queued</code> SSE</td>
+<td><code>chatJid</code></td>
+</tr>
+<tr>
+<td><code>agent.message.sent</code></td>
+<td>translated from <code>POST /agent/:id/message</code></td>
+<td><code>chatJid</code></td>
+</tr>
+<tr>
+<td><code>agent.stream.connected</code></td>
+<td>translated from SSE connect</td>
+<td><code>chatJid</code></td>
+</tr>
+</tbody></table>
+<h3>Span schemas</h3><h4>agent.turn (successful)</h4><div class="addon-code-block"><div class="addon-code-block-header"><span class="addon-code-lang">json</span><button type="button" class="addon-code-copy-btn" aria-label="Copy code" title="Copy code" data-copy-state="idle"><span class="addon-code-copy-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg></span><span class="addon-code-copy-label">Copy</span></button></div><pre><code class="language-json">{
+  &quot;name&quot;: &quot;agent.turn&quot;,
+  &quot;kind&quot;: &quot;SERVER&quot;,
+  &quot;status&quot;: { &quot;code&quot;: &quot;OK&quot; },
+  &quot;duration&quot;: &quot;4523ms&quot;,
+  &quot;attributes&quot;: {
+    &quot;piclaw.chat_jid&quot;: &quot;web:default:branch:0f3858079ad7&quot;,
+    &quot;piclaw.actor.kind&quot;: &quot;chat_jid&quot;,
+    &quot;piclaw.actor.id&quot;: &quot;web:default:branch:0f3858079ad7&quot;,
+    &quot;enduser.id&quot;: &quot;web:default:branch:0f3858079ad7&quot;,
+    &quot;piclaw.instance&quot;: &quot;smith&quot;,
+    &quot;piclaw.model&quot;: &quot;azure-openai/gpt-5-4&quot;,
+    &quot;piclaw.turn.status&quot;: &quot;success&quot;,
+    &quot;piclaw.turn.duration_ms&quot;: 4523,
+    &quot;piclaw.turn.output_chars&quot;: 1280
+  }
+}</code></pre></div><h4>agent.turn (error)</h4><div class="addon-code-block"><div class="addon-code-block-header"><span class="addon-code-lang">json</span><button type="button" class="addon-code-copy-btn" aria-label="Copy code" title="Copy code" data-copy-state="idle"><span class="addon-code-copy-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg></span><span class="addon-code-copy-label">Copy</span></button></div><pre><code class="language-json">{
+  &quot;name&quot;: &quot;agent.turn&quot;,
+  &quot;status&quot;: { &quot;code&quot;: &quot;ERROR&quot;, &quot;message&quot;: &quot;Prompt completed without emitting an assistant reply...&quot; },
+  &quot;duration&quot;: &quot;8912ms&quot;,
+  &quot;attributes&quot;: {
+    &quot;piclaw.chat_jid&quot;: &quot;web:default:branch:0f3858079ad7&quot;,
+    &quot;piclaw.instance&quot;: &quot;smith&quot;,
+    &quot;piclaw.model&quot;: &quot;azure-openai/gpt-5-4&quot;,
+    &quot;piclaw.turn.status&quot;: &quot;error&quot;,
+    &quot;piclaw.recovery.attempts&quot;: 0
+  },
+  &quot;events&quot;: [
+    {
+      &quot;name&quot;: &quot;exception&quot;,
+      &quot;attributes&quot;: {
+        &quot;exception.type&quot;: &quot;Error&quot;,
+        &quot;exception.message&quot;: &quot;Prompt completed without emitting an assistant reply before finalization...&quot;
+      }
+    }
+  ]
+}</code></pre></div><h4>model.call</h4><div class="addon-code-block"><div class="addon-code-block-header"><span class="addon-code-lang">json</span><button type="button" class="addon-code-copy-btn" aria-label="Copy code" title="Copy code" data-copy-state="idle"><span class="addon-code-copy-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg></span><span class="addon-code-copy-label">Copy</span></button></div><pre><code class="language-json">{
+  &quot;name&quot;: &quot;model.call&quot;,
+  &quot;kind&quot;: &quot;CLIENT&quot;,
+  &quot;status&quot;: { &quot;code&quot;: &quot;OK&quot; },
+  &quot;duration&quot;: &quot;1280ms&quot;,
+  &quot;attributes&quot;: {
+    &quot;piclaw.chat_jid&quot;: &quot;web:default&quot;,
+    &quot;piclaw.turn_id&quot;: &quot;turn_abcd1234&quot;,
+    &quot;piclaw.model&quot;: &quot;azure-openai/gpt-5-4&quot;,
+    &quot;piclaw.model.sequence&quot;: 2,
+    &quot;piclaw.model.stop_reason&quot;: &quot;toolUse&quot;,
+    &quot;piclaw.model.duration_ms&quot;: 1280
+  }
+}</code></pre></div><h4>tool.call</h4><div class="addon-code-block"><div class="addon-code-block-header"><span class="addon-code-lang">json</span><button type="button" class="addon-code-copy-btn" aria-label="Copy code" title="Copy code" data-copy-state="idle"><span class="addon-code-copy-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg></span><span class="addon-code-copy-label">Copy</span></button></div><pre><code class="language-json">{
+  &quot;name&quot;: &quot;tool.call&quot;,
+  &quot;status&quot;: { &quot;code&quot;: &quot;OK&quot; },
+  &quot;duration&quot;: &quot;320ms&quot;,
+  &quot;attributes&quot;: {
+    &quot;piclaw.chat_jid&quot;: &quot;web:default&quot;,
+    &quot;piclaw.instance&quot;: &quot;smith&quot;,
+    &quot;piclaw.tool.name&quot;: &quot;bash&quot;,
+    &quot;piclaw.tool.duration_ms&quot;: 320
+  }
+}</code></pre></div><h4>provider.error</h4><div class="addon-code-block"><div class="addon-code-block-header"><span class="addon-code-lang">json</span><button type="button" class="addon-code-copy-btn" aria-label="Copy code" title="Copy code" data-copy-state="idle"><span class="addon-code-copy-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg></span><span class="addon-code-copy-label">Copy</span></button></div><pre><code class="language-json">{
+  &quot;name&quot;: &quot;provider.error&quot;,
+  &quot;status&quot;: { &quot;code&quot;: &quot;ERROR&quot;, &quot;message&quot;: &quot;429 Too Many Requests&quot; },
+  &quot;attributes&quot;: {
+    &quot;piclaw.chat_jid&quot;: &quot;web:default&quot;,
+    &quot;piclaw.instance&quot;: &quot;relay&quot;,
+    &quot;piclaw.error.classifier&quot;: &quot;rate_limit&quot;
+  },
+  &quot;events&quot;: [
+    { &quot;name&quot;: &quot;exception&quot;, &quot;attributes&quot;: { &quot;exception.message&quot;: &quot;429 Too Many Requests&quot; } }
+  ]
+}</code></pre></div><h3>Graphite metric paths</h3><div class="addon-code-block"><div class="addon-code-block-header"><span class="addon-code-lang">text</span><button type="button" class="addon-code-copy-btn" aria-label="Copy code" title="Copy code" data-copy-state="idle"><span class="addon-code-copy-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg></span><span class="addon-code-copy-label">Copy</span></button></div><pre><code># Agent turns
+piclaw.smith.agent.turn.count 1 1745828400
+piclaw.smith.agent.turn.duration_ms 4523 1745828400
+piclaw.smith.agent.turn.success 1 1745828400
+piclaw.smith.agent.turn.error 0 1745828400
+
+# Tool calls
+piclaw.smith.tool.bash.count 1 1745828400
+piclaw.smith.tool.bash.duration_ms 320 1745828400
+piclaw.smith.tool.bash.error 0 1745828400
+
+# Recovery
+piclaw.smith.recovery.attempts 2 1745828400
+piclaw.smith.provider.error.rate_limit 1 1745828400
+
+# Session lifecycle
+piclaw.smith.session.created 1 1745828400
+piclaw.smith.session.evicted 0 1745828400
+
+# Dream
+piclaw.smith.dream.duration_ms 45000 1745828400</code></pre></div><p>Queryable as:</p>
+<div class="addon-code-block"><div class="addon-code-block-header"><span class="addon-code-lang">text</span><button type="button" class="addon-code-copy-btn" aria-label="Copy code" title="Copy code" data-copy-state="idle"><span class="addon-code-copy-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg></span><span class="addon-code-copy-label">Copy</span></button></div><pre><code>piclaw.*.agent.turn.error          # errors across all instances
+piclaw.smith.tool.*.duration_ms    # all tool durations on smith
+piclaw.relay.provider.error.*      # all provider errors on relay</code></pre></div><h3>Azure Application Insights views</h3><table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>What it shows</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Application Map</strong></td>
+<td>All piclaw instances with health and dependency links</td>
+</tr>
+<tr>
+<td><strong>Failures blade</strong></td>
+<td>Errors grouped by <code>cloud_RoleInstance</code>: smith 2, relay 5, orangepi 1</td>
+</tr>
+<tr>
+<td><strong>Transaction Search</strong></td>
+<td>Individual turn traces with <code>model.call</code> and <code>tool.call</code> child spans</td>
+</tr>
+<tr>
+<td><strong>Live Metrics Stream</strong></td>
+<td><code>agent.turn</code> maps more naturally to Incoming Requests, while <code>model.call</code> and <code>tool.call</code> map more naturally to outgoing dependency metrics</td>
+</tr>
+<tr>
+<td><strong>Users / Events</strong></td>
+<td>Agent-centric browser custom events when browser agent telemetry is enabled (<code>chatJid</code> mapped as the actor)</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p><strong>Important:</strong> the addon now synthesizes telemetry classes intentionally:</p>
+<ul>
+<li><code>agent.turn</code> → <strong>request-style</strong> span (for Incoming Requests / request rate / request duration)</li>
+<li><code>model.call</code> and <code>tool.call</code> → <strong>dependency-style</strong> spans (for outgoing dependency metrics)</li>
+<li><code>provider.error</code>, <code>log.error</code>, and failed spans → exceptions / failures</li>
+</ul>
+<p>Piclaw also stamps a <strong>synthetic result code</strong> onto spans so <code>resultCode</code> is no longer <code>NaN</code> in App Insights for custom telemetry: <code>200=info/success</code>, <code>300=warn</code>, <code>400=error</code>.</p>
+</blockquote>
+<h3>Kusto queries</h3><p>Use these in <strong>Azure Application Insights → Logs</strong>.</p>
+<p>The piclaw repo also includes companion artifacts:</p>
+<ul>
+<li><code>docs/azure/app-insights-agent-kusto-queries.md</code></li>
+<li><code>docs/azure/app-insights-agent-observability-workbook-template.json</code></li>
+</ul>
+<h4>1) Everything recent for piclaw instances</h4><div class="addon-code-block"><div class="addon-code-block-header"><span class="addon-code-lang">kusto</span><button type="button" class="addon-code-copy-btn" aria-label="Copy code" title="Copy code" data-copy-state="idle"><span class="addon-code-copy-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg></span><span class="addon-code-copy-label">Copy</span></button></div><pre><code class="language-kusto">union withsource=table requests, dependencies, traces, exceptions
+| extend piclaw_instance = coalesce(tostring(customDimensions[&quot;piclaw.instance&quot;]), cloud_RoleInstance)
+| where timestamp &gt; ago(30m)
+| where cloud_RoleName == &quot;piclaw&quot; or isnotempty(piclaw_instance)
+| extend item_name = coalesce(name, operation_Name, message, outerMessage)
+| project timestamp, table, piclaw_instance, item_name, success, resultCode, severityLevel, operation_Id
+| order by timestamp desc</code></pre></div><h4>2) Piclaw custom spans (<code>agent.turn</code>, <code>model.call</code>, <code>tool.call</code>, <code>provider.error</code>, <code>dream</code>, <code>log.*</code>)</h4><div class="addon-code-block"><div class="addon-code-block-header"><span class="addon-code-lang">kusto</span><button type="button" class="addon-code-copy-btn" aria-label="Copy code" title="Copy code" data-copy-state="idle"><span class="addon-code-copy-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg></span><span class="addon-code-copy-label">Copy</span></button></div><pre><code class="language-kusto">union withsource=table requests, dependencies, traces, exceptions
+| extend piclaw_instance = coalesce(tostring(customDimensions[&quot;piclaw.instance&quot;]), cloud_RoleInstance)
+| extend span_name = coalesce(name, operation_Name, message, outerMessage)
+| where timestamp &gt; ago(6h)
+| where span_name in (&quot;agent.turn&quot;, &quot;model.call&quot;, &quot;tool.call&quot;, &quot;provider.error&quot;, &quot;dream&quot;, &quot;log.error&quot;, &quot;log.warn&quot;)
+| project timestamp,
+          table,
+          piclaw_instance,
+          span_name,
+          success,
+          duration,
+          operation_Id,
+          chat_jid = tostring(customDimensions[&quot;piclaw.chat_jid&quot;]),
+          model = tostring(customDimensions[&quot;piclaw.model&quot;]),
+          tool_name = tostring(customDimensions[&quot;piclaw.tool.name&quot;]),
+          turn_status = tostring(customDimensions[&quot;piclaw.turn.status&quot;]),
+          classifier = tostring(customDimensions[&quot;piclaw.error.classifier&quot;])
+| order by timestamp desc</code></pre></div><h4>3) Agent-centric browser events by chat JID</h4><div class="addon-code-block"><div class="addon-code-block-header"><span class="addon-code-lang">kusto</span><button type="button" class="addon-code-copy-btn" aria-label="Copy code" title="Copy code" data-copy-state="idle"><span class="addon-code-copy-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg></span><span class="addon-code-copy-label">Copy</span></button></div><pre><code class="language-kusto">customEvents
+| where timestamp &gt; ago(24h)
+| extend chat_jid = coalesce(user_AuthenticatedId, tostring(customDimensions[&quot;piclaw.chat_jid&quot;]))
+| where isnotempty(chat_jid)
+| summarize events = count() by name, chat_jid
+| order by events desc</code></pre></div><h4>4) Agent-turn throughput and latency by instance</h4><div class="addon-code-block"><div class="addon-code-block-header"><span class="addon-code-lang">kusto</span><button type="button" class="addon-code-copy-btn" aria-label="Copy code" title="Copy code" data-copy-state="idle"><span class="addon-code-copy-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg></span><span class="addon-code-copy-label">Copy</span></button></div><pre><code class="language-kusto">requests
+| extend piclaw_instance = coalesce(tostring(customDimensions[&quot;piclaw.instance&quot;]), cloud_RoleInstance)
+| where timestamp &gt; ago(24h)
+| where name == &quot;agent.turn&quot;
+| extend duration_ms = todouble(duration / 1ms)
+| summarize turns = count(),
+            errors = countif(success == false or tostring(customDimensions[&quot;piclaw.turn.status&quot;]) == &quot;error&quot;),
+            p50_ms = percentile(duration_ms, 50),
+            p95_ms = percentile(duration_ms, 95),
+            p99_ms = percentile(duration_ms, 99)
+  by piclaw_instance
+| order by turns desc</code></pre></div><h4>5) Tool-call latency by tool name</h4><div class="addon-code-block"><div class="addon-code-block-header"><span class="addon-code-lang">kusto</span><button type="button" class="addon-code-copy-btn" aria-label="Copy code" title="Copy code" data-copy-state="idle"><span class="addon-code-copy-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg></span><span class="addon-code-copy-label">Copy</span></button></div><pre><code class="language-kusto">dependencies
+| extend piclaw_instance = coalesce(tostring(customDimensions[&quot;piclaw.instance&quot;]), cloud_RoleInstance)
+| where timestamp &gt; ago(24h)
+| where name == &quot;tool.call&quot;
+| extend duration_ms = todouble(duration / 1ms)
+| summarize calls = count(),
+            errors = countif(success == false),
+            p50_ms = percentile(duration_ms, 50),
+            p95_ms = percentile(duration_ms, 95)
+  by piclaw_instance, tool_name = tostring(customDimensions[&quot;piclaw.tool.name&quot;])
+| order by calls desc</code></pre></div><h4>6) Models by instance</h4><div class="addon-code-block"><div class="addon-code-block-header"><span class="addon-code-lang">kusto</span><button type="button" class="addon-code-copy-btn" aria-label="Copy code" title="Copy code" data-copy-state="idle"><span class="addon-code-copy-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg></span><span class="addon-code-copy-label">Copy</span></button></div><pre><code class="language-kusto">requests
+| extend piclaw_instance = coalesce(tostring(customDimensions[&quot;piclaw.instance&quot;]), cloud_RoleInstance)
+| where timestamp &gt; ago(24h)
+| where name == &quot;agent.turn&quot;
+| extend model = tostring(customDimensions[&quot;piclaw.model&quot;])
+| where isnotempty(model)
+| extend duration_ms = todouble(duration / 1ms)
+| summarize turns = count(),
+            errors = countif(success == false or tostring(customDimensions[&quot;piclaw.turn.status&quot;]) == &quot;error&quot;),
+            total_duration_ms = sum(duration_ms),
+            p50_ms = percentile(duration_ms, 50),
+            p95_ms = percentile(duration_ms, 95)
+  by piclaw_instance, model
+| order by turns desc</code></pre></div><h4>7) Providers / provider-error classifiers</h4><div class="addon-code-block"><div class="addon-code-block-header"><span class="addon-code-lang">kusto</span><button type="button" class="addon-code-copy-btn" aria-label="Copy code" title="Copy code" data-copy-state="idle"><span class="addon-code-copy-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg></span><span class="addon-code-copy-label">Copy</span></button></div><pre><code class="language-kusto">union withsource=table dependencies, traces, exceptions
+| extend piclaw_instance = coalesce(tostring(customDimensions[&quot;piclaw.instance&quot;]), cloud_RoleInstance)
+| extend span_name = coalesce(name, operation_Name, message, outerMessage)
+| extend provider = tostring(customDimensions[&quot;piclaw.provider&quot;])
+| extend classifier = tostring(customDimensions[&quot;piclaw.error.classifier&quot;])
+| where timestamp &gt; ago(24h)
+| where span_name == &quot;provider.error&quot; or isnotempty(provider) or isnotempty(classifier)
+| summarize events = count(),
+            failures = countif(success == false or severityLevel &gt;= 3)
+  by piclaw_instance, provider, classifier, span_name, table
+| order by events desc</code></pre></div><h4>8) Provider/runtime failures</h4><div class="addon-code-block"><div class="addon-code-block-header"><span class="addon-code-lang">kusto</span><button type="button" class="addon-code-copy-btn" aria-label="Copy code" title="Copy code" data-copy-state="idle"><span class="addon-code-copy-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg></span><span class="addon-code-copy-label">Copy</span></button></div><pre><code class="language-kusto">union withsource=table dependencies, traces, exceptions
+| extend piclaw_instance = coalesce(tostring(customDimensions[&quot;piclaw.instance&quot;]), cloud_RoleInstance)
+| extend span_name = coalesce(name, operation_Name, message, outerMessage)
+| where timestamp &gt; ago(24h)
+| where span_name in (&quot;provider.error&quot;, &quot;log.error&quot;, &quot;log.warn&quot;)
+   or success == false
+   or severityLevel &gt;= 3
+| project timestamp,
+          table,
+          piclaw_instance,
+          span_name,
+          severityLevel,
+          success,
+          operation_Id,
+          classifier = tostring(customDimensions[&quot;piclaw.error.classifier&quot;]),
+          provider = tostring(customDimensions[&quot;piclaw.provider&quot;]),
+          model = tostring(customDimensions[&quot;piclaw.model&quot;]),
+          message,
+          outerMessage,
+          problemId,
+          type
+| order by timestamp desc</code></pre></div><h4>9) Token counters on <code>agent.turn</code> spans</h4><blockquote>
+<p><strong>Note:</strong> token usage is persisted in piclaw&#39;s runtime database even when App Insights is not yet carrying token attributes. This query returns rows only when the observability exporter emits <code>piclaw.turn.input_tokens</code>, <code>piclaw.turn.output_tokens</code>, <code>piclaw.turn.cache_read_tokens</code>, <code>piclaw.turn.cache_write_tokens</code>, and <code>piclaw.turn.total_tokens</code> on <code>agent.turn</code> telemetry.</p>
+</blockquote>
+<div class="addon-code-block"><div class="addon-code-block-header"><span class="addon-code-lang">kusto</span><button type="button" class="addon-code-copy-btn" aria-label="Copy code" title="Copy code" data-copy-state="idle"><span class="addon-code-copy-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg></span><span class="addon-code-copy-label">Copy</span></button></div><pre><code class="language-kusto">requests
+| extend piclaw_instance = coalesce(tostring(customDimensions[&quot;piclaw.instance&quot;]), cloud_RoleInstance)
+| where timestamp &gt; ago(24h)
+| where name == &quot;agent.turn&quot;
+| extend model = tostring(customDimensions[&quot;piclaw.model&quot;])
+| extend input_tokens = todouble(customDimensions[&quot;piclaw.turn.input_tokens&quot;])
+| extend output_tokens = todouble(customDimensions[&quot;piclaw.turn.output_tokens&quot;])
+| extend cache_read_tokens = todouble(customDimensions[&quot;piclaw.turn.cache_read_tokens&quot;])
+| extend cache_write_tokens = todouble(customDimensions[&quot;piclaw.turn.cache_write_tokens&quot;])
+| extend total_tokens = todouble(customDimensions[&quot;piclaw.turn.total_tokens&quot;])
+| where isnotnull(input_tokens)
+   or isnotnull(output_tokens)
+   or isnotnull(cache_read_tokens)
+   or isnotnull(cache_write_tokens)
+   or isnotnull(total_tokens)
+| summarize turns = count(),
+            input_tokens = sum(input_tokens),
+            output_tokens = sum(output_tokens),
+            cache_read_tokens = sum(cache_read_tokens),
+            cache_write_tokens = sum(cache_write_tokens),
+            total_tokens = sum(total_tokens)
+  by piclaw_instance, model
+| order by total_tokens desc</code></pre></div><h4>10) One-instance drill-down (<code>smith</code>)</h4><div class="addon-code-block"><div class="addon-code-block-header"><span class="addon-code-lang">kusto</span><button type="button" class="addon-code-copy-btn" aria-label="Copy code" title="Copy code" data-copy-state="idle"><span class="addon-code-copy-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg></span><span class="addon-code-copy-label">Copy</span></button></div><pre><code class="language-kusto">union withsource=table requests, dependencies, traces, exceptions
+| extend piclaw_instance = coalesce(tostring(customDimensions[&quot;piclaw.instance&quot;]), cloud_RoleInstance)
+| where timestamp &gt; ago(2h)
+| where piclaw_instance == &quot;smith&quot;
+| extend item_name = coalesce(name, operation_Name, message, outerMessage)
+| project timestamp, table, item_name, success, duration, severityLevel, operation_Id
+| order by timestamp desc</code></pre></div><h4>11) If Live Metrics only shows requests, confirm the exporter is still sending custom telemetry</h4><div class="addon-code-block"><div class="addon-code-block-header"><span class="addon-code-lang">kusto</span><button type="button" class="addon-code-copy-btn" aria-label="Copy code" title="Copy code" data-copy-state="idle"><span class="addon-code-copy-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg></span><span class="addon-code-copy-label">Copy</span></button></div><pre><code class="language-kusto">union withsource=table requests, dependencies, traces
+| extend piclaw_instance = coalesce(tostring(customDimensions[&quot;piclaw.instance&quot;]), cloud_RoleInstance)
+| extend item_name = coalesce(name, operation_Name, message)
+| where timestamp &gt; ago(15m)
+| where item_name in (&quot;agent.turn&quot;, &quot;tool.call&quot;, &quot;provider.error&quot;, &quot;dream&quot;, &quot;log.error&quot;, &quot;log.warn&quot;)
+| summarize count() by table, item_name, piclaw_instance
+| order by count_ desc</code></pre></div><hr>
+<h2>Dependencies</h2><ul>
+<li><code>@azure/monitor-opentelemetry</code> ^1.16 — official Azure Monitor OTel distro (includes Live Metrics)</li>
+<li><code>@opentelemetry/api</code> ^1.9 — OTel trace + context API</li>
+</ul>
+
+</div>
+
+
+<footer>
+  <div class="footer-links"><a href="/piclaw-addons/">piclaw-addons</a> &nbsp;·&nbsp;
+  <a href="https://github.com/rcarmo/piclaw-addons/tree/main/addons/observability">View source</a></div>
+  <div class="footer-note">PiClaw is not affiliated with <a href="https://pi.dev" target="_blank" rel="noopener">pi.dev</a> — we’re just <em>huge fans</em>.</div>
+</footer>
+<script type="module">
+  import { mountDetail } from '/piclaw-addons/assets/js/addon-island.mjs';
+  mountDetail('observability');
+</script>
+</body>
+</html>
