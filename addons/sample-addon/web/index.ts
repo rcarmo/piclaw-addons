@@ -138,7 +138,7 @@ function SampleAddonSettings() {
         <input type="text" value=${greetingDraft} style=${I}
           placeholder="Hello from sample addon!"
           onInput=${(e) => setGreetingDraft(e.target.value)}
-          onBlur=${() => { if (greetingDraft !== (cfg.greeting ?? "")) save({ greeting: greetingDraft }); }}
+          onBlur=${(e) => { const value = e.target.value; if (value !== (cfg.greeting ?? "")) save({ greeting: value }); }}
           onKeyDown=${(e) => { if (e.key === "Enter") e.target.blur(); }}
           disabled=${saving} />
       </label>
