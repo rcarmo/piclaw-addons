@@ -11,7 +11,6 @@
  */
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { Type } from "@sinclair/typebox";
 import { createExtensionStorage, type ExtensionStorage } from "./compat/extension-kv.js";
 
 const EXTENSION_ID = "sample-addon";
@@ -85,7 +84,7 @@ export default function sampleAddon(pi: ExtensionAPI): void {
     name: "sample_test",
     label: "sample_test",
     description: "Returns the sample addon's configured greeting and whether a secret is present.",
-    parameters: Type.Object({}),
+    parameters: { type: "object", properties: {}, additionalProperties: false },
     async execute() {
       const cfg = loadConfig();
       const hasSecret = Boolean(process.env[

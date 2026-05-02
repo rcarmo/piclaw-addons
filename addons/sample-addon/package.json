@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-sample-addon",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Sample add-on — starter template showing a settings pane, keychain secret, SQLite KV config, and a test endpoint",
   "type": "module",
   "main": "index.ts",
@@ -24,8 +24,7 @@
     }
   },
   "peerDependencies": {
-    "@mariozechner/pi-coding-agent": "*",
-    "@sinclair/typebox": "*"
+    "@mariozechner/pi-coding-agent": "*"
   },
   "keywords": [
     "pi-package",
