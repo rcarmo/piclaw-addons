@@ -66,6 +66,8 @@ jobs:
         run: |
           export PICLAW_INTERNAL_SECRET=$(openssl rand -hex 16)
           echo "PICLAW_INTERNAL_SECRET=$PICLAW_INTERNAL_SECRET" >> "$GITHUB_ENV"
+          export PICLAW_WEB_PORT=3000
+          export PICLAW_WEB_HOST=0.0.0.0
 
           export PICLAW_WORKSPACE=$(mktemp -d)
           echo "PICLAW_WORKSPACE=$PICLAW_WORKSPACE" >> "$GITHUB_ENV"
