@@ -2,6 +2,14 @@
 
 Architecture diagram workflow for the portfolio site — JSON graph definitions → SVG rendering → colour palette management.
 
+## How it works
+
+![diagram-tools workflow](assets/workflow.svg)
+
+1. Define a compact graph JSON file with nodes, semantic tags, and edges.
+2. Use the `diagram-workflow` skill and `diagram-render.ts` tooling to render a themed SVG with orthogonal rounded arrows.
+3. Embed the SVG in Markdown and rebuild/publish the generated site page.
+
 ## What's included
 
 | Skill | Description |

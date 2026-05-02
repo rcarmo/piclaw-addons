@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 968 266">
+  <style>
+    /* Default: light mode (for rsvg-convert and non-media-query agents) */
+    .bg { fill: transparent; }
+    .box { fill: #ffffff; stroke: #707070; stroke-width: 1.5; }
+    .box-accent { fill: #dbeafe; stroke: #3b82f6; stroke-width: 1.5; }
+    .box-green { fill: #74a7ff; stroke: #012f7b; stroke-width: 1.5; }
+    .box-warm { fill: #fef3c7; stroke: #d97706; stroke-width: 1.5; }
+    .box-purple { fill: #adadad; stroke: #000000; stroke-width: 1.5; }
+    .box-teal { fill: #ebebeb; stroke: #474747; stroke-width: 1.5; }
+    .box-slate { fill: #a7c6ff; stroke: #0042a9; stroke-width: 1.5; }
+    .box-indigo { fill: #dfeed4; stroke: #4e7a27; stroke-width: 1.5; }
+    .box-rose { fill: #dfeed4; stroke: #76bb40; stroke-width: 1.5; }
+    .box-orange { fill: #ffedd5; stroke: #ea580c; stroke-width: 1.5; }
+    .box-cyan { fill: #d9c9fe; stroke: #5e30eb; stroke-width: 1.5; }
+    .label { fill: #1a2a40; }
+    .sub { fill: #5070a0; }
+    text { font-family: -apple-system, "Segoe UI", Helvetica, sans-serif; }
+    .label { font-size: 13px; font-weight: 600; }
+    .sub { font-size: 11px; }
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: transparent; }
+      .box { fill: #1a1e2a; stroke: #505050; }
+      .box-accent { fill: #0d1e38; stroke: #2b5cb0; }
+      .box-green { fill: #0a1a3a; stroke: #4a80d0; }
+      .box-warm { fill: #221a10; stroke: #a06020; }
+      .box-purple { fill: #222222; stroke: #666666; }
+      .box-teal { fill: #1e1e1e; stroke: #666666; }
+      .box-slate { fill: #0d1a38; stroke: #4a7ad0; }
+      .box-indigo { fill: #1a2810; stroke: #5a8a30; }
+      .box-rose { fill: #1a2810; stroke: #5aaa30; }
+      .box-orange { fill: #2a1a08; stroke: #f97316; }
+      .box-cyan { fill: #1a1030; stroke: #7040d0; }
+      .label { fill: #d0daf0; }
+      .sub { fill: #5070a0; }
+    }
+  </style>
+  <defs>
+    <marker id="ah" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8z" fill="#5070a0" stroke="none"/>
+    </marker>
+    <marker id="ahs" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8z" fill="#3b82f6" stroke="none"/>
+    </marker>
+  </defs>
+  <rect width="968" height="266" class="bg" rx="8"/>
+
+  <rect x="34" y="30" width="180" height="60" rx="8" class="box-rose"/>
+  <text x="124" y="56" text-anchor="middle" class="label">Graph JSON</text>
+  <text x="124" y="74" text-anchor="middle" class="sub">nodes, edges, tags</text>
+
+  <rect x="22" y="110" width="204" height="140" rx="12" fill="none" stroke="#94a3b8" stroke-width="1" stroke-dasharray="4 3" opacity="0.5"/>
+  <rect x="34" y="118" width="180" height="60" rx="8" class="box-teal"/>
+  <text x="124" y="144" text-anchor="middle" class="label">Diagram skills</text>
+  <text x="124" y="162" text-anchor="middle" class="sub">workflow + palette</text>
+  <rect x="38" y="186" width="82" height="48" rx="6" class="box-teal"/>
+  <text x="79" y="207" text-anchor="middle" class="label" style="font-size:11px">workflow</text>
+  <text x="79" y="221" text-anchor="middle" class="sub" style="font-size:9px">render/inject</text>
+  <rect x="128" y="186" width="82" height="48" rx="6" class="box-cyan"/>
+  <text x="169" y="207" text-anchor="middle" class="label" style="font-size:11px">palette</text>
+  <text x="169" y="221" text-anchor="middle" class="sub" style="font-size:9px">11 tags</text>
+
+  <rect x="278" y="30" width="180" height="60" rx="8" class="box-purple"/>
+  <text x="368" y="56" text-anchor="middle" class="label">diagram-render.ts</text>
+  <text x="368" y="74" text-anchor="middle" class="sub">auto-layout SVG engine</text>
+
+  <rect x="278" y="118" width="180" height="60" rx="8" class="box-purple"/>
+  <text x="368" y="144" text-anchor="middle" class="label">convert-diagrams.ts</text>
+  <text x="368" y="162" text-anchor="middle" class="sub">batch migration helper</text>
+
+  <rect x="518" y="30" width="180" height="60" rx="8" class="box-warm"/>
+  <text x="608" y="56" text-anchor="middle" class="label">Themed SVG</text>
+  <text x="608" y="74" text-anchor="middle" class="sub">orthogonal arrows</text>
+
+  <rect x="758" y="30" width="180" height="60" rx="8" class="box-orange"/>
+  <text x="848" y="56" text-anchor="middle" class="label">Markdown docs</text>
+  <text x="848" y="74" text-anchor="middle" class="sub">README or project page</text>
+
+  <rect x="758" y="118" width="180" height="60" rx="8" class="box-accent"/>
+  <text x="848" y="144" text-anchor="middle" class="label">Published page</text>
+  <text x="848" y="162" text-anchor="middle" class="sub">GitHub Pages build</text>
+
+  <path d="M214,60 L278,60" fill="none" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ahs)"/>
+  <text x="246" y="54" text-anchor="middle" class="sub">render</text>
+  <path d="M214,148 L232,148 Q246,148 246,134 L246,74 Q246,60 260,60 L278,60" fill="none" stroke="#5070a0" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ah)"/>
+  <text x="246" y="54" text-anchor="middle" class="sub">style rules</text>
+  <path d="M120,210 L185,210 Q199,210 199,196 L199,162 Q199,148 213,148 L278,148" fill="none" stroke="#5070a0" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ah)"/>
+  <text x="199" y="142" text-anchor="middle" class="sub">batch</text>
+  <path d="M458,148 L232,148 Q246,148 246,134 L246,74 Q246,60 260,60 L34,60" fill="none" stroke="#5070a0" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ah)"/>
+  <text x="246" y="54" text-anchor="middle" class="sub">JSON</text>
+  <path d="M458,60 L518,60" fill="none" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ahs)"/>
+  <text x="488" y="54" text-anchor="middle" class="sub">SVG</text>
+  <path d="M698,60 L758,60" fill="none" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ahs)"/>
+  <text x="728" y="54" text-anchor="middle" class="sub">embed</text>
+  <path d="M848,90 L848,118" fill="none" stroke="#5070a0" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ah)"/>
+  <text x="860" y="108" class="sub">build</text>
+
+  <text x="484" y="262" text-anchor="middle" class="sub">diagram-tools turns compact JSON graph definitions into themed SVG diagrams and documentation updates.</text>
+</svg>

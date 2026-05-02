@@ -48,8 +48,12 @@ async function setKeychainSecret(name, secret) {
 // ── Config helpers ───────────────────────────────────────────────
 
 async function loadConfig() {
-  try { const r = await fetch(`${API}/config`); return r.ok ? await r.json() : {}; }
-  catch { return {}; }
+  try {
+    const r = await fetch(`${API}/config`);
+    if (!r.ok) return {};
+    const data = await r.json();
+    return data?.config && typeof data.config === "object" ? data.config : data;
+  } catch { return {}; }
 }
 
 async function saveConfig(patch) {
@@ -96,8 +100,8 @@ function SampleAddonSettings() {
     setSaving(false);
   }, []);
 
-  const saveSecret = useCallback(async () => {
-    const secret = keyInput.trim();
+  const saveSecret = useCallback(async (rawSecret) => {
+    const secret = String(rawSecret ?? keyInput).trim();
     if (!secret) return;
     setSaving(true);
     const name = cfg?.secret_keychain || DEFAULT_KEYCHAIN_ENTRY;
@@ -153,10 +157,10 @@ function SampleAddonSettings() {
           placeholder=${hasKey ? "••••••• (stored in keychain)" : "paste secret here"}
           onInput=${(e) => setKeyInput(e.target.value)}
           onChange=${(e) => setKeyInput(e.target.value)}
-          onKeyDown=${(e) => { if (e.key === "Enter") saveSecret(); }}
+          onKeyDown=${(e) => { if (e.key === "Enter") saveSecret(e.target.value); }}
           disabled=${saving} />
         <button style="padding:4px 10px;border:1px solid var(--border-color);border-radius:4px;background:var(--bg-secondary);color:var(--text-primary);cursor:pointer;font-size:0.82rem"
-          onClick=${saveSecret} disabled=${!keyInput.trim() || saving}>Save</button>
+          onClick=${(e) => saveSecret(e.currentTarget?.parentElement?.querySelector?.('input[type="password"]')?.value ?? keyInput)} disabled=${saving}>Save</button>
         ${hasKey
           ? html`<span style="font-size:0.72rem;color:var(--accent-color,#2563eb);font-weight:600" title="Key in keychain">✓</span>`
           : html`<span style="font-size:0.72rem;color:var(--danger-color,#dc2626);font-weight:600" title="No key">✗</span>`

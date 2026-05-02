@@ -1,0 +1,74 @@
+{
+  "title": "diagram-tools turns compact JSON graph definitions into themed SVG diagrams and documentation updates.",
+  "nodes": [
+    {
+      "id": "source",
+      "label": "Graph JSON",
+      "sub": "nodes, edges, tags",
+      "tag": "input",
+      "column": 0,
+      "row": 0
+    },
+    {
+      "id": "skills",
+      "label": "Diagram skills",
+      "sub": "workflow + palette",
+      "tag": "scripting",
+      "column": 0,
+      "row": 1,
+      "children": [
+        { "id": "workflow", "label": "workflow", "sub": "render/inject", "tag": "scripting" },
+        { "id": "palette", "label": "palette", "sub": "11 tags", "tag": "monitor" }
+      ]
+    },
+    {
+      "id": "renderer",
+      "label": "diagram-render.ts",
+      "sub": "auto-layout SVG engine",
+      "tag": "processing",
+      "column": 1,
+      "row": 0
+    },
+    {
+      "id": "convert",
+      "label": "convert-diagrams.ts",
+      "sub": "batch migration helper",
+      "tag": "processing",
+      "column": 1,
+      "row": 1
+    },
+    {
+      "id": "svg",
+      "label": "Themed SVG",
+      "sub": "orthogonal arrows",
+      "tag": "artifacts",
+      "column": 2,
+      "row": 0
+    },
+    {
+      "id": "markdown",
+      "label": "Markdown docs",
+      "sub": "README or project page",
+      "tag": "output",
+      "column": 3,
+      "row": 0
+    },
+    {
+      "id": "site",
+      "label": "Published page",
+      "sub": "GitHub Pages build",
+      "tag": "web",
+      "column": 3,
+      "row": 1
+    }
+  ],
+  "edges": [
+    { "from": "source", "to": "renderer", "label": "render", "accent": true },
+    { "from": "skills", "to": "renderer", "label": "style rules" },
+    { "from": "workflow", "to": "convert", "label": "batch" },
+    { "from": "convert", "to": "source", "label": "JSON" },
+    { "from": "renderer", "to": "svg", "label": "SVG", "accent": true },
+    { "from": "svg", "to": "markdown", "label": "embed", "accent": true },
+    { "from": "markdown", "to": "site", "label": "build" }
+  ]
+}
