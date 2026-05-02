@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-sample-addon",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Sample add-on — starter template showing a settings pane, keychain secret, SQLite KV config, and a test endpoint",
   "type": "module",
   "main": "index.ts",

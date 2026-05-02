@@ -139,7 +139,7 @@ function SampleAddonSettings() {
 
       <label style=${S}>
         <span style=${L}>Greeting</span>
-        <input type="text" value=${greetingDraft} style=${I}
+        <input key=${`greeting-${cfg.greeting ?? ""}`} type="text" defaultValue=${cfg.greeting ?? ""} style=${I}
           placeholder="Hello from sample addon!"
           onInput=${(e) => setGreetingDraft(e.target.value)}
           onChange=${(e) => setGreetingDraft(e.target.value)}
@@ -153,7 +153,7 @@ function SampleAddonSettings() {
 
       <div style=${S}>
         <span style=${L}>API key</span>
-        <input type="password" value=${keyInput} style=${{ ...I, fontFamily: "var(--font-mono, monospace)" }}
+        <input key=${hasKey ? "api-key-stored" : "api-key-empty"} type="password" defaultValue="" style=${{ ...I, fontFamily: "var(--font-mono, monospace)" }}
           placeholder=${hasKey ? "••••••• (stored in keychain)" : "paste secret here"}
           onInput=${(e) => setKeyInput(e.target.value)}
           onChange=${(e) => setKeyInput(e.target.value)}
