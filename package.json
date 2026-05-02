@@ -37,6 +37,7 @@
       "addons/kanban-board-widget/index.ts",
       "addons/kanban-editor/index.ts",
       "addons/observability/index.ts",
+      "addons/plan-sidebar/index.ts",
       "addons/portainer/index.ts",
       "addons/proxmox/index.ts",
       "addons/sample-addon/index.ts",

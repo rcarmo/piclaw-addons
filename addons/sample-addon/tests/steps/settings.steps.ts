@@ -44,6 +44,11 @@ export const steps: StepDefinition[] = [
       const input = fieldByLabel(ctx.page, 'Greeting');
       await expect(input).toBeVisible({ timeout: 5000 });
       await input.fill(value);
+      await input.evaluate((element, nextValue) => {
+        element.value = nextValue;
+        element.dispatchEvent(new Event('input', { bubbles: true }));
+        element.dispatchEvent(new Event('change', { bubbles: true }));
+      }, value);
       await input.blur();
       await expect(pane(ctx.page).getByText('Saved', { exact: false })).toBeVisible({ timeout: 5000 });
     },
@@ -62,6 +67,11 @@ export const steps: StepDefinition[] = [
       const input = fieldByLabel(ctx.page, 'API key');
       await expect(input).toBeVisible({ timeout: 5000 });
       await input.fill(value);
+      await input.evaluate((element, nextValue) => {
+        element.value = nextValue;
+        element.dispatchEvent(new Event('input', { bubbles: true }));
+        element.dispatchEvent(new Event('change', { bubbles: true }));
+      }, value);
       await pane(ctx.page).getByRole('button', { name: /^Save$/ }).click();
       await expect(pane(ctx.page).getByText('Secret saved to keychain', { exact: false })).toBeVisible({ timeout: 5000 });
     },

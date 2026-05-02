@@ -138,6 +138,7 @@ function SampleAddonSettings() {
         <input type="text" value=${greetingDraft} style=${I}
           placeholder="Hello from sample addon!"
           onInput=${(e) => setGreetingDraft(e.target.value)}
+          onChange=${(e) => setGreetingDraft(e.target.value)}
           onBlur=${(e) => { const value = e.target.value; if (value !== (cfg.greeting ?? "")) save({ greeting: value }); }}
           onKeyDown=${(e) => { if (e.key === "Enter") e.target.blur(); }}
           disabled=${saving} />
@@ -151,6 +152,7 @@ function SampleAddonSettings() {
         <input type="password" value=${keyInput} style=${{ ...I, fontFamily: "var(--font-mono, monospace)" }}
           placeholder=${hasKey ? "••••••• (stored in keychain)" : "paste secret here"}
           onInput=${(e) => setKeyInput(e.target.value)}
+          onChange=${(e) => setKeyInput(e.target.value)}
           onKeyDown=${(e) => { if (e.key === "Enter") saveSecret(); }}
           disabled=${saving} />
         <button style="padding:4px 10px;border:1px solid var(--border-color);border-radius:4px;background:var(--bg-secondary);color:var(--text-primary);cursor:pointer;font-size:0.82rem"

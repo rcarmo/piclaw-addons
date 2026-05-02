@@ -1,16 +1,17 @@
 {
-  "name": "@rcarmo/piclaw-addon-sample-addon",
-  "version": "0.1.5",
-  "description": "Sample add-on — starter template showing a settings pane, keychain secret, SQLite KV config, and a test endpoint",
+  "name": "@rcarmo/piclaw-addon-plan-sidebar",
+  "version": "0.1.0",
+  "description": "Right-side session plan sidebar with a Markdown checklist editor and plan get/set tool",
   "type": "module",
   "main": "index.ts",
   "piclaw": {
     "type": "extension",
     "compatibleVersions": ">=2.0.0",
     "tags": [
-      "sample",
-      "template",
-      "developer"
+      "planning",
+      "ui",
+      "markdown",
+      "session"
     ]
   },
   "pi": {
@@ -31,9 +32,10 @@
     "pi-package",
     "piclaw",
     "piclaw-addon",
-    "sample",
-    "template"
+    "planning",
+    "sidebar",
+    "markdown"
   ],
   "license": "MIT",
-  "homepage": "https://rcarmo.github.io/piclaw-addons/addons/sample-addon/"
+  "homepage": "https://rcarmo.github.io/piclaw-addons/addons/plan-sidebar/"
 }
