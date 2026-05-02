@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, "Segoe UI", sans-serif; background: #1a1a2e; color: #e0e0e0; padding: 20px; }
+h1 { font-size: 18px; margin-bottom: 16px; color: #fff; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; max-width: 700px; }
+.item { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 8px; background: #222244; }
+.swatch { width: 120px; height: 48px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; border: 1.5px solid; }
+.meta { flex: 1; }
+.tag-name { font-weight: 700; font-size: 13px; margin-bottom: 2px; }
+.tag-desc { font-size: 11px; color: #8899bb; }
+.color-row { display: flex; gap: 6px; margin-top: 6px; align-items: center; }
+.color-row label { font-size: 10px; color: #667; width: 28px; }
+.color-row input[type=color] { width: 32px; height: 24px; border: none; border-radius: 4px; cursor: pointer; background: none; }
+.submit-row { margin-top: 20px; text-align: center; }
+button { background: #3b82f6; color: #fff; border: none; padding: 10px 24px; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; }
+button:hover { background: #2563eb; }
+</style>
+</head>
+<body>
+<h1>Diagram Colour Picker</h1>
+<div class="grid" id="grid"></div>
+<div class="submit-row"><button onclick="submit()">Send updated colours</button></div>
+<script>
+// Current colours — update these from diagram-render.ts THEME_CSS before posting
+const tags = [
+  { tag: 'web',        fill: '#dbeafe', stroke: '#3b82f6', desc: 'frontends, browsers, UIs' },
+  { tag: 'backend',    fill: '#74a7ff', stroke: '#012f7b', desc: 'servers, APIs, runtimes' },
+  { tag: 'state',      fill: '#ffffff', stroke: '#707070', desc: 'databases, stores, config' },
+  { tag: 'artifacts',  fill: '#fef3c7', stroke: '#d97706', desc: 'builds, files, models' },
+  { tag: 'processing', fill: '#adadad', stroke: '#000000', desc: 'engines, pipelines, transforms' },
+  { tag: 'scripting',  fill: '#ebebeb', stroke: '#474747', desc: 'scripting, plugins, extensions' },
+  { tag: 'infra',      fill: '#a7c6ff', stroke: '#0042a9', desc: 'containers, VMs, infrastructure' },
+  { tag: 'external',   fill: '#dfeed4', stroke: '#4e7a27', desc: 'external services, APIs' },
+  { tag: 'input',      fill: '#dfeed4', stroke: '#76bb40', desc: 'user input, sources, triggers' },
+  { tag: 'output',     fill: '#ffedd5', stroke: '#ea580c', desc: 'results, exports, destinations' },
+  { tag: 'monitor',    fill: '#d9c9fe', stroke: '#5e30eb', desc: 'monitoring, logging, observability' },
+];
+
+const grid = document.getElementById('grid');
+tags.forEach(t => {
+  const item = document.createElement('div');
+  item.className = 'item';
+  item.innerHTML = `
+    <div class="swatch" id="swatch-${t.tag}" style="background:${t.fill};border-color:${t.stroke};color:${t.stroke}">${t.tag}</div>
+    <div class="meta">
+      <div class="tag-name">${t.tag}</div>
+      <div class="tag-desc">${t.desc}</div>
+      <div class="color-row">
+        <label>Fill</label><input type="color" id="fill-${t.tag}" value="${t.fill}" oninput="preview('${t.tag}')">
+        <label>Line</label><input type="color" id="stroke-${t.tag}" value="${t.stroke}" oninput="preview('${t.tag}')">
+      </div>
+    </div>
+  `;
+  grid.appendChild(item);
+});
+
+function preview(tag) {
+  const fill = document.getElementById('fill-' + tag).value;
+  const stroke = document.getElementById('stroke-' + tag).value;
+  const swatch = document.getElementById('swatch-' + tag);
+  swatch.style.background = fill;
+  swatch.style.borderColor = stroke;
+  swatch.style.color = stroke;
+}
+
+function submit() {
+  const result = {};
+  tags.forEach(t => {
+    const fill = document.getElementById('fill-' + t.tag).value;
+    const stroke = document.getElementById('stroke-' + t.tag).value;
+    if (fill !== t.fill || stroke !== t.stroke) {
+      result[t.tag] = { fill, stroke };
+    }
+  });
+  const changed = Object.keys(result).length;
+  if (!changed) {
+    window.piclawWidget.submit({ text: 'No colour changes — keeping current palette.' });
+  } else {
+    const lines = Object.entries(result).map(([tag, c]) => `${tag}: fill=${c.fill} stroke=${c.stroke}`);
+    window.piclawWidget.submit({ text: 'Updated colours:\n' + lines.join('\n') });
+  }
+}
+</script>
+</body>
+</html>

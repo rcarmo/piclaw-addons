@@ -159,6 +159,26 @@
       "contributors": []
     },
     {
+      "slug": "diagram-tools",
+      "name": "@rcarmo/piclaw-addon-diagram-tools",
+      "version": "0.1.0",
+      "type": "skill",
+      "description": "Architecture diagram workflow — JSON graph definitions, SVG renderer, colour picker widget",
+      "path": "addons/diagram-tools",
+      "homepage": "https://rcarmo.github.io/piclaw-addons/addons/diagram-tools/",
+      "tags": [
+        "architecture",
+        "diagrams",
+        "portfolio",
+        "svg"
+      ],
+      "skills": [],
+      "install": {
+        "kind": "tarball",
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-diagram-tools-0.1.0.tgz"
+      }
+    },
+    {
       "slug": "drawio-editor",
       "name": "@rcarmo/piclaw-addon-drawio-editor",
       "version": "0.1.0",

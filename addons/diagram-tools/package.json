@@ -1,0 +1,34 @@
+{
+  "name": "@rcarmo/piclaw-addon-diagram-tools",
+  "version": "0.1.0",
+  "description": "Architecture diagram workflow — JSON graph definitions, SVG renderer, colour picker widget",
+  "type": "module",
+  "piclaw": {
+    "type": "skill",
+    "compatibleVersions": ">=1.8.0",
+    "tags": [
+      "diagrams",
+      "svg",
+      "portfolio",
+      "architecture"
+    ],
+    "skills": [
+      "skills/diagram-workflow",
+      "skills/diagram-colour-picker"
+    ]
+  },
+  "license": "MIT",
+  "keywords": [
+    "pi-package",
+    "piclaw",
+    "piclaw-addon",
+    "diagrams",
+    "svg"
+  ],
+  "pi": {
+    "skills": [
+      "skills"
+    ]
+  },
+  "homepage": "https://rcarmo.github.io/piclaw-addons/addons/diagram-tools/"
+}
