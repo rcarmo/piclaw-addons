@@ -11,7 +11,10 @@
   "type": "module",
   "scripts": {
     "sync:catalog": "bun scripts/sync-catalog.ts --write",
-    "check:catalog": "bun scripts/sync-catalog.ts --check"
+    "check:catalog": "bun scripts/sync-catalog.ts --check",
+    "addon:e2e": "cd tests/addon-e2e && bun run test -- --project=desktop-chrome",
+    "addon:e2e:all": "cd tests/addon-e2e && PICLAW_ADDON=all bun run test -- --project=desktop-chrome",
+    "addon:e2e:report": "cd tests/addon-e2e && bun run report"
   },
   "homepage": "https://github.com/rcarmo/piclaw-addons",
   "bugs": {

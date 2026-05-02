@@ -1,3 +1,7 @@
 node_modules/
 docs/
-node_modules/
+tests/addon-e2e/.generated/
+tests/addon-e2e/reports/
+tests/addon-e2e/test-results/
+addons/*/tests/reports/*
+!addons/*/tests/reports/.gitignore

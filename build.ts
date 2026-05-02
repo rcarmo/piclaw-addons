@@ -200,6 +200,38 @@ function copyAddonReadmeAssets(addon: Addon, readme: string, outDir: string): vo
   }
 }
 
+function addonUxReportPaths(addon: Addon): { pdf: string; html: string; results: string } | null {
+  const reportsDir = join(ROOT, addon.path, 'tests', 'reports');
+  const pdf = join(reportsDir, `${addon.slug}-ux-report.pdf`);
+  const html = join(reportsDir, `${addon.slug}-ux-report.html`);
+  const results = join(reportsDir, 'results.json');
+  if (!existsSync(pdf) && !existsSync(html)) return null;
+  return { pdf, html, results };
+}
+
+function copyAddonUxReports(addon: Addon, outDir: string): boolean {
+  const reports = addonUxReportPaths(addon);
+  if (!reports) return false;
+  const destDir = join(outDir, 'tests');
+  mkdirSync(destDir, { recursive: true });
+  for (const [src, name] of [
+    [reports.pdf, `${addon.slug}-ux-report.pdf`],
+    [reports.html, `${addon.slug}-ux-report.html`],
+    [reports.results, 'results.json'],
+  ] as const) {
+    if (existsSync(src)) copyFileSync(src, join(destDir, name));
+  }
+  return true;
+}
+
+function uxReportSnippet(addon: Addon): string {
+  if (!addonUxReportPaths(addon)) return '';
+  return `<div class="install-block">
+    <svg class="install-icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M3.75 1.5A1.75 1.75 0 0 0 2 3.25v9.5c0 .966.784 1.75 1.75 1.75h8.5A1.75 1.75 0 0 0 14 12.75v-7L9.75 1.5h-6Zm5.5 1.25L12.75 6H9.25V2.75ZM5 8.25h6v1H5v-1Zm0 2.5h6v1H5v-1Z"/></svg>
+    <span class="install-text"><strong>UX test report:</strong> <a href="/piclaw-addons/addons/${esc(addon.slug)}/tests/${esc(addon.slug)}-ux-report.pdf">PDF</a> · <a href="/piclaw-addons/addons/${esc(addon.slug)}/tests/${esc(addon.slug)}-ux-report.html">HTML</a></span>
+  </div>`;
+}
+
 // ── CSS ───────────────────────────────────────────────────────────────────────
 const CLARITY_SCRIPT = `<script type="text/javascript">
 (function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);})(window, document, "clarity", "script", "wipi60y9s3");
@@ -473,6 +505,7 @@ for (const addon of addons) {
   const readme    = addonReadme(addon);
   const bodyHtml  = readme ? mdToHtml(readme) : `<p>${esc(addon.description)}</p>`;
   if (readme) copyAddonReadmeAssets(addon, readme, dir);
+  const hasUxReport = copyAddonUxReports(addon, dir);
   const skillList = addon.skills.length
     ? `<div class="detail-body"><h2>Skills</h2><ul>${addon.skills.map(s => `<li><code>${esc(s)}</code></li>`).join("")}</ul></div>`
     : "";
@@ -525,6 +558,7 @@ ${CLARITY_SCRIPT}
 
 <div class="detail-body">
   ${installSnippet(addon)}
+  ${hasUxReport ? uxReportSnippet(addon) : ''}
   ${bodyHtml}
 </div>
 ${skillList}

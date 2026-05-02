@@ -31,6 +31,87 @@ jobs:
       - uses: oven-sh/setup-bun@v1
         with:
           bun-version: latest
+      - name: Detect add-on UX tests
+        id: addon_tests
+        run: |
+          if find addons -path '*/tests/features/*.feature' -print -quit | grep -q .; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Checkout Piclaw runtime for add-on UX tests
+        if: steps.addon_tests.outputs.present == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: rcarmo/piclaw
+          path: .piclaw-runtime
+      - name: Install Piclaw runtime dependencies
+        if: steps.addon_tests.outputs.present == 'true'
+        run: bun install --frozen-lockfile
+        working-directory: .piclaw-runtime
+      - name: Build Piclaw web assets for add-on UX tests
+        if: steps.addon_tests.outputs.present == 'true'
+        run: bun run build:web
+        working-directory: .piclaw-runtime
+      - name: Install add-on UX test dependencies
+        if: steps.addon_tests.outputs.present == 'true'
+        run: bun install
+        working-directory: tests/addon-e2e
+      - name: Install Playwright browser for add-on UX tests
+        if: steps.addon_tests.outputs.present == 'true'
+        run: bunx playwright install chromium
+        working-directory: tests/addon-e2e
+      - name: Start Piclaw add-on UX test instance
+        if: steps.addon_tests.outputs.present == 'true'
+        run: |
+          export PICLAW_INTERNAL_SECRET=$(openssl rand -hex 16)
+          echo "PICLAW_INTERNAL_SECRET=$PICLAW_INTERNAL_SECRET" >> "$GITHUB_ENV"
+
+          export PICLAW_WORKSPACE=$(mktemp -d)
+          echo "PICLAW_WORKSPACE=$PICLAW_WORKSPACE" >> "$GITHUB_ENV"
+          mkdir -p "$PICLAW_WORKSPACE/.piclaw"
+          echo '{"sessionAutoRotate":true}' > "$PICLAW_WORKSPACE/.piclaw/config.json"
+
+          PICLAW_ADDON=all PICLAW_RUNTIME_ROOT="$GITHUB_WORKSPACE/.piclaw-runtime/runtime" bun run tests/addon-e2e/scripts/prepare-addon-test-instance.ts
+
+          timeout 90 bun run .piclaw-runtime/runtime/src/index.ts > /tmp/piclaw-addon-e2e.log 2>&1 &
+          SERVER_PID=$!
+          echo "SERVER_PID=$SERVER_PID" >> "$GITHUB_ENV"
+
+          for i in $(seq 1 45); do
+            if curl -sf http://localhost:3000/ > /dev/null 2>&1; then
+              echo "Server ready after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Piclaw did not become ready" >&2
+          cat /tmp/piclaw-addon-e2e.log >&2 || true
+          exit 1
+      - name: Run add-on UX tests
+        if: steps.addon_tests.outputs.present == 'true'
+        run: PICLAW_ADDON=all bun run test -- --project=desktop-chrome
+        working-directory: tests/addon-e2e
+        env:
+          PICLAW_E2E_URL: http://localhost:3000
+          PICLAW_INTERNAL_SECRET: ${{ env.PICLAW_INTERNAL_SECRET }}
+      - name: Generate add-on UX PDF reports
+        if: always() && steps.addon_tests.outputs.present == 'true'
+        run: bun run report
+        working-directory: tests/addon-e2e
+      - name: Upload add-on UX reports
+        if: always() && steps.addon_tests.outputs.present == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: addon-ux-reports
+          path: |
+            addons/*/tests/reports/*-ux-report.pdf
+            addons/*/tests/reports/*-ux-report.html
+            addons/*/tests/reports/results.json
+          retention-days: 14
+      - name: Stop Piclaw add-on UX test instance
+        if: always() && steps.addon_tests.outputs.present == 'true'
+        run: kill $SERVER_PID 2>/dev/null || true
       - name: Build site and package tarballs
         run: bun run build.ts
         env:

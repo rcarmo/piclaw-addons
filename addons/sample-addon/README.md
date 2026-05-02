@@ -87,6 +87,11 @@ Greeting: Hello from sample addon!
 Secret configured: yes
 ```
 
+### 6. UX test fixture
+
+This add-on includes `tests/features/settings.feature` plus Playwright step definitions under `tests/steps/`.
+The repository add-on E2E harness turns those Gherkin scenarios into runnable Playwright tests and, in CI, publishes a PDF/HTML report with the package and add-on page.
+
 ## Storage model
 
 | What | Where |
@@ -104,6 +109,7 @@ addons/sample-addon/
 ├── index.ts              # Extension entry: direct config API, KV config, keychain secret, test tool
 ├── web/index.ts          # Settings pane: checkbox, text, password, keychain save
 ├── compat/extension-kv.ts # KV store compat shim (copy to your addon)
+├── tests/                # Gherkin UX tests and Playwright step definitions
 └── README.md             # This file
 ```
 

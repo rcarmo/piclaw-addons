@@ -1,0 +1,16 @@
+{
+  "name": "piclaw-addon-e2e",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "discover": "bun run scripts/discover-addons-with-tests.ts",
+    "prepare:instance": "bun run scripts/prepare-addon-test-instance.ts",
+    "generate": "bun run scripts/generate-specs.ts",
+    "test": "bun run generate && playwright test",
+    "report": "bun run scripts/generate-report.ts",
+    "report:html": "playwright show-report reports/html"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.50.0"
+  }
+}
