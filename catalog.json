@@ -176,7 +176,8 @@
       "install": {
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-diagram-tools-0.1.0.tgz"
-      }
+      },
+      "updatedAt": "2026-05-02"
     },
     {
       "slug": "drawio-editor",
