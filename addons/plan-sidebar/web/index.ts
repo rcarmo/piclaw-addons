@@ -23,6 +23,8 @@ function installPlanSidebar() {
     loading: false,
     editorView: null,
     cm: null,
+    editorThemeCompartment: null,
+    themeObserver: null,
     fallbackTextarea: null,
     resizeStart: null,
   };
@@ -120,26 +122,21 @@ function installPlanSidebar() {
     try {
       const cm = await import("/editor-vendor/codemirror.js");
       state.cm = cm;
+      state.editorThemeCompartment = new cm.Compartment();
       const extensions = [
         cm.minimalSetup,
         cm.markdown(),
         cm.EditorView.lineWrapping,
+        state.editorThemeCompartment.of(buildEditorThemeExtensions(cm)),
         cm.EditorView.updateListener.of((update) => {
           if (update.docChanged) markDirty(true);
-        }),
-        cm.EditorView.theme({
-          "&": { height: "100%", background: "var(--bg-primary,#0b1020)", color: "var(--text-primary,#e5e7eb)", fontSize: "13px" },
-          ".cm-scroller": { fontFamily: "var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace)", lineHeight: "1.45" },
-          ".cm-content": { padding: "12px" },
-          ".cm-gutters": { display: "none" },
-          ".cm-activeLine": { backgroundColor: "rgba(96,165,250,.08)" },
-          ".cm-focused": { outline: "none" },
         }),
       ];
       state.editorView = new cm.EditorView({
         state: cm.EditorState.create({ doc: state.markdown || "", extensions }),
         parent: editorHost,
       });
+      ensureThemeObserver();
     } catch (error) {
       console.warn("[plan-sidebar] CodeMirror unavailable, falling back to textarea", error);
       const textarea = document.createElement("textarea");
@@ -155,6 +152,64 @@ function installPlanSidebar() {
   function focusEditor() {
     if (state.editorView) state.editorView.focus();
     else state.fallbackTextarea?.focus();
+  }
+
+  function buildEditorThemeExtensions(cm) {
+    const mode = getThemeMode();
+    const accent = readCssVar("--accent-color", "#1d9bf0");
+    const rgb = colorToRgb(accent) || "29, 155, 240";
+    const baseTheme = (mode === "light" ? cm.githubLight : cm.githubDark) || [];
+    return [
+      baseTheme,
+      cm.EditorView.theme({
+        "&": {
+          height: "100%",
+          background: "var(--bg-primary,#0b1020)",
+          color: "var(--text-primary,#e5e7eb)",
+          fontSize: "13px",
+        },
+        ".cm-scroller": {
+          fontFamily: "var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace)",
+          lineHeight: "1.45",
+          background: "var(--bg-primary,#0b1020)",
+        },
+        ".cm-content": {
+          padding: "12px",
+          caretColor: accent,
+        },
+        ".cm-gutters": { display: "none" },
+        ".cm-line": { color: "var(--text-primary,#e5e7eb)" },
+        ".cm-cursor, .cm-dropCursor": {
+          borderLeftColor: accent,
+          borderLeftWidth: "2px",
+        },
+        "&.cm-focused .cm-cursor": {
+          borderLeftColor: accent,
+          borderLeftWidth: "2px",
+        },
+        "&.cm-focused .cm-selectionBackground, .cm-selectionBackground": {
+          backgroundColor: `rgba(${rgb}, 0.22) !important`,
+        },
+        ".cm-activeLine": { backgroundColor: `rgba(${rgb}, 0.07)` },
+        ".cm-selectionMatch": { backgroundColor: `rgba(${rgb}, 0.16)` },
+        ".cm-focused": { outline: "none" },
+      }),
+    ];
+  }
+
+  function applyEditorTheme() {
+    if (!state.editorView || !state.cm || !state.editorThemeCompartment) return;
+    state.editorView.dispatch({
+      effects: state.editorThemeCompartment.reconfigure(buildEditorThemeExtensions(state.cm)),
+    });
+  }
+
+  function ensureThemeObserver() {
+    if (state.themeObserver || typeof MutationObserver === "undefined") return;
+    const observer = new MutationObserver(() => applyEditorTheme());
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "data-theme", "data-color-theme", "style"] });
+    if (document.body) observer.observe(document.body, { attributes: true, attributeFilter: ["class", "data-theme"] });
+    state.themeObserver = observer;
   }
 
   async function apiJson(url, options) {
@@ -211,6 +266,19 @@ function installPlanSidebar() {
     }
   }
 
+  function buildPlanSubmissionPrompt(markdown) {
+    return [
+      "The text below is the current Plan sidebar checklist for this session.",
+      "It is editable shared state, not a static user note: you can modify it and must keep it current as work proceeds.",
+      "Use the `plan` tool with `action=get` to read it and `action=set` to update it whenever you add, remove, reorder, complete, or revise tasks.",
+      "Treat checked items as completed, unchecked items as pending, and save a revised checklist after meaningful progress or plan changes.",
+      "",
+      "```markdown",
+      markdown,
+      "```",
+    ].join("\n");
+  }
+
   async function submitToModel() {
     const plan = await savePlan();
     const markdown = plan.markdown || "";
@@ -221,15 +289,7 @@ function installPlanSidebar() {
     state.loading = true;
     renderChrome();
     try {
-      const content = [
-        "Use this updated Plan sidebar checklist for the current session.",
-        "",
-        "The `plan` tool is available now: use `plan` with `action=get` to read the current checklist and `action=set` to update it after planning or progress changes.",
-        "",
-        "```markdown",
-        markdown,
-        "```",
-      ].join("\n");
+      const content = buildPlanSubmissionPrompt(markdown);
       await apiJson(`/agent/default/message?chat_jid=${encodeURIComponent(state.chatJid)}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -309,6 +369,35 @@ function formatTime(value) {
   catch { return String(value); }
 }
 
+function getThemeMode() {
+  const root = document.documentElement;
+  const body = document.body;
+  const explicit = root?.getAttribute?.("data-theme")?.toLowerCase?.() || body?.getAttribute?.("data-theme")?.toLowerCase?.() || "";
+  if (explicit === "light" || explicit === "dark") return explicit;
+  if (root?.classList?.contains("light") || body?.classList?.contains("light")) return "light";
+  if (root?.classList?.contains("dark") || body?.classList?.contains("dark")) return "dark";
+  return globalThis.matchMedia?.("(prefers-color-scheme: light)")?.matches ? "light" : "dark";
+}
+
+function readCssVar(name, fallback) {
+  try {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function colorToRgb(value) {
+  const text = String(value || "").trim();
+  const hex = text.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i)?.[1];
+  if (hex) {
+    const full = hex.length === 3 ? hex.split("").map((ch) => ch + ch).join("") : hex;
+    return `${parseInt(full.slice(0, 2), 16)}, ${parseInt(full.slice(2, 4), 16)}, ${parseInt(full.slice(4, 6), 16)}`;
+  }
+  const rgb = text.match(/^rgba?\((\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
+  return rgb ? `${rgb[1]}, ${rgb[2]}, ${rgb[3]}` : null;
+}
+
 function injectStyles() {
   if (document.getElementById("plan-sidebar-styles")) return;
   const style = document.createElement("style");
@@ -378,6 +467,7 @@ function injectStyles() {
       box-sizing: border-box;
       background: var(--bg-primary,#0b1020);
       color: var(--text-primary,#e5e7eb);
+      caret-color: var(--accent-color,#1d9bf0);
       font: 13px/1.45 var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
     }
     .plan-sidebar-footer {

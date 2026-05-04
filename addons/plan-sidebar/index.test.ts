@@ -49,6 +49,9 @@ test("saved plan is injected into the next model turn", async () => {
   const result = await beforeAgentStart({ systemPrompt: "base" }, ctx);
 
   expect(result.systemPrompt).toContain("## Plan Sidebar");
+  expect(result.systemPrompt).toContain("editable shared state");
+  expect(result.systemPrompt).toContain("must keep it current");
   expect(result.systemPrompt).toContain("`plan` tool");
+  expect(result.systemPrompt).toContain("action=set");
   expect(result.systemPrompt).toContain("- [ ] next step");
 });

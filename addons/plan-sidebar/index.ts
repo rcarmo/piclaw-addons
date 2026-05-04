@@ -136,7 +136,9 @@ export function buildPlanSystemPrompt(plan: SessionPlan): string {
   return [
     "## Plan Sidebar",
     `The current session has a Plan sidebar checklist for ${plan.chat_jid}.`,
-    "Use the `plan` tool with `action=get` to inspect it and `action=set` to update it whenever planning or progress changes.",
+    "This checklist is editable shared state, not static context: you can modify it and must keep it current as work proceeds.",
+    "Use the `plan` tool with `action=get` to inspect it and `action=set` to save a revised checklist whenever you add, remove, reorder, complete, or revise tasks.",
+    "Treat checked items as completed, unchecked items as pending, and update the plan after meaningful progress or plan changes.",
     "",
     "Current plan:",
     "```markdown",
@@ -162,8 +164,8 @@ export default function planSidebarAddon(pi: ExtensionAPI): void {
   pi.registerTool({
     name: "plan",
     label: "plan",
-    description: "Get or set the current session's Markdown checklist plan shown in the right-side Plan sidebar.",
-    promptSnippet: "plan: use action=get to inspect the current session checklist, action=set to update it after planning or progress changes.",
+    description: "Get or set the current session's editable Markdown checklist plan shown in the right-side Plan sidebar. Keep it current as tasks change or complete.",
+    promptSnippet: "plan: editable session checklist. Use action=get to inspect it and action=set to save revisions after adding, removing, reordering, completing, or changing tasks.",
     parameters: PlanToolSchema,
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const chatJid = normalizeChatJid(params.chat_jid || resolveActiveChatJid(ctx));
