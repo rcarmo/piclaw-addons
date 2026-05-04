@@ -130,11 +130,35 @@ const PlanToolSchema = Type.Object({
   chat_jid: Type.Optional(Type.String({ description: "Optional explicit chat/session JID. Defaults to the active session." })),
 });
 
+export function buildPlanSystemPrompt(plan: SessionPlan): string {
+  const markdown = normalizePlanMarkdown(plan.markdown).trim();
+  if (!markdown) return "";
+  return [
+    "## Plan Sidebar",
+    `The current session has a Plan sidebar checklist for ${plan.chat_jid}.`,
+    "Use the `plan` tool with `action=get` to inspect it and `action=set` to update it whenever planning or progress changes.",
+    "",
+    "Current plan:",
+    "```markdown",
+    markdown,
+    "```",
+  ].join("\n");
+}
+
 export function resetPlanSidebarAddonForTests(): void {
   kvStore = null;
 }
 
 export default function planSidebarAddon(pi: ExtensionAPI): void {
+  pi.on("before_agent_start", async (event, ctx) => {
+    const chatJid = resolveActiveChatJid(ctx);
+    const plan = loadSessionPlan(chatJid);
+    if (!plan.updated_at && plan.markdown === DEFAULT_PLAN) return {};
+    const prompt = buildPlanSystemPrompt(plan);
+    if (!prompt) return {};
+    return { systemPrompt: `${event.systemPrompt}\n\n${prompt}` };
+  });
+
   pi.registerTool({
     name: "plan",
     label: "plan",

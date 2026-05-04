@@ -38,11 +38,8 @@ function installPlanSidebar() {
     <aside class="plan-sidebar-panel" aria-label="Session plan">
       <div class="plan-sidebar-resizer" title="Resize plan sidebar"></div>
       <header class="plan-sidebar-header">
-        <div>
-          <div class="plan-sidebar-title">Plan</div>
-          <div class="plan-sidebar-subtitle"></div>
-        </div>
-        <button class="plan-sidebar-close" type="button" aria-label="Hide plan">×</button>
+        <div class="plan-sidebar-title">Plan</div>
+        <div class="plan-sidebar-subtitle"></div>
       </header>
       <div class="plan-sidebar-editor" role="region" aria-label="Markdown checklist editor"></div>
       <footer class="plan-sidebar-footer">
@@ -59,7 +56,6 @@ function installPlanSidebar() {
 
   const toggle = root.querySelector(".plan-sidebar-toggle");
   const panel = root.querySelector(".plan-sidebar-panel");
-  const close = root.querySelector(".plan-sidebar-close");
   const subtitle = root.querySelector(".plan-sidebar-subtitle");
   const editorHost = root.querySelector(".plan-sidebar-editor");
   const status = root.querySelector(".plan-sidebar-status");
@@ -136,7 +132,7 @@ function installPlanSidebar() {
           ".cm-scroller": { fontFamily: "var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace)", lineHeight: "1.45" },
           ".cm-content": { padding: "12px" },
           ".cm-gutters": { display: "none" },
-          ".cm-activeLine": { backgroundColor: "color-mix(in srgb, var(--accent-color,#2563eb) 8%, transparent)" },
+          ".cm-activeLine": { backgroundColor: "rgba(96,165,250,.08)" },
           ".cm-focused": { outline: "none" },
         }),
       ];
@@ -226,7 +222,9 @@ function installPlanSidebar() {
     renderChrome();
     try {
       const content = [
-        "Use this updated plan/sidebar checklist for the current session. Continue from it and update the plan tool if your next work changes it.",
+        "Use this updated Plan sidebar checklist for the current session.",
+        "",
+        "The `plan` tool is available now: use `plan` with `action=get` to read the current checklist and `action=set` to update it after planning or progress changes.",
         "",
         "```markdown",
         markdown,
@@ -256,7 +254,6 @@ function installPlanSidebar() {
   }
 
   toggle.addEventListener("click", () => setOpen(!state.open));
-  close.addEventListener("click", () => setOpen(false));
   refreshButton.addEventListener("click", () => loadPlan());
   saveButton.addEventListener("click", () => savePlan().catch(() => undefined));
   submitButton.addEventListener("click", () => submitToModel().catch(() => undefined));
@@ -318,27 +315,29 @@ function injectStyles() {
   style.id = "plan-sidebar-styles";
   style.textContent = `
     .plan-sidebar-toggle {
+      display: flex;
       position: fixed;
       right: 0;
-      top: 42%;
+      top: 50%;
+      transform: translateY(-50%);
       z-index: 120;
-      width: 28px;
-      height: 72px;
+      background: var(--bg-secondary,#111827);
       border: 1px solid var(--border-color, rgba(148,163,184,.35));
       border-right: 0;
-      border-radius: 12px 0 0 12px;
-      background: color-mix(in srgb, var(--bg-secondary,#111827) 92%, transparent);
       color: var(--text-secondary,#cbd5e1);
-      box-shadow: 0 10px 30px rgba(0,0,0,.22);
+      padding: 0;
+      width: var(--workspace-tab-width, 20px);
+      height: 52px;
+      border-radius: var(--radius-md, 8px) 0 0 var(--radius-md, 8px);
+      box-shadow: var(--shadow-sm, 0 1px 3px rgba(0,0,0,.18));
       cursor: pointer;
-      display: flex;
       align-items: center;
       justify-content: center;
-      transition: right .18s ease, color .15s ease, background .15s ease;
+      transition: right var(--ui-transition-fast, .18s), background-color var(--ui-transition-fast, .18s), color var(--ui-transition-fast, .18s), border-color var(--ui-transition-fast, .18s), box-shadow var(--ui-transition-fast, .18s);
     }
-    .plan-sidebar-toggle:hover { color: var(--text-primary,#f8fafc); background: var(--bg-secondary,#111827); }
-    .plan-sidebar-toggle svg { width: 16px; height: 16px; transition: transform .18s ease; }
-    .plan-sidebar-root.open .plan-sidebar-toggle { right: var(--plan-sidebar-width, 380px); }
+    .plan-sidebar-toggle:hover { color: var(--text-primary,#f8fafc); border-color: var(--accent-color,#2563eb); }
+    .plan-sidebar-toggle svg { width: 12px; height: 12px; flex-shrink: 0; transition: transform var(--ui-transition-fast, .18s); }
+    .plan-sidebar-root.open .plan-sidebar-toggle { right: calc(var(--plan-sidebar-width, 380px) - var(--workspace-tab-width, 20px)); }
     .plan-sidebar-root.open .plan-sidebar-toggle svg { transform: rotate(180deg); }
     .plan-sidebar-panel {
       --plan-sidebar-width: 380px;
@@ -350,7 +349,7 @@ function injectStyles() {
       width: 380px;
       transform: translateX(100%);
       transition: transform .18s ease;
-      background: color-mix(in srgb, var(--bg-primary,#0b1020) 96%, black);
+      background: var(--bg-primary,#0b1020);
       border-left: 1px solid var(--border-color, rgba(148,163,184,.28));
       box-shadow: -18px 0 42px rgba(0,0,0,.28);
       display: flex;
@@ -359,27 +358,15 @@ function injectStyles() {
     }
     .plan-sidebar-root.open .plan-sidebar-panel { transform: translateX(0); }
     .plan-sidebar-header {
-      min-height: 58px;
-      padding: 10px 12px;
+      min-height: 34px;
+      padding: 5px 10px;
       border-bottom: 1px solid var(--border-color, rgba(148,163,184,.25));
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      gap: 10px;
+      gap: 8px;
     }
-    .plan-sidebar-title { font-weight: 650; font-size: 14px; letter-spacing: .01em; }
-    .plan-sidebar-subtitle { margin-top: 2px; color: var(--text-secondary,#94a3b8); font-size: 11px; max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .plan-sidebar-close {
-      width: 28px;
-      height: 28px;
-      border: 1px solid var(--border-color, rgba(148,163,184,.25));
-      border-radius: 8px;
-      background: var(--bg-secondary,#111827);
-      color: var(--text-secondary,#cbd5e1);
-      cursor: pointer;
-      font-size: 20px;
-      line-height: 1;
-    }
+    .plan-sidebar-title { flex: 0 0 auto; font-weight: 650; font-size: 12px; letter-spacing: .01em; }
+    .plan-sidebar-subtitle { color: var(--text-secondary,#94a3b8); font-size: 10px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .plan-sidebar-editor { flex: 1; min-height: 0; overflow: hidden; }
     .plan-sidebar-textarea {
       width: 100%;
@@ -398,7 +385,7 @@ function injectStyles() {
       padding: 10px 12px;
       display: grid;
       gap: 8px;
-      background: color-mix(in srgb, var(--bg-secondary,#111827) 64%, transparent);
+      background: var(--bg-secondary,#111827);
     }
     .plan-sidebar-status { min-height: 16px; color: var(--text-secondary,#94a3b8); font-size: 11px; }
     .plan-sidebar-status[data-kind="ok"] { color: var(--accent-color,#60a5fa); }
@@ -419,7 +406,7 @@ function injectStyles() {
     .plan-sidebar-resizing, .plan-sidebar-resizing * { cursor: ew-resize !important; user-select: none !important; }
     @media (max-width: 760px) {
       .plan-sidebar-panel { width: min(92vw, 420px) !important; }
-      .plan-sidebar-root.open .plan-sidebar-toggle { right: min(92vw, 420px); }
+      .plan-sidebar-root.open .plan-sidebar-toggle { right: calc(min(92vw, 420px) - var(--workspace-tab-width, 20px)); }
     }
   `;
   document.head.appendChild(style);
