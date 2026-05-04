@@ -1,0 +1,1164 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Office Viewer</title>
+<style>
+  @font-face {
+    font-family: 'Inter';
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: swap;
+    src: url('inter-latin.woff2') format('woff2');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  }
+  @font-face {
+    font-family: 'Inter';
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: swap;
+    src: url('inter-latin-ext.woff2') format('woff2');
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%; height: 100%; overflow: hidden;
+    background: #1e1e1e; color: #e0e0e0;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+
+  #loading, #error {
+    display: flex; align-items: center; justify-content: center;
+    width: 100%; height: 100%;
+  }
+  #loading .spinner { font-size: 15px; color: #888; }
+  #error { display: none; }
+  #error .msg { text-align: center; max-width: 440px; padding: 32px; }
+  #error .icon { font-size: 48px; margin-bottom: 16px; }
+  #error .title { font-size: 15px; font-weight: 600; margin-bottom: 8px; }
+  #error .detail { font-size: 13px; color: #999; line-height: 1.6; }
+
+  #toolbar-trigger {
+    position: fixed; top: 0; right: 0; width: 260px; height: 28px; z-index: 99;
+  }
+  #toolbar {
+    position: fixed; top: 0; right: 0; z-index: 100;
+    display: none; gap: 4px; padding: 6px 8px;
+    background: rgba(30,30,30,0.94); border-bottom-left-radius: 6px;
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    opacity: 0; transition: opacity 0.15s;
+    flex-wrap: wrap; max-width: min(92vw, 920px);
+  }
+  #toolbar.visible { display: flex; }
+  #toolbar-trigger:hover + #toolbar,
+  #toolbar:hover,
+  #toolbar:focus-within { opacity: 1; }
+  #toolbar label {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 6px; border-radius: 4px;
+    font-size: 11px; color: #bbb; cursor: pointer; user-select: none;
+  }
+  #toolbar label:hover { background: rgba(255,255,255,0.08); color: #f1f1f1; }
+  #toolbar input[type="checkbox"] { width: 13px; height: 13px; accent-color: #1d9bf0; }
+  #toolbar button {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 28px; height: 24px; padding: 0 8px;
+    border: none; border-radius: 4px;
+    background: rgba(255,255,255,0.08); color: #d0d0d0;
+    font: 11px 'Inter', system-ui, sans-serif;
+    cursor: pointer; white-space: nowrap;
+  }
+  #toolbar button:hover { background: rgba(255,255,255,0.15); color: #fff; }
+  #toolbar .zoom-label {
+    min-width: 42px; text-align: center; line-height: 24px;
+    font-size: 11px; color: #aaa; user-select: none;
+  }
+  #toolbar .sep {
+    width: 1px; height: 18px; margin: 3px 2px;
+    background: rgba(255,255,255,0.12);
+  }
+  #toolbar input[type="search"] {
+    width: 160px; height: 24px; padding: 0 7px;
+    border: 1px solid rgba(255,255,255,0.15); border-radius: 4px;
+    background: rgba(255,255,255,0.08); color: #f0f0f0;
+    font: 11px 'Inter', system-ui, sans-serif;
+    outline: none;
+  }
+  #toolbar input[type="search"]::placeholder { color: #888; }
+
+  #meta-trigger {
+    position: fixed; left: 0; bottom: 0; width: 260px; height: 22px; z-index: 79;
+  }
+  #meta-bar {
+    position: fixed; left: 0; bottom: 0; z-index: 80;
+    max-width: min(70vw, 840px);
+    padding: 4px 10px;
+    border-top-right-radius: 6px;
+    background: rgba(30,30,30,0.88);
+    color: #909090; font-size: 10px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    opacity: 0.62; transition: opacity 0.15s;
+  }
+  #meta-trigger:hover + #meta-bar,
+  #meta-bar:hover { opacity: 1; }
+
+  #side-panel {
+    position: fixed; top: 40px; right: 8px; z-index: 110;
+    width: min(360px, calc(100vw - 16px)); max-height: calc(100vh - 80px);
+    display: none; flex-direction: column;
+    background: rgba(24,24,24,0.96); color: #e6e6e6;
+    border: 1px solid rgba(255,255,255,0.12); border-radius: 8px;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.35);
+    overflow: hidden;
+  }
+  #side-panel.open { display: flex; }
+  #side-panel-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.08);
+    font-size: 12px; font-weight: 600;
+  }
+  #side-panel-close {
+    background: transparent; color: #aaa; border: none; cursor: pointer;
+    font-size: 18px; line-height: 1; padding: 0 2px;
+  }
+  #side-panel-close:hover { color: #fff; }
+  #side-panel-body { padding: 8px; overflow: auto; }
+  .panel-item {
+    display: block; width: 100%; padding: 8px 10px; border: none; border-radius: 6px;
+    background: transparent; color: inherit; text-align: left; cursor: pointer;
+    font: 12px 'Inter', system-ui, sans-serif;
+  }
+  .panel-item:hover { background: rgba(255,255,255,0.08); }
+  .panel-item .title { display: block; font-weight: 600; color: #f0f0f0; }
+  .panel-item .detail { display: block; margin-top: 2px; color: #9d9d9d; font-size: 11px; }
+  .panel-empty { padding: 10px; color: #9d9d9d; font-size: 12px; }
+
+  .search-match { background: rgba(29,155,240,0.35); border-radius: 2px; }
+
+  #docx-container {
+    width: 100%; height: 100%; display: none; overflow: auto; background: #fff;
+  }
+
+  #xlsx-container {
+    width: 100%; height: 100%; display: none; flex-direction: column;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+  #xlsx-table-wrap { flex: 1; overflow: auto; }
+  #xlsx-table-wrap table { border-collapse: collapse; width: max-content; min-width: 100%; }
+  #xlsx-table-wrap td, #xlsx-table-wrap th {
+    padding: 3px 8px; font-size: 12px; white-space: nowrap;
+  }
+  #xlsx-table-wrap a { text-decoration: none; }
+  #xlsx-table-wrap a:hover { text-decoration: underline; }
+  #xlsx-tabs {
+    display: flex; gap: 0; flex-shrink: 0; padding: 0 8px; overflow-x: auto;
+  }
+  #xlsx-tabs button {
+    padding: 5px 14px; border: none; border-top: 2px solid transparent;
+    background: transparent; cursor: pointer; white-space: nowrap;
+    font-size: 11px;
+  }
+  #xlsx-tabs button.active { font-weight: 600; }
+  #xlsx-tabs button.hidden-sheet { opacity: 0.45; font-style: italic; }
+
+  #xlsx-container.light { background: #fff; color: #222; }
+  #xlsx-container.light #xlsx-table-wrap td,
+  #xlsx-container.light #xlsx-table-wrap th { border: 1px solid #ddd; }
+  #xlsx-container.light #xlsx-table-wrap tr:nth-child(even) td { background: #fafafa; }
+  #xlsx-container.light #xlsx-tabs { background: #f0f0f0; border-top: 1px solid #ccc; }
+  #xlsx-container.light #xlsx-tabs button { color: #555; }
+  #xlsx-container.light #xlsx-tabs button.active { color: #1d9bf0; border-top-color: #1d9bf0; }
+  #xlsx-container.light .freeze-row,
+  #xlsx-container.light .freeze-col { background: #f6f6f6; }
+  #xlsx-container.light .freeze-corner { background: #efefef; }
+
+  #xlsx-container.dark { background: #111; color: #e0e0e0; }
+  #xlsx-container.dark #xlsx-table-wrap td,
+  #xlsx-container.dark #xlsx-table-wrap th { border: 1px solid #333; }
+  #xlsx-container.dark #xlsx-table-wrap tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+  #xlsx-container.dark #xlsx-table-wrap a { color: #6ec3ff; }
+  #xlsx-container.dark #xlsx-tabs { background: #1a1a1a; border-top: 1px solid #333; }
+  #xlsx-container.dark #xlsx-tabs button { color: #9a9a9a; }
+  #xlsx-container.dark #xlsx-tabs button.active { color: #5cb3f0; border-top-color: #5cb3f0; }
+  #xlsx-container.dark .freeze-row,
+  #xlsx-container.dark .freeze-col { background: #181818; }
+  #xlsx-container.dark .freeze-corner { background: #202020; }
+
+  .freeze-row, .freeze-col { position: sticky; }
+  #xlsx-table-wrap td[title] { position: relative; }
+  #xlsx-table-wrap td[title]::after {
+    content: ''; position: absolute; top: 0; right: 0;
+    border-width: 0 6px 6px 0; border-style: solid;
+    border-color: transparent #f59e0b transparent transparent;
+  }
+
+  #pptx-container {
+    width: 100%; height: 100%; display: none; flex-direction: column; background: #2a2a2a;
+  }
+  #pptx-canvas-wrap {
+    flex: 1; display: flex; align-items: center; justify-content: center; overflow: hidden;
+    width: 100%;
+  }
+  #pptx-canvas { max-width: 100%; max-height: 100%; }
+  #pptx-nav {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    width: 100%; padding: 8px 16px; background: #1e1e1e;
+  }
+  #pptx-nav button {
+    padding: 5px 14px; border: none; border-radius: 4px;
+    background: #333; color: #e0e0e0; cursor: pointer; font-size: 12px;
+  }
+  #pptx-nav button:hover { background: #444; }
+  #pptx-nav button:disabled { opacity: 0.35; cursor: default; }
+  #pptx-nav .status { min-width: 40px; text-align: center; color: #999; font-size: 12px; }
+  #pptx-nav input[type="number"] {
+    width: 52px; padding: 4px; border-radius: 4px; border: 1px solid #555;
+    background: #333; color: #e0e0e0; text-align: center; font-size: 12px;
+  }
+</style>
+</head>
+<body>
+<div id="loading"><div class="spinner">Loading…</div></div>
+<div id="error"><div class="msg"><div class="icon">⚠️</div><div class="title" id="err-title">Error</div><div class="detail" id="err-detail"></div></div></div>
+
+<div id="toolbar-trigger"></div>
+<div id="toolbar"></div>
+<div id="meta-trigger"></div>
+<div id="meta-bar"></div>
+<div id="side-panel">
+  <div id="side-panel-header">
+    <span id="side-panel-title">Details</span>
+    <button id="side-panel-close" type="button" aria-label="Close">×</button>
+  </div>
+  <div id="side-panel-body"></div>
+</div>
+
+<div id="docx-container"></div>
+<div id="xlsx-container">
+  <div id="xlsx-table-wrap"></div>
+  <div id="xlsx-tabs"></div>
+</div>
+<div id="pptx-container">
+  <div id="pptx-canvas-wrap"><canvas id="pptx-canvas"></canvas></div>
+  <div id="pptx-nav">
+    <button id="pptx-prev" type="button">◀</button>
+    <input id="pptx-goto" type="number" min="1" value="1" title="Jump to slide">
+    <span class="status" id="pptx-status">–</span>
+    <button id="pptx-next" type="button">▶</button>
+  </div>
+</div>
+
+<script src="jszip.min.js"></script>
+<script src="docx-preview.min.js"></script>
+<script src="xlsx.full.min.js"></script>
+<script src="chart.umd.min.js"></script>
+<script src="PptxViewJS.min.js"></script>
+<script>
+(function() {
+  var params = new URLSearchParams(location.search);
+  var url = params.get('url');
+  var name = params.get('name') || 'document';
+  if (!url) return showError('No document URL', 'Pass ?url=... to load a document.');
+
+  var ext = (name.match(/\.[^.]+$/) || [''])[0].toLowerCase();
+  var toolbar = document.getElementById('toolbar');
+  var metaBar = document.getElementById('meta-bar');
+  var panel = document.getElementById('side-panel');
+  var panelTitle = document.getElementById('side-panel-title');
+  var panelBody = document.getElementById('side-panel-body');
+  var prefersDark = !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+
+  document.getElementById('side-panel-close').addEventListener('click', closePanel);
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closePanel();
+  });
+
+  fetch(url)
+    .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.arrayBuffer(); })
+    .then(function(buf) { render(ext, buf); })
+    .catch(function(err) { showError('Failed to load', err.message); });
+
+  function clearToolbar() {
+    toolbar.innerHTML = '';
+    toolbar.classList.remove('visible');
+  }
+  function showToolbar() {
+    toolbar.classList.add('visible');
+  }
+  function addSep() {
+    var sep = document.createElement('span');
+    sep.className = 'sep';
+    toolbar.appendChild(sep);
+  }
+  function setMeta(text) {
+    metaBar.textContent = text || '';
+  }
+  function addToggle(label, checked, onChange) {
+    var wrapper = document.createElement('label');
+    var input = document.createElement('input');
+    input.type = 'checkbox';
+    input.checked = !!checked;
+    input.addEventListener('change', function() { onChange(input.checked); });
+    wrapper.appendChild(input);
+    wrapper.appendChild(document.createTextNode(label));
+    toolbar.appendChild(wrapper);
+    return input;
+  }
+  function addButton(label, title, onClick) {
+    var button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = label;
+    if (title) button.title = title;
+    button.addEventListener('click', onClick);
+    toolbar.appendChild(button);
+    return button;
+  }
+  function addSearchBox(onSearch) {
+    var input = document.createElement('input');
+    input.type = 'search';
+    input.placeholder = 'Search…';
+    var timer = null;
+    input.addEventListener('input', function() {
+      clearTimeout(timer);
+      timer = setTimeout(function() { onSearch(input.value.trim()); }, 160);
+    });
+    toolbar.appendChild(input);
+    return input;
+  }
+  function addZoomControls(getScale, setScale, fitScale) {
+    var label = document.createElement('span');
+    label.className = 'zoom-label';
+    function clamp(v) { return Math.max(0.3, Math.min(4, v)); }
+    function refresh() { label.textContent = Math.round(getScale() * 100) + '%'; }
+    addButton('−', 'Zoom out', function() { setScale(clamp(getScale() / 1.15)); refresh(); });
+    toolbar.appendChild(label);
+    addButton('+', 'Zoom in', function() { setScale(clamp(getScale() * 1.15)); refresh(); });
+    addButton('Fit', 'Fit to pane', function() { setScale(clamp(fitScale())); refresh(); });
+    addButton('1:1', 'Reset zoom', function() { setScale(1); refresh(); });
+    refresh();
+    return refresh;
+  }
+  function downloadBlob(blob, filename) {
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function() {
+      URL.revokeObjectURL(a.href);
+      a.remove();
+    }, 200);
+  }
+  function openPanel(title, buildItems) {
+    panelTitle.textContent = title;
+    panelBody.innerHTML = '';
+    buildItems(panelBody);
+    panel.classList.add('open');
+  }
+  function closePanel() {
+    panel.classList.remove('open');
+  }
+  function addPanelRow(body, title, detail, onClick) {
+    var button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'panel-item';
+    var titleEl = document.createElement('span');
+    titleEl.className = 'title';
+    titleEl.textContent = title;
+    var detailEl = document.createElement('span');
+    detailEl.className = 'detail';
+    detailEl.textContent = detail || '';
+    button.appendChild(titleEl);
+    if (detail) button.appendChild(detailEl);
+    if (onClick) button.addEventListener('click', onClick);
+    body.appendChild(button);
+    return button;
+  }
+  function addPanelEmpty(body, text) {
+    var empty = document.createElement('div');
+    empty.className = 'panel-empty';
+    empty.textContent = text;
+    body.appendChild(empty);
+  }
+  function esc(text) {
+    return String(text || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function highlightText(root, query) {
+    clearHighlights(root);
+    if (!query) return 0;
+    var lowerQuery = query.toLowerCase();
+    var matches = 0;
+    var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode: function(node) {
+        if (!node || !node.parentNode) return NodeFilter.FILTER_REJECT;
+        var value = node.nodeValue || '';
+        if (!value.trim()) return NodeFilter.FILTER_REJECT;
+        var parentName = node.parentNode.nodeName;
+        if (parentName === 'SCRIPT' || parentName === 'STYLE') return NodeFilter.FILTER_REJECT;
+        return NodeFilter.FILTER_ACCEPT;
+      },
+    });
+    var nodes = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode);
+    nodes.forEach(function(node) {
+      var text = node.nodeValue || '';
+      var lower = text.toLowerCase();
+      var start = 0;
+      var index = lower.indexOf(lowerQuery);
+      if (index < 0) return;
+      var frag = document.createDocumentFragment();
+      while (index >= 0) {
+        if (index > start) frag.appendChild(document.createTextNode(text.slice(start, index)));
+        var mark = document.createElement('span');
+        mark.className = 'search-match';
+        mark.textContent = text.slice(index, index + query.length);
+        frag.appendChild(mark);
+        matches++;
+        start = index + query.length;
+        index = lower.indexOf(lowerQuery, start);
+      }
+      if (start < text.length) frag.appendChild(document.createTextNode(text.slice(start)));
+      node.parentNode.replaceChild(frag, node);
+    });
+    var first = root.querySelector('.search-match');
+    if (first) first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return matches;
+  }
+  function clearHighlights(root) {
+    root.querySelectorAll('.search-match').forEach(function(el) {
+      var parent = el.parentNode;
+      parent.replaceChild(document.createTextNode(el.textContent), el);
+      parent.normalize();
+    });
+  }
+
+  function parseXml(text) {
+    return new DOMParser().parseFromString(text, 'application/xml');
+  }
+  function getElementsByLocalName(root, localName) {
+    var out = [];
+    var all = root.getElementsByTagName('*');
+    for (var i = 0; i < all.length; i++) {
+      var node = all[i];
+      if ((node.localName || node.nodeName).toLowerCase() === localName.toLowerCase()) out.push(node);
+    }
+    return out;
+  }
+  function getFirstLocalText(root, names) {
+    for (var i = 0; i < names.length; i++) {
+      var nodes = getElementsByLocalName(root, names[i]);
+      if (nodes[0] && nodes[0].textContent) return nodes[0].textContent.trim();
+    }
+    return '';
+  }
+  function getAttrAny(el, names) {
+    if (!el || !el.attributes) return '';
+    for (var i = 0; i < names.length; i++) {
+      var name = names[i];
+      var direct = el.getAttribute(name);
+      if (direct != null) return direct;
+      for (var j = 0; j < el.attributes.length; j++) {
+        var attr = el.attributes[j];
+        if (attr.name === name || attr.localName === name || attr.name.endsWith(':' + name) || attr.localName === name.split(':').pop()) {
+          return attr.value;
+        }
+      }
+    }
+    return '';
+  }
+  function normalizeZipTarget(target) {
+    var parts = String(target || '').replace(/^\/+/, '').split('/');
+    var out = [];
+    parts.forEach(function(part) {
+      if (!part || part === '.') return;
+      if (part === '..') out.pop();
+      else out.push(part);
+    });
+    var result = out.join('/');
+    if (result && !/^xl\//.test(result)) result = 'xl/' + result;
+    return result;
+  }
+  async function extractPackageMetadata(buf) {
+    try {
+      var zip = await JSZip.loadAsync(buf);
+      var coreFile = zip.file('docProps/core.xml');
+      var appFile = zip.file('docProps/app.xml');
+      var core = coreFile ? parseXml(await coreFile.async('string')) : null;
+      var app = appFile ? parseXml(await appFile.async('string')) : null;
+      return {
+        title: core ? getFirstLocalText(core, ['title']) : '',
+        creator: core ? getFirstLocalText(core, ['creator']) : '',
+        description: core ? getFirstLocalText(core, ['description']) : '',
+        modified: core ? getFirstLocalText(core, ['modified']) : '',
+        pages: app ? getFirstLocalText(app, ['Pages']) : '',
+        words: app ? getFirstLocalText(app, ['Words']) : '',
+        slides: app ? getFirstLocalText(app, ['Slides']) : '',
+        sheets: app ? getFirstLocalText(app, ['Sheets']) : '',
+        application: app ? getFirstLocalText(app, ['Application']) : '',
+      };
+    } catch (_) {
+      return null;
+    }
+  }
+  async function extractSpreadsheetExtras(buf) {
+    var result = { freezeBySheet: {} };
+    try {
+      var zip = await JSZip.loadAsync(buf);
+      var workbookFile = zip.file('xl/workbook.xml');
+      var relsFile = zip.file('xl/_rels/workbook.xml.rels');
+      if (!workbookFile || !relsFile) return result;
+      var workbookDoc = parseXml(await workbookFile.async('string'));
+      var relsDoc = parseXml(await relsFile.async('string'));
+      var relMap = {};
+      getElementsByLocalName(relsDoc, 'Relationship').forEach(function(rel) {
+        relMap[getAttrAny(rel, ['Id'])] = normalizeZipTarget(getAttrAny(rel, ['Target']));
+      });
+      getElementsByLocalName(workbookDoc, 'sheet').forEach(function(sheet) {
+        var sheetName = getAttrAny(sheet, ['name']);
+        var relId = getAttrAny(sheet, ['r:id', 'id']);
+        var target = relMap[relId];
+        if (!sheetName || !target) return;
+        var sheetFile = zip.file(target);
+        if (!sheetFile) return;
+        result.freezeBySheet[sheetName] = { rows: 0, cols: 0 };
+      });
+      var sheetNames = Object.keys(result.freezeBySheet);
+      for (var i = 0; i < sheetNames.length; i++) {
+        var currentSheet = sheetNames[i];
+        var relId = null;
+        getElementsByLocalName(workbookDoc, 'sheet').some(function(sheet) {
+          if (getAttrAny(sheet, ['name']) === currentSheet) {
+            relId = getAttrAny(sheet, ['r:id', 'id']);
+            return true;
+          }
+          return false;
+        });
+        if (!relId || !relMap[relId]) continue;
+        var path = relMap[relId];
+        var xmlFile = zip.file(path);
+        if (!xmlFile) continue;
+        var sheetDoc = parseXml(await xmlFile.async('string'));
+        var pane = getElementsByLocalName(sheetDoc, 'pane')[0];
+        if (!pane) continue;
+        var state = getAttrAny(pane, ['state']);
+        if (state !== 'frozen' && state !== 'frozenSplit') continue;
+        result.freezeBySheet[currentSheet] = {
+          rows: parseInt(getAttrAny(pane, ['ySplit']) || '0', 10) || 0,
+          cols: parseInt(getAttrAny(pane, ['xSplit']) || '0', 10) || 0,
+        };
+      }
+      return result;
+    } catch (_) {
+      return result;
+    }
+  }
+  async function extractPptxSlideTexts(buf) {
+    try {
+      var zip = await JSZip.loadAsync(buf);
+      var paths = Object.keys(zip.files)
+        .filter(function(path) { return /^ppt\/slides\/slide\d+\.xml$/.test(path); })
+        .sort(function(a, b) {
+          var ai = parseInt(a.match(/slide(\d+)\.xml$/)[1], 10);
+          var bi = parseInt(b.match(/slide(\d+)\.xml$/)[1], 10);
+          return ai - bi;
+        });
+      var slides = [];
+      for (var i = 0; i < paths.length; i++) {
+        var xml = await zip.file(paths[i]).async('string');
+        var doc = parseXml(xml);
+        var text = getElementsByLocalName(doc, 't').map(function(node) {
+          return (node.textContent || '').trim();
+        }).filter(Boolean).join(' ');
+        slides.push(text);
+      }
+      return slides;
+    } catch (_) {
+      return [];
+    }
+  }
+  function buildMetaSummary(meta, extras) {
+    var parts = [];
+    extras = extras || [];
+    if (meta) {
+      if (meta.title) parts.push(meta.title);
+      if (meta.creator) parts.push('by ' + meta.creator);
+      if (meta.pages) parts.push(meta.pages + ' pages');
+      if (meta.words) parts.push(meta.words + ' words');
+      if (meta.slides) parts.push(meta.slides + ' slides');
+      if (meta.sheets) parts.push(meta.sheets + ' sheets');
+      if (meta.modified) {
+        var d = new Date(meta.modified);
+        if (!isNaN(d.getTime())) parts.push('modified ' + d.toLocaleDateString());
+      }
+    }
+    extras.forEach(function(extra) { if (extra) parts.push(extra); });
+    return parts.join(' · ');
+  }
+  function parseWorkbookRangeRef(ref) {
+    var match = String(ref || '').match(/^(?:'((?:[^']|'')+)'|([^!]+))!\$?([A-Z]+\$?\d+)(?::\$?([A-Z]+\$?\d+))?/);
+    if (!match) return null;
+    return {
+      sheet: (match[1] || match[2] || '').replace(/''/g, "'"),
+      start: (match[3] || '').replace(/\$/g, ''),
+      end: (match[4] || match[3] || '').replace(/\$/g, ''),
+    };
+  }
+
+  function render(ext, buf) {
+    document.getElementById('loading').style.display = 'none';
+    if (['.docx', '.doc', '.odt', '.rtf'].includes(ext)) return renderDocx(buf);
+    if (['.xlsx', '.xls', '.ods', '.csv'].includes(ext)) return renderXlsx(buf);
+    if (['.pptx', '.ppt', '.odp'].includes(ext)) return renderPptx(buf);
+    showError('Unsupported format', 'File type ' + ext + ' is not supported.');
+  }
+
+  function renderDocx(buf) {
+    var container = document.getElementById('docx-container');
+    container.style.display = 'block';
+    var options = {
+      className: 'docx',
+      inWrapper: true,
+      ignoreWidth: false,
+      ignoreHeight: false,
+      ignoreFonts: false,
+      breakPages: true,
+      ignoreLastRenderedPageBreak: true,
+      experimental: true,
+      renderHeaders: true,
+      renderFooters: true,
+      renderFootnotes: true,
+      renderEndnotes: true,
+      renderChanges: false,
+      renderComments: false,
+      renderAltChunks: true,
+    };
+    var scale = 1;
+    var firstRender = true;
+
+    function setScale(next) {
+      scale = Math.max(0.3, Math.min(4, Number(next) || 1));
+      container.style.zoom = String(scale);
+    }
+    function fitScale() {
+      var content = container.querySelector('.docx-wrapper') || container.firstElementChild;
+      if (!content) return scale || 1;
+      var contentWidth = content.scrollWidth || content.getBoundingClientRect().width || 1;
+      return Math.max(320, container.getBoundingClientRect().width - 24) / contentWidth;
+    }
+    function rerender() {
+      container.innerHTML = '';
+      docx.renderAsync(buf, container, null, options)
+        .then(function() {
+          setScale(firstRender ? fitScale() : scale);
+          firstRender = false;
+          if (refreshZoomLabel) refreshZoomLabel();
+        })
+        .catch(function(err) {
+          showError('DOCX render failed', err && err.message ? err.message : String(err));
+        });
+    }
+
+    extractPackageMetadata(buf).then(function(meta) {
+      setMeta(buildMetaSummary(meta));
+    });
+
+    clearToolbar();
+    var refreshZoomLabel = addZoomControls(function() { return scale; }, setScale, fitScale);
+    addSep();
+    addToggle('Track changes', false, function(on) { options.renderChanges = on; rerender(); });
+    addToggle('Comments', false, function(on) { options.renderComments = on; rerender(); });
+    addToggle('Continuous', false, function(on) { options.breakPages = !on; rerender(); });
+    addToggle('Fluid width', false, function(on) {
+      options.ignoreWidth = on;
+      options.ignoreHeight = on;
+      rerender();
+    });
+    addSep();
+    addSearchBox(function(query) { highlightText(container, query); });
+    showToolbar();
+    rerender();
+  }
+
+  function renderXlsx(buf) {
+    var container = document.getElementById('xlsx-container');
+    var tableWrap = document.getElementById('xlsx-table-wrap');
+    var tabs = document.getElementById('xlsx-tabs');
+    container.style.display = 'flex';
+
+    var workbook;
+    try {
+      workbook = XLSX.read(buf, {
+        type: 'array',
+        cellFormula: true,
+        cellNF: true,
+        cellStyles: true,
+        cellDates: true,
+      });
+    } catch (err) {
+      return showError('Spreadsheet parse failed', err && err.message ? err.message : String(err));
+    }
+
+    var namedRanges = ((workbook.Workbook && workbook.Workbook.Names) || []).filter(function(name) {
+      return name && name.Name && name.Ref;
+    });
+    var spreadsheetExtras = { freezeBySheet: {} };
+    var baseMetaText = '';
+    var darkMode = prefersDark;
+    var showComments = false;
+    var showFormulae = false;
+    var scale = 1;
+    var firstRender = true;
+    var baseWidth = 1;
+    var baseHeight = 1;
+    var activeSheet = workbook.SheetNames[0];
+
+    function applyTheme() {
+      container.className = darkMode ? 'dark' : 'light';
+    }
+    function getCellEl(addr) {
+      return document.getElementById('sjs-' + addr);
+    }
+    function setScale(next) {
+      scale = Math.max(0.3, Math.min(4, Number(next) || 1));
+      var stage = tableWrap.querySelector('.xlsx-scale-stage');
+      var table = tableWrap.querySelector('table');
+      if (stage && table) {
+        table.style.transform = 'scale(' + scale + ')';
+        table.style.transformOrigin = 'top left';
+        stage.style.width = Math.max(1, Math.ceil(baseWidth * scale)) + 'px';
+        stage.style.height = Math.max(1, Math.ceil(baseHeight * scale)) + 'px';
+      }
+    }
+    function fitScale() {
+      return Math.max(320, tableWrap.getBoundingClientRect().width - 24) / Math.max(1, baseWidth);
+    }
+    function applyColumnWidths(ws, range) {
+      var cols = ws['!cols'];
+      if (!cols || !range) return;
+      for (var c = range.s.c; c <= range.e.c; c++) {
+        var meta = cols[c];
+        if (!meta || !meta.wpx) continue;
+        var width = meta.wpx + 'px';
+        for (var r = range.s.r; r <= range.e.r; r++) {
+          var cell = getCellEl(XLSX.utils.encode_cell({ r: r, c: c }));
+          if (!cell) continue;
+          cell.style.minWidth = width;
+          cell.style.width = width;
+        }
+      }
+    }
+    function applyRowHeights(ws, range, table) {
+      var rows = ws['!rows'];
+      if (!rows || !range || !table) return;
+      var domRows = table.querySelectorAll('tr');
+      for (var r = range.s.r; r <= range.e.r; r++) {
+        var meta = rows[r];
+        if (!meta || !meta.hpx) continue;
+        var tr = domRows[r - range.s.r];
+        if (tr) tr.style.height = meta.hpx + 'px';
+      }
+    }
+    function applyMerges(ws) {
+      var merges = ws['!merges'];
+      if (!merges || !merges.length) return;
+      merges.forEach(function(merge) {
+        var origin = getCellEl(XLSX.utils.encode_cell({ r: merge.s.r, c: merge.s.c }));
+        if (!origin) return;
+        var rowSpan = merge.e.r - merge.s.r + 1;
+        var colSpan = merge.e.c - merge.s.c + 1;
+        if (rowSpan > 1) origin.setAttribute('rowspan', String(rowSpan));
+        if (colSpan > 1) origin.setAttribute('colspan', String(colSpan));
+        for (var r = merge.s.r; r <= merge.e.r; r++) {
+          for (var c = merge.s.c; c <= merge.e.c; c++) {
+            if (r === merge.s.r && c === merge.s.c) continue;
+            var cell = getCellEl(XLSX.utils.encode_cell({ r: r, c: c }));
+            if (cell) cell.style.display = 'none';
+          }
+        }
+      });
+    }
+    function applyCellDecorations(ws, range) {
+      if (!range) return;
+      for (var r = range.s.r; r <= range.e.r; r++) {
+        for (var c = range.s.c; c <= range.e.c; c++) {
+          var addr = XLSX.utils.encode_cell({ r: r, c: c });
+          var sheetCell = ws[addr];
+          var domCell = getCellEl(addr);
+          if (!sheetCell || !domCell) continue;
+          if (sheetCell.z && sheetCell.v !== undefined && sheetCell.v !== null) {
+            try {
+              var formatted = XLSX.utils.format_cell(sheetCell);
+              if (formatted) domCell.textContent = formatted;
+            } catch (_) {}
+          }
+          if (sheetCell.l && sheetCell.l.Target) {
+            var link = document.createElement('a');
+            link.href = sheetCell.l.Target;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            link.textContent = domCell.textContent || sheetCell.l.Target;
+            domCell.textContent = '';
+            domCell.appendChild(link);
+          }
+          if (showComments && sheetCell.c && sheetCell.c.length) {
+            domCell.setAttribute('title', sheetCell.c.map(function(comment) {
+              return (comment.a ? comment.a + ': ' : '') + (comment.t || '');
+            }).join('\n'));
+          }
+        }
+      }
+    }
+    function applyFreezePanes(table, freeze) {
+      if (!table || !freeze) return;
+      var rows = Array.prototype.slice.call(table.querySelectorAll('tr'));
+      var freezeRows = Math.max(0, Math.min(freeze.rows || 0, rows.length));
+      var freezeCols = Math.max(0, freeze.cols || 0);
+      if (!freezeRows && !freezeCols) return;
+
+      var leftOffsets = [];
+      if (rows[0]) {
+        var acc = 0;
+        for (var c = 0; c < freezeCols && c < rows[0].children.length; c++) {
+          leftOffsets[c] = acc;
+          acc += rows[0].children[c].offsetWidth || 0;
+        }
+      }
+
+      for (var r = 0; r < freezeRows; r++) {
+        var top = rows[r].offsetTop || 0;
+        Array.prototype.forEach.call(rows[r].children, function(cell, index) {
+          cell.classList.add('freeze-row');
+          cell.style.top = top + 'px';
+          cell.style.zIndex = index < freezeCols ? '4' : '3';
+          if (index < freezeCols) cell.classList.add('freeze-corner');
+        });
+      }
+      if (freezeCols > 0) {
+        rows.forEach(function(row, rowIndex) {
+          for (var c = 0; c < freezeCols && c < row.children.length; c++) {
+            var cell = row.children[c];
+            cell.classList.add('freeze-col');
+            cell.style.left = (leftOffsets[c] || 0) + 'px';
+            if (rowIndex >= freezeRows) cell.style.zIndex = '2';
+            if (rowIndex < freezeRows) cell.classList.add('freeze-corner');
+          }
+        });
+      }
+    }
+    function scrollToCell(addr) {
+      var cell = getCellEl(addr);
+      if (cell) cell.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+    }
+    function openNamedRangesPanel() {
+      openPanel('Named ranges', function(body) {
+        if (!namedRanges.length) return addPanelEmpty(body, 'No named ranges found.');
+        namedRanges.forEach(function(rangeInfo) {
+          addPanelRow(body, rangeInfo.Name, rangeInfo.Ref, function() {
+            var parsed = parseWorkbookRangeRef(rangeInfo.Ref);
+            if (!parsed) return;
+            if (parsed.sheet && parsed.sheet !== activeSheet) {
+              activeSheet = parsed.sheet;
+              renderSheet(activeSheet, function() {
+                scrollToCell(parsed.start);
+              });
+            } else {
+              scrollToCell(parsed.start);
+            }
+            closePanel();
+          });
+        });
+      });
+    }
+    function renderSheet(sheetName, afterRender) {
+      var ws = workbook.Sheets[sheetName];
+      if (!ws) return;
+      var range = ws['!ref'] ? XLSX.utils.decode_range(ws['!ref']) : null;
+      var html;
+      if (showFormulae) {
+        var formulas = XLSX.utils.sheet_to_formulae(ws);
+        html = '<table><tbody>' + formulas.map(function(formula) {
+          return '<tr><td>' + esc(formula) + '</td></tr>';
+        }).join('') + '</tbody></table>';
+      } else {
+        html = XLSX.utils.sheet_to_html(ws, { editable: false });
+      }
+      tableWrap.innerHTML = '<div class="xlsx-scale-stage">' + html + '</div>';
+      var table = tableWrap.querySelector('table');
+      if (table) {
+        table.style.borderCollapse = 'collapse';
+        table.style.width = 'max-content';
+        table.style.minWidth = '100%';
+        table.style.transformOrigin = 'top left';
+      }
+
+      if (!showFormulae && table && range) {
+        applyColumnWidths(ws, range);
+        applyRowHeights(ws, range, table);
+        applyMerges(ws);
+        applyCellDecorations(ws, range);
+        applyFreezePanes(table, spreadsheetExtras.freezeBySheet[sheetName]);
+      }
+
+      tabs.querySelectorAll('button').forEach(function(btn) {
+        btn.classList.toggle('active', btn.textContent === sheetName);
+      });
+
+      if (table) {
+        baseWidth = table.scrollWidth || table.getBoundingClientRect().width || 1;
+        baseHeight = table.scrollHeight || table.getBoundingClientRect().height || 1;
+      }
+      setScale(firstRender ? fitScale() : scale);
+      firstRender = false;
+      if (refreshZoomLabel) refreshZoomLabel();
+      if (afterRender) afterRender();
+    }
+
+    extractPackageMetadata(buf).then(function(meta) {
+      var extraBits = [workbook.SheetNames.length + ' sheets'];
+      if (namedRanges.length) extraBits.push(namedRanges.length + ' named ranges');
+      baseMetaText = buildMetaSummary(meta, extraBits);
+      setMeta(baseMetaText);
+    });
+    extractSpreadsheetExtras(buf).then(function(extras) {
+      spreadsheetExtras = extras || spreadsheetExtras;
+      renderSheet(activeSheet);
+    });
+
+    tabs.innerHTML = '';
+    workbook.SheetNames.forEach(function(sheetName, index) {
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = sheetName;
+      var hidden = false;
+      try {
+        hidden = !!(workbook.Workbook && workbook.Workbook.Sheets && workbook.Workbook.Sheets[index] && workbook.Workbook.Sheets[index].Hidden);
+      } catch (_) {}
+      if (hidden) button.classList.add('hidden-sheet');
+      button.addEventListener('click', function() {
+        activeSheet = sheetName;
+        renderSheet(activeSheet);
+      });
+      tabs.appendChild(button);
+    });
+
+    applyTheme();
+    clearToolbar();
+    var refreshZoomLabel = addZoomControls(function() { return scale; }, setScale, fitScale);
+    addSep();
+    addToggle('Comments', false, function(on) { showComments = on; renderSheet(activeSheet); });
+    addToggle('Formulae', false, function(on) { showFormulae = on; renderSheet(activeSheet); });
+    addToggle('Dark', darkMode, function(on) { darkMode = on; applyTheme(); renderSheet(activeSheet); });
+    addSep();
+    addButton('CSV ↓', 'Download current sheet as CSV', function() {
+      var ws = workbook.Sheets[activeSheet];
+      if (!ws) return;
+      downloadBlob(new Blob([XLSX.utils.sheet_to_csv(ws)], { type: 'text/csv' }), (activeSheet || 'sheet') + '.csv');
+    });
+    addButton('JSON ↓', 'Download current sheet as JSON', function() {
+      var ws = workbook.Sheets[activeSheet];
+      if (!ws) return;
+      downloadBlob(new Blob([JSON.stringify(XLSX.utils.sheet_to_json(ws), null, 2)], { type: 'application/json' }), (activeSheet || 'sheet') + '.json');
+    });
+    addButton('Names', 'Show named ranges', openNamedRangesPanel);
+    addSep();
+    addSearchBox(function(query) {
+      var count = highlightText(tableWrap, query);
+      setMeta(query ? (baseMetaText ? baseMetaText + ' · ' : '') + count + ' matches' : baseMetaText);
+    });
+    showToolbar();
+    renderSheet(activeSheet);
+  }
+
+  function renderPptx(buf) {
+    var container = document.getElementById('pptx-container');
+    var canvas = document.getElementById('pptx-canvas');
+    var canvasWrap = document.getElementById('pptx-canvas-wrap');
+    var status = document.getElementById('pptx-status');
+    var prev = document.getElementById('pptx-prev');
+    var next = document.getElementById('pptx-next');
+    var goTo = document.getElementById('pptx-goto');
+    container.style.display = 'flex';
+
+    var ViewerCtor = window.PptxViewJS && window.PptxViewJS.PPTXViewer;
+    if (!ViewerCtor) {
+      return showError('PPTX library not loaded', 'PptxViewJS failed to initialize.');
+    }
+
+    var zoomMultiplier = 1;
+    var sizeMode = 'fit'; // fit | width | height | actual
+    var baseMetaText = '';
+    var slideTexts = [];
+    var viewer = new ViewerCtor({ canvas: canvas, enableThumbnails: false });
+    var file = new File([
+      new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' })
+    ], name, { type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' });
+
+    function getCanvasSize() {
+      return {
+        width: canvas.width || canvas.clientWidth || 1,
+        height: canvas.height || canvas.clientHeight || 1,
+      };
+    }
+    function getModeBaseScale(mode) {
+      var size = getCanvasSize();
+      var availableWidth = Math.max(320, canvasWrap.clientWidth - 24);
+      var availableHeight = Math.max(200, canvasWrap.clientHeight - 24);
+      if (mode === 'width') return availableWidth / size.width;
+      if (mode === 'height') return availableHeight / size.height;
+      if (mode === 'actual') return 1;
+      return Math.min(availableWidth / size.width, availableHeight / size.height); // fit
+    }
+    function getEffectiveScale() {
+      var effective = getModeBaseScale(sizeMode) * zoomMultiplier;
+      return Math.max(0.2, Math.min(8, effective));
+    }
+    function applyScale() {
+      var size = getCanvasSize();
+      var effective = getEffectiveScale();
+      canvas.style.zoom = '';
+      canvas.style.width = Math.max(1, Math.round(size.width * effective)) + 'px';
+      canvas.style.height = Math.max(1, Math.round(size.height * effective)) + 'px';
+    }
+    function setScale(targetEffectiveScale) {
+      var base = Math.max(0.01, getModeBaseScale(sizeMode));
+      var nextEffective = Math.max(0.2, Math.min(8, Number(targetEffectiveScale) || 1));
+      zoomMultiplier = Math.max(0.1, Math.min(8, nextEffective / base));
+      applyScale();
+    }
+    function fitScale() {
+      sizeMode = 'fit';
+      zoomMultiplier = 1;
+      applyScale();
+      if (updateSizeModeButtons) updateSizeModeButtons();
+      return getEffectiveScale();
+    }
+    function updateNav() {
+      var current = viewer.getCurrentSlideIndex() + 1;
+      var total = viewer.getSlideCount();
+      status.textContent = '/ ' + total;
+      goTo.value = String(current);
+      goTo.max = String(total);
+      prev.disabled = current <= 1;
+      next.disabled = current >= total;
+    }
+    function redraw() {
+      viewer.render(null, { quality: 'high' });
+      applyScale();
+      updateNav();
+      if (refreshZoomLabel) refreshZoomLabel();
+    }
+    function goToSlide(index) {
+      var total = viewer.getSlideCount();
+      index = Math.max(0, Math.min(total - 1, index));
+      viewer.goToSlide(index).then(redraw);
+    }
+
+    extractPackageMetadata(buf).then(function(meta) {
+      baseMetaText = buildMetaSummary(meta);
+      setMeta(baseMetaText);
+    });
+    extractPptxSlideTexts(buf).then(function(texts) {
+      slideTexts = texts || [];
+      if (!baseMetaText && slideTexts.length) {
+        baseMetaText = slideTexts.length + ' slides';
+        setMeta(baseMetaText);
+      }
+    });
+
+    clearToolbar();
+    var refreshZoomLabel = addZoomControls(function() { return getEffectiveScale(); }, setScale, fitScale);
+    addSep();
+    var sizeButtons = {};
+    function markSizeModeButton(active) {
+      Object.keys(sizeButtons).forEach(function(mode) {
+        sizeButtons[mode].style.background = mode === active ? 'rgba(29,155,240,0.35)' : 'rgba(255,255,255,0.08)';
+        sizeButtons[mode].style.color = mode === active ? '#fff' : '#d0d0d0';
+      });
+    }
+    function setSizeMode(mode) {
+      sizeMode = mode;
+      zoomMultiplier = 1;
+      applyScale();
+      markSizeModeButton(mode);
+      if (refreshZoomLabel) refreshZoomLabel();
+    }
+    var updateSizeModeButtons = markSizeModeButton;
+    sizeButtons.width = addButton('Mode:W', 'Size mode: fit to viewport width', function() { setSizeMode('width'); });
+    sizeButtons.height = addButton('Mode:H', 'Size mode: fit to viewport height', function() { setSizeMode('height'); });
+    sizeButtons.actual = addButton('Mode:1:1', 'Size mode: actual slide size', function() { setSizeMode('actual'); });
+    markSizeModeButton(sizeMode);
+    addSep();
+    addSearchBox(function(query) {
+      if (!query) {
+        setMeta(baseMetaText);
+        return;
+      }
+      var lower = query.toLowerCase();
+      var matches = [];
+      slideTexts.forEach(function(text, index) {
+        if ((text || '').toLowerCase().indexOf(lower) >= 0) matches.push(index);
+      });
+      setMeta((baseMetaText ? baseMetaText + ' · ' : '') + matches.length + ' matching slides');
+      if (matches.length) goToSlide(matches[0]);
+    });
+    showToolbar();
+
+    viewer.loadFile(file).then(function() {
+      viewer.render(null, { quality: 'high' });
+      fitScale();
+      if (refreshZoomLabel) refreshZoomLabel();
+      updateNav();
+      if (!baseMetaText) {
+        baseMetaText = viewer.getSlideCount() + ' slides';
+        setMeta(baseMetaText);
+      }
+    }).catch(function(err) {
+      showError('PPTX render failed', err && err.message ? err.message : String(err));
+    });
+
+    prev.onclick = function() { goToSlide(viewer.getCurrentSlideIndex() - 1); };
+    next.onclick = function() { goToSlide(viewer.getCurrentSlideIndex() + 1); };
+    goTo.onchange = function() { goToSlide(parseInt(goTo.value, 10) - 1); };
+    goTo.onkeydown = function(e) {
+      if (e.key === 'Enter') goToSlide(parseInt(goTo.value, 10) - 1);
+    };
+    window.addEventListener('resize', function() {
+      applyScale();
+      if (refreshZoomLabel) refreshZoomLabel();
+    });
+    document.addEventListener('keydown', function(e) {
+      if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        goToSlide(viewer.getCurrentSlideIndex() - 1);
+      } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') {
+        e.preventDefault();
+        goToSlide(viewer.getCurrentSlideIndex() + 1);
+      } else if (e.key === 'Home') {
+        e.preventDefault();
+        goToSlide(0);
+      } else if (e.key === 'End') {
+        e.preventDefault();
+        goToSlide(viewer.getSlideCount() - 1);
+      }
+    }, { passive: false });
+  }
+
+  function showError(title, detail) {
+    document.getElementById('loading').style.display = 'none';
+    var error = document.getElementById('error');
+    error.style.display = 'flex';
+    document.getElementById('err-title').textContent = title;
+    document.getElementById('err-detail').textContent = detail || '';
+  }
+})();
+</script>
+</body>
+</html>

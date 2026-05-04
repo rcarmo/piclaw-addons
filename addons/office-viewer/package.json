@@ -1,0 +1,29 @@
+{
+  "name": "@rcarmo/piclaw-addon-office-viewer",
+  "version": "0.1.0",
+  "description": "Built-in Office document viewer (.docx, .xlsx, .pptx, .odt, .ods, .odp) for Piclaw",
+  "type": "module",
+  "main": "index.ts",
+  "piclaw": {
+    "type": "extension",
+    "compatibleVersions": ">=1.8.0",
+    "tags": [
+      "office",
+      "viewer",
+      "documents",
+      "docx",
+      "xlsx",
+      "pptx"
+    ]
+  },
+  "license": "MIT",
+  "keywords": [
+    "pi-package"
+  ],
+  "pi": {
+    "extensions": [
+      "index.ts"
+    ]
+  },
+  "homepage": "https://rcarmo.github.io/piclaw-addons/addons/office-viewer/"
+}
