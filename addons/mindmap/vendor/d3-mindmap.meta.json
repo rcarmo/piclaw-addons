@@ -1,0 +1,39 @@
+{
+  "manifest_id": "d3-mindmap",
+  "package_name": "d3",
+  "package_version": "7.9.0",
+  "package_license": "ISC",
+  "package_repository": "https://github.com/d3/d3.git",
+  "package_versions": {
+    "d3": "7.9.0"
+  },
+  "package_licenses": {
+    "d3": "ISC"
+  },
+  "package_repositories": {
+    "d3": "https://github.com/d3/d3.git"
+  },
+  "source_entry": "web/src/vendor/d3-mindmap-entry.ts",
+  "output_file": "web/static/js/vendor/d3-mindmap.min.js",
+  "output_files": [
+    {
+      "package_path": null,
+      "output_file": "web/static/js/vendor/d3-mindmap.min.js",
+      "sha256": "eecb69134e5dc6a264b2f45baf498ada70cf39bed0511d30032e9768b6a4d102",
+      "size_bytes": 286534
+    }
+  ],
+  "metadata_file": "web/static/js/vendor/d3-mindmap.meta.json",
+  "sha256": "eecb69134e5dc6a264b2f45baf498ada70cf39bed0511d30032e9768b6a4d102",
+  "size_bytes": 286534,
+  "build_command": [
+    "bun",
+    "build",
+    "web/src/vendor/d3-mindmap-entry.ts",
+    "--target=browser",
+    "--format=iife",
+    "--minify",
+    "--outfile",
+    "web/static/js/vendor/d3-mindmap.min.js"
+  ]
+}

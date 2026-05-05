@@ -1,0 +1,39 @@
+{
+  "manifest_id": "js-yaml",
+  "package_name": "js-yaml",
+  "package_version": "4.1.1",
+  "package_license": "MIT",
+  "package_repository": "nodeca/js-yaml",
+  "package_versions": {
+    "js-yaml": "4.1.1"
+  },
+  "package_licenses": {
+    "js-yaml": "MIT"
+  },
+  "package_repositories": {
+    "js-yaml": "nodeca/js-yaml"
+  },
+  "source_entry": "web/src/vendor/js-yaml-entry.ts",
+  "output_file": "web/static/js/vendor/js-yaml.min.js",
+  "output_files": [
+    {
+      "package_path": null,
+      "output_file": "web/static/js/vendor/js-yaml.min.js",
+      "sha256": "5809182048fecc5f2cc35602f2fd86651bb9b58754f47a2e1bb3c0c9e8bd7fa9",
+      "size_bytes": 40896
+    }
+  ],
+  "metadata_file": "web/static/js/vendor/js-yaml.meta.json",
+  "sha256": "5809182048fecc5f2cc35602f2fd86651bb9b58754f47a2e1bb3c0c9e8bd7fa9",
+  "size_bytes": 40896,
+  "build_command": [
+    "bun",
+    "build",
+    "web/src/vendor/js-yaml-entry.ts",
+    "--target=browser",
+    "--format=iife",
+    "--minify",
+    "--outfile",
+    "web/static/js/vendor/js-yaml.min.js"
+  ]
+}
