@@ -65,4 +65,66 @@ describe("proxmox client auth", () => {
       "Authorization: PVEAPIToken=root@pam!piclaw=f1630-uuid-token",
     ]));
   });
+
+  test("requestProxmoxApi times out hung curl executors", async () => {
+    (globalThis as { __piclawRuntimeInterop?: { getKeychainEntry?: (name: string) => Promise<unknown> } }).__piclawRuntimeInterop = {
+      getKeychainEntry: async (name: string) => ({
+        name,
+        type: "secret",
+        secret: "f1630-uuid-token",
+      }),
+    };
+
+    setProxmoxCurlExecutorForTests(async () => new Promise(() => {}));
+
+    await expect(requestProxmoxApi(
+      {
+        base_url: "https://borg.local:8006/api2/json",
+        username: "root@pam!piclaw",
+        api_token_keychain: "proxmox/piclaw-management-token",
+        allow_insecure_tls: true,
+      },
+      {
+        method: "GET",
+        path: "/version",
+        timeout_ms: 5,
+      },
+    )).rejects.toThrow("Proxmox request GET /version timed out after 1000ms");
+  });
+
+  test("requestProxmoxApi passes a hard timeout to the curl executor", async () => {
+    (globalThis as { __piclawRuntimeInterop?: { getKeychainEntry?: (name: string) => Promise<unknown> } }).__piclawRuntimeInterop = {
+      getKeychainEntry: async (name: string) => ({
+        name,
+        type: "secret",
+        secret: "f1630-uuid-token",
+      }),
+    };
+
+    let capturedTimeout = 0;
+    setProxmoxCurlExecutorForTests(async (_command, timeoutMs) => {
+      capturedTimeout = timeoutMs ?? 0;
+      return {
+        exitCode: 0,
+        stdout: '{"data":{"version":"9.1.7"}}\n__PICLAW_PROXMOX_STATUS__:200',
+        stderr: "",
+      };
+    });
+
+    await requestProxmoxApi(
+      {
+        base_url: "https://borg.local:8006/api2/json",
+        username: "root@pam!piclaw",
+        api_token_keychain: "proxmox/piclaw-management-token",
+        allow_insecure_tls: true,
+      },
+      {
+        method: "GET",
+        path: "/version",
+        timeout_ms: 12_345,
+      },
+    );
+
+    expect(capturedTimeout).toBe(13_345);
+  });
 });

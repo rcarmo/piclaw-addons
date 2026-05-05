@@ -228,7 +228,7 @@ interface CurlExecutionResult {
   stderr: string;
 }
 
-type CurlExecutor = (command: string[]) => Promise<CurlExecutionResult>;
+type CurlExecutor = (command: string[], timeoutMs?: number) => Promise<CurlExecutionResult>;
 
 const DEFAULT_STATUS_MARKER = "__PICLAW_PROXMOX_STATUS__:";
 export const DEFAULT_PROXMOX_POLL_MS = 2_000;
@@ -236,12 +236,14 @@ export const DEFAULT_PROXMOX_TIMEOUT_MS = 120_000;
 export const DEFAULT_PROXMOX_REQUEST_TIMEOUT_MS = 15_000;
 export const DEFAULT_PROXMOX_CONNECT_TIMEOUT_MS = 5_000;
 
-async function defaultCurlExecutor(command: string[]): Promise<CurlExecutionResult> {
+async function defaultCurlExecutor(command: string[], timeoutMs = DEFAULT_PROXMOX_REQUEST_TIMEOUT_MS + 1_000): Promise<CurlExecutionResult> {
   const proc = Bun.spawn(command, {
     cwd: process.cwd(),
     stdout: "pipe",
     stderr: "pipe",
     env: process.env,
+    timeout: Math.max(1_000, Math.trunc(timeoutMs)),
+    killSignal: "SIGKILL",
   });
   const [exitCode, stdout, stderr] = await Promise.all([
     proc.exited,
@@ -638,7 +640,7 @@ export async function requestProxmoxApi(
   let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
   try {
     const result = await Promise.race([
-      curlExecutor(command),
+      curlExecutor(command, timeoutMs + 1_000),
       new Promise<CurlExecutionResult>((_, reject) => {
         timeoutHandle = setTimeout(() => {
           reject(new Error(`Proxmox request ${method} ${path} timed out after ${timeoutMs}ms.`));

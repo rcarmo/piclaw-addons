@@ -67,6 +67,7 @@ export interface PortainerApiRequest {
   body?: unknown;
   body_mode?: "json" | "text";
   headers?: Record<string, string>;
+  timeout_ms?: number;
 }
 
 export interface PortainerApiResponse {
@@ -139,25 +140,40 @@ type RequestExecutor = (input: {
   headers: Record<string, string>;
   body?: string;
   allowInsecureTls: boolean;
+  timeoutMs: number;
 }) => Promise<RequestExecutionResult>;
 
-const defaultRequestExecutor: RequestExecutor = async ({ url, method, headers, body, allowInsecureTls }) => {
-  const response = await fetch(url, {
-    method,
-    headers,
-    ...(body !== undefined ? { body } : {}),
-    tls: {
-      rejectUnauthorized: !allowInsecureTls,
-    },
-  } as RequestInit & { tls: { rejectUnauthorized: boolean } });
-  const bodyBytes = new Uint8Array(await response.arrayBuffer());
+export const DEFAULT_PORTAINER_REQUEST_TIMEOUT_MS = 30_000;
 
-  return {
-    status: response.status,
-    statusText: response.statusText,
-    bodyText: new TextDecoder().decode(bodyBytes),
-    bodyBytes,
-  };
+function normalizeRequestTimeoutMs(value: unknown, fallback = DEFAULT_PORTAINER_REQUEST_TIMEOUT_MS): number {
+  const numeric = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(numeric) && numeric > 0 ? Math.max(1_000, Math.trunc(numeric)) : fallback;
+}
+
+const defaultRequestExecutor: RequestExecutor = async ({ url, method, headers, body, allowInsecureTls, timeoutMs }) => {
+  const controller = new AbortController();
+  const timeoutHandle = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, {
+      method,
+      headers,
+      signal: controller.signal,
+      ...(body !== undefined ? { body } : {}),
+      tls: {
+        rejectUnauthorized: !allowInsecureTls,
+      },
+    } as RequestInit & { tls: { rejectUnauthorized: boolean } });
+    const bodyBytes = new Uint8Array(await response.arrayBuffer());
+
+    return {
+      status: response.status,
+      statusText: response.statusText,
+      bodyText: new TextDecoder().decode(bodyBytes),
+      bodyBytes,
+    };
+  } finally {
+    clearTimeout(timeoutHandle);
+  }
 };
 
 let requestExecutor: RequestExecutor = defaultRequestExecutor;
@@ -580,6 +596,7 @@ export async function requestPortainerApi(
   const path = normalizeApiPath(request.path);
   const query = toSearchParams(request.query);
   const url = `${baseUrl}${path}${query.size ? `?${query.toString()}` : ""}`;
+  const timeoutMs = normalizeRequestTimeoutMs(request.timeout_ms);
 
   const headers: Record<string, string> = {
     "X-API-Key": auth.token,
@@ -598,13 +615,34 @@ export async function requestPortainerApi(
     }
   }
 
-  const result = await requestExecutor({
-    url,
-    method: request.method,
-    headers,
-    ...(bodyText !== undefined ? { body: bodyText } : {}),
-    allowInsecureTls: config.allow_insecure_tls,
-  });
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+  let result: RequestExecutionResult;
+  try {
+    result = await Promise.race([
+      requestExecutor({
+        url,
+        method: request.method,
+        headers,
+        ...(bodyText !== undefined ? { body: bodyText } : {}),
+        allowInsecureTls: config.allow_insecure_tls,
+        timeoutMs,
+      }),
+      new Promise<RequestExecutionResult>((_, reject) => {
+        timeoutHandle = setTimeout(() => {
+          reject(new Error(`Portainer API ${request.method} ${path} timed out after ${timeoutMs}ms.`));
+        }, timeoutMs);
+      }),
+    ]);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes("timed out after")) throw new Error(message);
+    if (/abort|aborted/i.test(message)) {
+      throw new Error(`Portainer API ${request.method} ${path} timed out after ${timeoutMs}ms.`);
+    }
+    throw new Error(`Portainer API ${request.method} ${path} failed before response: ${message}`);
+  } finally {
+    if (timeoutHandle) clearTimeout(timeoutHandle);
+  }
   const rawBodyBytes = result.bodyBytes ?? new TextEncoder().encode(result.bodyText);
 
   const body = parseResponseBody(result.bodyText);

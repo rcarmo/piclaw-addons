@@ -127,4 +127,60 @@ describe("portainer client auth", () => {
       "X-API-Key": "portainer-token-789",
     }));
   });
+
+  test("requestPortainerApi times out hung request executors", async () => {
+    (globalThis as { __piclawRuntimeInterop?: { getKeychainEntry?: (name: string) => Promise<unknown> } }).__piclawRuntimeInterop = {
+      getKeychainEntry: async (name: string) => ({
+        name,
+        type: "secret",
+        secret: "portainer-token-timeout",
+      }),
+    };
+
+    setPortainerRequestExecutorForTests(async () => new Promise(() => {}));
+
+    await expect(requestPortainerApi(
+      {
+        base_url: "https://relay.local:9443",
+        api_token_keychain: "portainer/relay",
+        allow_insecure_tls: true,
+      },
+      {
+        method: "GET",
+        path: "/api/status",
+        timeout_ms: 5,
+      },
+    )).rejects.toThrow("Portainer API GET /api/status timed out after 1000ms");
+  });
+
+  test("requestPortainerApi passes normalized timeouts to request executors", async () => {
+    (globalThis as { __piclawRuntimeInterop?: { getKeychainEntry?: (name: string) => Promise<unknown> } }).__piclawRuntimeInterop = {
+      getKeychainEntry: async (name: string) => ({
+        name,
+        type: "secret",
+        secret: "portainer-token-timeout",
+      }),
+    };
+
+    let capturedTimeout = 0;
+    setPortainerRequestExecutorForTests(async (input) => {
+      capturedTimeout = input.timeoutMs;
+      return { status: 200, statusText: "OK", bodyText: "{}" };
+    });
+
+    await requestPortainerApi(
+      {
+        base_url: "https://relay.local:9443",
+        api_token_keychain: "portainer/relay",
+        allow_insecure_tls: true,
+      },
+      {
+        method: "GET",
+        path: "/api/status",
+        timeout_ms: 12_345,
+      },
+    );
+
+    expect(capturedTimeout).toBe(12_345);
+  });
 });

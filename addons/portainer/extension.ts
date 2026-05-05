@@ -247,7 +247,7 @@ if (typeof registerAddonConfigApi === "function") {
   }, import.meta.dir);
 }
 
-async function kvRequest(chatJid: string, input: { method: string; path: string; query?: unknown; body?: unknown; body_mode?: string }): Promise<PortainerRequestResult> {
+async function kvRequest(chatJid: string, input: { method: string; path: string; query?: unknown; body?: unknown; body_mode?: string; headers?: Record<string, string>; timeout_ms?: number }): Promise<PortainerRequestResult> {
   const apiConfig = resolveApiConfig(chatJid);
   if (!apiConfig) throw new Error(`No usable Portainer config for ${chatJid}. Use action=set or fill in the Portainer addon settings.`);
   const response = await requestPortainerApi(apiConfig, {
@@ -255,6 +255,9 @@ async function kvRequest(chatJid: string, input: { method: string; path: string;
     path: input.path,
     query: input.query,
     body: input.body,
+    body_mode: input.body_mode as "json" | "text" | undefined,
+    headers: input.headers,
+    timeout_ms: input.timeout_ms,
   });
   return { status: response.status, method: input.method, path: input.path, body: response.body };
 }
@@ -1339,6 +1342,7 @@ export const portainerTool: ExtensionFactory = (pi: ExtensionAPI) => {
         ...(params.body !== undefined ? { body: params.body } : {}),
         ...(params.body_mode ? { body_mode: params.body_mode } : {}),
         ...(params.headers ? { headers: params.headers } : {}),
+        ...(typeof params.timeout_ms === "number" ? { timeout_ms: params.timeout_ms } : {}),
       });
 
       const presented = presentStructuredToolValue(
