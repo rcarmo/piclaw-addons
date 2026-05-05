@@ -13,6 +13,9 @@
     "typebox": "*",
     "sharp": "*"
   },
+  "peerDependencies": {
+    "@mariozechner/pi-coding-agent": "*"
+  },
   "license": "MIT",
   "keywords": ["pi-package"],
   "pi": {

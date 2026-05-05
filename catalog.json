@@ -286,7 +286,7 @@
     {
       "slug": "goal",
       "name": "@rcarmo/piclaw-addon-goal",
-      "version": "0.1.3",
+      "version": "0.1.4",
       "type": "extension",
       "description": "Session-scoped goal seeking loop with editable prompts, a settings pane, and /goal command support",
       "path": "addons/goal",
@@ -301,9 +301,30 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-goal-0.1.3.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-goal-0.1.4.tgz"
       },
       "updatedAt": "2026-05-02"
+    },
+    {
+      "slug": "image-processing",
+      "name": "@rcarmo/piclaw-addon-image-processing",
+      "version": "0.1.0",
+      "type": "extension",
+      "description": "Image manipulation tool (image_process) for Piclaw — resize, crop, convert, composite and more via sharp",
+      "path": "addons/image-processing",
+      "homepage": "https://rcarmo.github.io/piclaw-addons/addons/image-processing/",
+      "tags": [
+        "image",
+        "processing",
+        "sharp",
+        "tools"
+      ],
+      "skills": [],
+      "install": {
+        "kind": "tarball",
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-image-processing-0.1.0.tgz"
+      },
+      "updatedAt": "2026-05-05"
     },
     {
       "slug": "imap",
@@ -408,6 +429,29 @@
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-observability-0.1.5.tgz"
       },
       "updatedAt": "2026-04-30"
+    },
+    {
+      "slug": "office-tools",
+      "name": "@rcarmo/piclaw-addon-office-tools",
+      "version": "0.1.0",
+      "type": "extension",
+      "description": "Office document read/write tools for Piclaw (docx, xlsx, pptx, odt, md→pdf)",
+      "path": "addons/office-tools",
+      "homepage": "https://rcarmo.github.io/piclaw-addons/addons/office-tools/",
+      "tags": [
+        "documents",
+        "docx",
+        "office",
+        "pdf",
+        "pptx",
+        "xlsx"
+      ],
+      "skills": [],
+      "install": {
+        "kind": "tarball",
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-office-tools-0.1.0.tgz"
+      },
+      "updatedAt": "2026-05-05"
     },
     {
       "slug": "office-viewer",

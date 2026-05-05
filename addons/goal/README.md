@@ -15,10 +15,12 @@ Open **Settings → Add-Ons** and install **goal** from the catalog.
 - stores a per-chat goal state (objective, enabled flag, token budget, usage)
 - adds `/goal` commands for starting, resuming, pausing, clearing, and inspecting a goal run
 - auto-continues the active goal after each turn while goal seeking is enabled
+- posts visible `goal-status` timeline updates when a run starts, resumes, continues, reaches its budget, or completes
 - provides an internal `update_goal` tool so the model can mark a goal complete after verification
 
 ## `/goal` command
 
+- `/goal` — post help text and current goal state to the timeline
 - `/goal <objective>` — start or replace the active goal run in the current chat
 - `/goal status` — show the current goal state
 - `/goal on` or `/goal resume` — resume the saved objective
@@ -59,4 +61,5 @@ The editable prompt templates support these placeholders:
 
 - Goal seeking is scoped to the current chat/session, not globally across all chats.
 - The add-on uses a token-budget heuristic based on assistant message usage.
+- Goal execution emits durable timeline status messages in addition to transient UI status/working messages.
 - When the objective is truly done, the model should call `update_goal` with status `complete`.

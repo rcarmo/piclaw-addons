@@ -357,6 +357,81 @@ function clearGoalProgressUi(ctx: ExtensionContext | ExtensionCommandContext): v
   try { ctx.ui.setWorkingMessage(undefined); } catch { /* ignore */ }
 }
 
+type GoalTimelinePhase = "starting" | "resuming" | "continuing" | "budget-limited" | "complete";
+
+function goalTimelineTitle(phase: GoalTimelinePhase): string {
+  switch (phase) {
+    case "starting": return "Starting goal";
+    case "resuming": return "Resuming goal";
+    case "continuing": return "Continuing goal";
+    case "budget-limited": return "Goal token budget reached";
+    case "complete": return "Goal complete";
+  }
+}
+
+function sendGoalTimelineUpdate(pi: ExtensionAPI, session: GoalSession, phase: GoalTimelinePhase, summary?: string): void {
+  const remaining = Math.max(0, session.token_budget - session.tokens_used);
+  const lines = [
+    `🎯 **${goalTimelineTitle(phase)}**`,
+    `Objective: ${goalObjectivePreview(session.objective, 140)}`,
+    `Status: ${session.status}`,
+    `Tokens: ${session.tokens_used}/${session.token_budget} (${remaining} remaining)`,
+    summary ? `Summary: ${summary}` : null,
+  ].filter(Boolean);
+  try {
+    pi.sendMessage({
+      customType: "goal-status",
+      content: lines.join("\n"),
+      display: true,
+      details: {
+        chat_jid: session.chat_jid,
+        objective: session.objective,
+        status: session.status,
+        phase,
+        token_budget: session.token_budget,
+        tokens_used: session.tokens_used,
+        remaining_tokens: remaining,
+        summary: summary || "",
+      },
+    }, { triggerTurn: false });
+  } catch {
+    // Older/runtime-limited contexts may not support custom timeline messages.
+  }
+}
+
+function goalHelpText(session: GoalSession): string {
+  return [
+    "🎯 **Goal seeking**",
+    "",
+    "`/goal <objective>` — start or replace the active goal run",
+    "`/goal status` — show current goal state",
+    "`/goal on` or `/goal resume` — resume the saved objective",
+    "`/goal off` — pause goal seeking for this session",
+    "`/goal clear` — clear the saved goal state",
+    "",
+    goalStatusSummary(session),
+  ].join("\n");
+}
+
+function sendGoalHelpTimelineUpdate(pi: ExtensionAPI, session: GoalSession): void {
+  try {
+    pi.sendMessage({
+      customType: "goal-help",
+      content: goalHelpText(session),
+      display: true,
+      details: {
+        chat_jid: session.chat_jid,
+        objective: session.objective,
+        status: session.status,
+        token_budget: session.token_budget,
+        tokens_used: session.tokens_used,
+      },
+    }, { triggerTurn: false });
+  } catch {
+    // Older/runtime-limited contexts may not support custom timeline messages.
+  }
+}
+
 function sendGoalPrompt(pi: ExtensionAPI, ctx: ExtensionContext | ExtensionCommandContext, prompt: string): void {
   if (!prompt.trim()) return;
   if (ctx.isIdle()) {
@@ -466,6 +541,7 @@ export default function goalAddon(pi: ExtensionAPI): void {
         last_prompt_kind: null,
       });
       clearGoalProgressUi(ctx);
+      sendGoalTimelineUpdate(pi, next, "complete", next.completion_summary || "Goal marked complete after verification.");
       try { ctx.ui.notify(`Goal complete for ${chatJid}.`, "info"); } catch { /* ignore */ }
       return {
         content: [{ type: "text", text: `Marked goal complete for ${chatJid}.` }],
@@ -483,15 +559,9 @@ export default function goalAddon(pi: ExtensionAPI): void {
       const parsed = parseGoalCommandInput(args || "");
 
       if (parsed.mode === "help") {
-        ctx.ui.notify([
-          "/goal <objective> — start or replace the active goal run",
-          "/goal status — show current goal state",
-          "/goal on | /goal resume — resume the saved objective",
-          "/goal off — pause goal seeking for this session",
-          "/goal clear — clear the saved goal state",
-          "",
-          goalStatusSummary(current),
-        ].join("\n"), "info");
+        const help = goalHelpText(current);
+        sendGoalHelpTimelineUpdate(pi, current);
+        ctx.ui.notify(help, "info");
         return;
       }
 
@@ -532,6 +602,7 @@ export default function goalAddon(pi: ExtensionAPI): void {
           last_prompt_kind: "continuation",
         });
         setGoalProgressUi(ctx, next, "resuming");
+        sendGoalTimelineUpdate(pi, next, "resuming");
         sendGoalPrompt(pi, ctx, getContinuationPrompt(next, config));
         ctx.ui.notify(`Goal seeking ON for ${chatJid}.`, "info");
         return;
@@ -555,6 +626,7 @@ export default function goalAddon(pi: ExtensionAPI): void {
         last_prompt_kind: "continuation",
       });
       setGoalProgressUi(ctx, next, "starting");
+      sendGoalTimelineUpdate(pi, next, "starting");
       sendGoalPrompt(pi, ctx, getContinuationPrompt(next, config));
       ctx.ui.notify(`Started goal run for ${chatJid}.`, "info");
     },
@@ -599,12 +671,14 @@ export default function goalAddon(pi: ExtensionAPI): void {
         last_prompt_kind: "budget_limit",
       });
       setGoalProgressUi(ctx, next, "budget-limited");
+      sendGoalTimelineUpdate(pi, next, "budget-limited", "Goal seeking paused because the token budget is exhausted.");
       sendGoalPrompt(pi, ctx, getBudgetLimitPrompt(next, config));
       return;
     }
 
     const next = saveGoalSession(chatJid, { last_prompt_kind: "continuation" });
     setGoalProgressUi(ctx, next, "continuing");
+    sendGoalTimelineUpdate(pi, next, "continuing");
     sendGoalPrompt(pi, ctx, getContinuationPrompt(next, config));
   });
 }

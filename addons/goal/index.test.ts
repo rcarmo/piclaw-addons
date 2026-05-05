@@ -23,6 +23,7 @@ function createHarness() {
   const tools = new Map<string, any>();
   const handlers: Array<{ event: string; handler: (...args: any[]) => any }> = [];
   const sentUserMessages: Array<{ content: unknown; options?: unknown }> = [];
+  const customMessages: Array<{ message: any; options?: unknown }> = [];
   const notifications: Array<{ message: string; level: string }> = [];
   const statuses: Array<{ key: string; text: string | undefined }> = [];
   const workingMessages: Array<string | undefined> = [];
@@ -35,7 +36,7 @@ function createHarness() {
     registerFlag() {},
     getFlag() { return undefined; },
     registerMessageRenderer() {},
-    sendMessage() {},
+    sendMessage(message: any, options?: unknown) { customMessages.push({ message, options }); },
     sendUserMessage(content: unknown, options?: unknown) { sentUserMessages.push({ content, options }); },
     appendEntry() {},
     setSessionName() {},
@@ -82,7 +83,7 @@ function createHarness() {
   } as any;
 
   goalAddon(api);
-  return { api, commands, tools, handlers, sentUserMessages, notifications, statuses, workingMessages, ctx };
+  return { api, commands, tools, handlers, sentUserMessages, customMessages, notifications, statuses, workingMessages, ctx };
 }
 
 test("goal addon exports an extension entrypoint", () => {
@@ -141,6 +142,21 @@ test("goal continuation prompts require visible timeline feedback", async () => 
   expect(String(sentUserMessages[0]?.content)).toContain("visible user feedback in the timeline");
 });
 
+test("/goal with no arguments posts help text to the timeline", async () => {
+  const { commands, customMessages, notifications, ctx } = createHarness();
+  const command = commands.get("goal");
+
+  await withChatContext("web:goal", "web", async () => {
+    await command.handler("", ctx);
+  });
+
+  expect(customMessages.at(-1)?.message.customType).toBe("goal-help");
+  expect(customMessages.at(-1)?.message.content).toContain("/goal <objective>");
+  expect(customMessages.at(-1)?.message.content).toContain("Goal status for web:goal");
+  expect(customMessages.at(-1)?.options).toEqual({ triggerTurn: false });
+  expect(notifications.at(-1)?.message).toContain("/goal <objective>");
+});
+
 test("resolveActiveChatJid falls back to the session directory for web branches", () => {
   const ctx = {
     sessionManager: {
@@ -185,8 +201,8 @@ describe("goal command and loop behavior", () => {
     expect(notifications.at(-1)?.message).toContain("web:branch-456");
   });
 
-  test("/goal starts a run with UI progress and queues the initial kickoff prompt", async () => {
-    const { commands, sentUserMessages, notifications, statuses, workingMessages, ctx } = createHarness();
+  test("/goal starts a run with UI progress, a timeline update, and the initial kickoff prompt", async () => {
+    const { commands, sentUserMessages, customMessages, notifications, statuses, workingMessages, ctx } = createHarness();
     const command = commands.get("goal");
 
     await withChatContext("web:goal", "web", async () => {
@@ -199,6 +215,9 @@ describe("goal command and loop behavior", () => {
     expect(session.status).toBe("running");
     expect(sentUserMessages).toHaveLength(1);
     expect(String(sentUserMessages[0]?.content)).toContain("Ship the release");
+    expect(customMessages.at(-1)?.message.customType).toBe("goal-status");
+    expect(customMessages.at(-1)?.message.content).toContain("Starting goal");
+    expect(customMessages.at(-1)?.options).toEqual({ triggerTurn: false });
     expect(statuses.at(-1)?.key).toBe("goal");
     expect(statuses.at(-1)?.text).toContain("Goal starting");
     expect(workingMessages.at(-1)).toContain("Goal starting");
@@ -218,8 +237,8 @@ describe("goal command and loop behavior", () => {
     });
   });
 
-  test("agent_end queues a continuation prompt while budget remains", async () => {
-    const { commands, handlers, sentUserMessages, ctx } = createHarness();
+  test("agent_end queues a continuation timeline update and prompt while budget remains", async () => {
+    const { commands, handlers, sentUserMessages, customMessages, ctx } = createHarness();
     const command = commands.get("goal");
     const messageEnd = handlers.find((entry) => entry.event === "message_end")?.handler;
     const agentEnd = handlers.find((entry) => entry.event === "agent_end")?.handler;
@@ -233,10 +252,12 @@ describe("goal command and loop behavior", () => {
     expect(sentUserMessages).toHaveLength(2);
     expect(String(sentUserMessages[1]?.content)).toContain("Finish the docs site");
     expect(String(sentUserMessages[1]?.content)).toContain("Tokens used: 123");
+    expect(customMessages.at(-1)?.message.content).toContain("Continuing goal");
+    expect(customMessages.at(-1)?.message.details.phase).toBe("continuing");
   });
 
-  test("update_goal marks completion and stops the continuation loop", async () => {
-    const { commands, tools, handlers, sentUserMessages, ctx } = createHarness();
+  test("update_goal marks completion, posts a timeline update, and stops the continuation loop", async () => {
+    const { commands, tools, handlers, sentUserMessages, customMessages, ctx } = createHarness();
     const command = commands.get("goal");
     const updateGoal = tools.get("update_goal");
     const agentEnd = handlers.find((entry) => entry.event === "agent_end")?.handler;
@@ -252,10 +273,12 @@ describe("goal command and loop behavior", () => {
     expect(session.enabled).toBe(false);
     expect(session.completion_summary).toContain("Checklist");
     expect(sentUserMessages).toHaveLength(1);
+    expect(customMessages.at(-1)?.message.content).toContain("Goal complete");
+    expect(customMessages.at(-1)?.message.content).toContain("Checklist and tests verified.");
   });
 
-  test("agent_end emits a budget-limit wrap-up prompt and disables seeking when the budget is exhausted", async () => {
-    const { commands, handlers, sentUserMessages, ctx } = createHarness();
+  test("agent_end emits a budget-limit timeline update and wrap-up prompt when the budget is exhausted", async () => {
+    const { commands, handlers, sentUserMessages, customMessages, ctx } = createHarness();
     const command = commands.get("goal");
     const agentEnd = handlers.find((entry) => entry.event === "agent_end")?.handler;
 
@@ -270,5 +293,7 @@ describe("goal command and loop behavior", () => {
     expect(session.enabled).toBe(false);
     expect(sentUserMessages).toHaveLength(2);
     expect(String(sentUserMessages[1]?.content)).toContain("has reached its token budget");
+    expect(customMessages.at(-1)?.message.content).toContain("Goal token budget reached");
+    expect(customMessages.at(-1)?.message.details.phase).toBe("budget-limited");
   });
 });
