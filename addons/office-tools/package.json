@@ -1,0 +1,21 @@
+{
+  "name": "@rcarmo/piclaw-addon-office-tools",
+  "version": "0.1.0",
+  "description": "Office document read/write tools for Piclaw (docx, xlsx, pptx, odt, md→pdf)",
+  "type": "module",
+  "main": "index.ts",
+  "piclaw": {
+    "type": "extension",
+    "compatibleVersions": ">=1.8.0",
+    "tags": ["office", "documents", "docx", "xlsx", "pptx", "pdf"]
+  },
+  "dependencies": {
+    "typebox": "*"
+  },
+  "license": "MIT",
+  "keywords": ["pi-package"],
+  "pi": {
+    "extensions": ["index.ts"]
+  },
+  "homepage": "https://rcarmo.github.io/piclaw-addons/addons/office-tools/"
+}
