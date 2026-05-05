@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import planSidebarAddon, { loadSessionPlan, resetPlanSidebarAddonForTests, saveSessionPlan } from "./index";
+import planSidebarAddon, { applyPlanEdits, loadSessionPlan, resetPlanSidebarAddonForTests, saveSessionPlan } from "./index";
 
 test("plan storage is scoped by chat jid", () => {
   resetPlanSidebarAddonForTests();
@@ -25,12 +25,12 @@ test("plan tool gets and sets active session plan", async () => {
   expect(tool?.name).toBe("plan");
 
   const ctx: any = { sessionManager: { getSessionDir: () => "/tmp/web_default" } };
-  const setResult = await tool.execute("1", { action: "set", markdown: "- [x] done" }, undefined, undefined, ctx);
-  expect(setResult.details.chat_jid).toBe("web:default");
-  expect(setResult.details.markdown).toBe("- [x] done");
+  const writeResult = await tool.execute("1", { action: "write", markdown: "- [x] done" }, undefined, undefined, ctx);
+  expect(writeResult.details.chat_jid).toBe("web:default");
+  expect(writeResult.details.markdown).toBe("- [x] done");
 
-  const getResult = await tool.execute("2", { action: "get" }, undefined, undefined, ctx);
-  expect(getResult.content[0].text).toContain("- [x] done");
+  const readResult = await tool.execute("2", { action: "read" }, undefined, undefined, ctx);
+  expect(readResult.content[0].text).toContain("- [x] done");
 });
 
 test("saved plan is injected into the next model turn", async () => {
@@ -52,6 +52,48 @@ test("saved plan is injected into the next model turn", async () => {
   expect(result.systemPrompt).toContain("editable shared state");
   expect(result.systemPrompt).toContain("must keep it current");
   expect(result.systemPrompt).toContain("`plan` tool");
-  expect(result.systemPrompt).toContain("action=set");
+  expect(result.systemPrompt).toContain("action=edit");
+  expect(result.systemPrompt).toContain("action=write");
   expect(result.systemPrompt).toContain("- [ ] next step");
+});
+
+test("plan edit applies atomic exact replacements", async () => {
+  resetPlanSidebarAddonForTests();
+  let tool: any = null;
+  const pi: any = {
+    on() {},
+    registerTool(definition: any) { tool = definition; },
+  };
+  planSidebarAddon(pi);
+
+  const ctx: any = { sessionManager: { getSessionDir: () => "/tmp/web_default" } };
+  await tool.execute("1", { action: "write", markdown: "- [ ] first\n- [ ] second" }, undefined, undefined, ctx);
+  const editResult = await tool.execute("2", {
+    action: "edit",
+    edits: [{ oldText: "- [ ] second", newText: "- [x] second" }],
+  }, undefined, undefined, ctx);
+
+  expect(editResult.details.markdown).toBe("- [ ] first\n- [x] second");
+});
+
+test("legacy get/set arguments are prepared as read/write", async () => {
+  resetPlanSidebarAddonForTests();
+  let tool: any = null;
+  const pi: any = {
+    on() {},
+    registerTool(definition: any) { tool = definition; },
+  };
+  planSidebarAddon(pi);
+
+  const writeArgs = tool.prepareArguments({ action: "set", markdown: "- [ ] old" });
+  const readArgs = tool.prepareArguments({ action: "get" });
+  const editArgs = tool.prepareArguments({ action: "edit", oldText: "- [ ] old", newText: "- [x] old" });
+
+  expect(writeArgs.action).toBe("write");
+  expect(readArgs.action).toBe("read");
+  expect(editArgs.edits).toEqual([{ oldText: "- [ ] old", newText: "- [x] old" }]);
+});
+
+test("plan edit rejects ambiguous matches without changing text", () => {
+  expect(() => applyPlanEdits("- [ ] same\n- [ ] same", [{ oldText: "- [ ] same", newText: "- [x] same" }])).toThrow(/exactly once/);
 });

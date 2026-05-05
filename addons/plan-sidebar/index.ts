@@ -86,6 +86,58 @@ export function saveSessionPlan(chatJidInput: unknown, markdownInput: unknown): 
   return next;
 }
 
+export interface PlanEditBlock {
+  oldText: string;
+  newText: string;
+}
+
+function countOccurrences(haystack: string, needle: string): number {
+  if (!needle) return 0;
+  let count = 0;
+  let index = 0;
+  while (true) {
+    const found = haystack.indexOf(needle, index);
+    if (found < 0) return count;
+    count += 1;
+    index = found + needle.length;
+  }
+}
+
+export function applyPlanEdits(markdownInput: unknown, editsInput: unknown): string {
+  const markdown = normalizePlanMarkdown(markdownInput);
+  const edits = Array.isArray(editsInput) ? editsInput : [];
+  if (!edits.length) throw new Error("plan action=edit requires at least one edit block.");
+
+  const ranges: Array<{ from: number; to: number; oldText: string; newText: string }> = [];
+  for (const raw of edits) {
+    const edit = raw && typeof raw === "object" ? raw as Partial<PlanEditBlock> : {};
+    if (typeof edit.oldText !== "string" || !edit.oldText) throw new Error("Each plan edit needs non-empty oldText.");
+    if (typeof edit.newText !== "string") throw new Error("Each plan edit needs newText.");
+    const occurrences = countOccurrences(markdown, edit.oldText);
+    if (occurrences !== 1) throw new Error(`Plan edit oldText must match exactly once; got ${occurrences} matches for ${JSON.stringify(edit.oldText)}.`);
+    const from = markdown.indexOf(edit.oldText);
+    ranges.push({ from, to: from + edit.oldText.length, oldText: edit.oldText, newText: edit.newText });
+  }
+
+  ranges.sort((a, b) => a.from - b.from);
+  for (let i = 1; i < ranges.length; i += 1) {
+    if (ranges[i].from < ranges[i - 1].to) throw new Error("Plan edit blocks must not overlap.");
+  }
+
+  let next = "";
+  let cursor = 0;
+  for (const range of ranges) {
+    next += markdown.slice(cursor, range.from) + range.newText;
+    cursor = range.to;
+  }
+  return next + markdown.slice(cursor);
+}
+
+export function editSessionPlan(chatJidInput: unknown, editsInput: unknown): SessionPlan {
+  const current = loadSessionPlan(chatJidInput);
+  return saveSessionPlan(current.chat_jid, applyPlanEdits(current.markdown, editsInput));
+}
+
 function readChatJidFromRequest(req: Request, payload?: Record<string, unknown>): string {
   try {
     const url = new URL(req.url, "https://example.test/");
@@ -124,10 +176,15 @@ if (typeof registerAddonConfigApi === "function") {
 
 const PlanToolSchema = Type.Object({
   action: Type.Union([
-    Type.Literal("get"),
-    Type.Literal("set"),
-  ], { description: "Use get to read the active session plan, set to replace it." }),
-  markdown: Type.Optional(Type.String({ description: "Markdown checklist to save when action is set." })),
+    Type.Literal("read"),
+    Type.Literal("write"),
+    Type.Literal("edit"),
+  ], { description: "Use read to inspect the active session plan, write to replace it, edit for exact atomic text replacements." }),
+  markdown: Type.Optional(Type.String({ description: "Complete Markdown checklist to save when action is write." })),
+  edits: Type.Optional(Type.Array(Type.Object({
+    oldText: Type.String({ description: "Exact text to replace. Must occur exactly once in the current plan." }),
+    newText: Type.String({ description: "Replacement text." }),
+  }), { description: "Atomic exact replacements to apply when action is edit. Use whole checklist item lines for item-level updates." })),
   chat_jid: Type.Optional(Type.String({ description: "Optional explicit chat/session JID. Defaults to the active session." })),
 });
 
@@ -138,7 +195,7 @@ export function buildPlanSystemPrompt(plan: SessionPlan): string {
     "## Plan Sidebar",
     `The current session has a Plan sidebar checklist for ${plan.chat_jid}.`,
     "This checklist is editable shared state, not static context: you can modify it and must keep it current as work proceeds.",
-    "Use the `plan` tool with `action=get` to inspect it and `action=set` to save a revised checklist whenever you add, remove, reorder, complete, or revise tasks.",
+    "Use the `plan` tool with `action=read` to inspect it, `action=edit` for atomic exact item/text replacements, and `action=write` only when replacing the whole checklist.",
     "Treat checked items as completed, unchecked items as pending, and update the plan after meaningful progress or plan changes.",
     "",
     "Current plan:",
@@ -165,12 +222,22 @@ export default function planSidebarAddon(pi: ExtensionAPI): void {
   pi.registerTool({
     name: "plan",
     label: "plan",
-    description: "Get or set the current session's editable Markdown checklist plan shown in the right-side Plan sidebar. Keep it current as tasks change or complete.",
-    promptSnippet: "plan: editable session checklist. Use action=get to inspect it and action=set to save revisions after adding, removing, reordering, completing, or changing tasks.",
+    description: "Read or edit the current session's editable Markdown checklist plan shown in the right-side Plan sidebar. Prefer atomic edit blocks for item updates; keep the plan current as tasks change or complete.",
+    promptSnippet: "plan: editable session checklist. Use action=read to inspect it, action=edit with exact oldText/newText blocks for atomic item updates, and action=write only to replace the whole checklist.",
     parameters: PlanToolSchema,
+    prepareArguments(args) {
+      if (!args || typeof args !== "object") return args;
+      const input = args as { action?: unknown; markdown?: unknown; oldText?: unknown; newText?: unknown; edits?: unknown };
+      if (input.action === "get") return { ...input, action: "read" };
+      if (input.action === "set") return { ...input, action: "write" };
+      if (input.action === "edit" && !Array.isArray(input.edits) && typeof input.oldText === "string" && typeof input.newText === "string") {
+        return { ...input, edits: [{ oldText: input.oldText, newText: input.newText }] };
+      }
+      return args;
+    },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const chatJid = normalizeChatJid(params.chat_jid || resolveActiveChatJid(ctx));
-      if (params.action === "get") {
+      if (params.action === "read") {
         const plan = loadSessionPlan(chatJid);
         return {
           content: [{ type: "text", text: `Plan for ${plan.chat_jid}:\n\n${plan.markdown || "(empty)"}` }],
@@ -178,8 +245,16 @@ export default function planSidebarAddon(pi: ExtensionAPI): void {
         };
       }
 
+      if (params.action === "edit") {
+        const plan = editSessionPlan(chatJid, params.edits);
+        return {
+          content: [{ type: "text", text: `Edited plan for ${plan.chat_jid}.` }],
+          details: plan,
+        };
+      }
+
       if (typeof params.markdown !== "string") {
-        throw new Error("plan action=set requires a markdown string.");
+        throw new Error("plan action=write requires a markdown string.");
       }
       const plan = saveSessionPlan(chatJid, params.markdown);
       return {

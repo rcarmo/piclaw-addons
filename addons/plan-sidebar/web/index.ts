@@ -270,7 +270,7 @@ function installPlanSidebar() {
     return [
       "The text below is the current Plan sidebar checklist for this session.",
       "It is editable shared state, not a static user note: you can modify it and must keep it current as work proceeds.",
-      "Use the `plan` tool with `action=get` to read it and `action=set` to update it whenever you add, remove, reorder, complete, or revise tasks.",
+      "Use the `plan` tool with `action=read` to inspect it, `action=edit` with exact oldText/newText blocks for atomic item updates, and `action=write` only when replacing the whole checklist."
       "Treat checked items as completed, unchecked items as pending, and save a revised checklist after meaningful progress or plan changes.",
       "",
       "```markdown",
