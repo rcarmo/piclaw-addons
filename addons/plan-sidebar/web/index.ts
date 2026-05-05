@@ -558,7 +558,20 @@ function injectStyles() {
       flex-direction: column;
       color: var(--text-primary,#e5e7eb);
     }
+    .plan-sidebar-panel::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: -18px;
+      width: 18px;
+      pointer-events: none;
+      opacity: 0;
+      background: linear-gradient(to left, rgba(0,0,0,.16), rgba(0,0,0,0));
+      transition: opacity .18s ease;
+    }
     .plan-sidebar-root.open .plan-sidebar-panel { transform: translateX(0); }
+    .plan-sidebar-root.open .plan-sidebar-panel::before { opacity: 1; }
     .plan-sidebar-header {
       min-height: 34px;
       padding: 5px 10px;
