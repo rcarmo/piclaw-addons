@@ -274,7 +274,7 @@ describe("goal command and loop behavior", () => {
   });
 
   test("agent_end queues a continuation timeline update and prompt while budget remains", async () => {
-    const { commands, handlers, sentUserMessages, customMessages, ctx } = createHarness();
+    const { commands, handlers, sentUserMessages, customMessages, workingMessages, ctx } = createHarness();
     const command = commands.get("goal");
     const messageEnd = handlers.find((entry) => entry.event === "message_end")?.handler;
     const agentEnd = handlers.find((entry) => entry.event === "agent_end")?.handler;
@@ -288,10 +288,38 @@ describe("goal command and loop behavior", () => {
     expect(sentUserMessages).toHaveLength(2);
     expect(String(sentUserMessages[1]?.content)).toContain("Finish the docs site");
     expect(String(sentUserMessages[1]?.content)).toContain("Tokens used: 123");
+    expect(workingMessages.some((message) => String(message).includes("usage updated"))).toBe(true);
     expect(customMessages.at(-1)?.message.content).toContain("Continuing goal");
     expect(customMessages.at(-1)?.message.content).toContain("[⣿");
     expect(customMessages.at(-1)?.message.details.phase).toBe("continuing");
     expect(customMessages.at(-1)?.message.details.token_bar).toContain("[");
+  });
+
+  test("goal lifecycle updates native Pi progress phases without timeline spam", async () => {
+    const { commands, handlers, workingMessages, customMessages, ctx } = createHarness();
+    const command = commands.get("goal");
+    const agentStart = handlers.find((entry) => entry.event === "agent_start")?.handler;
+    const turnStart = handlers.find((entry) => entry.event === "turn_start")?.handler;
+    const messageStart = handlers.find((entry) => entry.event === "message_start")?.handler;
+    const toolStart = handlers.find((entry) => entry.event === "tool_execution_start")?.handler;
+    const toolEnd = handlers.find((entry) => entry.event === "tool_execution_end")?.handler;
+
+    await withChatContext("web:goal", "web", async () => {
+      await command.handler("Finish the live status work", ctx);
+      const timelineCount = customMessages.length;
+      await agentStart({}, ctx);
+      await turnStart({}, ctx);
+      await messageStart({ message: { role: "assistant" } }, ctx);
+      await toolStart({ toolName: "read" }, ctx);
+      await toolEnd({ toolName: "read", isError: false }, ctx);
+      expect(customMessages).toHaveLength(timelineCount);
+    });
+
+    expect(workingMessages.some((message) => String(message).includes("waiting for model"))).toBe(true);
+    expect(workingMessages.some((message) => String(message).includes("working"))).toBe(true);
+    expect(workingMessages.some((message) => String(message).includes("receiving response"))).toBe(true);
+    expect(workingMessages.some((message) => String(message).includes("using read"))).toBe(true);
+    expect(workingMessages.some((message) => String(message).includes("read done"))).toBe(true);
   });
 
   test("update_goal marks completion, clears native progress, posts a timeline update, and stops the continuation loop", async () => {

@@ -392,6 +392,12 @@ function setGoalProgressUi(ctx: ExtensionContext | ExtensionCommandContext, sess
   try { ctx.ui.setStatus(UI_STATUS_KEY, `🎯 ${bar} ${formatGoalTokenCount(Math.max(0, session.token_budget - session.tokens_used))}/${formatGoalTokenCount(session.token_budget)}`); } catch { /* UI may not support status in all modes */ }
 }
 
+function setGoalProgressPhase(ctx: ExtensionContext | ExtensionCommandContext, phase: string): void {
+  const session = loadGoalSession(resolveActiveChatJid(ctx));
+  if (!session.objective || !session.enabled || session.status !== "running") return;
+  setGoalProgressUi(ctx, session, phase);
+}
+
 function clearGoalProgressUi(ctx: ExtensionContext | ExtensionCommandContext): void {
   try { ctx.ui.setStatus(UI_STATUS_KEY, undefined); } catch { /* ignore */ }
   try { ctx.ui.setWorkingMessage(undefined); } catch { /* ignore */ }
@@ -675,6 +681,30 @@ export default function goalAddon(pi: ExtensionAPI): void {
     },
   });
 
+  pi.on("agent_start", async (_event, ctx) => {
+    setGoalProgressPhase(ctx, "waiting for model");
+  });
+
+  pi.on("turn_start", async (_event, ctx) => {
+    setGoalProgressPhase(ctx, "working");
+  });
+
+  pi.on("message_start", async (event, ctx) => {
+    const message = (event as { message?: { role?: unknown } }).message;
+    if (message?.role === "assistant") setGoalProgressPhase(ctx, "receiving response");
+  });
+
+  pi.on("tool_execution_start", async (event, ctx) => {
+    const toolName = (event as { toolName?: unknown }).toolName;
+    setGoalProgressPhase(ctx, `using ${typeof toolName === "string" && toolName ? toolName : "tool"}`);
+  });
+
+  pi.on("tool_execution_end", async (event, ctx) => {
+    const toolName = (event as { toolName?: unknown; isError?: unknown }).toolName;
+    const label = typeof toolName === "string" && toolName ? toolName : "tool";
+    setGoalProgressPhase(ctx, event?.isError ? `${label} failed` : `${label} done`);
+  });
+
   pi.on("message_end", async (event, ctx) => {
     const message = (event as { message?: { role?: unknown; usage?: unknown } }).message;
     if (message?.role !== "assistant") return;
@@ -682,15 +712,19 @@ export default function goalAddon(pi: ExtensionAPI): void {
     const session = loadGoalSession(chatJid);
     if (!session.objective || !session.enabled || session.status !== "running") return;
     const tokens = extractUsageTokens(message);
-    if (tokens <= 0) return;
-    saveGoalSession(chatJid, { tokens_used: session.tokens_used + tokens });
+    if (tokens <= 0) {
+      setGoalProgressUi(ctx, session, "response complete");
+      return;
+    }
+    const next = saveGoalSession(chatJid, { tokens_used: session.tokens_used + tokens });
+    setGoalProgressUi(ctx, next, "usage updated");
   });
 
   pi.on("before_agent_start", async (event, ctx) => {
     const chatJid = resolveActiveChatJid(ctx);
     const session = loadGoalSession(chatJid);
     if (!session.enabled || !session.objective || session.status !== "running") return {};
-    setGoalProgressUi(ctx, session, "running");
+    setGoalProgressUi(ctx, session, "preparing next turn");
     const prompt = getGoalSystemPrompt(session, loadGoalConfig()).trim();
     if (!prompt) return {};
     return {

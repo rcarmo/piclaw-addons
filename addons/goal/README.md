@@ -16,7 +16,7 @@ Open **Settings → Add-Ons** and install **goal** from the catalog.
 - adds `/goal` commands for starting, resuming, pausing, clearing, and inspecting a goal run
 - auto-continues the active goal after each turn while goal seeking is enabled
 - posts visible `goal-status` timeline updates when a run starts, resumes, continues, reaches its budget, or completes
-- updates the standard Pi progress UI with a Braille glyph bar showing remaining tokens for the run
+- updates the standard Pi progress UI live with phase labels and a Braille glyph bar showing remaining tokens for the run
 - provides an internal `update_goal` tool so the model can mark a goal complete after verification
 
 ## `/goal` command
@@ -64,4 +64,5 @@ The editable prompt templates support these placeholders:
 - The add-on uses a token-budget heuristic based on assistant message usage.
 - Goal execution emits durable timeline status messages in addition to transient native Pi progress updates.
 - The native Pi progress indicator uses a Braille token-availability bar, e.g. `[⣿⣿⣦⣀]`, where filled cells are remaining budget; visible token counts use friendly units such as `20k` or `1.25m`.
+- Live progress phases include starting, waiting for model, working, receiving response, tool use, usage updated, continuing, budget-limited, and complete.
 - When the objective is truly done, the model should call `update_goal` with status `complete`.
