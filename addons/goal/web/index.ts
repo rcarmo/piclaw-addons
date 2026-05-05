@@ -70,6 +70,11 @@ async function saveSession(chatJid, patch) {
   });
 }
 
+function positiveNumber(value, fallback = 1) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric > 0 ? Math.trunc(numeric) : fallback;
+}
+
 function registerPane() {
   if (!HAS_RUNTIME) return;
   let reg, notify;
@@ -140,6 +145,32 @@ function GoalSettingsPane() {
     }
   }, [chatJid]);
 
+  const saveSessionTokenBudget = useCallback(async (value) => {
+    const tokenBudget = positiveNumber(value, config?.default_token_budget || 1);
+    setSession((current) => current ? { ...current, token_budget: tokenBudget } : current);
+    await saveCurrentSession({ token_budget: tokenBudget });
+  }, [config?.default_token_budget, saveCurrentSession]);
+
+  const saveDefaultTokenBudget = useCallback(async (value) => {
+    const tokenBudget = positiveNumber(value, config?.default_token_budget || 1);
+    setConfig((current) => current ? { ...current, default_token_budget: tokenBudget } : current);
+    setSession((current) => current ? { ...current, token_budget: tokenBudget } : current);
+    setSaving(true);
+    try {
+      const [cfgResult, sessionResult] = await Promise.all([
+        saveConfig({ default_token_budget: tokenBudget }),
+        saveSession(chatJid, { token_budget: tokenBudget }),
+      ]);
+      setConfig(cfgResult.config || cfgResult);
+      setSession(sessionResult.session || sessionResult);
+      setMessage("Saved global default and current chat token budget.");
+    } catch (error) {
+      setMessage(String(error?.message || error));
+    } finally {
+      setSaving(false);
+    }
+  }, [chatJid, config?.default_token_budget]);
+
   if (!config || !session) {
     return html`<div style="padding:1rem;color:var(--text-secondary)">Loading goal settings…</div>`;
   }
@@ -177,7 +208,8 @@ function GoalSettingsPane() {
       <label style=${S}>
         <span style=${L}>Token budget</span>
         <input type="number" min="1" step="1000" style=${I} value=${session.token_budget || config.default_token_budget}
-          onBlur=${(e) => saveCurrentSession({ token_budget: Number(e.target.value || 0) })}
+          onInput=${(e) => setSession((current) => current ? { ...current, token_budget: positiveNumber(e.target.value, config.default_token_budget) } : current)}
+          onBlur=${(e) => saveSessionTokenBudget(e.target.value)}
           disabled=${saving} />
       </label>
       ${hint(`Used ${session.tokens_used || 0} tokens so far, ${remaining} remaining. Status: ${session.status}.`) }
@@ -197,7 +229,8 @@ function GoalSettingsPane() {
       <label style=${S}>
         <span style=${L}>Default token budget</span>
         <input type="number" min="1" step="1000" style=${I} value=${config.default_token_budget}
-          onBlur=${(e) => saveGlobal({ default_token_budget: Number(e.target.value || 0) })}
+          onInput=${(e) => setConfig((current) => current ? { ...current, default_token_budget: positiveNumber(e.target.value, current.default_token_budget) } : current)}
+          onBlur=${(e) => saveDefaultTokenBudget(e.target.value)}
           disabled=${saving} />
       </label>
 

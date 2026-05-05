@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import goalAddon, {
   loadGoalSession,
   renderGoalTemplate,
+  renderGoalTokenAvailabilityBar,
   resetGoalAddonForTests,
   resolveActiveChatJid,
   saveGoalSession,
@@ -122,12 +123,27 @@ test("goal prompt editors are monospaced textareas", () => {
   expect((source.match(/spellcheck="false"/g) || []).length).toBeGreaterThanOrEqual(3);
 });
 
+test("goal settings apply token budget changes to the current session on blur", () => {
+  const source = readFileSync(resolve(addonDir, "web", "index.ts"), "utf8");
+  expect(source).toContain("function positiveNumber");
+  expect(source).toContain("saveSessionTokenBudget");
+  expect(source).toContain("saveDefaultTokenBudget");
+  expect(source).toContain("saveSession(chatJid, { token_budget: tokenBudget })");
+  expect(source).toContain("Saved global default and current chat token budget.");
+});
+
 test("renderGoalTemplate replaces prompt placeholders", () => {
   const rendered = renderGoalTemplate("Goal: {{ objective }} / {{ tokens_used }} / {{ missing }}", {
     objective: "Ship docs",
     tokens_used: "42",
   });
   expect(rendered).toBe("Goal: Ship docs / 42 / ");
+});
+
+test("goal token availability renders a Braille glyph bar", () => {
+  expect(renderGoalTokenAvailabilityBar(0, 20000, 4)).toBe("[⣿⣿⣿⣿]");
+  expect(renderGoalTokenAvailabilityBar(20000, 20000, 4)).toBe("[⣀⣀⣀⣀]");
+  expect(renderGoalTokenAvailabilityBar(7500, 20000, 4)).toBe("[⣿⣿⣦⣀]");
 });
 
 test("goal continuation prompts require visible timeline feedback", async () => {
@@ -220,7 +236,9 @@ describe("goal command and loop behavior", () => {
     expect(customMessages.at(-1)?.options).toEqual({ triggerTurn: false });
     expect(statuses.at(-1)?.key).toBe("goal");
     expect(statuses.at(-1)?.text).toContain("Goal starting");
+    expect(statuses.at(-1)?.text).toContain("[⣿⣿⣿⣿⣿⣿⣿⣿]");
     expect(workingMessages.at(-1)).toContain("Goal starting");
+    expect(workingMessages.at(-1)).toContain("tokens left");
     expect(notifications.at(-1)?.message).toContain("Started goal run");
   });
 
@@ -253,7 +271,9 @@ describe("goal command and loop behavior", () => {
     expect(String(sentUserMessages[1]?.content)).toContain("Finish the docs site");
     expect(String(sentUserMessages[1]?.content)).toContain("Tokens used: 123");
     expect(customMessages.at(-1)?.message.content).toContain("Continuing goal");
+    expect(customMessages.at(-1)?.message.content).toContain("[⣿");
     expect(customMessages.at(-1)?.message.details.phase).toBe("continuing");
+    expect(customMessages.at(-1)?.message.details.token_bar).toContain("[");
   });
 
   test("update_goal marks completion, posts a timeline update, and stops the continuation loop", async () => {

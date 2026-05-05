@@ -345,9 +345,32 @@ function goalObjectivePreview(objective: string, maxLength = 72): string {
   return collapsed.length > maxLength ? `${collapsed.slice(0, maxLength - 1)}…` : collapsed;
 }
 
-function setGoalProgressUi(ctx: ExtensionContext | ExtensionCommandContext, session: GoalSession, phase = "running"): void {
+const BRAILLE_TOKEN_BAR_LEVELS = ["⣀", "⣄", "⣤", "⣦", "⣶", "⣷", "⣿"] as const;
+
+export function renderGoalTokenAvailabilityBar(tokensUsedInput: unknown, tokenBudgetInput: unknown, width = 8): string {
+  const tokenBudget = Math.max(0, normalizePositiveInt(tokenBudgetInput, 0));
+  const tokensUsed = Math.max(0, normalizePositiveInt(tokensUsedInput, 0));
+  const safeWidth = Math.max(1, Math.min(32, Math.trunc(width || 8)));
+  const maxLevel = BRAILLE_TOKEN_BAR_LEVELS.length - 1;
+  const availableRatio = tokenBudget > 0 ? Math.max(0, Math.min(1, (tokenBudget - tokensUsed) / tokenBudget)) : 0;
+  let filled = Math.round(availableRatio * safeWidth * maxLevel);
+  let bar = "";
+  for (let i = 0; i < safeWidth; i += 1) {
+    const level = Math.max(0, Math.min(maxLevel, filled));
+    bar += BRAILLE_TOKEN_BAR_LEVELS[level];
+    filled -= maxLevel;
+  }
+  return `[${bar}]`;
+}
+
+function formatGoalProgressUpdate(session: GoalSession, phase = "running"): string {
   const remaining = Math.max(0, session.token_budget - session.tokens_used);
-  const message = `Goal ${phase}: ${goalObjectivePreview(session.objective)} (${remaining} tokens left)`;
+  const bar = renderGoalTokenAvailabilityBar(session.tokens_used, session.token_budget);
+  return `Goal ${phase} ${bar} ${remaining}/${session.token_budget} tokens left • ${goalObjectivePreview(session.objective)}`;
+}
+
+function setGoalProgressUi(ctx: ExtensionContext | ExtensionCommandContext, session: GoalSession, phase = "running"): void {
+  const message = formatGoalProgressUpdate(session, phase);
   try { ctx.ui.setStatus(UI_STATUS_KEY, `🎯 ${message}`); } catch { /* UI may not support status in all modes */ }
   try { ctx.ui.setWorkingMessage(message); } catch { /* UI may not support working messages in all modes */ }
 }
@@ -371,11 +394,12 @@ function goalTimelineTitle(phase: GoalTimelinePhase): string {
 
 function sendGoalTimelineUpdate(pi: ExtensionAPI, session: GoalSession, phase: GoalTimelinePhase, summary?: string): void {
   const remaining = Math.max(0, session.token_budget - session.tokens_used);
+  const bar = renderGoalTokenAvailabilityBar(session.tokens_used, session.token_budget);
   const lines = [
     `🎯 **${goalTimelineTitle(phase)}**`,
     `Objective: ${goalObjectivePreview(session.objective, 140)}`,
     `Status: ${session.status}`,
-    `Tokens: ${session.tokens_used}/${session.token_budget} (${remaining} remaining)`,
+    `Tokens: ${bar} ${remaining}/${session.token_budget} remaining (${session.tokens_used} used)`,
     summary ? `Summary: ${summary}` : null,
   ].filter(Boolean);
   try {
@@ -391,6 +415,7 @@ function sendGoalTimelineUpdate(pi: ExtensionAPI, session: GoalSession, phase: G
         token_budget: session.token_budget,
         tokens_used: session.tokens_used,
         remaining_tokens: remaining,
+        token_bar: bar,
         summary: summary || "",
       },
     }, { triggerTurn: false });
