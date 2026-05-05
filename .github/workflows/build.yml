@@ -28,8 +28,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v1
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
       - name: Detect add-on UX tests
@@ -42,7 +42,7 @@ jobs:
           fi
       - name: Checkout Piclaw runtime for add-on UX tests
         if: steps.addon_tests.outputs.present == 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: rcarmo/piclaw
           path: .piclaw-runtime
@@ -106,7 +106,7 @@ jobs:
         working-directory: tests/addon-e2e
       - name: Upload add-on UX reports
         if: always() && steps.addon_tests.outputs.present == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: addon-ux-reports
           path: |
