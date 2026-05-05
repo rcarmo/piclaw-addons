@@ -458,7 +458,7 @@
       "name": "@rcarmo/piclaw-addon-office-viewer",
       "version": "0.1.0",
       "type": "extension",
-      "description": "Built-in Office document viewer (.docx, .xlsx, .pptx, .odt, .ods, .odp) for Piclaw",
+      "description": "Office document viewer (.docx, .xlsx, .pptx) and PDF viewer for Piclaw",
       "path": "addons/office-viewer",
       "homepage": "https://rcarmo.github.io/piclaw-addons/addons/office-viewer/",
       "tags": [
