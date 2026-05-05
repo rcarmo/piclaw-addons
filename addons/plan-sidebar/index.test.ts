@@ -132,3 +132,11 @@ test("sidebar border and open tab avoid gradient shadows", () => {
   expect(source).toContain("box-shadow: none;");
   expect(source).not.toContain("-18px 0 42px");
 });
+
+test("sidebar can close with Esc and autosaves dirty contents", () => {
+  const source = readFileSync(resolve(addonDir, "web", "index.ts"), "utf8");
+  expect(source).toContain('event.key !== "Escape"');
+  expect(source).toContain("closeSidebar({ autosave: true })");
+  expect(source).toContain("if (autosave && state.dirty)");
+  expect(source).toContain("await savePlan();");
+});

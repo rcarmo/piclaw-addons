@@ -124,6 +124,18 @@ function installPlanSidebar() {
     }
   }
 
+  async function closeSidebar({ autosave = false } = {}) {
+    if (!state.open || state.loading) return;
+    if (autosave && state.dirty) {
+      try {
+        await savePlan();
+      } catch {
+        return;
+      }
+    }
+    setOpen(false);
+  }
+
   function getEditorValue() {
     if (state.editorView) return state.editorView.state.doc.toString();
     return state.fallbackTextarea?.value || state.markdown || "";
@@ -352,7 +364,10 @@ function installPlanSidebar() {
     loadPlan();
   }
 
-  toggle.addEventListener("click", () => setOpen(!state.open));
+  toggle.addEventListener("click", () => {
+    if (state.open) closeSidebar({ autosave: true }).catch(() => undefined);
+    else setOpen(true);
+  });
   refreshButton.addEventListener("click", () => loadPlan());
   saveButton.addEventListener("click", () => savePlan().catch(() => undefined));
   submitButton.addEventListener("click", () => submitToModel().catch(() => undefined));
@@ -373,6 +388,12 @@ function installPlanSidebar() {
     document.body.classList.remove("plan-sidebar-resizing");
   });
 
+  window.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || !state.open) return;
+    event.preventDefault();
+    event.stopPropagation();
+    closeSidebar({ autosave: true }).catch(() => undefined);
+  }, true);
   window.addEventListener("piclaw:current-chat-changed", updateChatJid);
   window.addEventListener("popstate", updateChatJid);
 
