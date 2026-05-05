@@ -426,28 +426,26 @@ type GoalTimelinePhase = "starting" | "resuming" | "continuing" | "budget-limite
 
 function goalTimelineTitle(phase: GoalTimelinePhase): string {
   switch (phase) {
-    case "starting": return "Starting goal";
-    case "resuming": return "Resuming goal";
-    case "continuing": return "Continuing goal";
-    case "budget-limited": return "Goal token budget reached";
-    case "complete": return "Goal complete";
+    case "starting": return "Starting";
+    case "resuming": return "Resuming";
+    case "continuing": return "Continuing";
+    case "budget-limited": return "Budget-limited";
+    case "complete": return "Completed";
   }
 }
 
 function sendGoalTimelineUpdate(pi: ExtensionAPI, session: GoalSession, phase: GoalTimelinePhase, summary?: string): void {
   const remaining = Math.max(0, session.token_budget - session.tokens_used);
   const bar = renderGoalTokenAvailabilityBar(session.tokens_used, session.token_budget);
-  const lines = [
-    `🎯 **${goalTimelineTitle(phase)}**`,
-    `Objective: ${goalObjectivePreview(session.objective, 140)}`,
-    `Status: ${session.status}`,
-    `Tokens: ${bar} ${formatGoalTokenCount(remaining)}/${formatGoalTokenCount(session.token_budget)} remaining (${formatGoalTokenCount(session.tokens_used)} used)`,
-    summary ? `Summary: ${summary}` : null,
-  ].filter(Boolean);
+  const trimmedSummary = normalizeText(summary);
+  const content = [
+    `🎯 ${goalTimelineTitle(phase)} \`/goal\`, objective: ${goalObjectivePreview(session.objective, 140)}`,
+    trimmedSummary ? `— ${trimmedSummary}` : null,
+  ].filter(Boolean).join(" ");
   try {
     pi.sendMessage({
       customType: "goal-status",
-      content: lines.join("\n"),
+      content,
       display: true,
       details: {
         chat_jid: session.chat_jid,

@@ -251,7 +251,9 @@ describe("goal command and loop behavior", () => {
     expect(sentUserMessages).toHaveLength(1);
     expect(String(sentUserMessages[0]?.content)).toContain("Ship the release");
     expect(customMessages.at(-1)?.message.customType).toBe("goal-status");
-    expect(customMessages.at(-1)?.message.content).toContain("Starting goal");
+    expect(customMessages.at(-1)?.message.content).toBe("🎯 Starting `/goal`, objective: Ship the release");
+    expect(customMessages.at(-1)?.message.content).not.toContain("Tokens:");
+    expect(customMessages.at(-1)?.message.content).not.toContain("Status:");
     expect(customMessages.at(-1)?.options).toEqual({ triggerTurn: false });
     expect(statuses.at(-1)?.key).toBe("goal");
     expect(statuses.at(-1)?.text).toContain("[⣿⣿⣿⣿⣿⣿⣿⣿]");
@@ -291,8 +293,8 @@ describe("goal command and loop behavior", () => {
     expect(String(sentUserMessages[1]?.content)).toContain("Finish the docs site");
     expect(String(sentUserMessages[1]?.content)).toContain("Tokens used: 123");
     expect(workingMessages.some((message) => String(message).includes("usage updated"))).toBe(true);
-    expect(customMessages.at(-1)?.message.content).toContain("Continuing goal");
-    expect(customMessages.at(-1)?.message.content).toContain("[⣿");
+    expect(customMessages.at(-1)?.message.content).toBe("🎯 Continuing `/goal`, objective: Finish the docs site");
+    expect(customMessages.at(-1)?.message.content).not.toContain("[⣿");
     expect(customMessages.at(-1)?.message.details.phase).toBe("continuing");
     expect(customMessages.at(-1)?.message.details.token_bar).toContain("[");
   });
@@ -345,7 +347,7 @@ describe("goal command and loop behavior", () => {
     expect(session.completion_summary).toContain("Checklist");
     expect(sentUserMessages).toHaveLength(1);
     expect(workingIndicators.at(-1)).toBeUndefined();
-    expect(customMessages.at(-1)?.message.content).toContain("Goal complete");
+    expect(customMessages.at(-1)?.message.content).toContain("Completed `/goal`, objective: Close the release checklist");
     expect(customMessages.at(-1)?.message.content).toContain("Checklist and tests verified.");
   });
 
@@ -365,7 +367,7 @@ describe("goal command and loop behavior", () => {
     expect(session.enabled).toBe(false);
     expect(sentUserMessages).toHaveLength(2);
     expect(String(sentUserMessages[1]?.content)).toContain("has reached its token budget");
-    expect(customMessages.at(-1)?.message.content).toContain("Goal token budget reached");
+    expect(customMessages.at(-1)?.message.content).toContain("Budget-limited `/goal`, objective: Stabilize the deployment");
     expect(customMessages.at(-1)?.message.details.phase).toBe("budget-limited");
   });
 });
