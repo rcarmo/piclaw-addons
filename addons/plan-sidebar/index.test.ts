@@ -117,3 +117,10 @@ test("collapsed progress meter loads the current chat plan", () => {
   expect(source).toContain("clearDisplayedPlan();");
   expect(source).toContain("loadPlan();\n  }");
 });
+
+test("submit-to-model prompt is concise and action oriented", () => {
+  const source = readFileSync(resolve(addonDir, "web", "index.ts"), "utf8");
+  expect(source).toContain("Use this `plan` tool checklist as the working plan.");
+  expect(source).toContain("Report periodically on progress and next steps.");
+  expect(source).not.toContain("editable shared state, not a static user note");
+});

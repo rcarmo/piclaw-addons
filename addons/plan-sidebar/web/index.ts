@@ -303,10 +303,13 @@ function installPlanSidebar() {
 
   function buildPlanSubmissionPrompt(markdown) {
     return [
-      "The text below is the current Plan sidebar checklist for this session.",
-      "It is editable shared state, not a static user note: you can modify it and must keep it current as work proceeds.",
-      "Use the `plan` tool with `action=read` to inspect it, `action=edit` with exact oldText/newText blocks for atomic item updates, and `action=write` only when replacing the whole checklist.",
-      "Treat checked items as completed, unchecked items as pending, and save a revised checklist after meaningful progress or plan changes.",
+      "Use this `plan` tool checklist as the working plan.",
+      "",
+      "- Continue with the next relevant item.",
+      "- Update the plan as work changes or completes.",
+      "- Prefer `plan` `action=edit` with exact whole-line replacements for checklist updates.",
+      "- Use `action=write` only for a full rewrite.",
+      "- Report periodically on progress and next steps.",
       "",
       "```markdown",
       markdown,
