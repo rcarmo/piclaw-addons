@@ -480,11 +480,11 @@ function injectStyles() {
       width: var(--workspace-tab-width, 20px);
       height: 52px;
       border-radius: var(--radius-md, 8px) 0 0 var(--radius-md, 8px);
-      box-shadow: var(--shadow-sm, 0 1px 3px rgba(0,0,0,.18));
+      box-shadow: none;
       cursor: pointer;
       align-items: center;
       justify-content: center;
-      transition: right var(--ui-transition-fast, .18s), background-color var(--ui-transition-fast, .18s), color var(--ui-transition-fast, .18s), border-color var(--ui-transition-fast, .18s), box-shadow var(--ui-transition-fast, .18s);
+      transition: right var(--ui-transition-fast, .18s), background-color var(--ui-transition-fast, .18s), color var(--ui-transition-fast, .18s), border-color var(--ui-transition-fast, .18s);
     }
     .plan-sidebar-toggle:hover { color: var(--text-primary,#f8fafc); border-color: var(--accent-color,#2563eb); }
     .plan-sidebar-toggle svg { width: 12px; height: 12px; flex-shrink: 0; transition: transform var(--ui-transition-fast, .18s); }
@@ -512,7 +512,13 @@ function injectStyles() {
     .plan-sidebar-root:not(.has-checklist) .plan-sidebar-toggle-meter { opacity: .35; }
     .plan-sidebar-root.open .plan-sidebar-toggle-meter { display: none; }
     .plan-sidebar-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
-    .plan-sidebar-root.open .plan-sidebar-toggle { right: calc(var(--plan-sidebar-width, 380px) - var(--workspace-tab-width, 20px)); }
+    .plan-sidebar-root.open .plan-sidebar-toggle {
+      right: var(--plan-sidebar-width, 380px);
+      background: var(--bg-primary,#0b1020);
+      color: var(--text-primary,#f8fafc);
+      border-color: var(--border-color, rgba(148,163,184,.28));
+      border-right: 0;
+    }
     .plan-sidebar-root.open .plan-sidebar-toggle svg { transform: rotate(180deg); }
     .plan-sidebar-panel {
       --plan-sidebar-width: 380px;
@@ -526,7 +532,7 @@ function injectStyles() {
       transition: transform .18s ease;
       background: var(--bg-primary,#0b1020);
       border-left: 1px solid var(--border-color, rgba(148,163,184,.28));
-      box-shadow: -18px 0 42px rgba(0,0,0,.28);
+      box-shadow: none;
       display: flex;
       flex-direction: column;
       color: var(--text-primary,#e5e7eb);
@@ -613,7 +619,7 @@ function injectStyles() {
     .plan-sidebar-resizing, .plan-sidebar-resizing * { cursor: ew-resize !important; user-select: none !important; }
     @media (max-width: 760px) {
       .plan-sidebar-panel { width: min(92vw, 420px) !important; }
-      .plan-sidebar-root.open .plan-sidebar-toggle { right: calc(min(92vw, 420px) - var(--workspace-tab-width, 20px)); }
+      .plan-sidebar-root.open .plan-sidebar-toggle { right: min(92vw, 420px); }
     }
   `;
   document.head.appendChild(style);

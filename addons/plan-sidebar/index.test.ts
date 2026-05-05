@@ -124,3 +124,11 @@ test("submit-to-model prompt is concise and action oriented", () => {
   expect(source).toContain("Report periodically on progress and next steps.");
   expect(source).not.toContain("editable shared state, not a static user note");
 });
+
+test("sidebar border and open tab avoid gradient shadows", () => {
+  const source = readFileSync(resolve(addonDir, "web", "index.ts"), "utf8");
+  expect(source).toContain(".plan-sidebar-root.open .plan-sidebar-toggle");
+  expect(source).toContain("right: var(--plan-sidebar-width, 380px)");
+  expect(source).toContain("box-shadow: none;");
+  expect(source).not.toContain("-18px 0 42px");
+});
