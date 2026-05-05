@@ -64,6 +64,7 @@ The editable prompt templates support these placeholders:
 - Goal seeking is scoped to the current chat/session, not globally across all chats.
 - The add-on uses a token-budget heuristic based on assistant message usage.
 - Goal execution emits durable timeline status messages in addition to transient native Pi progress updates.
+- The default token budget is `400k` tokens.
 - The native Pi progress indicator uses a Braille token-availability bar, e.g. `[⣿⣿⣦⣀]`, where filled cells are remaining budget; visible token counts use friendly units such as `20k` or `1.25m`.
 - Live progress phases include starting, waiting for model, working, receiving response, tool use, usage updated, continuing, budget-limited, and complete.
 - The web progress bridge polls saved goal state while the page is open, so active goal progress reappears after refreshes or returning to a chat tab without adding timeline messages.

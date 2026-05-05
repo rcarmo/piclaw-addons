@@ -258,7 +258,7 @@ describe("goal command and loop behavior", () => {
     expect(workingVisible.at(-1)).toBe(true);
     expect(workingIndicators.at(-1)?.frames).toEqual(["[⣿⣿⣿⣿⣿⣿⣿⣿]"]);
     expect(workingMessages.at(-1)).toContain("Goal starting");
-    expect(workingMessages.at(-1)).toContain("20k tokens left");
+    expect(workingMessages.at(-1)).toContain("400k tokens left");
     expect(notifications.at(-1)?.message).toContain("Started goal run");
   });
 

@@ -44,7 +44,7 @@ export const GOAL_TIMELINE_FEEDBACK_INSTRUCTION = [
 ].join("\n");
 
 export const DEFAULT_GOAL_CONFIG: GoalConfig = {
-  default_token_budget: 20000,
+  default_token_budget: 400000,
   system_prompt: [
     "## Goal Seeking Mode",
     "An active goal is enabled for this session.",
