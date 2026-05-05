@@ -35,7 +35,9 @@ function installPlanSidebar() {
   root.className = "plan-sidebar-root";
   root.innerHTML = `
     <button class="plan-sidebar-toggle" type="button" aria-label="Show plan" title="Show plan">
+      <span class="plan-sidebar-toggle-meter" aria-hidden="true"><span class="plan-sidebar-toggle-meter-fill"></span></span>
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="10 3 5 8 10 13" /></svg>
+      <span class="plan-sidebar-toggle-progress plan-sidebar-sr-only"></span>
     </button>
     <aside class="plan-sidebar-panel" aria-label="Session plan">
       <div class="plan-sidebar-resizer" title="Resize plan sidebar"></div>
@@ -43,6 +45,13 @@ function installPlanSidebar() {
         <div class="plan-sidebar-title">Plan</div>
         <div class="plan-sidebar-subtitle"></div>
       </header>
+      <div class="plan-sidebar-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+        <div class="plan-sidebar-progress-meta">
+          <span class="plan-sidebar-progress-label">No checklist items</span>
+          <span class="plan-sidebar-progress-percent">0%</span>
+        </div>
+        <div class="plan-sidebar-progress-track"><div class="plan-sidebar-progress-fill"></div></div>
+      </div>
       <div class="plan-sidebar-editor" role="region" aria-label="Markdown checklist editor"></div>
       <footer class="plan-sidebar-footer">
         <div class="plan-sidebar-status" aria-live="polite"></div>
@@ -59,6 +68,12 @@ function installPlanSidebar() {
   const toggle = root.querySelector(".plan-sidebar-toggle");
   const panel = root.querySelector(".plan-sidebar-panel");
   const subtitle = root.querySelector(".plan-sidebar-subtitle");
+  const progress = root.querySelector(".plan-sidebar-progress");
+  const progressLabel = root.querySelector(".plan-sidebar-progress-label");
+  const progressPercent = root.querySelector(".plan-sidebar-progress-percent");
+  const progressFill = root.querySelector(".plan-sidebar-progress-fill");
+  const toggleMeterFill = root.querySelector(".plan-sidebar-toggle-meter-fill");
+  const toggleProgress = root.querySelector(".plan-sidebar-toggle-progress");
   const editorHost = root.querySelector(".plan-sidebar-editor");
   const status = root.querySelector(".plan-sidebar-status");
   const refreshButton = root.querySelector(".plan-sidebar-refresh");
@@ -67,16 +82,31 @@ function installPlanSidebar() {
   const resizer = root.querySelector(".plan-sidebar-resizer");
 
   function renderChrome() {
+    const currentMarkdown = state.editorView ? state.editorView.state.doc.toString() : state.fallbackTextarea?.value || state.markdown || "";
+    const currentProgress = getPlanProgress(currentMarkdown);
     root.classList.toggle("open", state.open);
+    root.classList.toggle("has-checklist", currentProgress.total > 0);
     root.style.setProperty("--plan-sidebar-width", `${state.width}px`);
     panel.style.width = `${state.width}px`;
-    toggle.title = state.open ? "Hide plan" : "Show plan";
-    toggle.setAttribute("aria-label", state.open ? "Hide plan" : "Show plan");
+    toggle.title = state.open ? "Hide plan" : `Show plan • ${formatProgressText(currentProgress)}`;
+    toggle.setAttribute("aria-label", state.open ? "Hide plan" : `Show plan. ${formatProgressText(currentProgress)}.`);
     toggle.classList.toggle("open", state.open);
     subtitle.textContent = `${state.chatJid}${state.dirty ? " • unsaved" : ""}`;
+    renderProgress(currentProgress);
     saveButton.disabled = state.loading || !state.dirty;
     submitButton.disabled = state.loading;
     refreshButton.disabled = state.loading;
+  }
+
+  function renderProgress(planProgress) {
+    const text = formatProgressText(planProgress);
+    progress.setAttribute("aria-valuenow", String(planProgress.percent));
+    progress.setAttribute("aria-valuetext", text);
+    progressLabel.textContent = planProgress.total ? `${planProgress.complete}/${planProgress.total} items complete` : "No checklist items";
+    progressPercent.textContent = `${planProgress.percent}%`;
+    progressFill.style.width = `${planProgress.percent}%`;
+    toggleMeterFill.style.height = `${planProgress.percent}%`;
+    toggleProgress.textContent = text;
   }
 
   function setStatus(message, kind = "info") {
@@ -270,7 +300,7 @@ function installPlanSidebar() {
     return [
       "The text below is the current Plan sidebar checklist for this session.",
       "It is editable shared state, not a static user note: you can modify it and must keep it current as work proceeds.",
-      "Use the `plan` tool with `action=read` to inspect it, `action=edit` with exact oldText/newText blocks for atomic item updates, and `action=write` only when replacing the whole checklist."
+      "Use the `plan` tool with `action=read` to inspect it, `action=edit` with exact oldText/newText blocks for atomic item updates, and `action=write` only when replacing the whole checklist.",
       "Treat checked items as completed, unchecked items as pending, and save a revised checklist after meaningful progress or plan changes.",
       "",
       "```markdown",
@@ -339,6 +369,28 @@ function installPlanSidebar() {
 
   renderChrome();
   if (state.open) setOpen(true);
+}
+
+function getPlanProgress(markdown) {
+  const lines = String(markdown || "").split(/\r?\n/);
+  let total = 0;
+  let complete = 0;
+  for (const line of lines) {
+    const match = line.match(/^\s*(?:[-*+]|\d+[.)])\s+\[([ xX-])\](?:\s|$)/);
+    if (!match) continue;
+    total += 1;
+    if (match[1].toLowerCase() === "x") complete += 1;
+  }
+  return {
+    total,
+    complete,
+    percent: total ? Math.round((complete / total) * 100) : 0,
+  };
+}
+
+function formatProgressText(progress) {
+  if (!progress?.total) return "No checklist items";
+  return `${progress.complete}/${progress.total} items complete (${progress.percent}%)`;
 }
 
 function getCurrentChatJid() {
@@ -426,6 +478,30 @@ function injectStyles() {
     }
     .plan-sidebar-toggle:hover { color: var(--text-primary,#f8fafc); border-color: var(--accent-color,#2563eb); }
     .plan-sidebar-toggle svg { width: 12px; height: 12px; flex-shrink: 0; transition: transform var(--ui-transition-fast, .18s); }
+    .plan-sidebar-toggle-meter {
+      position: absolute;
+      left: 3px;
+      top: 8px;
+      bottom: 8px;
+      width: 3px;
+      border-radius: 999px;
+      overflow: hidden;
+      background: color-mix(in srgb, var(--border-color, rgba(148,163,184,.45)) 72%, transparent);
+      opacity: .95;
+    }
+    .plan-sidebar-toggle-meter-fill {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 0%;
+      border-radius: 999px;
+      background: var(--accent-color,#2563eb);
+      transition: height var(--ui-transition-fast, .18s);
+    }
+    .plan-sidebar-root:not(.has-checklist) .plan-sidebar-toggle-meter { opacity: .35; }
+    .plan-sidebar-root.open .plan-sidebar-toggle-meter { display: none; }
+    .plan-sidebar-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
     .plan-sidebar-root.open .plan-sidebar-toggle { right: calc(var(--plan-sidebar-width, 380px) - var(--workspace-tab-width, 20px)); }
     .plan-sidebar-root.open .plan-sidebar-toggle svg { transform: rotate(180deg); }
     .plan-sidebar-panel {
@@ -456,6 +532,37 @@ function injectStyles() {
     }
     .plan-sidebar-title { flex: 0 0 auto; font-weight: 650; font-size: 12px; letter-spacing: .01em; }
     .plan-sidebar-subtitle { color: var(--text-secondary,#94a3b8); font-size: 10px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .plan-sidebar-progress {
+      border-bottom: 1px solid var(--border-color, rgba(148,163,184,.2));
+      padding: 8px 10px 9px;
+      background: var(--bg-secondary,#111827);
+      display: grid;
+      gap: 6px;
+    }
+    .plan-sidebar-progress-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      color: var(--text-secondary,#94a3b8);
+      font-size: 10px;
+      line-height: 1.2;
+    }
+    .plan-sidebar-progress-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .plan-sidebar-progress-percent { flex: 0 0 auto; font-variant-numeric: tabular-nums; color: var(--text-primary,#e5e7eb); }
+    .plan-sidebar-progress-track {
+      height: 6px;
+      border-radius: 999px;
+      overflow: hidden;
+      background: color-mix(in srgb, var(--border-color, rgba(148,163,184,.35)) 72%, transparent);
+    }
+    .plan-sidebar-progress-fill {
+      width: 0%;
+      height: 100%;
+      border-radius: inherit;
+      background: var(--accent-color,#2563eb);
+      transition: width var(--ui-transition-fast, .18s);
+    }
     .plan-sidebar-editor { flex: 1; min-height: 0; overflow: hidden; }
     .plan-sidebar-textarea {
       width: 100%;

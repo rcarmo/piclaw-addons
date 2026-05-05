@@ -1,5 +1,9 @@
 import { expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import planSidebarAddon, { applyPlanEdits, loadSessionPlan, resetPlanSidebarAddonForTests, saveSessionPlan } from "./index";
+
+const addonDir = import.meta.dir;
 
 test("plan storage is scoped by chat jid", () => {
   resetPlanSidebarAddonForTests();
@@ -96,4 +100,13 @@ test("legacy get/set arguments are prepared as read/write", async () => {
 
 test("plan edit rejects ambiguous matches without changing text", () => {
   expect(() => applyPlanEdits("- [ ] same\n- [ ] same", [{ oldText: "- [ ] same", newText: "- [x] same" }])).toThrow(/exactly once/);
+});
+
+test("web sidebar renders progress bar and collapsed meter", () => {
+  const source = readFileSync(resolve(addonDir, "web", "index.ts"), "utf8");
+  expect(() => new Bun.Transpiler({ loader: "ts" }).transformSync(source)).not.toThrow();
+  expect(source).toContain("plan-sidebar-progress");
+  expect(source).toContain("plan-sidebar-toggle-meter");
+  expect(source).toContain("function getPlanProgress");
+  expect(source).toContain("items complete");
 });
