@@ -365,19 +365,22 @@ export function renderGoalTokenAvailabilityBar(tokensUsedInput: unknown, tokenBu
 
 function formatGoalProgressUpdate(session: GoalSession, phase = "running"): string {
   const remaining = Math.max(0, session.token_budget - session.tokens_used);
-  const bar = renderGoalTokenAvailabilityBar(session.tokens_used, session.token_budget);
-  return `Goal ${phase} ${bar} ${remaining}/${session.token_budget} tokens left • ${goalObjectivePreview(session.objective)}`;
+  return `Goal ${phase}: ${remaining}/${session.token_budget} tokens left • ${goalObjectivePreview(session.objective)}`;
 }
 
 function setGoalProgressUi(ctx: ExtensionContext | ExtensionCommandContext, session: GoalSession, phase = "running"): void {
+  const bar = renderGoalTokenAvailabilityBar(session.tokens_used, session.token_budget);
   const message = formatGoalProgressUpdate(session, phase);
-  try { ctx.ui.setStatus(UI_STATUS_KEY, `🎯 ${message}`); } catch { /* UI may not support status in all modes */ }
+  try { ctx.ui.setWorkingVisible(true); } catch { /* UI may not support working rows in all modes */ }
+  try { ctx.ui.setWorkingIndicator({ frames: [bar], intervalMs: 1000 }); } catch { /* UI may not support custom indicators in all modes */ }
   try { ctx.ui.setWorkingMessage(message); } catch { /* UI may not support working messages in all modes */ }
+  try { ctx.ui.setStatus(UI_STATUS_KEY, `🎯 ${bar} ${Math.max(0, session.token_budget - session.tokens_used)}/${session.token_budget}`); } catch { /* UI may not support status in all modes */ }
 }
 
 function clearGoalProgressUi(ctx: ExtensionContext | ExtensionCommandContext): void {
   try { ctx.ui.setStatus(UI_STATUS_KEY, undefined); } catch { /* ignore */ }
   try { ctx.ui.setWorkingMessage(undefined); } catch { /* ignore */ }
+  try { ctx.ui.setWorkingIndicator(undefined); } catch { /* ignore */ }
 }
 
 type GoalTimelinePhase = "starting" | "resuming" | "continuing" | "budget-limited" | "complete";

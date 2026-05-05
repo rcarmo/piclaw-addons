@@ -28,6 +28,8 @@ function createHarness() {
   const notifications: Array<{ message: string; level: string }> = [];
   const statuses: Array<{ key: string; text: string | undefined }> = [];
   const workingMessages: Array<string | undefined> = [];
+  const workingIndicators: Array<{ frames?: string[]; intervalMs?: number } | undefined> = [];
+  const workingVisible: boolean[] = [];
 
   const api = {
     on(event: string, handler: (...args: any[]) => any) { handlers.push({ event, handler }); },
@@ -67,6 +69,12 @@ function createHarness() {
       setWorkingMessage(message?: string) {
         workingMessages.push(message);
       },
+      setWorkingIndicator(options?: { frames?: string[]; intervalMs?: number }) {
+        workingIndicators.push(options);
+      },
+      setWorkingVisible(visible: boolean) {
+        workingVisible.push(visible);
+      },
     },
     hasUI: false,
     cwd: "/workspace",
@@ -84,7 +92,7 @@ function createHarness() {
   } as any;
 
   goalAddon(api);
-  return { api, commands, tools, handlers, sentUserMessages, customMessages, notifications, statuses, workingMessages, ctx };
+  return { api, commands, tools, handlers, sentUserMessages, customMessages, notifications, statuses, workingMessages, workingIndicators, workingVisible, ctx };
 }
 
 test("goal addon exports an extension entrypoint", () => {
@@ -217,8 +225,8 @@ describe("goal command and loop behavior", () => {
     expect(notifications.at(-1)?.message).toContain("web:branch-456");
   });
 
-  test("/goal starts a run with UI progress, a timeline update, and the initial kickoff prompt", async () => {
-    const { commands, sentUserMessages, customMessages, notifications, statuses, workingMessages, ctx } = createHarness();
+  test("/goal starts a run with native Pi progress, a timeline update, and the initial kickoff prompt", async () => {
+    const { commands, sentUserMessages, customMessages, notifications, statuses, workingMessages, workingIndicators, workingVisible, ctx } = createHarness();
     const command = commands.get("goal");
 
     await withChatContext("web:goal", "web", async () => {
@@ -235,8 +243,9 @@ describe("goal command and loop behavior", () => {
     expect(customMessages.at(-1)?.message.content).toContain("Starting goal");
     expect(customMessages.at(-1)?.options).toEqual({ triggerTurn: false });
     expect(statuses.at(-1)?.key).toBe("goal");
-    expect(statuses.at(-1)?.text).toContain("Goal starting");
     expect(statuses.at(-1)?.text).toContain("[⣿⣿⣿⣿⣿⣿⣿⣿]");
+    expect(workingVisible.at(-1)).toBe(true);
+    expect(workingIndicators.at(-1)?.frames).toEqual(["[⣿⣿⣿⣿⣿⣿⣿⣿]"]);
     expect(workingMessages.at(-1)).toContain("Goal starting");
     expect(workingMessages.at(-1)).toContain("tokens left");
     expect(notifications.at(-1)?.message).toContain("Started goal run");
@@ -276,8 +285,8 @@ describe("goal command and loop behavior", () => {
     expect(customMessages.at(-1)?.message.details.token_bar).toContain("[");
   });
 
-  test("update_goal marks completion, posts a timeline update, and stops the continuation loop", async () => {
-    const { commands, tools, handlers, sentUserMessages, customMessages, ctx } = createHarness();
+  test("update_goal marks completion, clears native progress, posts a timeline update, and stops the continuation loop", async () => {
+    const { commands, tools, handlers, sentUserMessages, customMessages, workingIndicators, ctx } = createHarness();
     const command = commands.get("goal");
     const updateGoal = tools.get("update_goal");
     const agentEnd = handlers.find((entry) => entry.event === "agent_end")?.handler;
@@ -293,6 +302,7 @@ describe("goal command and loop behavior", () => {
     expect(session.enabled).toBe(false);
     expect(session.completion_summary).toContain("Checklist");
     expect(sentUserMessages).toHaveLength(1);
+    expect(workingIndicators.at(-1)).toBeUndefined();
     expect(customMessages.at(-1)?.message.content).toContain("Goal complete");
     expect(customMessages.at(-1)?.message.content).toContain("Checklist and tests verified.");
   });
