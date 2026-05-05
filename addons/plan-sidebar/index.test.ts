@@ -110,3 +110,10 @@ test("web sidebar renders progress bar and collapsed meter", () => {
   expect(source).toContain("function getPlanProgress");
   expect(source).toContain("items complete");
 });
+
+test("collapsed progress meter loads the current chat plan", () => {
+  const source = readFileSync(resolve(addonDir, "web", "index.ts"), "utf8");
+  expect(source).toContain("else loadPlan();");
+  expect(source).toContain("clearDisplayedPlan();");
+  expect(source).toContain("loadPlan();\n  }");
+});

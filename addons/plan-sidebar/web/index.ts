@@ -142,6 +142,11 @@ function installPlanSidebar() {
     }
   }
 
+  function clearDisplayedPlan() {
+    state.updatedAt = null;
+    setEditorValue("");
+  }
+
   function markDirty(next = true) {
     state.dirty = Boolean(next);
     renderChrome();
@@ -339,8 +344,9 @@ function installPlanSidebar() {
     if (next === state.chatJid) return;
     state.chatJid = next;
     state.dirty = false;
+    clearDisplayedPlan();
     renderChrome();
-    if (state.open) loadPlan();
+    loadPlan();
   }
 
   toggle.addEventListener("click", () => setOpen(!state.open));
@@ -369,6 +375,7 @@ function installPlanSidebar() {
 
   renderChrome();
   if (state.open) setOpen(true);
+  else loadPlan();
 }
 
 function getPlanProgress(markdown) {
