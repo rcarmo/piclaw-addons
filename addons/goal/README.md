@@ -63,5 +63,5 @@ The editable prompt templates support these placeholders:
 - Goal seeking is scoped to the current chat/session, not globally across all chats.
 - The add-on uses a token-budget heuristic based on assistant message usage.
 - Goal execution emits durable timeline status messages in addition to transient native Pi progress updates.
-- The native Pi progress indicator uses a Braille token-availability bar, e.g. `[⣿⣿⣦⣀]`, where filled cells are remaining budget.
+- The native Pi progress indicator uses a Braille token-availability bar, e.g. `[⣿⣿⣦⣀]`, where filled cells are remaining budget; visible token counts use friendly units such as `20k` or `1.25m`.
 - When the objective is truly done, the model should call `update_goal` with status `complete`.

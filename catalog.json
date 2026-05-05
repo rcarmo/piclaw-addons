@@ -286,7 +286,7 @@
     {
       "slug": "goal",
       "name": "@rcarmo/piclaw-addon-goal",
-      "version": "0.1.6",
+      "version": "0.1.7",
       "type": "extension",
       "description": "Session-scoped goal seeking loop with editable prompts, a settings pane, and /goal command support",
       "path": "addons/goal",
@@ -301,7 +301,7 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-goal-0.1.6.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-goal-0.1.7.tgz"
       },
       "updatedAt": "2026-05-05"
     },

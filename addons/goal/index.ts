@@ -327,13 +327,28 @@ function getBudgetLimitPrompt(session: GoalSession, config: GoalConfig): string 
   return appendTimelineFeedbackInstruction(renderGoalTemplate(config.budget_limit_prompt, buildGoalPromptVars(session)));
 }
 
+export function formatGoalTokenCount(valueInput: unknown): string {
+  const value = Math.max(0, normalizePositiveInt(valueInput, 0));
+  if (value < 1000) return String(value);
+  const units = ["k", "m", "b", "t"];
+  let scaled = value;
+  let unit = units[0];
+  for (let i = 0; i < units.length; i += 1) {
+    scaled = value / (1000 ** (i + 1));
+    unit = units[i];
+    if (scaled < 1000 || i === units.length - 1) break;
+  }
+  const decimals = scaled >= 100 ? 0 : scaled >= 10 ? 1 : 2;
+  return `${scaled.toFixed(decimals).replace(/\.0+$|(?<=\.\d)0+$/g, "")}${unit}`;
+}
+
 function goalStatusSummary(session: GoalSession): string {
   const remaining = Math.max(0, session.token_budget - session.tokens_used);
   return [
     `Goal status for ${session.chat_jid}: ${session.status}.`,
     session.objective ? `Objective: ${session.objective}` : "Objective: (none)",
     `Enabled: ${session.enabled ? "yes" : "no"}`,
-    `Tokens: ${session.tokens_used}/${session.token_budget} (${remaining} remaining)`,
+    `Tokens: ${formatGoalTokenCount(session.tokens_used)}/${formatGoalTokenCount(session.token_budget)} (${formatGoalTokenCount(remaining)} remaining)`,
     session.completed_at ? `Completed: ${session.completed_at}` : null,
     session.completion_summary ? `Summary: ${session.completion_summary}` : null,
   ].filter(Boolean).join("\n");
@@ -365,7 +380,7 @@ export function renderGoalTokenAvailabilityBar(tokensUsedInput: unknown, tokenBu
 
 function formatGoalProgressUpdate(session: GoalSession, phase = "running"): string {
   const remaining = Math.max(0, session.token_budget - session.tokens_used);
-  return `Goal ${phase}: ${remaining}/${session.token_budget} tokens left • ${goalObjectivePreview(session.objective)}`;
+  return `Goal ${phase}: ${formatGoalTokenCount(remaining)}/${formatGoalTokenCount(session.token_budget)} tokens left • ${goalObjectivePreview(session.objective)}`;
 }
 
 function setGoalProgressUi(ctx: ExtensionContext | ExtensionCommandContext, session: GoalSession, phase = "running"): void {
@@ -374,7 +389,7 @@ function setGoalProgressUi(ctx: ExtensionContext | ExtensionCommandContext, sess
   try { ctx.ui.setWorkingVisible(true); } catch { /* UI may not support working rows in all modes */ }
   try { ctx.ui.setWorkingIndicator({ frames: [bar], intervalMs: 1000 }); } catch { /* UI may not support custom indicators in all modes */ }
   try { ctx.ui.setWorkingMessage(message); } catch { /* UI may not support working messages in all modes */ }
-  try { ctx.ui.setStatus(UI_STATUS_KEY, `🎯 ${bar} ${Math.max(0, session.token_budget - session.tokens_used)}/${session.token_budget}`); } catch { /* UI may not support status in all modes */ }
+  try { ctx.ui.setStatus(UI_STATUS_KEY, `🎯 ${bar} ${formatGoalTokenCount(Math.max(0, session.token_budget - session.tokens_used))}/${formatGoalTokenCount(session.token_budget)}`); } catch { /* UI may not support status in all modes */ }
 }
 
 function clearGoalProgressUi(ctx: ExtensionContext | ExtensionCommandContext): void {
@@ -402,7 +417,7 @@ function sendGoalTimelineUpdate(pi: ExtensionAPI, session: GoalSession, phase: G
     `🎯 **${goalTimelineTitle(phase)}**`,
     `Objective: ${goalObjectivePreview(session.objective, 140)}`,
     `Status: ${session.status}`,
-    `Tokens: ${bar} ${remaining}/${session.token_budget} remaining (${session.tokens_used} used)`,
+    `Tokens: ${bar} ${formatGoalTokenCount(remaining)}/${formatGoalTokenCount(session.token_budget)} remaining (${formatGoalTokenCount(session.tokens_used)} used)`,
     summary ? `Summary: ${summary}` : null,
   ].filter(Boolean);
   try {

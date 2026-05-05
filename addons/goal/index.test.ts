@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import goalAddon, {
+  formatGoalTokenCount,
   loadGoalSession,
   renderGoalTemplate,
   renderGoalTokenAvailabilityBar,
@@ -136,6 +137,7 @@ test("goal settings apply token budget changes to the current session on blur", 
   expect(source).toContain("function positiveNumber");
   expect(source).toContain("saveSessionTokenBudget");
   expect(source).toContain("saveDefaultTokenBudget");
+  expect(source).toContain("function formatTokenCount");
   expect(source).toContain("saveSession(chatJid, { token_budget: tokenBudget })");
   expect(source).toContain("Saved global default and current chat token budget.");
 });
@@ -146,6 +148,13 @@ test("renderGoalTemplate replaces prompt placeholders", () => {
     tokens_used: "42",
   });
   expect(rendered).toBe("Goal: Ship docs / 42 / ");
+});
+
+test("goal token counts use friendly units for reporting", () => {
+  expect(formatGoalTokenCount(999)).toBe("999");
+  expect(formatGoalTokenCount(20_000)).toBe("20k");
+  expect(formatGoalTokenCount(12_500)).toBe("12.5k");
+  expect(formatGoalTokenCount(1_250_000)).toBe("1.25m");
 });
 
 test("goal token availability renders a Braille glyph bar", () => {
@@ -247,7 +256,7 @@ describe("goal command and loop behavior", () => {
     expect(workingVisible.at(-1)).toBe(true);
     expect(workingIndicators.at(-1)?.frames).toEqual(["[⣿⣿⣿⣿⣿⣿⣿⣿]"]);
     expect(workingMessages.at(-1)).toContain("Goal starting");
-    expect(workingMessages.at(-1)).toContain("tokens left");
+    expect(workingMessages.at(-1)).toContain("20k tokens left");
     expect(notifications.at(-1)?.message).toContain("Started goal run");
   });
 

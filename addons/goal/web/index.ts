@@ -75,6 +75,21 @@ function positiveNumber(value, fallback = 1) {
   return Number.isFinite(numeric) && numeric > 0 ? Math.trunc(numeric) : fallback;
 }
 
+function formatTokenCount(value) {
+  const numeric = Math.max(0, Math.trunc(Number(value) || 0));
+  if (numeric < 1000) return String(numeric);
+  const units = ["k", "m", "b", "t"];
+  let scaled = numeric;
+  let unit = units[0];
+  for (let i = 0; i < units.length; i += 1) {
+    scaled = numeric / (1000 ** (i + 1));
+    unit = units[i];
+    if (scaled < 1000 || i === units.length - 1) break;
+  }
+  const decimals = scaled >= 100 ? 0 : scaled >= 10 ? 1 : 2;
+  return `${scaled.toFixed(decimals).replace(/\.0+$|(?<=\.\d)0+$/g, "")}${unit}`;
+}
+
 function registerPane() {
   if (!HAS_RUNTIME) return;
   let reg, notify;
@@ -212,7 +227,7 @@ function GoalSettingsPane() {
           onBlur=${(e) => saveSessionTokenBudget(e.target.value)}
           disabled=${saving} />
       </label>
-      ${hint(`Used ${session.tokens_used || 0} tokens so far, ${remaining} remaining. Status: ${session.status}.`) }
+      ${hint(`Used ${formatTokenCount(session.tokens_used || 0)} tokens so far, ${formatTokenCount(remaining)} remaining. Status: ${session.status}.`) }
 
       <div style=${{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "0.35rem" }}>
         <button onClick=${() => saveCurrentSession({ enabled: true })} disabled=${saving}>Turn On</button>
