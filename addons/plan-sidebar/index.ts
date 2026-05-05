@@ -14,6 +14,7 @@ export interface SessionPlan {
 }
 
 const DEFAULT_PLAN = [
+  "- [ ] Update this plan thoroughly with ongoing work",
   "- [ ] Clarify the current objective",
   "- [ ] Do the next concrete step",
   "- [ ] Verify the result",

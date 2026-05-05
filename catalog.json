@@ -435,7 +435,7 @@
     {
       "slug": "plan-sidebar",
       "name": "@rcarmo/piclaw-addon-plan-sidebar",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "type": "extension",
       "description": "Right-side session plan sidebar with a Markdown checklist editor and plan get/set tool",
       "path": "addons/plan-sidebar",
@@ -449,9 +449,9 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-plan-sidebar-0.1.2.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-plan-sidebar-0.1.3.tgz"
       },
-      "updatedAt": "2026-05-04"
+      "updatedAt": "2026-05-05"
     },
     {
       "slug": "portainer",
