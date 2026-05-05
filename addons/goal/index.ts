@@ -31,6 +31,8 @@ export interface GoalSession {
   completed_at: string | null;
   completion_summary: string;
   last_prompt_kind: GoalPromptKind;
+  progress_phase: string;
+  progress_updated_at: string | null;
 }
 
 export const GOAL_TIMELINE_FEEDBACK_INSTRUCTION = [
@@ -115,6 +117,8 @@ export const DEFAULT_GOAL_SESSION: GoalSession = {
   completed_at: null,
   completion_summary: "",
   last_prompt_kind: null,
+  progress_phase: "",
+  progress_updated_at: null,
 };
 
 let kvStore: ExtensionStorage | null = null;
@@ -223,6 +227,8 @@ export function loadGoalSession(chatJidInput?: unknown): GoalSession {
     completed_at,
     completion_summary: normalizeText(saved?.completion_summary),
     last_prompt_kind: saved?.last_prompt_kind === "continuation" || saved?.last_prompt_kind === "budget_limit" ? saved.last_prompt_kind : null,
+    progress_phase: normalizeText(saved?.progress_phase),
+    progress_updated_at: normalizeText(saved?.progress_updated_at) || null,
   };
 }
 
@@ -268,6 +274,16 @@ export function saveGoalSession(chatJidInput: unknown, patch: Partial<GoalSessio
         : patch.last_prompt_kind === "continuation" || patch.last_prompt_kind === "budget_limit"
           ? patch.last_prompt_kind
           : null,
+    progress_phase: clearingObjective
+      ? ""
+      : patch.progress_phase === undefined
+        ? (objectiveChanged ? "starting" : current.progress_phase)
+        : normalizeText(patch.progress_phase),
+    progress_updated_at: clearingObjective
+      ? null
+      : patch.progress_updated_at === undefined
+        ? (patch.progress_phase === undefined ? current.progress_updated_at : nowIso())
+        : normalizeText(patch.progress_updated_at) || null,
   };
   kv().set(SESSION_KEY, next, "chat", chat_jid);
   return next;
@@ -348,6 +364,7 @@ function goalStatusSummary(session: GoalSession): string {
     `Goal status for ${session.chat_jid}: ${session.status}.`,
     session.objective ? `Objective: ${session.objective}` : "Objective: (none)",
     `Enabled: ${session.enabled ? "yes" : "no"}`,
+    session.progress_phase ? `Phase: ${session.progress_phase}` : null,
     `Tokens: ${formatGoalTokenCount(session.tokens_used)}/${formatGoalTokenCount(session.token_budget)} (${formatGoalTokenCount(remaining)} remaining)`,
     session.completed_at ? `Completed: ${session.completed_at}` : null,
     session.completion_summary ? `Summary: ${session.completion_summary}` : null,
@@ -384,12 +401,13 @@ function formatGoalProgressUpdate(session: GoalSession, phase = "running"): stri
 }
 
 function setGoalProgressUi(ctx: ExtensionContext | ExtensionCommandContext, session: GoalSession, phase = "running"): void {
-  const bar = renderGoalTokenAvailabilityBar(session.tokens_used, session.token_budget);
-  const message = formatGoalProgressUpdate(session, phase);
+  const next = saveGoalSession(session.chat_jid, { progress_phase: phase, progress_updated_at: nowIso() });
+  const bar = renderGoalTokenAvailabilityBar(next.tokens_used, next.token_budget);
+  const message = formatGoalProgressUpdate(next, phase);
   try { ctx.ui.setWorkingVisible(true); } catch { /* UI may not support working rows in all modes */ }
   try { ctx.ui.setWorkingIndicator({ frames: [bar], intervalMs: 1000 }); } catch { /* UI may not support custom indicators in all modes */ }
   try { ctx.ui.setWorkingMessage(message); } catch { /* UI may not support working messages in all modes */ }
-  try { ctx.ui.setStatus(UI_STATUS_KEY, `🎯 ${bar} ${formatGoalTokenCount(Math.max(0, session.token_budget - session.tokens_used))}/${formatGoalTokenCount(session.token_budget)}`); } catch { /* UI may not support status in all modes */ }
+  try { ctx.ui.setStatus(UI_STATUS_KEY, `🎯 ${bar} ${formatGoalTokenCount(Math.max(0, next.token_budget - next.tokens_used))}/${formatGoalTokenCount(next.token_budget)}`); } catch { /* UI may not support status in all modes */ }
 }
 
 function setGoalProgressPhase(ctx: ExtensionContext | ExtensionCommandContext, phase: string): void {
@@ -588,6 +606,8 @@ export default function goalAddon(pi: ExtensionAPI): void {
         completed_at: nowIso(),
         completion_summary: normalizeText(params.summary),
         last_prompt_kind: null,
+        progress_phase: "complete",
+        progress_updated_at: nowIso(),
       });
       clearGoalProgressUi(ctx);
       sendGoalTimelineUpdate(pi, next, "complete", next.completion_summary || "Goal marked complete after verification.");
@@ -624,6 +644,8 @@ export default function goalAddon(pi: ExtensionAPI): void {
           enabled: false,
           status: current.objective ? "paused" : "idle",
           last_prompt_kind: null,
+          progress_phase: current.objective ? "paused" : "idle",
+          progress_updated_at: nowIso(),
         });
         clearGoalProgressUi(ctx);
         ctx.ui.notify(`Goal seeking OFF for ${chatJid}.`, "info");

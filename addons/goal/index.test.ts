@@ -121,6 +121,8 @@ test("goal web entry targets config/session addon APIs and active chat context",
   expect(source).toContain("registerSettingsPane");
   expect(source).toContain("__piclaw_web?.getCurrentChatJid");
   expect(source).toContain("piclaw:current-chat-changed");
+  expect(source).toContain("installProgressBridge");
+  expect(source).toContain("piclaw-goal-progress-bridge");
 });
 
 test("goal prompt editors are monospaced textareas", () => {
@@ -320,6 +322,9 @@ describe("goal command and loop behavior", () => {
     expect(workingMessages.some((message) => String(message).includes("receiving response"))).toBe(true);
     expect(workingMessages.some((message) => String(message).includes("using read"))).toBe(true);
     expect(workingMessages.some((message) => String(message).includes("read done"))).toBe(true);
+    const session = loadGoalSession("web:goal");
+    expect(session.progress_phase).toBe("read done");
+    expect(session.progress_updated_at).toBeTruthy();
   });
 
   test("update_goal marks completion, clears native progress, posts a timeline update, and stops the continuation loop", async () => {

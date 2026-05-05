@@ -90,6 +90,130 @@ function formatTokenCount(value) {
   return `${scaled.toFixed(decimals).replace(/\.0+$|(?<=\.\d)0+$/g, "")}${unit}`;
 }
 
+const BRAILLE_TOKEN_BAR_LEVELS = ["⣀", "⣄", "⣤", "⣦", "⣶", "⣷", "⣿"];
+
+function renderTokenAvailabilityBar(tokensUsedInput, tokenBudgetInput, width = 8) {
+  const tokenBudget = Math.max(0, positiveNumber(tokenBudgetInput, 0));
+  const tokensUsed = Math.max(0, positiveNumber(tokensUsedInput, 0));
+  const safeWidth = Math.max(1, Math.min(32, Math.trunc(width || 8)));
+  const maxLevel = BRAILLE_TOKEN_BAR_LEVELS.length - 1;
+  const availableRatio = tokenBudget > 0 ? Math.max(0, Math.min(1, (tokenBudget - tokensUsed) / tokenBudget)) : 0;
+  let filled = Math.round(availableRatio * safeWidth * maxLevel);
+  let bar = "";
+  for (let i = 0; i < safeWidth; i += 1) {
+    const level = Math.max(0, Math.min(maxLevel, filled));
+    bar += BRAILLE_TOKEN_BAR_LEVELS[level];
+    filled -= maxLevel;
+  }
+  return `[${bar}]`;
+}
+
+function goalObjectivePreview(objective, maxLength = 72) {
+  const collapsed = String(objective || "").replace(/\s+/g, " ").trim();
+  if (!collapsed) return "no objective";
+  return collapsed.length > maxLength ? `${collapsed.slice(0, maxLength - 1)}…` : collapsed;
+}
+
+function formatProgressMessage(session) {
+  const remaining = Math.max(0, Number(session?.token_budget || 0) - Number(session?.tokens_used || 0));
+  const phase = String(session?.progress_phase || session?.status || "running").trim() || "running";
+  return `Goal ${phase}: ${formatTokenCount(remaining)}/${formatTokenCount(session?.token_budget || 0)} tokens left • ${goalObjectivePreview(session?.objective)}`;
+}
+
+function installProgressBridge() {
+  if (typeof window === "undefined" || typeof document === "undefined") return;
+  if (window.__piclawGoalProgressBridgeInstalled) return;
+  window.__piclawGoalProgressBridgeInstalled = true;
+
+  const style = document.createElement("style");
+  style.textContent = `
+    #piclaw-goal-progress-bridge {
+      position: fixed;
+      left: max(12px, env(safe-area-inset-left, 0px));
+      right: max(12px, env(safe-area-inset-right, 0px));
+      bottom: calc(5.75rem + env(safe-area-inset-bottom, 0px));
+      z-index: 45;
+      display: none;
+      pointer-events: none;
+    }
+    #piclaw-goal-progress-bridge .goal-progress-card {
+      width: min(780px, 100%);
+      margin: 0 auto;
+      box-sizing: border-box;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.45rem 0.7rem;
+      border: 1px solid color-mix(in srgb, var(--accent-color, #2563eb) 28%, var(--border-color, rgba(148, 163, 184, 0.45)));
+      border-radius: 0.75rem;
+      background: color-mix(in srgb, var(--bg-primary, #0f172a) 92%, transparent);
+      color: var(--text-primary, #e5e7eb);
+      box-shadow: 0 10px 28px rgba(15, 23, 42, 0.18);
+      font-size: 0.82rem;
+      line-height: 1.3;
+      backdrop-filter: blur(10px);
+    }
+    #piclaw-goal-progress-bridge .goal-progress-glyph {
+      font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+      color: var(--accent-color, #2563eb);
+      white-space: nowrap;
+    }
+    #piclaw-goal-progress-bridge .goal-progress-text {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    @media (max-width: 720px) {
+      #piclaw-goal-progress-bridge { bottom: calc(5.25rem + env(safe-area-inset-bottom, 0px)); }
+      #piclaw-goal-progress-bridge .goal-progress-card { font-size: 0.76rem; padding: 0.38rem 0.55rem; }
+    }
+  `;
+  document.head.appendChild(style);
+
+  const root = document.createElement("div");
+  root.id = "piclaw-goal-progress-bridge";
+  root.setAttribute("role", "status");
+  root.setAttribute("aria-live", "polite");
+  root.innerHTML = `<div class="goal-progress-card"><span class="goal-progress-glyph"></span><span class="goal-progress-text"></span></div>`;
+  document.body.appendChild(root);
+
+  let timer = null;
+  let inFlight = false;
+  const render = (session) => {
+    const active = session?.enabled === true && session?.status === "running" && String(session?.objective || "").trim();
+    if (!active) {
+      root.style.display = "none";
+      return;
+    }
+    const glyph = root.querySelector(".goal-progress-glyph");
+    const text = root.querySelector(".goal-progress-text");
+    if (glyph) glyph.textContent = `🎯 ${renderTokenAvailabilityBar(session.tokens_used, session.token_budget)}`;
+    if (text) text.textContent = formatProgressMessage(session);
+    root.style.display = "block";
+  };
+  const refresh = async () => {
+    if (inFlight) return;
+    inFlight = true;
+    try {
+      render(await loadSession(getCurrentChatJid()));
+    } catch {
+      root.style.display = "none";
+    } finally {
+      inFlight = false;
+    }
+  };
+  const schedule = () => {
+    if (timer) window.clearInterval(timer);
+    timer = window.setInterval(refresh, document.visibilityState === "visible" ? 1500 : 10000);
+  };
+  window.addEventListener("piclaw:current-chat-changed", () => { root.style.display = "none"; refresh(); schedule(); });
+  window.addEventListener("focus", refresh);
+  document.addEventListener("visibilitychange", () => { refresh(); schedule(); });
+  refresh();
+  schedule();
+}
+
 function registerPane() {
   if (!HAS_RUNTIME) return;
   let reg, notify;
@@ -197,6 +321,7 @@ function GoalSettingsPane() {
   const H = { margin: "1.15rem 0 0.45rem", fontSize: "0.9rem", color: "var(--text-primary)", borderBottom: "1px solid var(--border-color)", paddingBottom: "0.3rem" };
   const hint = (text) => html`<div style=${{ fontSize: "0.73rem", color: "var(--text-secondary)", margin: "-0.1rem 0 0.5rem 168px" }}>${text}</div>`;
   const remaining = Math.max(0, Number(session.token_budget || 0) - Number(session.tokens_used || 0));
+  const phase = session.progress_phase || session.status;
 
   return html`
     <div style="padding:0.5rem 0;">
@@ -227,7 +352,7 @@ function GoalSettingsPane() {
           onBlur=${(e) => saveSessionTokenBudget(e.target.value)}
           disabled=${saving} />
       </label>
-      ${hint(`Used ${formatTokenCount(session.tokens_used || 0)} tokens so far, ${formatTokenCount(remaining)} remaining. Status: ${session.status}.`) }
+      ${hint(`Used ${formatTokenCount(session.tokens_used || 0)} tokens so far, ${formatTokenCount(remaining)} remaining. Status: ${session.status}; phase: ${phase}.`) }
 
       <div style=${{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "0.35rem" }}>
         <button onClick=${() => saveCurrentSession({ enabled: true })} disabled=${saving}>Turn On</button>
@@ -280,7 +405,8 @@ function GoalSettingsPane() {
 
 try {
   registerPane();
+  installProgressBridge();
   if (typeof window !== "undefined") {
-    window.addEventListener("piclaw:addons-loaded", () => { try { registerPane(); } catch {} });
+    window.addEventListener("piclaw:addons-loaded", () => { try { registerPane(); installProgressBridge(); } catch {} });
   }
 } catch {}
