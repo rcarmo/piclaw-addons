@@ -406,6 +406,29 @@
       "contributors": []
     },
     {
+      "slug": "late-night-regrets",
+      "name": "@rcarmo/piclaw-addon-late-night-regrets",
+      "version": "0.1.0",
+      "type": "extension",
+      "description": "Nightly Bayesian interaction-quality classifier — trains on chat history, flags behavioral patterns, and writes self-improvement reflections",
+      "path": "addons/late-night-regrets",
+      "homepage": "https://rcarmo.github.io/piclaw-addons/addons/late-night-regrets/",
+      "tags": [
+        "bayesian",
+        "classifier",
+        "nightly",
+        "quality",
+        "reflection",
+        "self-improvement"
+      ],
+      "skills": [],
+      "install": {
+        "kind": "tarball",
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-late-night-regrets-0.1.0.tgz"
+      },
+      "updatedAt": "2026-05-06"
+    },
+    {
       "slug": "mindmap",
       "name": "@rcarmo/piclaw-addon-mindmap",
       "version": "0.1.0",
