@@ -150,11 +150,19 @@ load();
 }
 
 export default function sessionTreeAddon(_pi: any): void {
-  const register = (globalThis as any).__piclaw_registerTreeWidgetHtml;
+  const register = (globalThis as any).__piclaw_registerWidgetKind;
   if (typeof register === "function") {
-    register(buildTreeWidgetHtml);
-    console.log("[session-tree] Tree widget HTML provider registered.");
+    register("session_tree", (artifact: Record<string, unknown>) => {
+      const tree = artifact.tree && typeof artifact.tree === "object"
+        ? artifact.tree as Record<string, unknown>
+        : {};
+      return buildTreeWidgetHtml(
+        String(tree.leafId ?? artifact.leafId ?? ""),
+        String(artifact.chatJid ?? ""),
+      );
+    });
+    console.log("[session-tree] Widget kind 'session_tree' registered via __piclaw_registerWidgetKind.");
   } else {
-    console.warn("[session-tree] __piclaw_registerTreeWidgetHtml not available — tree widget will use text fallback.");
+    console.warn("[session-tree] __piclaw_registerWidgetKind not available — tree widget will use text fallback.");
   }
 }
