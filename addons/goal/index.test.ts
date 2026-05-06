@@ -18,6 +18,7 @@ const addonDir = import.meta.dir;
 afterEach(() => {
   resetGoalAddonForTests();
   delete (globalThis as { __piclawRuntimeInterop?: unknown }).__piclawRuntimeInterop;
+  delete (globalThis as { __PICLAW_BROADCAST_EVENT__?: unknown }).__PICLAW_BROADCAST_EVENT__;
 });
 
 function createHarness() {
@@ -123,6 +124,11 @@ test("goal web entry targets config/session addon APIs and active chat context",
   expect(source).toContain("piclaw:current-chat-changed");
   expect(source).toContain("installProgressBridge");
   expect(source).toContain("piclaw-goal-progress-bridge");
+  expect(source).toContain("piclaw-extension-ui:status");
+  expect(source).toContain("goal.session-updated");
+  expect(source).toContain("piclaw:goal-progress:");
+  expect(source).toContain("pageshow");
+  expect(source).toContain("storage");
 });
 
 test("goal prompt editors are monospaced textareas", () => {
@@ -132,6 +138,30 @@ test("goal prompt editors are monospaced textareas", () => {
   expect(source).toContain('<textarea style=${{ ...PROMPT_TEXTAREA_STYLE, minHeight: "220px" }} value=${config.continuation_prompt}');
   expect(source).toContain('<textarea style=${{ ...PROMPT_TEXTAREA_STYLE, minHeight: "170px" }} value=${config.budget_limit_prompt}');
   expect((source.match(/spellcheck="false"/g) || []).length).toBeGreaterThanOrEqual(3);
+});
+
+test("goal session changes broadcast persistent web progress updates", () => {
+  const broadcasts: Array<{ type: string; payload: any }> = [];
+  (globalThis as { __PICLAW_BROADCAST_EVENT__?: (type: string, payload: any) => void }).__PICLAW_BROADCAST_EVENT__ = (type, payload) => {
+    broadcasts.push({ type, payload });
+  };
+
+  saveGoalSession("web:goal", {
+    enabled: true,
+    objective: "Keep progress visible across tabs",
+    status: "running",
+    token_budget: 100000,
+  });
+  saveGoalSession("web:goal", {
+    tokens_used: 2500,
+    progress_phase: "working",
+  });
+
+  expect(broadcasts.at(-1)?.type).toBe("extension_ui_status");
+  expect(broadcasts.at(-1)?.payload.key).toBe("goal.session-updated");
+  expect(broadcasts.at(-1)?.payload.chat_jid).toBe("web:goal");
+  expect(broadcasts.at(-1)?.payload.session.tokens_used).toBe(2500);
+  expect(broadcasts.at(-1)?.payload.session.progress_phase).toBe("working");
 });
 
 test("goal settings apply token budget changes to the current session on blur", () => {

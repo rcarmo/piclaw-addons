@@ -8,6 +8,9 @@ const EXTENSION_ID = "goal";
 const SESSION_KEY = "session";
 const CONFIG_KEY = "config";
 const UI_STATUS_KEY = "goal";
+const UI_SESSION_UPDATED_KEY = "goal.session-updated";
+
+type PiclawBroadcastEvent = (type: string, payload: Record<string, unknown>) => void;
 
 export type GoalStatus = "idle" | "running" | "paused" | "complete" | "budget_limited";
 export type GoalPromptKind = "continuation" | "budget_limit" | null;
@@ -205,6 +208,37 @@ function deriveStatus(enabled: boolean, objective: string, status: GoalStatus, c
   return enabled ? "running" : "paused";
 }
 
+function getBroadcastEvent(): PiclawBroadcastEvent | null {
+  const candidate = (globalThis as Record<string, unknown>).__PICLAW_BROADCAST_EVENT__;
+  return typeof candidate === "function" ? candidate as PiclawBroadcastEvent : null;
+}
+
+function broadcastGoalSessionUpdated(session: GoalSession, action = "save"): void {
+  try {
+    getBroadcastEvent()?.("extension_ui_status", {
+      key: UI_SESSION_UPDATED_KEY,
+      chat_jid: session.chat_jid,
+      updated_at: session.updated_at,
+      progress_updated_at: session.progress_updated_at,
+      action,
+      session: {
+        chat_jid: session.chat_jid,
+        enabled: session.enabled,
+        objective: session.objective,
+        status: session.status,
+        token_budget: session.token_budget,
+        tokens_used: session.tokens_used,
+        updated_at: session.updated_at,
+        completed_at: session.completed_at,
+        progress_phase: session.progress_phase,
+        progress_updated_at: session.progress_updated_at,
+      },
+    });
+  } catch {
+    // Live browser progress refresh is best-effort; the saved session remains authoritative.
+  }
+}
+
 export function loadGoalSession(chatJidInput?: unknown): GoalSession {
   const chat_jid = normalizeChatJid(chatJidInput);
   const config = loadGoalConfig();
@@ -286,12 +320,15 @@ export function saveGoalSession(chatJidInput: unknown, patch: Partial<GoalSessio
         : normalizeText(patch.progress_updated_at) || null,
   };
   kv().set(SESSION_KEY, next, "chat", chat_jid);
+  broadcastGoalSessionUpdated(next);
   return next;
 }
 
 export function clearGoalSession(chatJidInput?: unknown): boolean {
   const chat_jid = normalizeChatJid(chatJidInput);
-  return kv().delete(SESSION_KEY, "chat", chat_jid);
+  const deleted = kv().delete(SESSION_KEY, "chat", chat_jid);
+  broadcastGoalSessionUpdated(loadGoalSession(chat_jid), "clear");
+  return deleted;
 }
 
 export function buildGoalPromptVars(session: GoalSession): Record<string, string> {

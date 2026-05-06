@@ -2,6 +2,9 @@
 const ADDON_ID = "goal";
 const API = `/agent/addons/api/${ADDON_ID}`;
 const DEFAULT_CHAT_JID = "web:default";
+const SESSION_UPDATED_KEY = "goal.session-updated";
+const STATUS_KEY = "goal";
+const PROGRESS_STORAGE_PREFIX = "piclaw:goal-progress:";
 
 const preactHtm = globalThis.__piclawPreactHtm || globalThis.__piclawPreact || null;
 const html = preactHtm?.html;
@@ -35,6 +38,26 @@ function getCurrentChatJid() {
 function withChat(url, chatJid) {
   const actual = normalizeChatJid(chatJid);
   return `${url}${url.includes("?") ? "&" : "?"}chat_jid=${encodeURIComponent(actual)}`;
+}
+
+function progressStorageKey(chatJid) {
+  return `${PROGRESS_STORAGE_PREFIX}${normalizeChatJid(chatJid)}`;
+}
+
+function readCachedProgressSession(chatJid) {
+  try {
+    const raw = localStorage.getItem(progressStorageKey(chatJid));
+    const parsed = raw ? JSON.parse(raw) : null;
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function persistCachedProgressSession(session) {
+  const chatJid = normalizeChatJid(session?.chat_jid);
+  if (!chatJid) return;
+  try { localStorage.setItem(progressStorageKey(chatJid), JSON.stringify(session)); } catch {}
 }
 
 async function apiJson(url, options) {
@@ -192,13 +215,25 @@ function installProgressBridge() {
     if (text) text.textContent = formatProgressMessage(session);
     root.style.display = "block";
   };
+  const applySession = (session, { persist = true } = {}) => {
+    if (!session || typeof session !== "object") return;
+    render(session);
+    if (persist) persistCachedProgressSession(session);
+  };
+  const renderCachedThenRefresh = () => {
+    const cached = readCachedProgressSession(getCurrentChatJid());
+    if (cached) applySession(cached, { persist: false });
+    void refresh();
+  };
   const refresh = async () => {
     if (inFlight) return;
     inFlight = true;
     try {
-      render(await loadSession(getCurrentChatJid()));
+      applySession(await loadSession(getCurrentChatJid()));
     } catch {
-      root.style.display = "none";
+      const cached = readCachedProgressSession(getCurrentChatJid());
+      if (cached) render(cached);
+      else root.style.display = "none";
     } finally {
       inFlight = false;
     }
@@ -207,10 +242,29 @@ function installProgressBridge() {
     if (timer) window.clearInterval(timer);
     timer = window.setInterval(refresh, document.visibilityState === "visible" ? 1500 : 10000);
   };
-  window.addEventListener("piclaw:current-chat-changed", () => { root.style.display = "none"; refresh(); schedule(); });
-  window.addEventListener("focus", refresh);
-  document.addEventListener("visibilitychange", () => { refresh(); schedule(); });
-  refresh();
+  const handleRemoteGoalUpdate = (event) => {
+    const payload = event?.detail?.payload || event?.detail || {};
+    if (payload?.key === SESSION_UPDATED_KEY) {
+      const session = payload.session && typeof payload.session === "object" ? payload.session : payload;
+      if (normalizeChatJid(session?.chat_jid || payload.chat_jid) !== getCurrentChatJid()) return;
+      applySession(session);
+      return;
+    }
+    if (payload?.key === STATUS_KEY && normalizeChatJid(payload.chat_jid) === getCurrentChatJid()) {
+      renderCachedThenRefresh();
+    }
+  };
+  const handleStorageUpdate = (event) => {
+    if (event?.key !== progressStorageKey(getCurrentChatJid()) || !event.newValue) return;
+    try { applySession(JSON.parse(event.newValue), { persist: false }); } catch {}
+  };
+  window.addEventListener("piclaw:current-chat-changed", () => { root.style.display = "none"; renderCachedThenRefresh(); schedule(); });
+  window.addEventListener("piclaw-extension-ui:status", handleRemoteGoalUpdate);
+  window.addEventListener("storage", handleStorageUpdate);
+  window.addEventListener("focus", renderCachedThenRefresh);
+  window.addEventListener("pageshow", renderCachedThenRefresh);
+  document.addEventListener("visibilitychange", () => { renderCachedThenRefresh(); schedule(); });
+  renderCachedThenRefresh();
   schedule();
 }
 
