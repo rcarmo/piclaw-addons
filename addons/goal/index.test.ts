@@ -122,17 +122,7 @@ test("goal web entry targets config/session addon APIs and active chat context",
   expect(source).toContain("registerSettingsPane");
   expect(source).toContain("__piclaw_web?.getCurrentChatJid");
   expect(source).toContain("piclaw:current-chat-changed");
-  expect(source).toContain("installProgressBridge");
-  expect(source).toContain("piclaw-goal-progress-bridge");
-  expect(source).toContain("piclaw-extension-ui:status");
-  expect(source).toContain("goal.session-updated");
-  expect(source).toContain("piclaw:goal-progress:");
-  expect(source).toContain("pageshow");
-  expect(source).toContain("storage");
-  expect(source).toContain("CIRCUIT_BREAKER_AFTER_FAILURES");
-  expect(source).toContain("FAILURE_BACKOFF_MAX_MS");
-  expect(source).toContain("window.setTimeout");
-  expect(source).not.toContain("window.setInterval");
+  expect(source).toContain("window.addEventListener(\"piclaw:addons-loaded\"");
 });
 
 test("goal prompt editors are monospaced textareas", () => {
@@ -240,6 +230,7 @@ test("/goal with no arguments posts help text to the timeline", async () => {
 
   expect(customMessages.at(-1)?.message.customType).toBe("goal-help");
   expect(customMessages.at(-1)?.message.content).toContain("/goal <objective>");
+  expect(customMessages.at(-1)?.message.content).toContain("/goal clear` or `/goal reset");
   expect(customMessages.at(-1)?.message.content).toContain("Goal status for web:goal");
   expect(customMessages.at(-1)?.options).toEqual({ triggerTurn: false });
   expect(notifications.at(-1)?.message).toContain("/goal <objective>");
@@ -289,7 +280,7 @@ describe("goal command and loop behavior", () => {
     expect(notifications.at(-1)?.message).toContain("web:branch-456");
   });
 
-  test("/goal starts a run with native Pi progress, a timeline update, and the initial kickoff prompt", async () => {
+  test("/goal starts a run with native Pi progress and the initial kickoff prompt", async () => {
     const { commands, sentUserMessages, customMessages, notifications, statuses, workingMessages, workingIndicators, workingVisible, ctx } = createHarness();
     const command = commands.get("goal");
 
@@ -303,13 +294,7 @@ describe("goal command and loop behavior", () => {
     expect(session.status).toBe("running");
     expect(sentUserMessages).toHaveLength(1);
     expect(String(sentUserMessages[0]?.content)).toContain("Ship the release");
-    expect(customMessages.at(-1)?.message.customType).toBe("goal-status");
-    expect(customMessages.at(-1)?.message.content).toBe("🎯 Starting `/goal`, objective: Ship the release");
-    expect(customMessages.at(-1)?.message.content).not.toContain("Tokens:");
-    expect(customMessages.at(-1)?.message.content).not.toContain("Status:");
-    expect(customMessages.at(-1)?.options).toEqual({ triggerTurn: false });
-    expect(statuses.at(-1)?.key).toBe("goal");
-    expect(statuses.at(-1)?.text).toContain("[⣿⣿⣿⣿⣿⣿⣿⣿]");
+    expect(customMessages.filter((entry) => entry?.message?.customType === "goal-status")).toHaveLength(0);
     expect(workingVisible.at(-1)).toBe(true);
     expect(workingIndicators.at(-1)?.frames).toEqual(["[⣿⣿⣿⣿⣿⣿⣿⣿]"]);
     expect(workingMessages.at(-1)).toContain("Goal starting");
@@ -330,7 +315,7 @@ describe("goal command and loop behavior", () => {
     });
   });
 
-  test("agent_end queues a continuation timeline update and prompt while budget remains", async () => {
+  test("agent_end queues a continuation prompt while budget remains", async () => {
     const { commands, handlers, sentUserMessages, customMessages, workingMessages, ctx } = createHarness();
     const command = commands.get("goal");
     const messageEnd = handlers.find((entry) => entry.event === "message_end")?.handler;
@@ -346,10 +331,7 @@ describe("goal command and loop behavior", () => {
     expect(String(sentUserMessages[1]?.content)).toContain("Finish the docs site");
     expect(String(sentUserMessages[1]?.content)).toContain("Tokens used: 123");
     expect(workingMessages.some((message) => String(message).includes("usage updated"))).toBe(true);
-    expect(customMessages.at(-1)?.message.content).toBe("🎯 Continuing `/goal`, objective: Finish the docs site");
-    expect(customMessages.at(-1)?.message.content).not.toContain("[⣿");
-    expect(customMessages.at(-1)?.message.details.phase).toBe("continuing");
-    expect(customMessages.at(-1)?.message.details.token_bar).toContain("[");
+    expect(customMessages.filter((entry) => entry?.message?.customType === "goal-status")).toHaveLength(0);
   });
 
   test("goal lifecycle updates native Pi progress phases without timeline spam", async () => {
@@ -382,7 +364,7 @@ describe("goal command and loop behavior", () => {
     expect(session.progress_updated_at).toBeTruthy();
   });
 
-  test("update_goal marks completion, clears native progress, posts a timeline update, and stops the continuation loop", async () => {
+  test("update_goal marks completion, clears native progress, and stops the continuation loop", async () => {
     const { commands, tools, handlers, sentUserMessages, customMessages, workingIndicators, ctx } = createHarness();
     const command = commands.get("goal");
     const updateGoal = tools.get("update_goal");
@@ -400,11 +382,10 @@ describe("goal command and loop behavior", () => {
     expect(session.completion_summary).toContain("Checklist");
     expect(sentUserMessages).toHaveLength(1);
     expect(workingIndicators.at(-1)).toBeUndefined();
-    expect(customMessages.at(-1)?.message.content).toContain("Completed `/goal`, objective: Close the release checklist");
-    expect(customMessages.at(-1)?.message.content).toContain("Checklist and tests verified.");
+    expect(customMessages.filter((entry) => entry?.message?.customType === "goal-status")).toHaveLength(0);
   });
 
-  test("agent_end emits a budget-limit timeline update and wrap-up prompt when the budget is exhausted", async () => {
+  test("agent_end emits a wrap-up prompt when the budget is exhausted", async () => {
     const { commands, handlers, sentUserMessages, customMessages, ctx } = createHarness();
     const command = commands.get("goal");
     const agentEnd = handlers.find((entry) => entry.event === "agent_end")?.handler;
@@ -420,7 +401,6 @@ describe("goal command and loop behavior", () => {
     expect(session.enabled).toBe(false);
     expect(sentUserMessages).toHaveLength(2);
     expect(String(sentUserMessages[1]?.content)).toContain("has reached its token budget");
-    expect(customMessages.at(-1)?.message.content).toContain("Budget-limited `/goal`, objective: Stabilize the deployment");
-    expect(customMessages.at(-1)?.message.details.phase).toBe("budget-limited");
+    expect(customMessages.filter((entry) => entry?.message?.customType === "goal-status")).toHaveLength(0);
   });
 });

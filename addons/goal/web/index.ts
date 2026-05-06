@@ -299,6 +299,17 @@ function installProgressBridge() {
   schedule();
 }
 
+function removeLegacyProgressBridge() {
+  if (typeof window === "undefined" || typeof document === "undefined") return;
+  try { delete window.__piclawGoalProgressBridgeInstalled; } catch {}
+  try { document.getElementById("piclaw-goal-progress-bridge")?.remove(); } catch {}
+  try {
+    for (const node of Array.from(document.querySelectorAll("style"))) {
+      if (String(node.textContent || "").includes("piclaw-goal-progress-bridge")) node.remove();
+    }
+  } catch {}
+}
+
 function registerPane() {
   if (!HAS_RUNTIME) return;
   let reg, notify;
@@ -489,9 +500,9 @@ function GoalSettingsPane() {
 }
 
 try {
+  removeLegacyProgressBridge();
   registerPane();
-  installProgressBridge();
   if (typeof window !== "undefined") {
-    window.addEventListener("piclaw:addons-loaded", () => { try { registerPane(); installProgressBridge(); } catch {} });
+    window.addEventListener("piclaw:addons-loaded", () => { try { removeLegacyProgressBridge(); registerPane(); } catch {} });
   }
 } catch {}

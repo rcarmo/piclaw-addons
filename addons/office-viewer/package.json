@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-office-viewer",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Office document viewer (.docx, .xlsx, .pptx) and PDF viewer for Piclaw",
   "type": "module",
   "main": "index.ts",

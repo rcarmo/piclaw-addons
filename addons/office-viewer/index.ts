@@ -213,7 +213,7 @@ export default function officeViewer(pi: any) {
 const PICLAW_PORT_PDF = process.env.PICLAW_WEB_PORT || process.env.PICLAW_PORT || "8080";
 const PICLAW_BASE_PDF = `http://localhost:${PICLAW_PORT_PDF}`;
 
-const ROUTE_PREFIX = "/pdf-viewer";
+const PDF_ROUTE_PREFIX = "/pdf-viewer";
 
 const VIEWER_CSP = [
   "default-src 'self'",
@@ -418,7 +418,7 @@ async function handlePdfViewerRoute(req: Request, pathname: string): Promise<Res
 (function() {
   const __regPdf = (globalThis as any).__piclaw_registerRoute;
   if (typeof __regPdf === "function") {
-    __regPdf(ROUTE_PREFIX, handlePdfViewerRoute);
+    __regPdf(PDF_ROUTE_PREFIX, handlePdfViewerRoute);
   } else {
     console.warn("[office-viewer] WARNING: __piclaw_registerRoute not available — PDF viewer route NOT registered.");
   }

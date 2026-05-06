@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-image-processing",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Image manipulation tool (image_process) for Piclaw — resize, crop, convert, composite and more via sharp",
   "type": "module",
   "main": "index.ts",

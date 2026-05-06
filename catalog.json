@@ -109,7 +109,7 @@
     {
       "slug": "delegate",
       "name": "@rcarmo/piclaw-addon-delegate",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "type": "extension",
       "description": "Delegate tasks to cheaper/faster models with auto model selection, tool access, and MCP support",
       "path": "addons/delegate",
@@ -124,7 +124,7 @@
       ],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-delegate-0.1.1.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-delegate-0.1.2.tgz"
       },
       "updatedAt": "2026-05-02",
       "owner": {
@@ -286,7 +286,7 @@
     {
       "slug": "goal",
       "name": "@rcarmo/piclaw-addon-goal",
-      "version": "0.1.13",
+      "version": "0.1.15",
       "type": "extension",
       "description": "Session-scoped goal seeking loop with editable prompts, a settings pane, and /goal command support",
       "path": "addons/goal",
@@ -301,14 +301,14 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-goal-0.1.13.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-goal-0.1.15.tgz"
       },
       "updatedAt": "2026-05-06"
     },
     {
       "slug": "image-processing",
       "name": "@rcarmo/piclaw-addon-image-processing",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "type": "extension",
       "description": "Image manipulation tool (image_process) for Piclaw — resize, crop, convert, composite and more via sharp",
       "path": "addons/image-processing",
@@ -322,7 +322,7 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-image-processing-0.1.0.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-image-processing-0.1.1.tgz"
       },
       "updatedAt": "2026-05-05"
     },
@@ -406,6 +406,29 @@
       "contributors": []
     },
     {
+      "slug": "late-night-regrets",
+      "name": "@rcarmo/piclaw-addon-late-night-regrets",
+      "version": "0.1.0",
+      "type": "extension",
+      "description": "Nightly Bayesian interaction-quality classifier — trains on chat history, flags behavioral patterns, and writes self-improvement reflections",
+      "path": "addons/late-night-regrets",
+      "homepage": "https://rcarmo.github.io/piclaw-addons/addons/late-night-regrets/",
+      "tags": [
+        "bayesian",
+        "classifier",
+        "nightly",
+        "quality",
+        "reflection",
+        "self-improvement"
+      ],
+      "skills": [],
+      "install": {
+        "kind": "tarball",
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-late-night-regrets-0.1.0.tgz"
+      },
+      "updatedAt": "2026-05-06"
+    },
+    {
       "slug": "mindmap",
       "name": "@rcarmo/piclaw-addon-mindmap",
       "version": "0.1.0",
@@ -477,7 +500,7 @@
     {
       "slug": "office-viewer",
       "name": "@rcarmo/piclaw-addon-office-viewer",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "type": "extension",
       "description": "Office document viewer (.docx, .xlsx, .pptx) and PDF viewer for Piclaw",
       "path": "addons/office-viewer",
@@ -493,7 +516,7 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-office-viewer-0.1.0.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-office-viewer-0.1.1.tgz"
       },
       "updatedAt": "2026-05-06"
     },

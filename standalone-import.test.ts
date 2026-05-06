@@ -13,7 +13,7 @@ afterEach(() => {
   }
 });
 
-async function importStandaloneAddon(slug: "autoresearch" | "cheapskate" | "editable-table" | "goal" | "imap" | "kanban-editor" | "plan-sidebar" | "portainer" | "proxmox" | "vent") {
+async function importStandaloneAddon(slug: "autoresearch" | "cheapskate" | "delegate" | "editable-table" | "goal" | "image-processing" | "imap" | "kanban-editor" | "office-viewer" | "plan-sidebar" | "portainer" | "proxmox" | "vent") {
   const tempRoot = mkdtempSync(join(tmpdir(), `piclaw-addon-${slug}-`));
   tempDirs.push(tempRoot);
 
@@ -34,6 +34,11 @@ test("standalone piclaw-addon-cheapskate imports outside the monorepo root", asy
   expect(typeof mod.default).toBe("function");
 });
 
+test("standalone piclaw-addon-delegate imports outside the monorepo root", async () => {
+  const mod = await importStandaloneAddon("delegate");
+  expect(typeof mod.default).toBe("function");
+});
+
 test("standalone piclaw-addon-editable-table imports outside the monorepo root", async () => {
   const mod = await importStandaloneAddon("editable-table");
   expect(typeof mod.default).toBe("function");
@@ -44,6 +49,11 @@ test("standalone piclaw-addon-goal imports outside the monorepo root", async () 
   expect(typeof mod.default).toBe("function");
 });
 
+test("standalone piclaw-addon-image-processing imports outside the monorepo root", async () => {
+  const mod = await importStandaloneAddon("image-processing");
+  expect(typeof mod.default).toBe("function");
+});
+
 test("standalone piclaw-addon-imap imports outside the monorepo root", async () => {
   const mod = await importStandaloneAddon("imap");
   expect(typeof mod.default).toBe("function");
@@ -51,6 +61,11 @@ test("standalone piclaw-addon-imap imports outside the monorepo root", async () 
 
 test("standalone piclaw-addon-kanban-editor imports outside the monorepo root", async () => {
   const mod = await importStandaloneAddon("kanban-editor");
+  expect(typeof mod.default).toBe("function");
+});
+
+test("standalone piclaw-addon-office-viewer imports outside the monorepo root", async () => {
+  const mod = await importStandaloneAddon("office-viewer");
   expect(typeof mod.default).toBe("function");
 });
 

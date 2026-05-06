@@ -1,5 +1,6 @@
 import { Type, type Static } from "typebox";
 import type {
+  AgentToolResult,
   AgentToolUpdateCallback,
   ExtensionAPI,
   ExtensionFactory,
@@ -13,16 +14,6 @@ function stripBaseDirForDisplay(baseDir: string, absolutePath: string): string {
   const rel = relative(baseDir, absolutePath);
   return rel.replace(/\\/g, "/");
 }
-
-import { Type, type Static } from "typebox";
-import type {
-  AgentToolResult,
-  ExtensionAPI,
-  ExtensionFactory,
-} from "@mariozechner/pi-coding-agent";
-import { existsSync, statSync } from "node:fs";
-import { resolve, basename, extname, dirname, join } from "node:path";
-
 
 const SUPPORTED_OUTPUT_FORMATS = ["png", "jpeg", "webp", "avif", "tiff", "gif"] as const;
 type OutputFormat = typeof SUPPORTED_OUTPUT_FORMATS[number];
@@ -724,7 +715,7 @@ const HINT = [
 ].join("\n");
 
 /** Extension factory that registers image_process. */
-export const imageProcessing: ExtensionFactory = (pi: ExtensionAPI) => {
+const imageProcessing: ExtensionFactory = (pi: ExtensionAPI) => {
   pi.on("before_agent_start", async (event) => ({
     systemPrompt: `${event.systemPrompt}\n\n${HINT}`,
   }));
@@ -748,3 +739,5 @@ export const imageProcessing: ExtensionFactory = (pi: ExtensionAPI) => {
     execute: executeImageProcess,
   });
 };
+
+export default imageProcessing;
