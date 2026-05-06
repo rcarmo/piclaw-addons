@@ -5,6 +5,11 @@ const DEFAULT_CHAT_JID = "web:default";
 const SESSION_UPDATED_KEY = "goal.session-updated";
 const STATUS_KEY = "goal";
 const PROGRESS_STORAGE_PREFIX = "piclaw:goal-progress:";
+const VISIBLE_REFRESH_MS = 15000;
+const FAILURE_BACKOFF_BASE_MS = 5000;
+const FAILURE_BACKOFF_MAX_MS = 60000;
+const CIRCUIT_BREAKER_AFTER_FAILURES = 3;
+const CIRCUIT_BREAKER_MS = 120000;
 
 const preactHtm = globalThis.__piclawPreactHtm || globalThis.__piclawPreact || null;
 const html = preactHtm?.html;
@@ -203,6 +208,9 @@ function installProgressBridge() {
 
   let timer = null;
   let inFlight = false;
+  let consecutiveFailures = 0;
+  let circuitOpenUntil = 0;
+  const isVisible = () => document.visibilityState !== "hidden";
   const render = (session) => {
     const active = session?.enabled === true && session?.status === "running" && String(session?.objective || "").trim();
     if (!active) {
@@ -220,17 +228,31 @@ function installProgressBridge() {
     render(session);
     if (persist) persistCachedProgressSession(session);
   };
-  const renderCachedThenRefresh = () => {
-    const cached = readCachedProgressSession(getCurrentChatJid());
-    if (cached) applySession(cached, { persist: false });
-    void refresh();
+  const clearTimer = () => {
+    if (!timer) return;
+    window.clearTimeout(timer);
+    timer = null;
   };
-  const refresh = async () => {
+  const nextRefreshDelay = () => {
+    const now = Date.now();
+    if (circuitOpenUntil > now) return circuitOpenUntil - now;
+    if (!consecutiveFailures) return VISIBLE_REFRESH_MS;
+    return Math.min(FAILURE_BACKOFF_MAX_MS, FAILURE_BACKOFF_BASE_MS * (2 ** Math.min(4, consecutiveFailures - 1)));
+  };
+  const refresh = async ({ force = false } = {}) => {
     if (inFlight) return;
+    if (!force && !isVisible()) return;
+    if (!force && circuitOpenUntil > Date.now()) return;
     inFlight = true;
     try {
       applySession(await loadSession(getCurrentChatJid()));
+      consecutiveFailures = 0;
+      circuitOpenUntil = 0;
     } catch {
+      consecutiveFailures += 1;
+      if (consecutiveFailures >= CIRCUIT_BREAKER_AFTER_FAILURES) {
+        circuitOpenUntil = Date.now() + CIRCUIT_BREAKER_MS;
+      }
       const cached = readCachedProgressSession(getCurrentChatJid());
       if (cached) render(cached);
       else root.style.display = "none";
@@ -238,9 +260,18 @@ function installProgressBridge() {
       inFlight = false;
     }
   };
+  const renderCachedThenRefresh = ({ force = false } = {}) => {
+    const cached = readCachedProgressSession(getCurrentChatJid());
+    if (cached) applySession(cached, { persist: false });
+    void refresh({ force });
+  };
   const schedule = () => {
-    if (timer) window.clearInterval(timer);
-    timer = window.setInterval(refresh, document.visibilityState === "visible" ? 1500 : 10000);
+    clearTimer();
+    if (!isVisible()) return;
+    timer = window.setTimeout(async () => {
+      await refresh();
+      schedule();
+    }, nextRefreshDelay());
   };
   const handleRemoteGoalUpdate = (event) => {
     const payload = event?.detail?.payload || event?.detail || {};
@@ -258,13 +289,13 @@ function installProgressBridge() {
     if (event?.key !== progressStorageKey(getCurrentChatJid()) || !event.newValue) return;
     try { applySession(JSON.parse(event.newValue), { persist: false }); } catch {}
   };
-  window.addEventListener("piclaw:current-chat-changed", () => { root.style.display = "none"; renderCachedThenRefresh(); schedule(); });
+  window.addEventListener("piclaw:current-chat-changed", () => { root.style.display = "none"; renderCachedThenRefresh({ force: true }); schedule(); });
   window.addEventListener("piclaw-extension-ui:status", handleRemoteGoalUpdate);
   window.addEventListener("storage", handleStorageUpdate);
-  window.addEventListener("focus", renderCachedThenRefresh);
-  window.addEventListener("pageshow", renderCachedThenRefresh);
-  document.addEventListener("visibilitychange", () => { renderCachedThenRefresh(); schedule(); });
-  renderCachedThenRefresh();
+  window.addEventListener("focus", () => { renderCachedThenRefresh({ force: true }); schedule(); });
+  window.addEventListener("pageshow", () => { renderCachedThenRefresh({ force: true }); schedule(); });
+  document.addEventListener("visibilitychange", () => { if (isVisible()) renderCachedThenRefresh({ force: true }); schedule(); });
+  renderCachedThenRefresh({ force: true });
   schedule();
 }
 

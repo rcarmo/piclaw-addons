@@ -239,31 +239,43 @@ function broadcastGoalSessionUpdated(session: GoalSession, action = "save"): voi
   }
 }
 
+function defaultGoalSessionFor(chat_jid: string, config = loadGoalConfig()): GoalSession {
+  return {
+    ...DEFAULT_GOAL_SESSION,
+    chat_jid,
+    token_budget: config.default_token_budget,
+  };
+}
+
 export function loadGoalSession(chatJidInput?: unknown): GoalSession {
   const chat_jid = normalizeChatJid(chatJidInput);
   const config = loadGoalConfig();
-  const saved = kv().get<Partial<GoalSession>>(SESSION_KEY, "chat", chat_jid);
-  const enabled = saved?.enabled === true;
-  const objective = normalizeText(saved?.objective);
-  const completed_at = normalizeText(saved?.completed_at) || null;
-  const explicitStatus = (saved?.status === "running" || saved?.status === "paused" || saved?.status === "complete" || saved?.status === "budget_limited" || saved?.status === "idle")
-    ? saved.status
-    : DEFAULT_GOAL_SESSION.status;
-  return {
-    chat_jid,
-    enabled,
-    objective,
-    status: deriveStatus(enabled, objective, explicitStatus, completed_at),
-    token_budget: normalizePositiveInt(saved?.token_budget, config.default_token_budget),
-    tokens_used: Math.max(0, normalizePositiveInt(saved?.tokens_used, 0)),
-    started_at: normalizeText(saved?.started_at) || null,
-    updated_at: normalizeText(saved?.updated_at) || null,
-    completed_at,
-    completion_summary: normalizeText(saved?.completion_summary),
-    last_prompt_kind: saved?.last_prompt_kind === "continuation" || saved?.last_prompt_kind === "budget_limit" ? saved.last_prompt_kind : null,
-    progress_phase: normalizeText(saved?.progress_phase),
-    progress_updated_at: normalizeText(saved?.progress_updated_at) || null,
-  };
+  try {
+    const saved = kv().get<Partial<GoalSession>>(SESSION_KEY, "chat", chat_jid);
+    const enabled = saved?.enabled === true;
+    const objective = normalizeText(saved?.objective);
+    const completed_at = normalizeText(saved?.completed_at) || null;
+    const explicitStatus = (saved?.status === "running" || saved?.status === "paused" || saved?.status === "complete" || saved?.status === "budget_limited" || saved?.status === "idle")
+      ? saved.status
+      : DEFAULT_GOAL_SESSION.status;
+    return {
+      chat_jid,
+      enabled,
+      objective,
+      status: deriveStatus(enabled, objective, explicitStatus, completed_at),
+      token_budget: normalizePositiveInt(saved?.token_budget, config.default_token_budget),
+      tokens_used: Math.max(0, normalizePositiveInt(saved?.tokens_used, 0)),
+      started_at: normalizeText(saved?.started_at) || null,
+      updated_at: normalizeText(saved?.updated_at) || null,
+      completed_at,
+      completion_summary: normalizeText(saved?.completion_summary),
+      last_prompt_kind: saved?.last_prompt_kind === "continuation" || saved?.last_prompt_kind === "budget_limit" ? saved.last_prompt_kind : null,
+      progress_phase: normalizeText(saved?.progress_phase),
+      progress_updated_at: normalizeText(saved?.progress_updated_at) || null,
+    };
+  } catch {
+    return defaultGoalSessionFor(chat_jid, config);
+  }
 }
 
 export function saveGoalSession(chatJidInput: unknown, patch: Partial<GoalSession>): GoalSession {
@@ -326,8 +338,13 @@ export function saveGoalSession(chatJidInput: unknown, patch: Partial<GoalSessio
 
 export function clearGoalSession(chatJidInput?: unknown): boolean {
   const chat_jid = normalizeChatJid(chatJidInput);
-  const deleted = kv().delete(SESSION_KEY, "chat", chat_jid);
-  broadcastGoalSessionUpdated(loadGoalSession(chat_jid), "clear");
+  let deleted = false;
+  try {
+    deleted = kv().delete(SESSION_KEY, "chat", chat_jid);
+  } catch {
+    deleted = false;
+  }
+  broadcastGoalSessionUpdated(defaultGoalSessionFor(chat_jid), "clear");
   return deleted;
 }
 

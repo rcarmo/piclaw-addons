@@ -129,6 +129,10 @@ test("goal web entry targets config/session addon APIs and active chat context",
   expect(source).toContain("piclaw:goal-progress:");
   expect(source).toContain("pageshow");
   expect(source).toContain("storage");
+  expect(source).toContain("CIRCUIT_BREAKER_AFTER_FAILURES");
+  expect(source).toContain("FAILURE_BACKOFF_MAX_MS");
+  expect(source).toContain("window.setTimeout");
+  expect(source).not.toContain("window.setInterval");
 });
 
 test("goal prompt editors are monospaced textareas", () => {
@@ -162,6 +166,25 @@ test("goal session changes broadcast persistent web progress updates", () => {
   expect(broadcasts.at(-1)?.payload.chat_jid).toBe("web:goal");
   expect(broadcasts.at(-1)?.payload.session.tokens_used).toBe(2500);
   expect(broadcasts.at(-1)?.payload.session.progress_phase).toBe("working");
+});
+
+test("goal session endpoint reads degrade to an idle session when storage fails", () => {
+  resetGoalAddonForTests();
+  (globalThis as { __piclawRuntimeInterop?: any }).__piclawRuntimeInterop = {
+    getExtensionKvStore: () => ({
+      get: () => { throw new Error("kv unavailable"); },
+      set: () => { throw new Error("kv unavailable"); },
+      delete: () => { throw new Error("kv unavailable"); },
+      list: () => [],
+      clear: () => 0,
+    }),
+  };
+
+  const session = loadGoalSession("web:goal");
+  expect(session.chat_jid).toBe("web:goal");
+  expect(session.status).toBe("idle");
+  expect(session.enabled).toBe(false);
+  expect(session.token_budget).toBe(400000);
 });
 
 test("goal settings apply token budget changes to the current session on blur", () => {
