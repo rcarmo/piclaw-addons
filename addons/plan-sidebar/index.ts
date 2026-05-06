@@ -13,6 +13,10 @@ export interface SessionPlan {
   updated_at: string | null;
 }
 
+type PlanUpdateSource = "api" | "tool";
+type PlanUpdateAction = "write" | "edit";
+type PiclawBroadcastEvent = (type: string, data: unknown) => void;
+
 const DEFAULT_PLAN = [
   "- [ ] Update this plan thoroughly with ongoing work",
   "- [ ] Clarify the current objective",
@@ -138,6 +142,25 @@ export function editSessionPlan(chatJidInput: unknown, editsInput: unknown): Ses
   return saveSessionPlan(current.chat_jid, applyPlanEdits(current.markdown, editsInput));
 }
 
+function getBroadcastEvent(): PiclawBroadcastEvent | null {
+  const candidate = (globalThis as Record<string, unknown>).__PICLAW_BROADCAST_EVENT__;
+  return typeof candidate === "function" ? candidate as PiclawBroadcastEvent : null;
+}
+
+function broadcastPlanUpdated(plan: SessionPlan, source: PlanUpdateSource, action: PlanUpdateAction): void {
+  try {
+    getBroadcastEvent()?.("extension_ui_status", {
+      key: "plan-sidebar.plan-updated",
+      chat_jid: plan.chat_jid,
+      updated_at: plan.updated_at,
+      source,
+      action,
+    });
+  } catch {
+    // Live sidebar refresh is best-effort; saved plan data remains authoritative.
+  }
+}
+
 function readChatJidFromRequest(req: Request, payload?: Record<string, unknown>): string {
   try {
     const url = new URL(req.url, "https://example.test/");
@@ -169,7 +192,9 @@ if (typeof registerAddonConfigApi === "function") {
     set: async (payload, req) => {
       const body = payload && typeof payload === "object" ? payload as Record<string, unknown> : {};
       const chatJid = readChatJidFromRequest(req, body);
-      return { ok: true, plan: saveSessionPlan(chatJid, body.markdown) };
+      const plan = saveSessionPlan(chatJid, body.markdown);
+      broadcastPlanUpdated(plan, "api", "write");
+      return { ok: true, plan };
     },
   }, import.meta.dir);
 }
@@ -247,6 +272,7 @@ export default function planSidebarAddon(pi: ExtensionAPI): void {
 
       if (params.action === "edit") {
         const plan = editSessionPlan(chatJid, params.edits);
+        broadcastPlanUpdated(plan, "tool", "edit");
         return {
           content: [{ type: "text", text: `Edited plan for ${plan.chat_jid}.` }],
           details: plan,
@@ -257,6 +283,7 @@ export default function planSidebarAddon(pi: ExtensionAPI): void {
         throw new Error("plan action=write requires a markdown string.");
       }
       const plan = saveSessionPlan(chatJid, params.markdown);
+      broadcastPlanUpdated(plan, "tool", "write");
       return {
         content: [{ type: "text", text: `Updated plan for ${plan.chat_jid}.` }],
         details: plan,

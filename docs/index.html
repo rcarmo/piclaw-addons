@@ -55,14 +55,17 @@ html,body{min-height:100%;background:var(--bg);color:var(--ink);font-family:var(
   line-height:1.04;margin-bottom:.6rem}
 .hero-sub{font-size:1.1rem;opacity:.78;max-width:540px;margin:0 0 1.4rem;line-height:1.6}
 .hero-meta{font-size:.82rem;opacity:.55}
-.hero-source{display:inline-flex;align-items:center;gap:.4rem;margin-top:1rem;
+.hero-actions{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-top:1rem}
+.hero-source{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;min-height:2.35rem;
   padding:.5rem 1rem;border-radius:10px;border:1px solid rgba(255,255,255,.25);
-  color:rgba(255,255,255,.85);text-decoration:none;font-size:.8rem;font-weight:700}
+  color:rgba(255,255,255,.85);text-decoration:none;font-size:.8rem;font-weight:700;line-height:1}
+.hero-source svg{display:block;flex:0 0 auto}
 .hero-source:hover{background:rgba(255,255,255,.1)}
 @media(max-width:640px){
   .hero-inner{flex-direction:column;text-align:center}
   .hero-logo{width:120px;height:120px}
   .hero-sub{margin:0 auto 1.4rem}
+  .hero-actions{justify-content:center}
 }
 
 /* ── Search ─── */
@@ -209,12 +212,14 @@ footer a{color:var(--accent);text-decoration:none}
     <div class="hero-text">
       <div class="hero-title">piclaw-addons</div>
       <div class="hero-sub">Community extensions, tools and add-ons for <a href="https://github.com/rcarmo/piclaw" style="color:rgba(255,255,255,.85)">piclaw</a>.</div>
-      <div class="hero-meta">24 add-ons &nbsp;·&nbsp; catalog v2</div>
-      <a class="hero-source" href="https://github.com/rcarmo/piclaw-addons" target="_blank" rel="noopener">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
-        View on GitHub
-      </a>
-      <a class="hero-source" href="/piclaw-addons/packages/">↓ Packages</a>
+      <div class="hero-meta">28 add-ons &nbsp;·&nbsp; catalog v2</div>
+      <div class="hero-actions">
+        <a class="hero-source" href="https://github.com/rcarmo/piclaw-addons" target="_blank" rel="noopener">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+          View on GitHub
+        </a>
+        <a class="hero-source" href="/piclaw-addons/packages/">↓ Packages</a>
+      </div>
     </div>
   </div>
 </header>
@@ -226,7 +231,7 @@ footer a{color:var(--accent);text-decoration:none}
 <main class="grid" id="grid">
   <a href="/piclaw-addons/addons/ast-grep-tool/" class="card" data-name="ast-grep-tool Structural code search and rewrite using ast-grep as a native LLM tool ast code-search refactoring">
     <div class="card-header">
-      <img class="card-icon" src="/piclaw-addons/assets/icons/default-00.png" alt="" loading="lazy">
+      <img class="card-icon" src="/piclaw-addons/assets/icons/default-01.png" alt="" loading="lazy">
       <div>
         <div class="card-name">ast-grep-tool</div>
         <div class="card-sub-row">
@@ -242,7 +247,7 @@ footer a{color:var(--accent);text-decoration:none}
   </a>
   <a href="/piclaw-addons/addons/autoresearch/" class="card" data-name="autoresearch Autonomous experiment loop sub-agent (start/stop/status tools via tmux) automation experiments research">
     <div class="card-header">
-      <img class="card-icon" src="/piclaw-addons/assets/icons/default-00.png" alt="" loading="lazy">
+      <img class="card-icon" src="/piclaw-addons/assets/icons/default-01.png" alt="" loading="lazy">
       <div>
         <div class="card-name">autoresearch</div>
         <div class="card-sub-row">
@@ -258,7 +263,7 @@ footer a{color:var(--accent);text-decoration:none}
   </a>
   <a href="/piclaw-addons/addons/cheapskate/" class="card" data-name="cheapskate Free-tier provider auto-rotation — select cheapskate/auto as your model and it transparently routes to Google Gemini, Cerebras, Groq, or SambaNova free tiers cost-optimization free-tier models providers rotation">
     <div class="card-header">
-      <img class="card-icon" src="/piclaw-addons/assets/icons/default-00.png" alt="" loading="lazy">
+      <img class="card-icon" src="/piclaw-addons/assets/icons/default-01.png" alt="" loading="lazy">
       <div>
         <div class="card-name">cheapskate</div>
         <div class="card-sub-row">
@@ -274,7 +279,7 @@ footer a{color:var(--accent);text-decoration:none}
   </a>
   <a href="/piclaw-addons/addons/code-validator/" class="card" data-name="code-validator Diagnostics tool for code validation (Python, JS/TS, JSON, extensible via validators.json) diagnostics linting validation">
     <div class="card-header">
-      <img class="card-icon" src="/piclaw-addons/assets/icons/default-00.png" alt="" loading="lazy">
+      <img class="card-icon" src="/piclaw-addons/assets/icons/default-01.png" alt="" loading="lazy">
       <div>
         <div class="card-name">code-validator</div>
         <div class="card-sub-row">
@@ -290,7 +295,7 @@ footer a{color:var(--accent);text-decoration:none}
   </a>
   <a href="/piclaw-addons/addons/delegate/" class="card" data-name="delegate Delegate tasks to cheaper/faster models with auto model selection, tool access, and MCP support cost-optimization delegation multi-model">
     <div class="card-header">
-      <img class="card-icon" src="/piclaw-addons/assets/icons/default-00.png" alt="" loading="lazy">
+      <img class="card-icon" src="/piclaw-addons/assets/icons/default-01.png" alt="" loading="lazy">
       <div>
         <div class="card-name">delegate</div>
         <div class="card-sub-row">
@@ -306,7 +311,7 @@ footer a{color:var(--accent);text-decoration:none}
   </a>
   <a href="/piclaw-addons/addons/dev-tools/" class="card" data-name="dev-tools Developer tools for workspace diagnostics and environment inspection developer diagnostics environment">
     <div class="card-header">
-      <img class="card-icon" src="/piclaw-addons/assets/icons/default-00.png" alt="" loading="lazy">
+      <img class="card-icon" src="/piclaw-addons/assets/icons/default-01.png" alt="" loading="lazy">
       <div>
         <div class="card-name">dev-tools</div>
         <div class="card-sub-row">
@@ -322,12 +327,12 @@ footer a{color:var(--accent);text-decoration:none}
   </a>
   <a href="/piclaw-addons/addons/diagram-tools/" class="card" data-name="diagram-tools Architecture diagram workflow — JSON graph definitions, SVG renderer, colour picker widget architecture diagrams portfolio svg">
     <div class="card-header">
-      <img class="card-icon" src="/piclaw-addons/assets/icons/default-00.png" alt="" loading="lazy">
+      <img class="card-icon" src="/piclaw-addons/assets/icons/default-01.png" alt="" loading="lazy">
       <div>
         <div class="card-name">diagram-tools</div>
         <div class="card-sub-row">
           <span class="card-version">v0.1.0</span>
-          
+
         </div>
       </div>
     </div>
@@ -336,7 +341,7 @@ footer a{color:var(--accent);text-decoration:none}
   </a>
   <a href="/piclaw-addons/addons/drawio-editor/" class="card" data-name="drawio-editor Self-hosted draw.io diagram editor with workspace file integration diagrams drawio editor">
     <div class="card-header">
-      <img class="card-icon" src="/piclaw-addons/assets/icons/default-00.png" alt="" loading="lazy">
+      <img class="card-icon" src="/piclaw-addons/assets/icons/default-01.png" alt="" loading="lazy">
       <div>
         <div class="card-name">drawio-editor</div>
         <div class="card-sub-row">
@@ -352,7 +357,7 @@ footer a{color:var(--accent);text-decoration:none}
   </a>
   <a href="/piclaw-addons/addons/editable-table/" class="card" data-name="editable-table Editable Markdown table widget for the web UI — opens a themed spreadsheet-style grid and inserts the edited Markdown table back into chat editor markdown table web-ui widget">
     <div class="card-header">
-      <img class="card-icon" src="/piclaw-addons/assets/icons/default-00.png" alt="" loading="lazy">
+      <img class="card-icon" src="/piclaw-addons/assets/icons/default-01.png" alt="" loading="lazy">
       <div>
         <div class="card-name">editable-table</div>
         <div class="card-sub-row">
@@ -368,7 +373,7 @@ footer a{color:var(--accent);text-decoration:none}
   </a>
   <a href="/piclaw-addons/addons/eml-viewer/" class="card" data-name="eml-viewer Attachment preview route for email message (.eml) files in the web timeline email eml viewer">
     <div class="card-header">
-      <img class="card-icon" src="/piclaw-addons/assets/icons/default-00.png" alt="" loading="lazy">
+      <img class="card-icon" src="/piclaw-addons/assets/icons/default-01.png" alt="" loading="lazy">
       <div>
         <div class="card-name">eml-viewer</div>
         <div class="card-sub-row">
@@ -384,7 +389,7 @@ footer a{color:var(--accent);text-decoration:none}
   </a>
   <a href="/piclaw-addons/addons/git-query-tools/" class="card" data-name="git-query-tools Git history and JSON query tools for piclaw agents git json query">
     <div class="card-header">
-      <img class="card-icon" src="/piclaw-addons/assets/icons/default-00.png" alt="" loading="lazy">
+      <img class="card-icon" src="/piclaw-addons/assets/icons/default-01.png" alt="" loading="lazy">
       <div>
         <div class="card-name">git-query-tools</div>
         <div class="card-sub-row">
@@ -404,17 +409,31 @@ footer a{color:var(--accent);text-decoration:none}
       <div>
         <div class="card-name">goal</div>
         <div class="card-sub-row">
-          <span class="card-version">v0.1.3</span>
-          
+          <span class="card-version">v0.1.11</span>
+
         </div>
       </div>
     </div>
     <div class="card-desc">Session-scoped goal seeking loop with editable prompts, a settings pane, and /goal command support</div>
     <div class="card-tags"><span class="badge">automation</span><span class="badge">goal-seeking</span><span class="badge">loop</span><span class="badge">productivity</span><span class="badge">session</span></div>
   </a>
-  <a href="/piclaw-addons/addons/imap/" class="card" data-name="imap IMAP email management tool — search/fetch, move/copy, flag, create drafts, file messages, and STARTTLS support email imap mail productivity">
+  <a href="/piclaw-addons/addons/image-processing/" class="card" data-name="image-processing Image manipulation tool (image_process) for Piclaw — resize, crop, convert, composite and more via sharp image processing sharp tools">
     <div class="card-header">
       <img class="card-icon" src="/piclaw-addons/assets/icons/default-00.png" alt="" loading="lazy">
+      <div>
+        <div class="card-name">image-processing</div>
+        <div class="card-sub-row">
+          <span class="card-version">v0.1.0</span>
+
+        </div>
+      </div>
+    </div>
+    <div class="card-desc">Image manipulation tool (image_process) for Piclaw — resize, crop, convert, composite and more via sharp</div>
+    <div class="card-tags"><span class="badge">image</span><span class="badge">processing</span><span class="badge">sharp</span><span class="badge">tools</span></div>
+  </a>
+  <a href="/piclaw-addons/addons/imap/" class="card" data-name="imap IMAP email management tool — search/fetch, move/copy, flag, create drafts, file messages, and STARTTLS support email imap mail productivity">
+    <div class="card-header">
+      <img class="card-icon" src="/piclaw-addons/assets/icons/default-01.png" alt="" loading="lazy">
       <div>
         <div class="card-name">imap</div>
         <div class="card-sub-row">
@@ -430,7 +449,7 @@ footer a{color:var(--accent);text-decoration:none}
   </a>
   <a href="/piclaw-addons/addons/kanban-board-widget/" class="card" data-name="kanban-board-widget Interactive kanban board dashboard widget for the web timeline dashboard kanban ui widget">
     <div class="card-header">
-      <img class="card-icon" src="/piclaw-addons/assets/icons/default-00.png" alt="" loading="lazy">
+      <img class="card-icon" src="/piclaw-addons/assets/icons/default-01.png" alt="" loading="lazy">
       <div>
         <div class="card-name">kanban-board-widget</div>
         <div class="card-sub-row">
@@ -446,7 +465,7 @@ footer a{color:var(--accent);text-decoration:none}
   </a>
   <a href="/piclaw-addons/addons/kanban-editor/" class="card" data-name="kanban-editor Workspace .kanban.md editor add-on with Obsidian-style [[links]] between boards editor kanban markdown wiki-links workspace">
     <div class="card-header">
-      <img class="card-icon" src="/piclaw-addons/assets/icons/default-00.png" alt="" loading="lazy">
+      <img class="card-icon" src="/piclaw-addons/assets/icons/default-01.png" alt="" loading="lazy">
       <div>
         <div class="card-name">kanban-editor</div>
         <div class="card-sub-row">
@@ -460,19 +479,61 @@ footer a{color:var(--accent);text-decoration:none}
     <div class="card-desc">Workspace .kanban.md editor add-on with Obsidian-style [[links]] between boards</div>
     <div class="card-tags"><span class="badge">editor</span><span class="badge">kanban</span><span class="badge">markdown</span><span class="badge">wiki-links</span><span class="badge">workspace</span></div>
   </a>
-  <a href="/piclaw-addons/addons/observability/" class="card" data-name="observability OpenTelemetry observability — trace errors and agent turns across piclaw instances to Azure Application Insights (with Live Metrics) and local Graphite application-insights graphite live-metrics metrics observability opentelemetry otel tracing">
+  <a href="/piclaw-addons/addons/mindmap/" class="card" data-name="mindmap D3-based mindmap editor pane for .mindmap.yaml files in Piclaw diagrams editor mindmap yaml">
     <div class="card-header">
       <img class="card-icon" src="/piclaw-addons/assets/icons/default-00.png" alt="" loading="lazy">
+      <div>
+        <div class="card-name">mindmap</div>
+        <div class="card-sub-row">
+          <span class="card-version">v0.1.0</span>
+
+        </div>
+      </div>
+    </div>
+    <div class="card-desc">D3-based mindmap editor pane for .mindmap.yaml files in Piclaw</div>
+    <div class="card-tags"><span class="badge">diagrams</span><span class="badge">editor</span><span class="badge">mindmap</span><span class="badge">yaml</span></div>
+  </a>
+  <a href="/piclaw-addons/addons/observability/" class="card" data-name="observability OpenTelemetry observability — trace errors and agent turns across piclaw instances to Azure Application Insights (with Live Metrics) and local Graphite application-insights graphite live-metrics metrics observability opentelemetry otel tracing">
+    <div class="card-header">
+      <img class="card-icon" src="/piclaw-addons/assets/icons/default-01.png" alt="" loading="lazy">
       <div>
         <div class="card-name">observability</div>
         <div class="card-sub-row">
           <span class="card-version">v0.1.5</span>
-          
+
         </div>
       </div>
     </div>
     <div class="card-desc">OpenTelemetry observability — trace errors and agent turns across piclaw instances to Azure Application Insights (with Live Metrics) and local Graphite</div>
     <div class="card-tags"><span class="badge">application-insights</span><span class="badge">graphite</span><span class="badge">live-metrics</span><span class="badge">metrics</span><span class="badge">observability</span><span class="badge">opentelemetry</span><span class="badge">otel</span><span class="badge">tracing</span></div>
+  </a>
+  <a href="/piclaw-addons/addons/office-tools/" class="card" data-name="office-tools Office document read/write tools for Piclaw (docx, xlsx, pptx, odt, md→pdf) documents docx office pdf pptx xlsx">
+    <div class="card-header">
+      <img class="card-icon" src="/piclaw-addons/assets/icons/default-00.png" alt="" loading="lazy">
+      <div>
+        <div class="card-name">office-tools</div>
+        <div class="card-sub-row">
+          <span class="card-version">v0.1.0</span>
+
+        </div>
+      </div>
+    </div>
+    <div class="card-desc">Office document read/write tools for Piclaw (docx, xlsx, pptx, odt, md→pdf)</div>
+    <div class="card-tags"><span class="badge">documents</span><span class="badge">docx</span><span class="badge">office</span><span class="badge">pdf</span><span class="badge">pptx</span><span class="badge">xlsx</span></div>
+  </a>
+  <a href="/piclaw-addons/addons/office-viewer/" class="card" data-name="office-viewer Office document viewer (.docx, .xlsx, .pptx) and PDF viewer for Piclaw documents docx office pptx viewer xlsx">
+    <div class="card-header">
+      <img class="card-icon" src="/piclaw-addons/assets/icons/default-00.png" alt="" loading="lazy">
+      <div>
+        <div class="card-name">office-viewer</div>
+        <div class="card-sub-row">
+          <span class="card-version">v0.1.0</span>
+
+        </div>
+      </div>
+    </div>
+    <div class="card-desc">Office document viewer (.docx, .xlsx, .pptx) and PDF viewer for Piclaw</div>
+    <div class="card-tags"><span class="badge">documents</span><span class="badge">docx</span><span class="badge">office</span><span class="badge">pptx</span><span class="badge">viewer</span><span class="badge">xlsx</span></div>
   </a>
   <a href="/piclaw-addons/addons/plan-sidebar/" class="card" data-name="plan-sidebar Right-side session plan sidebar with a Markdown checklist editor and plan get/set tool markdown planning session ui">
     <div class="card-header">
@@ -480,8 +541,8 @@ footer a{color:var(--accent);text-decoration:none}
       <div>
         <div class="card-name">plan-sidebar</div>
         <div class="card-sub-row">
-          <span class="card-version">v0.1.0</span>
-          
+          <span class="card-version">v0.1.11</span>
+
         </div>
       </div>
     </div>
@@ -494,7 +555,7 @@ footer a{color:var(--accent);text-decoration:none}
       <div>
         <div class="card-name">portainer</div>
         <div class="card-sub-row">
-          <span class="card-version">v0.1.4</span>
+          <span class="card-version">v0.1.5</span>
           <div class="owner-row"><span class="person-chip">
     <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
     @rcarmo</span></div>
@@ -510,7 +571,7 @@ footer a{color:var(--accent);text-decoration:none}
       <div>
         <div class="card-name">proxmox</div>
         <div class="card-sub-row">
-          <span class="card-version">v0.1.5</span>
+          <span class="card-version">v0.1.6</span>
           <div class="owner-row"><span class="person-chip">
     <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
     @rcarmo</span></div>
@@ -522,12 +583,12 @@ footer a{color:var(--accent);text-decoration:none}
   </a>
   <a href="/piclaw-addons/addons/sample-addon/" class="card" data-name="sample-addon Sample add-on — starter template showing a settings pane, keychain secret, SQLite KV config, and a test endpoint developer sample template">
     <div class="card-header">
-      <img class="card-icon" src="/piclaw-addons/assets/icons/default-00.png" alt="" loading="lazy">
+      <img class="card-icon" src="/piclaw-addons/assets/icons/default-01.png" alt="" loading="lazy">
       <div>
         <div class="card-name">sample-addon</div>
         <div class="card-sub-row">
           <span class="card-version">v0.1.8</span>
-          
+
         </div>
       </div>
     </div>
@@ -536,12 +597,12 @@ footer a{color:var(--accent);text-decoration:none}
   </a>
   <a href="/piclaw-addons/addons/settings-dialog-screenshot/" class="card" data-name="settings-dialog-screenshot Developer skill for capturing tightly cropped screenshots of the Pi web settings dialog only developer documentation screenshots ui">
     <div class="card-header">
-      <img class="card-icon" src="/piclaw-addons/assets/icons/default-00.png" alt="" loading="lazy">
+      <img class="card-icon" src="/piclaw-addons/assets/icons/default-01.png" alt="" loading="lazy">
       <div>
         <div class="card-name">settings-dialog-screenshot</div>
         <div class="card-sub-row">
           <span class="card-version">v0.1.0</span>
-          
+
         </div>
       </div>
     </div>
@@ -550,7 +611,7 @@ footer a{color:var(--accent);text-decoration:none}
   </a>
   <a href="/piclaw-addons/addons/vent/" class="card" data-name="vent Workspace vent log add-on, adapted from pi-vent by Igor Warzocha, with a configurable output file feedback postmortem quality vent workspace">
     <div class="card-header">
-      <img class="card-icon" src="/piclaw-addons/assets/icons/default-00.png" alt="" loading="lazy">
+      <img class="card-icon" src="/piclaw-addons/assets/icons/default-01.png" alt="" loading="lazy">
       <div>
         <div class="card-name">vent</div>
         <div class="card-sub-row">
@@ -568,7 +629,7 @@ footer a{color:var(--accent);text-decoration:none}
   </a>
   <a href="/piclaw-addons/addons/voice-pipeline/" class="card" data-name="voice-pipeline ESPHome-only voice assistant pipeline for ThinkSmart/ESP32-Audio devices using Azure STT/TTS and the Flint chat runtime audio esp32 home-automation smart-home voice">
     <div class="card-header">
-      <img class="card-icon" src="/piclaw-addons/assets/icons/default-00.png" alt="" loading="lazy">
+      <img class="card-icon" src="/piclaw-addons/assets/icons/default-01.png" alt="" loading="lazy">
       <div>
         <div class="card-name">voice-pipeline</div>
         <div class="card-sub-row">
@@ -584,7 +645,7 @@ footer a{color:var(--accent);text-decoration:none}
   </a>
   <a href="/piclaw-addons/addons/yolochat/" class="card" data-name="yolochat Zero-guardrail inter-instance messaging — lets Pi instances post and reply to each other over HTTP chat experimental multi-agent networking">
     <div class="card-header">
-      <img class="card-icon" src="/piclaw-addons/assets/icons/default-00.png" alt="" loading="lazy">
+      <img class="card-icon" src="/piclaw-addons/assets/icons/default-01.png" alt="" loading="lazy">
       <div>
         <div class="card-name">yolochat</div>
         <div class="card-sub-row">

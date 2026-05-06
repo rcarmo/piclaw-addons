@@ -20,21 +20,33 @@ test("plan storage is scoped by chat jid", () => {
 test("plan tool gets and sets active session plan", async () => {
   resetPlanSidebarAddonForTests();
   let tool: any = null;
+  const events: Array<{ type: string; data: any }> = [];
+  const previousBroadcast = (globalThis as any).__PICLAW_BROADCAST_EVENT__;
+  (globalThis as any).__PICLAW_BROADCAST_EVENT__ = (type: string, data: any) => events.push({ type, data });
   const pi: any = {
     on() {},
     registerTool(definition: any) { tool = definition; },
   };
-  planSidebarAddon(pi);
+  try {
+    planSidebarAddon(pi);
 
-  expect(tool?.name).toBe("plan");
+    expect(tool?.name).toBe("plan");
 
-  const ctx: any = { sessionManager: { getSessionDir: () => "/tmp/web_default" } };
-  const writeResult = await tool.execute("1", { action: "write", markdown: "- [x] done" }, undefined, undefined, ctx);
-  expect(writeResult.details.chat_jid).toBe("web:default");
-  expect(writeResult.details.markdown).toBe("- [x] done");
+    const ctx: any = { sessionManager: { getSessionDir: () => "/tmp/web_default" } };
+    const writeResult = await tool.execute("1", { action: "write", markdown: "- [x] done" }, undefined, undefined, ctx);
+    expect(writeResult.details.chat_jid).toBe("web:default");
+    expect(writeResult.details.markdown).toBe("- [x] done");
+    expect(events.at(-1)).toMatchObject({
+      type: "extension_ui_status",
+      data: { key: "plan-sidebar.plan-updated", chat_jid: "web:default", source: "tool", action: "write" },
+    });
 
-  const readResult = await tool.execute("2", { action: "read" }, undefined, undefined, ctx);
-  expect(readResult.content[0].text).toContain("- [x] done");
+    const readResult = await tool.execute("2", { action: "read" }, undefined, undefined, ctx);
+    expect(readResult.content[0].text).toContain("- [x] done");
+  } finally {
+    if (previousBroadcast) (globalThis as any).__PICLAW_BROADCAST_EVENT__ = previousBroadcast;
+    else delete (globalThis as any).__PICLAW_BROADCAST_EVENT__;
+  }
 });
 
 test("saved plan is injected into the next model turn", async () => {
@@ -109,6 +121,16 @@ test("web sidebar renders progress bar and collapsed meter", () => {
   expect(source).toContain("plan-sidebar-toggle-meter");
   expect(source).toContain("function getPlanProgress");
   expect(source).toContain("items complete");
+});
+
+
+test("visible sidebar listens for model plan update events and refreshes without clobbering dirty edits", () => {
+  const source = readFileSync(resolve(addonDir, "web", "index.ts"), "utf8");
+  expect(source).toContain('window.addEventListener("piclaw-extension-ui:status", handleRemotePlanUpdate);');
+  expect(source).toContain('payload?.key !== "plan-sidebar.plan-updated"');
+  expect(source).toContain("if (!state.open) return;");
+  expect(source).toContain("void loadPlan({ preserveDirty: true, remote: true, remoteLabel });");
+  expect(source).toContain("Plan changed remotely; save or refresh to update.");
 });
 
 test("collapsed progress meter loads the current chat plan", () => {

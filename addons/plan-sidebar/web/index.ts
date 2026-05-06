@@ -27,6 +27,7 @@ function installPlanSidebar() {
     themeObserver: null,
     fallbackTextarea: null,
     resizeStart: null,
+    pendingRemoteRefresh: false,
   };
 
   injectStyles();
@@ -270,9 +271,15 @@ function installPlanSidebar() {
     return `${API}?chat_jid=${encodeURIComponent(state.chatJid)}`;
   }
 
-  async function loadPlan({ preserveDirty = false } = {}) {
-    if (state.loading) return;
-    if (preserveDirty && state.dirty) return;
+  async function loadPlan({ preserveDirty = false, remote = false, remoteLabel = "remote" } = {}) {
+    if (state.loading) {
+      if (remote) state.pendingRemoteRefresh = true;
+      return;
+    }
+    if (preserveDirty && state.dirty) {
+      if (remote) setStatus("Plan changed remotely; save or refresh to update.", "warning");
+      return;
+    }
     state.loading = true;
     renderChrome();
     try {
@@ -280,13 +287,29 @@ function installPlanSidebar() {
       state.updatedAt = plan.updated_at || null;
       setEditorValue(plan.markdown || "");
       markDirty(false);
-      setStatus(state.updatedAt ? `Loaded ${formatTime(state.updatedAt)}` : "Loaded default plan");
+      const loadedAt = formatTime(state.updatedAt);
+      setStatus(remote
+        ? `Updated from ${remoteLabel}${loadedAt ? ` ${loadedAt}` : ""}`
+        : state.updatedAt ? `Loaded ${loadedAt}` : "Loaded default plan");
     } catch (error) {
       setStatus(String(error?.message || error), "error");
     } finally {
       state.loading = false;
+      const shouldRefreshAgain = state.pendingRemoteRefresh && state.open && !state.dirty;
+      state.pendingRemoteRefresh = false;
       renderChrome();
+      if (shouldRefreshAgain) void loadPlan({ preserveDirty: true, remote: true, remoteLabel });
     }
+  }
+
+  function handleRemotePlanUpdate(event) {
+    const payload = event?.detail?.payload || event?.detail || {};
+    if (payload?.key !== "plan-sidebar.plan-updated") return;
+    const chatJid = normalizeChatJid(payload.chat_jid);
+    if (chatJid !== state.chatJid) return;
+    if (!state.open) return;
+    const remoteLabel = payload.source === "tool" ? "model" : "remote";
+    void loadPlan({ preserveDirty: true, remote: true, remoteLabel });
   }
 
   async function savePlan() {
@@ -396,6 +419,7 @@ function installPlanSidebar() {
   }, true);
   window.addEventListener("piclaw:current-chat-changed", updateChatJid);
   window.addEventListener("popstate", updateChatJid);
+  window.addEventListener("piclaw-extension-ui:status", handleRemotePlanUpdate);
 
   renderChrome();
   if (state.open) setOpen(true);
