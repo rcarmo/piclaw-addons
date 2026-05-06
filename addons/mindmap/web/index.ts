@@ -5,8 +5,7 @@
  * __mindmapEditor mount/update/destroy API — no VS Code shims.
  */
 
-
-import { createFileConflictMonitor, type FileConflictMonitor } from './file-conflict-monitor.js';
+import { createFileConflictMonitor, type FileConflictMonitor } from './file-conflict-monitor.ts';
 
 const MINDMAP_EXTENSION = /\.mindmap\.ya?ml$/i;
 
@@ -351,7 +350,7 @@ export const mindmapPaneExtension: WebPaneExtension = {
 };
 
 // Register with piclaw's addon web API
-const webApi = (globalThis as any).__piclaw_web;
-if (webApi && typeof webApi.registerPane === 'function') {
-  webApi.registerPane(mindmapPaneExtension);
+const __webApiMM = (globalThis as any).__piclaw_web;
+if (__webApiMM && typeof __webApiMM.registerPane === 'function') {
+  __webApiMM.registerPane(mindmapPaneExtension);
 }
