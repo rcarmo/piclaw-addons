@@ -424,7 +424,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-mindmap-0.1.0.tgz"
       },
-      "updatedAt": "2026-05-05"
+      "updatedAt": "2026-05-06"
     },
     {
       "slug": "observability",
@@ -495,7 +495,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-office-viewer-0.1.0.tgz"
       },
-      "updatedAt": "2026-05-05"
+      "updatedAt": "2026-05-06"
     },
     {
       "slug": "plan-sidebar",
