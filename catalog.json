@@ -591,6 +591,27 @@
       "updatedAt": "2026-05-02"
     },
     {
+      "slug": "session-tree",
+      "name": "@rcarmo/piclaw-addon-session-tree",
+      "version": "0.1.0",
+      "type": "extension",
+      "description": "Interactive session tree timeline widget for Piclaw's /tree command",
+      "path": "addons/session-tree",
+      "homepage": "https://rcarmo.github.io/piclaw-addons/addons/session-tree/",
+      "tags": [
+        "navigation",
+        "session",
+        "tree",
+        "widget"
+      ],
+      "skills": [],
+      "install": {
+        "kind": "tarball",
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-session-tree-0.1.0.tgz"
+      },
+      "updatedAt": "2026-05-06"
+    },
+    {
       "slug": "settings-dialog-screenshot",
       "name": "@rcarmo/piclaw-addon-settings-dialog-screenshot",
       "version": "0.1.0",
