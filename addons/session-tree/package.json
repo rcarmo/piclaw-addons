@@ -1,0 +1,18 @@
+{
+  "name": "@rcarmo/piclaw-addon-session-tree",
+  "version": "0.1.0",
+  "description": "Interactive session tree timeline widget for Piclaw's /tree command",
+  "type": "module",
+  "main": "index.ts",
+  "piclaw": {
+    "type": "extension",
+    "compatibleVersions": ">=1.8.0",
+    "tags": ["session", "tree", "navigation", "widget"]
+  },
+  "license": "MIT",
+  "keywords": ["pi-package"],
+  "pi": {
+    "extensions": ["index.ts"]
+  },
+  "homepage": "https://rcarmo.github.io/piclaw-addons/addons/session-tree/"
+}
