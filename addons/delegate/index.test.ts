@@ -24,4 +24,14 @@ describe("delegate addon", () => {
     expect(source).toContain("visible one-sentence timeline update");
     expect(source).toContain("what you are delegating");
   });
+
+  test("delegate manifest declares typebox for runtime and compatibility", () => {
+    const manifest = JSON.parse(readFileSync(resolve(addonDir, "package.json"), "utf8")) as {
+      dependencies?: Record<string, string>;
+      peerDependencies?: Record<string, string>;
+    };
+    expect(manifest.dependencies?.["@sinclair/typebox"]).toBe("*");
+    expect(manifest.peerDependencies?.["@sinclair/typebox"]).toBe("*");
+    expect(manifest.peerDependencies?.["@mariozechner/pi-coding-agent"]).toBe("*");
+  });
 });
