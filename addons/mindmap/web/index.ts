@@ -8,6 +8,110 @@
 import { createFileConflictMonitor, type FileConflictMonitor } from './file-conflict-monitor.ts';
 
 const MINDMAP_EXTENSION = /\.mindmap\.ya?ml$/i;
+const OPEN_WORKSPACE_FILE_ACTION = 'open_workspace_file';
+const EXTENSION_UI_REQUEST_EVENT = 'piclaw-extension-ui:request';
+let duplicateOpenGuardInstalled = false;
+
+export function normalizeMindmapPanePath(path: unknown): string {
+    const raw = typeof path === 'string' ? path.trim().replace(/\\+/g, '/') : '';
+    if (!raw) return '';
+    const parts: string[] = [];
+    for (const part of raw.split('/')) {
+        if (!part || part === '.') continue;
+        if (part === '..') {
+            if (parts.length > 0) parts.pop();
+            continue;
+        }
+        parts.push(part);
+    }
+    return parts.join('/');
+}
+
+export function isMindmapPath(path: unknown): boolean {
+    return MINDMAP_EXTENSION.test(normalizeMindmapPanePath(path));
+}
+
+function readTrimmedString(value: unknown): string | null {
+    return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+export function normalizeMindmapOpenWorkspaceFileRequest(payload: any): null | {
+    requestId: string;
+    chatJid: string | null;
+    path: string;
+    target: 'tab' | 'popout';
+} {
+    if (!payload || payload.kind !== 'custom') return null;
+    const requestId = readTrimmedString(payload.request_id);
+    const options = payload.options && typeof payload.options === 'object' ? payload.options : null;
+    if (!requestId || !options || options.action !== OPEN_WORKSPACE_FILE_ACTION) return null;
+    const path = normalizeMindmapPanePath(options.path);
+    if (!isMindmapPath(path)) return null;
+    return {
+        requestId,
+        chatJid: readTrimmedString(payload.chat_jid),
+        path,
+        target: options.target === 'tab' ? 'tab' : 'popout',
+    };
+}
+
+export function findExistingMindmapTab(path: unknown, doc: Document | null = typeof document !== 'undefined' ? document : null): HTMLElement | null {
+    const normalized = normalizeMindmapPanePath(path);
+    if (!normalized || !doc || typeof doc.querySelectorAll !== 'function') return null;
+    const candidates = Array.from(doc.querySelectorAll('.tab-item[role="tab"][title]')) as HTMLElement[];
+    return candidates.find((candidate) => normalizeMindmapPanePath(candidate.getAttribute('title')) === normalized) || null;
+}
+
+function focusExistingMindmapTab(tab: HTMLElement): void {
+    tab.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0 }));
+    tab.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 }));
+    requestAnimationFrame(() => {
+        const activePane = document.querySelector('.editor-pane [tabindex], .editor-pane iframe, .editor-pane');
+        (activePane as HTMLElement | null)?.focus?.();
+    });
+}
+
+async function acknowledgeFocusedExistingRequest(request: { requestId: string; chatJid: string | null; path: string; target: 'tab' | 'popout' }): Promise<void> {
+    try {
+        await fetch('/agent/respond', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                request_id: request.requestId,
+                chat_jid: request.chatJid || undefined,
+                outcome: {
+                    ok: true,
+                    opened: true,
+                    focused_existing: true,
+                    target: request.target,
+                    path: request.path,
+                },
+            }),
+        });
+    } catch {
+        // Best effort only; the UI already focused the existing tab.
+    }
+}
+
+export function handleMindmapDuplicateOpenRequest(event: CustomEvent, runtime: { document?: Document | null } = {}): boolean {
+    const request = normalizeMindmapOpenWorkspaceFileRequest(event?.detail?.payload);
+    if (!request) return false;
+    const existingTab = findExistingMindmapTab(request.path, runtime.document ?? (typeof document !== 'undefined' ? document : null));
+    if (!existingTab) return false;
+    event.preventDefault?.();
+    event.stopImmediatePropagation?.();
+    focusExistingMindmapTab(existingTab);
+    void acknowledgeFocusedExistingRequest(request);
+    return true;
+}
+
+function installDuplicateOpenGuard(runtimeWindow: (Window & typeof globalThis) | null = typeof window !== 'undefined' ? window : null): void {
+    if (!runtimeWindow || duplicateOpenGuardInstalled) return;
+    duplicateOpenGuardInstalled = true;
+    runtimeWindow.addEventListener(EXTENSION_UI_REQUEST_EVENT, (event) => {
+        try { handleMindmapDuplicateOpenRequest(event as CustomEvent); } catch {}
+    }, { capture: true });
+}
 
 /** Cache-bust token for vendor scripts — evaluated at bundle build time. */
 const VENDOR_CACHE_BUST = String(Date.now());
@@ -354,3 +458,4 @@ const __webApiMM = (globalThis as any).__piclaw_web;
 if (__webApiMM && typeof __webApiMM.registerPane === 'function') {
   __webApiMM.registerPane(mindmapPaneExtension);
 }
+installDuplicateOpenGuard();

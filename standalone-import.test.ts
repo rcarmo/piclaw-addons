@@ -13,7 +13,7 @@ afterEach(() => {
   }
 });
 
-async function importStandaloneAddon(slug: "autoresearch" | "cheapskate" | "delegate" | "editable-table" | "goal" | "image-processing" | "imap" | "kanban-editor" | "office-viewer" | "plan-sidebar" | "portainer" | "proxmox" | "session-tree" | "vent") {
+async function importStandaloneAddon(slug: "autoresearch" | "cheapskate" | "delegate" | "editable-table" | "goal" | "image-processing" | "imap" | "kanban-editor" | "mindmap" | "office-viewer" | "plan-sidebar" | "portainer" | "proxmox" | "session-tree" | "vent") {
   const tempRoot = mkdtempSync(join(tmpdir(), `piclaw-addon-${slug}-`));
   tempDirs.push(tempRoot);
 
@@ -61,6 +61,11 @@ test("standalone piclaw-addon-imap imports outside the monorepo root", async () 
 
 test("standalone piclaw-addon-kanban-editor imports outside the monorepo root", async () => {
   const mod = await importStandaloneAddon("kanban-editor");
+  expect(typeof mod.default).toBe("function");
+});
+
+test("standalone piclaw-addon-mindmap imports outside the monorepo root", async () => {
+  const mod = await importStandaloneAddon("mindmap");
   expect(typeof mod.default).toBe("function");
 });
 
