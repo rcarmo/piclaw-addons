@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 import cheapskate, { BACKENDS, currentBackendId, resetCheapskateForTests } from "./index.ts";
 
@@ -10,6 +12,8 @@ const ENV_KEYS = [
   "CEREBRAS_API_KEY",
   "SAMBANOVA_API_KEY",
   "OPENROUTER_API_KEY",
+  "OPENCODE_API_KEY",
+  "NVIDIA_API_KEY",
   "CLOUDFLARE_API_TOKEN",
   "CLOUDFLARE_ACCOUNT_ID",
 ];
@@ -77,7 +81,28 @@ function getActiveModel(registrations: ProviderRegistration[]) {
   return latest!.config.models[0];
 }
 
+const addonDir = import.meta.dir;
+
 describe("cheapskate addon", () => {
+  test("exposes OpenCode Zen and NVIDIA free backends", () => {
+    const opencode = BACKENDS.find((backend) => backend.id === "opencode");
+    const nvidia = BACKENDS.find((backend) => backend.id === "nvidia");
+
+    expect(opencode?.apiKeyEnv).toBe("OPENCODE_API_KEY");
+    expect(opencode?.baseUrl).toBe("https://api.opencode.ai/v1");
+    expect(opencode?.modelId).toBe("openai/gpt-oss-120b");
+
+    expect(nvidia?.apiKeyEnv).toBe("NVIDIA_API_KEY");
+    expect(nvidia?.baseUrl).toBe("https://integrate.api.nvidia.com/v1");
+    expect(nvidia?.modelId).toBe("meta/llama-3.3-70b-instruct");
+  });
+
+  test("settings pane lists OpenCode Zen and NVIDIA keychain entries", () => {
+    const source = readFileSync(resolve(addonDir, "web", "index.ts"), "utf8");
+    expect(source).toContain("opencode/api-key");
+    expect(source).toContain("nvidia/api-key");
+  });
+
   test("registers in a vanilla runtime without piclaw globals", async () => {
     delete (globalThis as any).__piclawRuntimeInterop;
     delete (globalThis as any).__piclaw_registerAddonConfigApi;

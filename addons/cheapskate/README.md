@@ -21,6 +21,8 @@ Context-length errors also trigger rotation, so long conversations don't get stu
 | Groq | QwQ 32B | 131K | ✅ | `groq/api-key` |
 | SambaNova | DeepSeek R1 | 65K | ✅ | `sambanova/api-key` |
 | OpenRouter | DeepSeek R1 (free) | 163K | ✅ | `openrouter/api-key` |
+| OpenCode Zen | GPT OSS 120B | 128K | ✅ | `opencode/api-key` |
+| NVIDIA NIM | Llama 3.3 70B | 131K | ❌ | `nvidia/api-key` |
 | Cloudflare Workers AI | Llama 3.3 70B | 131K | ❌ | `cloudflare/api-token` |
 
 ## Settings pane

@@ -11,6 +11,8 @@ const BACKENDS = [
     { id: 'groq', name: 'Groq', model: 'QwQ 32B', context: '131K', keychainName: 'groq/api-key', hasSoftCap: false },
     { id: 'sambanova', name: 'SambaNova', model: 'DeepSeek R1', context: '65K', keychainName: 'sambanova/api-key', hasSoftCap: false },
     { id: 'openrouter', name: 'OpenRouter', model: 'DeepSeek R1 (free)', context: '163K', keychainName: 'openrouter/api-key', hasSoftCap: false },
+    { id: 'opencode', name: 'OpenCode Zen', model: 'GPT OSS 120B', context: '128K', keychainName: 'opencode/api-key', hasSoftCap: false },
+    { id: 'nvidia', name: 'NVIDIA NIM', model: 'Llama 3.3 70B', context: '131K', keychainName: 'nvidia/api-key', hasSoftCap: false },
     { id: 'cloudflare', name: 'Cloudflare Workers AI', model: 'Llama 3.3 70B', context: '131K', keychainName: 'cloudflare/api-token', hasSoftCap: true, softCapWarning: 'Workers Paid plan auto-bills overages at $0.011/1K Neurons.' },
 ];
 

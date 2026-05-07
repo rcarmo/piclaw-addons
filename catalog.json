@@ -57,9 +57,9 @@
     {
       "slug": "cheapskate",
       "name": "@rcarmo/piclaw-addon-cheapskate",
-      "version": "0.4.2",
+      "version": "0.4.3",
       "type": "extension",
-      "description": "Free-tier provider auto-rotation — select cheapskate/auto as your model and it transparently routes to Google Gemini, Cerebras, Groq, or SambaNova free tiers",
+      "description": "Free-tier provider auto-rotation — select cheapskate/auto as your model and it transparently routes across configured free-tier backends (Gemini, Cerebras, Groq, SambaNova, OpenRouter, OpenCode Zen, NVIDIA, Cloudflare)",
       "path": "addons/cheapskate",
       "homepage": "https://rcarmo.github.io/piclaw-addons/addons/cheapskate/",
       "tags": [
@@ -72,7 +72,7 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-cheapskate-0.4.2.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-cheapskate-0.4.3.tgz"
       },
       "updatedAt": "2026-05-02",
       "owner": {
@@ -303,7 +303,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-goal-0.1.16.tgz"
       },
-      "updatedAt": "2026-05-06"
+      "updatedAt": "2026-05-07"
     },
     {
       "slug": "image-processing",

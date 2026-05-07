@@ -76,6 +76,22 @@ const BACKENDS: FreeBackend[] = [
     requestsPerMinute: 20, tokensPerMinute: 200_000, tokensPerDay: 1_000_000,
   },
   {
+    id: "opencode", name: "OpenCode Zen",
+    baseUrl: "https://api.opencode.ai/v1",
+    apiKeyEnv: "OPENCODE_API_KEY",
+    modelId: "openai/gpt-oss-120b", modelName: "GPT OSS 120B",
+    reasoning: true, contextWindow: 128_000, maxTokens: 16_384,
+    requestsPerMinute: 20, tokensPerMinute: 100_000, tokensPerDay: 1_000_000,
+  },
+  {
+    id: "nvidia", name: "NVIDIA NIM",
+    baseUrl: "https://integrate.api.nvidia.com/v1",
+    apiKeyEnv: "NVIDIA_API_KEY",
+    modelId: "meta/llama-3.3-70b-instruct", modelName: "Llama 3.3 70B",
+    reasoning: false, contextWindow: 131_072, maxTokens: 8_192,
+    requestsPerMinute: 20, tokensPerMinute: 80_000, tokensPerDay: 1_000_000,
+  },
+  {
     id: "cloudflare", name: "Cloudflare Workers AI",
     baseUrl: "https://api.cloudflare.com/client/v4/accounts/CLOUDFLARE_ACCOUNT_ID/ai/v1",
     apiKeyEnv: "CLOUDFLARE_API_TOKEN",
