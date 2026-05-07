@@ -13,7 +13,7 @@ afterEach(() => {
   }
 });
 
-async function importStandaloneAddon(slug: "autoresearch" | "cheapskate" | "delegate" | "editable-table" | "goal" | "image-processing" | "imap" | "kanban-editor" | "office-viewer" | "plan-sidebar" | "portainer" | "proxmox" | "vent") {
+async function importStandaloneAddon(slug: "autoresearch" | "cheapskate" | "delegate" | "editable-table" | "goal" | "image-processing" | "imap" | "kanban-editor" | "office-viewer" | "plan-sidebar" | "portainer" | "proxmox" | "session-tree" | "vent") {
   const tempRoot = mkdtempSync(join(tmpdir(), `piclaw-addon-${slug}-`));
   tempDirs.push(tempRoot);
 
@@ -81,6 +81,11 @@ test("standalone piclaw-addon-portainer imports outside the monorepo root", asyn
 
 test("standalone piclaw-addon-proxmox imports outside the monorepo root", async () => {
   const mod = await importStandaloneAddon("proxmox");
+  expect(typeof mod.default).toBe("function");
+});
+
+test("standalone piclaw-addon-session-tree imports outside the monorepo root", async () => {
+  const mod = await importStandaloneAddon("session-tree");
   expect(typeof mod.default).toBe("function");
 });
 
