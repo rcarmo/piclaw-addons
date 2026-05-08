@@ -125,7 +125,8 @@
       "install": {
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-codex-conversion-0.1.0.tgz"
-      }
+      },
+      "updatedAt": "2026-05-08"
     },
     {
       "slug": "delegate",
@@ -677,6 +678,26 @@
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-settings-dialog-screenshot-0.1.0.tgz"
       },
       "updatedAt": "2026-04-30"
+    },
+    {
+      "slug": "skill-model-effort",
+      "name": "@rcarmo/piclaw-addon-skill-model-effort",
+      "version": "0.1.0",
+      "type": "extension",
+      "description": "Honor model, effort, and thinking frontmatter on Piclaw skills",
+      "path": "addons/skill-model-effort",
+      "homepage": "https://rcarmo.github.io/piclaw-addons/addons/skill-model-effort/",
+      "tags": [
+        "models",
+        "runtime",
+        "skills",
+        "thinking"
+      ],
+      "skills": [],
+      "install": {
+        "kind": "tarball",
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-skill-model-effort-0.1.0.tgz"
+      }
     },
     {
       "slug": "vent",

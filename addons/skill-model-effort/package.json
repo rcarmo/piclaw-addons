@@ -1,0 +1,27 @@
+{
+  "name": "@rcarmo/piclaw-addon-skill-model-effort",
+  "version": "0.1.0",
+  "description": "Honor model, effort, and thinking frontmatter on Piclaw skills",
+  "type": "module",
+  "main": "src/index.ts",
+  "piclaw": {
+    "type": "extension",
+    "compatibleVersions": ">=1.8.0",
+    "tags": ["skills", "models", "thinking", "runtime"]
+  },
+  "license": "MIT",
+  "keywords": ["pi-package", "piclaw-addon", "skills", "models", "thinking"],
+  "pi": {
+    "extensions": ["src/index.ts"]
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-coding-agent": "*",
+    "@sinclair/typebox": "*"
+  },
+  "homepage": "https://rcarmo.github.io/piclaw-addons/addons/skill-model-effort/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rcarmo/piclaw-addons.git",
+    "directory": "addons/skill-model-effort"
+  }
+}
