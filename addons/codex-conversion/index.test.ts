@@ -20,9 +20,9 @@ test("codex-conversion package keeps upstream attribution and runtime dependenci
 
   expect(manifest.name).toBe("@rcarmo/piclaw-addon-codex-conversion");
   expect(manifest.pi.extensions).toEqual(["src/index.ts"]);
-  expect(manifest.peerDependencies["@mariozechner/pi-coding-agent"]).toBe("*");
-  expect(manifest.peerDependencies["@mariozechner/pi-ai"]).toBe("*");
-  expect(manifest.peerDependencies["@mariozechner/pi-tui"]).toBe("*");
+  expect(manifest.peerDependencies["@earendil-works/pi-coding-agent"]).toBe("*");
+  expect(manifest.peerDependencies["@earendil-works/pi-ai"]).toBe("*");
+  expect(manifest.peerDependencies["@earendil-works/pi-tui"]).toBe("*");
   expect(manifest.peerDependencies["@sinclair/typebox"]).toBe("*");
   expect(manifest.dependencies["node-pty"]).toBeTruthy();
   expect(manifest.dependencies["partial-json"]).toBeTruthy();
@@ -38,10 +38,10 @@ test("codex-conversion source imports target Piclaw package names", () => {
   expect(files.length).toBeGreaterThan(10);
   const combined = files.map((file) => readFileSync(file, "utf8")).join("\n");
 
-  expect(combined).not.toContain("@earendil-works/");
+  expect(combined).not.toContain("@mariozechner/");
   expect(combined).not.toContain('from "typebox"');
-  expect(combined).toContain("@mariozechner/pi-coding-agent");
-  expect(combined).toContain("@mariozechner/pi-ai");
-  expect(combined).toContain("@mariozechner/pi-tui");
+  expect(combined).toContain("@earendil-works/pi-coding-agent");
+  expect(combined).toContain("@earendil-works/pi-ai");
+  expect(combined).toContain("@earendil-works/pi-tui");
   expect(combined).toContain("@sinclair/typebox");
 });

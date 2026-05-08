@@ -13,7 +13,7 @@
 
 import { hostname } from "os";
 import { trace, context, SpanKind, SpanStatusCode, type Tracer, type Span } from "@opentelemetry/api";
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 import { addLogSink, removeLogSink, type LogSink as RuntimeLogSink, type LogRecord } from "./compat/log-sink.js";
 

@@ -20,8 +20,8 @@ The add-on adapts OpenAI/Codex-like model sessions to a narrower Codex-style sur
 
 This package keeps the upstream source layout under `src/` and adapts imports to Piclaw's current package names:
 
-- `@mariozechner/pi-coding-agent`
-- `@mariozechner/pi-tui`
+- `@earendil-works/pi-coding-agent`
+- `@earendil-works/pi-tui`
 - `@sinclair/typebox`
 
 It also declares upstream runtime dependencies (`node-pty`, `partial-json`, `web-tree-sitter`, `tree-sitter-bash`) so Piclaw's add-on installer can run a nested `bun install` for this package.

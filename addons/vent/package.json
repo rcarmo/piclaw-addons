@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-vent",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Workspace vent log add-on, adapted from pi-vent by Igor Warzocha, with a configurable output file",
   "type": "module",
   "main": "index.ts",
@@ -32,7 +32,7 @@
     ]
   },
   "peerDependencies": {
-    "@mariozechner/pi-coding-agent": "*",
+    "@earendil-works/pi-coding-agent": "*",
     "@sinclair/typebox": "*"
   },
   "keywords": [

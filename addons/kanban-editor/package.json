@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-kanban-editor",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Workspace .kanban.md editor add-on with Obsidian-style [[links]] between boards",
   "type": "module",
   "main": "index.ts",
@@ -26,7 +26,7 @@
     }
   },
   "peerDependencies": {
-    "@mariozechner/pi-coding-agent": "*"
+    "@earendil-works/pi-coding-agent": "*"
   },
   "keywords": [
     "pi-package",

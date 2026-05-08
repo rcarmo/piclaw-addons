@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-goal",
-  "version": "0.1.16",
+  "version": "0.1.17",
   "description": "Session-scoped goal seeking loop with editable prompts, a settings pane, and /goal command support",
   "type": "module",
   "main": "index.ts",
@@ -26,7 +26,7 @@
     }
   },
   "peerDependencies": {
-    "@mariozechner/pi-coding-agent": "*",
+    "@earendil-works/pi-coding-agent": "*",
     "@sinclair/typebox": "*"
   },
   "keywords": [

@@ -4,7 +4,7 @@ import type {
   AgentToolUpdateCallback,
   ExtensionAPI,
   ExtensionFactory,
-} from "@mariozechner/pi-coding-agent";
+} from "@earendil-works/pi-coding-agent";
 import { existsSync, statSync } from "node:fs";
 import { resolve, basename, extname, dirname, join, relative } from "node:path";
 

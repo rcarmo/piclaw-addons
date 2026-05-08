@@ -15,7 +15,7 @@ import { spawnSync, execSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync, symlinkSync, rmSync, statSync } from "node:fs";
 import { join, resolve, dirname, basename } from "node:path";
 import { Type } from "@sinclair/typebox";
-import type { AgentToolResult, ExtensionAPI, ExtensionFactory } from "@mariozechner/pi-coding-agent";
+import type { AgentToolResult, ExtensionAPI, ExtensionFactory } from "@earendil-works/pi-coding-agent";
 const WORKSPACE_DIR = process.env.PICLAW_WORKSPACE || "/workspace";
 import { createMedia, postMessagesToolMessage } from "./compat.js";
 

@@ -32,6 +32,6 @@ describe("delegate addon", () => {
     };
     expect(manifest.dependencies?.["@sinclair/typebox"]).toBe("*");
     expect(manifest.peerDependencies?.["@sinclair/typebox"]).toBe("*");
-    expect(manifest.peerDependencies?.["@mariozechner/pi-coding-agent"]).toBe("*");
+    expect(manifest.peerDependencies?.["@earendil-works/pi-coding-agent"]).toBe("*");
   });
 });

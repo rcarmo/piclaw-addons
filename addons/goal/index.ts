@@ -1,4 +1,4 @@
-import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { basename } from "node:path";
 import { Type } from "@sinclair/typebox";
 import { createExtensionStorage, type ExtensionStorage } from "./compat/extension-kv.js";

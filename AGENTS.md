@@ -52,7 +52,7 @@ addons/<slug>/
 The default export is a function that receives the `ExtensionAPI`:
 
 ```ts
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -100,7 +100,7 @@ export default function myAddon(pi: ExtensionAPI) {
     "skills": ["skills"]
   },
   "peerDependencies": {
-    "@mariozechner/pi-coding-agent": "*",
+    "@earendil-works/pi-coding-agent": "*",
     "@sinclair/typebox": "*"
   },
   "keywords": ["piclaw", "piclaw-addon"],
@@ -116,7 +116,7 @@ export default function myAddon(pi: ExtensionAPI) {
 | `piclaw.type` | ✓ | `"extension"` or `"skill"` |
 | `piclaw.tags` | ✓ | Categorisation for search and display |
 | `pi.extensions` | ✓ | Entry points — usually `["index.ts"]` |
-| `peerDependencies` | ✓ | Must declare both `@mariozechner/pi-coding-agent` and `@sinclair/typebox` |
+| `peerDependencies` | ✓ | Must declare imported Pi core packages (`@earendil-works/pi-coding-agent`, `@earendil-works/pi-ai`, `@earendil-works/pi-tui`) plus `@sinclair/typebox` when imported |
 
 
 ---
@@ -305,7 +305,7 @@ Add `owner` and `contributors` to your new entry in `catalog.json` — these fie
 
 - Slug: lowercase kebab-case (`proxmox`, `dev-tools`, `kanban-board-widget`)
 - One extension entry point per addon
-- Peer deps only — never bundle `@mariozechner/pi-coding-agent`
+- Peer deps only — never bundle imported Pi core packages (`@earendil-works/pi-coding-agent`, `@earendil-works/pi-ai`, `@earendil-works/pi-tui`)
 - Never import from piclaw runtime internals
 - `lib/compat/` is for in-repo development only — published packages must vendor any shims they need
 - Browser-side settings panes must use the **direct backend add-on config API** (`/agent/addons/api/<addon>/<action>`) and secrets should still go through `/agent/keychain`

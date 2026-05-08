@@ -4,7 +4,7 @@
  *
  * Drop into .pi/extensions/ and /reload.
  */
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { readdirSync, readFileSync, renameSync, mkdirSync, existsSync, writeFileSync } from "node:fs";
 import { join, basename } from "node:path";
 

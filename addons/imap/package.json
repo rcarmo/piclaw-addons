@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-imap",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "IMAP email management tool — search/fetch, move/copy, flag, create drafts, file messages, and STARTTLS support",
   "type": "module",
   "main": "index.ts",
@@ -15,7 +15,7 @@
     ]
   },
   "peerDependencies": {
-    "@mariozechner/pi-coding-agent": "*",
+    "@earendil-works/pi-coding-agent": "*",
     "@sinclair/typebox": "*"
   },
   "license": "MIT",

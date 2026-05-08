@@ -1,23 +1,37 @@
 {
   "name": "@rcarmo/piclaw-addon-codex-conversion",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Codex-style prompt and tool adapter for OpenAI/Codex-like models in Piclaw",
   "type": "module",
   "main": "src/index.ts",
   "piclaw": {
     "type": "extension",
     "compatibleVersions": ">=1.8.0",
-    "tags": ["codex", "tools", "openai", "adapter", "prompting"]
+    "tags": [
+      "codex",
+      "tools",
+      "openai",
+      "adapter",
+      "prompting"
+    ]
   },
   "license": "MIT",
-  "keywords": ["pi-package", "piclaw-addon", "codex", "openai", "adapter"],
+  "keywords": [
+    "pi-package",
+    "piclaw-addon",
+    "codex",
+    "openai",
+    "adapter"
+  ],
   "pi": {
-    "extensions": ["src/index.ts"]
+    "extensions": [
+      "src/index.ts"
+    ]
   },
   "peerDependencies": {
-    "@mariozechner/pi-ai": "*",
-    "@mariozechner/pi-coding-agent": "*",
-    "@mariozechner/pi-tui": "*",
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
     "@sinclair/typebox": "*"
   },
   "dependencies": {

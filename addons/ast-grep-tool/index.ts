@@ -5,7 +5,7 @@
  *   code_search  — find code by AST pattern with metavariables
  *   code_rewrite — structural find-and-replace
  */
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";

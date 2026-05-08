@@ -36,7 +36,9 @@ interface AddonPackage {
 }
 
 const CORE_PEER_DEPENDENCIES = [
-  '@mariozechner/pi-coding-agent',
+  '@earendil-works/pi-ai',
+  '@earendil-works/pi-coding-agent',
+  '@earendil-works/pi-tui',
   '@sinclair/typebox',
 ] as const;
 

@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-kanban-board-widget",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Interactive kanban board dashboard widget for the web timeline",
   "type": "module",
   "main": "index.ts",
@@ -16,7 +16,7 @@
   },
   "agents": {},
   "peerDependencies": {
-    "@mariozechner/pi-coding-agent": "*"
+    "@earendil-works/pi-coding-agent": "*"
   },
   "license": "MIT",
   "keywords": [

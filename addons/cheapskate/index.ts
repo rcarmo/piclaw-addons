@@ -10,7 +10,7 @@
  * providers (Cloudflare) have a safety-cap toggle.
  */
 
-import type { ExtensionAPI, ExtensionFactory } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI, ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";

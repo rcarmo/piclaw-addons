@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-proxmox",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Proxmox VE management tool — session-scoped API config, ad-hoc requests, and orchestration workflows for VMs, LXC containers, storage, tasks, and metrics",
   "type": "module",
   "main": "index.ts",
@@ -18,7 +18,7 @@
     ]
   },
   "peerDependencies": {
-    "@mariozechner/pi-coding-agent": "*",
+    "@earendil-works/pi-coding-agent": "*",
     "@sinclair/typebox": "*"
   },
   "license": "MIT",

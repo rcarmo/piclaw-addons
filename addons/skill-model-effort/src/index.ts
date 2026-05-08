@@ -1,5 +1,5 @@
-import type { ExtensionAPI, ExtensionContext, Skill } from "@mariozechner/pi-coding-agent";
-import { parseFrontmatter } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext, Skill } from "@earendil-works/pi-coding-agent";
+import { parseFrontmatter } from "@earendil-works/pi-coding-agent";
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { isAbsolute, normalize, resolve } from "node:path";
 

@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { cpSync, mkdtempSync, rmSync, symlinkSync } from "node:fs";
+import { cpSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -13,7 +13,7 @@ afterEach(() => {
   }
 });
 
-async function importStandaloneAddon(slug: "autoresearch" | "cheapskate" | "delegate" | "editable-table" | "goal" | "image-processing" | "imap" | "kanban-editor" | "mindmap" | "office-viewer" | "plan-sidebar" | "portainer" | "proxmox" | "session-tree" | "vent") {
+async function importStandaloneAddon(slug: "autoresearch" | "cheapskate" | "delegate" | "editable-table" | "goal" | "image-processing" | "imap" | "kanban-editor" | "mindmap" | "office-viewer" | "plan-sidebar" | "portainer" | "proxmox" | "session-tree" | "skill-model-effort" | "vent") {
   const tempRoot = mkdtempSync(join(tmpdir(), `piclaw-addon-${slug}-`));
   tempDirs.push(tempRoot);
 
@@ -21,7 +21,8 @@ async function importStandaloneAddon(slug: "autoresearch" | "cheapskate" | "dele
   cpSync(join(repoDir, "addons", slug), packageDir, { recursive: true });
   symlinkSync(join(repoDir, "node_modules"), join(tempRoot, "node_modules"), "dir");
 
-  return import(pathToFileURL(join(packageDir, "index.ts")).href);
+  const manifest = JSON.parse(readFileSync(join(packageDir, "package.json"), "utf8"));
+  return import(pathToFileURL(join(packageDir, manifest.main || "index.ts")).href);
 }
 
 test("standalone piclaw-addon-autoresearch imports outside the monorepo root", async () => {
@@ -91,6 +92,11 @@ test("standalone piclaw-addon-proxmox imports outside the monorepo root", async 
 
 test("standalone piclaw-addon-session-tree imports outside the monorepo root", async () => {
   const mod = await importStandaloneAddon("session-tree");
+  expect(typeof mod.default).toBe("function");
+});
+
+test("standalone piclaw-addon-skill-model-effort imports outside the monorepo root", async () => {
+  const mod = await importStandaloneAddon("skill-model-effort");
   expect(typeof mod.default).toBe("function");
 });
 

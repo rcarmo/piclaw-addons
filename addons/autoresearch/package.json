@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-autoresearch",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Autonomous experiment loop sub-agent (start/stop/status tools via tmux)",
   "type": "module",
   "main": "index.ts",
@@ -25,7 +25,9 @@
     ]
   },
   "peerDependencies": {
-    "@mariozechner/pi-coding-agent": "*",
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
     "@sinclair/typebox": "*"
   },
   "license": "MIT",

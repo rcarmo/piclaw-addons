@@ -1,7 +1,7 @@
 {
   "name": "@rcarmo/piclaw-addon-cheapskate",
-  "version": "0.4.3",
-  "description": "Free-tier provider auto-rotation \u2014 select cheapskate/auto as your model and it transparently routes across configured free-tier backends (Gemini, Cerebras, Groq, SambaNova, OpenRouter, OpenCode Zen, NVIDIA, Cloudflare)",
+  "version": "0.4.4",
+  "description": "Free-tier provider auto-rotation — select cheapskate/auto as your model and it transparently routes across configured free-tier backends (Gemini, Cerebras, Groq, SambaNova, OpenRouter, OpenCode Zen, NVIDIA, Cloudflare)",
   "type": "module",
   "main": "index.ts",
   "piclaw": {
@@ -19,7 +19,7 @@
     ]
   },
   "peerDependencies": {
-    "@mariozechner/pi-coding-agent": "*",
+    "@earendil-works/pi-coding-agent": "*",
     "@sinclair/typebox": "*"
   },
   "license": "MIT",

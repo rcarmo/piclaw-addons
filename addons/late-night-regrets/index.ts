@@ -11,7 +11,7 @@ import { join, dirname } from "node:path";
 import { existsSync, readFileSync, writeFileSync, mkdirSync, appendFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
 
 import { createExtensionStorage, type ExtensionStorage } from "./compat/extension-kv.js";
