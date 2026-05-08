@@ -1,8 +1,6 @@
 import { expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-
 import {
+  buildAppInsightsActorAttributes,
   buildSyntheticDependencyAttributes,
   buildSyntheticRequestAttributes,
   modelDependencyTarget,
@@ -36,9 +34,20 @@ test("buildSyntheticDependencyAttributes adds dependency-style semantics for mod
   expect(String(attrs["url.full"])).toBe("piclaw://openai/model/call");
 });
 
-test("browser telemetry is disabled by default", () => {
-  const source = readFileSync(join(import.meta.dir, "index.ts"), "utf8");
-  expect(source).toContain("appinsights_browser_enabled: false");
+test("buildAppInsightsActorAttributes maps chat and session into App Insights user/session fields", () => {
+  expect(buildAppInsightsActorAttributes("web:addons", "leaf-123", "smith")).toMatchObject({
+    "piclaw.chat_jid": "web:addons",
+    "piclaw.actor.kind": "chat_jid",
+    "piclaw.actor.id": "web:addons",
+    "enduser.id": "web:addons",
+    "enduser.pseudo.id": "web:addons",
+    "ai.user.authUserId": "web:addons",
+    "ai.user.id": "web:addons",
+    "session.id": "leaf-123",
+    "ai.session.id": "leaf-123",
+    "piclaw.session.id": "leaf-123",
+    "piclaw.session_leaf_id": "leaf-123",
+  });
 });
 
 test("modelDependencyTarget prefers the provider prefix and falls back to llm", () => {

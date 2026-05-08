@@ -14,7 +14,7 @@ Open **Settings → Add-Ons** and install **observability** from the catalog.
 
 ### 2. Configure via Settings → Observability
 
-The pane loads/saves non-secret settings through the direct backend add-on config API (`/agent/addons/api/observability/config` and `/agent/addons/api/observability/browser-config`). The connection string can be pasted directly into the settings pane — it is saved to the keychain automatically as `azure/appinsights-connection-string`. A restart is needed after setting or changing the connection string.
+The pane loads/saves non-secret settings through the direct backend add-on config API (`/agent/addons/api/observability/config`). The connection string can be pasted directly into the settings pane — it is saved to the keychain automatically as `azure/appinsights-connection-string`. A restart is needed after setting or changing the connection string.
 
 ![Observability settings pane on the microVM test instance](./assets/settings-pane-microvm.png)
 
@@ -27,7 +27,6 @@ The pane loads/saves non-secret settings through the direct backend add-on confi
 | **Live Metrics Stream** | checkbox | on | Real-time telemetry in the Azure portal ([QuickPulse](https://learn.microsoft.com/en-us/azure/azure-monitor/app/live-stream)) |
 | **Standard metrics** | checkbox | on | OTel standard metrics collection (CPU, memory, request rate) |
 | **Sampling ratio** | number | 1 | 0–1. 1 = send all traces. 0.5 = sample 50%. |
-| **Browser agent telemetry** | checkbox | off | Explicit opt-in. When enabled, loads the App Insights browser SDK and wraps fetch/EventSource to translate agent UI activity into custom events keyed by chat JID. |
 | **Graphite enabled** | checkbox | off | Sub-toggle for Carbon plaintext push |
 | **Host** | text | — | Graphite/Carbon receiver host, e.g. `192.168.1.250` |
 | **Port** | number | 2003 | Carbon plaintext port |
@@ -39,7 +38,7 @@ The pane loads/saves non-secret settings through the direct backend add-on confi
 |---|---|
 | App Insights connection string | **Keychain** — entry `azure/appinsights-connection-string`. Entered directly in the settings pane. |
 | All other settings | **Runtime database** — extension KV store (SQLite, global scope, extension ID `observability`) |
-| Browser actor identity | **Derived only when Browser agent telemetry is explicitly enabled** — the browser SDK maps App Insights actor identity to `chatJid` and preserves browser IDs as separate custom dimensions |
+| App Insights actor/session identity | **Derived on the backend** from Piclaw log records (`chatJid`, `sessionLeafId`, `turnId`) |
 
 No config files are written to disk.
 
@@ -88,7 +87,7 @@ Each piclaw instance needs:
 
 ## How it works
 
-The addon uses piclaw's **log-sink contract** — a generic API that any addon can use. Server-side spans are derived from runtime records, and the browser layer translates agent SSE/follow-up activity into App Insights `customEvents` keyed by `chatJid`.
+The addon uses piclaw's **log-sink contract** — a generic API that any addon can use. Server-side spans are derived from runtime records. The add-on does not install browser telemetry, wrap `fetch`, wrap `EventSource`, or load the browser Application Insights SDK.
 
 Server side:
 
@@ -135,17 +134,35 @@ See the [runtime observability docs](https://github.com/rcarmo/piclaw/blob/main/
 
 ---
 
-## Agent identity mapping
+## Application Insights user/session model
 
-| Concept | Mapping |
+The goal is to make the standard Application Insights UX behave as if Piclaw were a normal web application, while still deriving all telemetry from backend runtime events.
+
+| App Insights concept | Piclaw source | OTel/App Insights fields emitted |
+|---|---|---|
+| User | Chat/agent actor | `enduser.id = chatJid`, `enduser.pseudo.id = chatJid`, `piclaw.chat_jid`, `piclaw.actor.id` |
+| Authenticated user | Same stable actor identity | Azure Monitor maps `enduser.id` to `ai.user.authUserId`; `ai.user.authUserId` is also kept as a custom dimension |
+| User ID | Same stable actor identity | Azure Monitor maps `enduser.pseudo.id` to `ai.user.id`; `ai.user.id` is also kept as a custom dimension |
+| Session | Piclaw runtime session/fork | `session.id`, `ai.session.id`, `piclaw.session.id`; value is `sessionLeafId` when available, otherwise `chatJid` |
+| Operation / transaction | One agent turn | `piclaw.turn_id`; child model/tool spans share the same trace/operation |
+| Request | User-visible agent turn | `agent.turn` SERVER span, request-style attributes (`http.route=/agent/turn`) |
+| Dependency | Work performed by the turn | `model.call`, `tool.call`, `provider.error` CLIENT/dependency spans |
+| Metrics | Spend and performance | token dimensions on `model.call`, duration/count metrics in Graphite, standard Azure Monitor metrics when enabled |
+
+### Why these fields
+
+Azure Monitor's OpenTelemetry exporter maps:
+
+| OTel attribute | App Insights field |
 |---|---|
-| Primary actor | `chatJid` |
-| Primary transaction | `turnId` |
-| Runtime session / fork identity | `sessionLeafId` when present |
-| Browser correlation | `piclaw.browser_user_id`, `piclaw.browser_session_id`, `piclaw.browser_client_id` |
-| App Insights user-style field | `enduser.id = chatJid` |
+| `enduser.id` | `ai.user.authUserId` |
+| `enduser.pseudo.id` | `ai.user.id` |
 
-This makes App Insights charts and `customEvents` more useful for agent analytics: the actor is the chat/agent JID, not the anonymous browser user.
+The exporter does not currently map `session.id` into the App Insights session tag for spans, so the add-on emits both standard (`session.id`) and App Insights-style (`ai.session.id`) attributes as queryable dimensions. This keeps the data available in Transaction Search/KQL and gives us a single place to add a custom exporter/processor later if needed.
+
+### Backend-only interaction principle
+
+Browser telemetry is intentionally absent. The web entry only registers the Settings pane. Front-end actions should be represented by backend log records and then mapped by this add-on into synthetic App Insights requests/events/spans. This keeps telemetry consistent across web, mobile, WhatsApp, scheduled tasks, and other channels.
 
 ---
 
@@ -166,17 +183,19 @@ This makes App Insights charts and `customEvents` more useful for agent analytic
 | `evict_idle.*` | — | `session.evicted` |
 | Any warn/error with `operation` | `log.warn` / `log.error` | — |
 
-### Browser custom events
+### Backend-synthesized interaction events planned next
 
-Browser custom events are disabled by default. They are emitted only after **Browser agent telemetry** is explicitly enabled in Settings → Observability.
+These interactions should be emitted by the backend as structured log records and then mapped here into App Insights request/event-style spans:
 
-| Browser event | Source | Primary identity |
-|---|---|---|
-| `agent.turn.start` / `agent.turn.phase` / `agent.turn.complete` / `agent.turn.fail` | translated from `agent_status` SSE | `chatJid` |
-| `agent.followup.queued` / `agent.followup.consumed` / `agent.followup.removed` | translated from follow-up SSE | `chatJid` |
-| `agent.steer.queued` | translated from `agent_steer_queued` SSE | `chatJid` |
-| `agent.message.sent` | translated from `POST /agent/:id/message` | `chatJid` |
-| `agent.stream.connected` | translated from SSE connect | `chatJid` |
+| Interaction | Backend source | Suggested App Insights item | Identity/session |
+|---|---|---|---|
+| User sends a message | `handle_agent_message` accepted payload | `agent.message.sent` | `chatJid`, `sessionLeafId` when known |
+| Message queued as follow-up | queue/follow-up backend path | `agent.followup.queued` | `chatJid`, active `turnId` when known |
+| Queued follow-up consumed | follow-up materialization path | `agent.followup.consumed` | `chatJid`, next `turnId` |
+| Queued follow-up removed | queue remove backend handler | `agent.followup.removed` | `chatJid` |
+| Steering message queued | steer backend path | `agent.steer.queued` | `chatJid`, active `turnId` when known |
+| Model changed | backend model command path | `agent.model.changed` | `chatJid` |
+| UI command handled | backend command handlers | `agent.ui.command` | `chatJid` |
 
 ### Span schemas
 
@@ -193,6 +212,9 @@ Browser custom events are disabled by default. They are emitted only after **Bro
     "piclaw.actor.kind": "chat_jid",
     "piclaw.actor.id": "web:default:branch:0f3858079ad7",
     "enduser.id": "web:default:branch:0f3858079ad7",
+    "enduser.pseudo.id": "web:default:branch:0f3858079ad7",
+    "session.id": "session-leaf-123",
+    "ai.session.id": "session-leaf-123",
     "piclaw.instance": "smith",
     "piclaw.model": "azure-openai/gpt-5-4",
     "piclaw.turn.status": "success",
@@ -211,6 +233,9 @@ Browser custom events are disabled by default. They are emitted only after **Bro
   "duration": "8912ms",
   "attributes": {
     "piclaw.chat_jid": "web:default:branch:0f3858079ad7",
+    "enduser.id": "web:default:branch:0f3858079ad7",
+    "enduser.pseudo.id": "web:default:branch:0f3858079ad7",
+    "session.id": "session-leaf-123",
     "piclaw.instance": "smith",
     "piclaw.model": "azure-openai/gpt-5-4",
     "piclaw.turn.status": "error",
@@ -322,7 +347,7 @@ piclaw.relay.provider.error.*      # all provider errors on relay
 | **Failures blade** | Errors grouped by `cloud_RoleInstance`: smith 2, relay 5, orangepi 1 |
 | **Transaction Search** | Individual turn traces with `model.call` and `tool.call` child spans |
 | **Live Metrics Stream** | `agent.turn` maps more naturally to Incoming Requests, while `model.call` and `tool.call` map more naturally to outgoing dependency metrics |
-| **Users / Events** | Agent-centric browser custom events when browser agent telemetry is enabled (`chatJid` mapped as the actor) |
+| **Users / Sessions** | Backend-derived actor/session fields: `chatJid` maps to App Insights user fields; `sessionLeafId` maps to queryable session dimensions |
 
 > **Important:** the addon now synthesizes telemetry classes intentionally:
 > - `agent.turn` → **request-style** span (for Incoming Requests / request rate / request duration)
@@ -374,15 +399,16 @@ union withsource=table requests, dependencies, traces, exceptions
 | order by timestamp desc
 ```
 
-#### 3) Agent-centric browser events by chat JID
+#### 3) Backend-derived users and sessions by chat JID
 
 ```kusto
-customEvents
+union withsource=table requests, dependencies, traces, exceptions
 | where timestamp > ago(24h)
 | extend chat_jid = coalesce(user_AuthenticatedId, tostring(customDimensions["piclaw.chat_jid"]))
+| extend session_id = coalesce(session_Id, tostring(customDimensions["ai.session.id"]), tostring(customDimensions["session.id"]), tostring(customDimensions["piclaw.session.id"]))
 | where isnotempty(chat_jid)
-| summarize events = count() by name, chat_jid
-| order by events desc
+| summarize items = count(), sessions = dcount(session_id), failures = countif(success == false or severityLevel >= 3) by chat_jid
+| order by items desc
 ```
 
 #### 4) Agent-turn throughput and latency by instance
@@ -480,27 +506,25 @@ union withsource=table dependencies, traces, exceptions
 | order by timestamp desc
 ```
 
-#### 9) Token counters on `agent.turn` spans
-
-> **Note:** token usage is persisted in piclaw's runtime database even when App Insights is not yet carrying token attributes. This query returns rows only when the observability exporter emits `piclaw.turn.input_tokens`, `piclaw.turn.output_tokens`, `piclaw.turn.cache_read_tokens`, `piclaw.turn.cache_write_tokens`, and `piclaw.turn.total_tokens` on `agent.turn` telemetry.
+#### 9) Token counters on `model.call` dependency spans
 
 ```kusto
-requests
+dependencies
 | extend piclaw_instance = coalesce(tostring(customDimensions["piclaw.instance"]), cloud_RoleInstance)
 | where timestamp > ago(24h)
-| where name == "agent.turn"
+| where name == "model.call"
 | extend model = tostring(customDimensions["piclaw.model"])
-| extend input_tokens = todouble(customDimensions["piclaw.turn.input_tokens"])
-| extend output_tokens = todouble(customDimensions["piclaw.turn.output_tokens"])
-| extend cache_read_tokens = todouble(customDimensions["piclaw.turn.cache_read_tokens"])
-| extend cache_write_tokens = todouble(customDimensions["piclaw.turn.cache_write_tokens"])
-| extend total_tokens = todouble(customDimensions["piclaw.turn.total_tokens"])
+| extend input_tokens = todouble(customDimensions["piclaw.model.input_tokens"])
+| extend output_tokens = todouble(customDimensions["piclaw.model.output_tokens"])
+| extend cache_read_tokens = todouble(customDimensions["piclaw.model.cache_read_tokens"])
+| extend cache_write_tokens = todouble(customDimensions["piclaw.model.cache_write_tokens"])
+| extend total_tokens = todouble(customDimensions["piclaw.model.total_tokens"])
 | where isnotnull(input_tokens)
    or isnotnull(output_tokens)
    or isnotnull(cache_read_tokens)
    or isnotnull(cache_write_tokens)
    or isnotnull(total_tokens)
-| summarize turns = count(),
+| summarize model_calls = count(),
             input_tokens = sum(input_tokens),
             output_tokens = sum(output_tokens),
             cache_read_tokens = sum(cache_read_tokens),

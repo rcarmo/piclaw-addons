@@ -36,7 +36,6 @@ export interface ObservabilityConfig {
   appinsights_live_metrics: boolean;     // enable Live Metrics Stream (QuickPulse)
   appinsights_standard_metrics: boolean; // enable standard OTel metrics collection
   appinsights_sampling_ratio: number;    // 0–1, 1 = send everything
-  appinsights_browser_enabled: boolean;  // opt-in: expose the connection string to the authenticated web UI for agent-centric browser events
 
   // Graphite (Carbon plaintext)
   graphite_enabled: boolean;
@@ -53,7 +52,6 @@ const DEFAULT_CONFIG: ObservabilityConfig = {
   appinsights_live_metrics: true,
   appinsights_standard_metrics: true,
   appinsights_sampling_ratio: 1,
-  appinsights_browser_enabled: false,
   graphite_enabled: false,
   graphite_host: "",
   graphite_port: 2003,
@@ -271,8 +269,8 @@ export function startAgentTurnSpan(chatJid: string, opts?: { model?: string | nu
   return getTracer().startSpan("agent.turn", {
     kind: SpanKind.SERVER,
     attributes: buildSyntheticRequestAttributes({
-      "piclaw.chat_jid": chatJid,
       "piclaw.instance": inst(),
+      ...buildAppInsightsActorAttributes(chatJid, null, inst()),
       ...(opts?.model ? { "piclaw.model": opts.model } : {}),
       ...(opts?.turnId ? { "piclaw.turn_id": opts.turnId } : {}),
     }, "/agent/turn", inst()),
@@ -307,7 +305,7 @@ export function recordToolCall(chatJid: string, toolName: string, durationMs: nu
   const span = getTracer().startSpan("tool.call", {
     kind: SpanKind.CLIENT,
     attributes: buildSyntheticDependencyAttributes(
-      { "piclaw.chat_jid": chatJid, "piclaw.tool.name": toolName, "piclaw.instance": inst() },
+      { ...buildAppInsightsActorAttributes(chatJid, null, inst()), "piclaw.tool.name": toolName, "piclaw.instance": inst() },
       "/tool/call",
       toolName,
       "tool",
@@ -330,7 +328,7 @@ export function recordToolCall(chatJid: string, toolName: string, durationMs: nu
 export function recordProviderError(chatJid: string, error: string, opts?: { model?: string; provider?: string; classifier?: string }): void {
   const span = getTracer().startSpan("provider.error", {
     attributes: {
-      "piclaw.chat_jid": chatJid, "piclaw.instance": inst(),
+      ...buildAppInsightsActorAttributes(chatJid, null, inst()), "piclaw.instance": inst(),
       ...(opts?.model ? { "piclaw.model": opts.model } : {}),
       ...(opts?.provider ? { "piclaw.provider": opts.provider } : {}),
       ...(opts?.classifier ? { "piclaw.error.classifier": opts.classifier } : {}),
@@ -402,35 +400,7 @@ async function applyConfig(config: ObservabilityConfig): Promise<void> {
 
 // ── Settings API ─────────────────────────────────────────────────
 
-interface ObservabilityBrowserConfig {
-  ok: true;
-  enabled: boolean;
-  connectionString: string | null;
-  instanceName: string;
-  deploymentMode: string;
-  samplingRatio: number;
-  actorIdentity: "chat_jid";
-  actorDimension: "piclaw.chat_jid";
-}
-
 function handleGetConfig(): ObservabilityConfig { return loadConfig(); }
-
-async function handleGetBrowserConfig(): Promise<ObservabilityBrowserConfig> {
-  const config = loadConfig();
-  const connectionString = config.enabled && config.appinsights_enabled && config.appinsights_browser_enabled && config.appinsights_keychain
-    ? await resolveSecret(config.appinsights_keychain)
-    : null;
-  return {
-    ok: true,
-    enabled: Boolean(connectionString),
-    connectionString,
-    instanceName: instanceName(config),
-    deploymentMode: DEPLOYMENT_MODE,
-    samplingRatio: Math.max(0, Math.min(1, config.appinsights_sampling_ratio)),
-    actorIdentity: "chat_jid",
-    actorDimension: "piclaw.chat_jid",
-  };
-}
 
 function handleSetConfig(body: Partial<ObservabilityConfig>): { ok: boolean; config: ObservabilityConfig } {
   const c = loadConfig();
@@ -442,7 +412,6 @@ function handleSetConfig(body: Partial<ObservabilityConfig>): { ok: boolean; con
     appinsights_live_metrics:    body.appinsights_live_metrics ?? c.appinsights_live_metrics,
     appinsights_standard_metrics:body.appinsights_standard_metrics ?? c.appinsights_standard_metrics,
     appinsights_sampling_ratio:  typeof body.appinsights_sampling_ratio === "number" ? Math.max(0, Math.min(1, body.appinsights_sampling_ratio)) : c.appinsights_sampling_ratio,
-    appinsights_browser_enabled: body.appinsights_browser_enabled ?? c.appinsights_browser_enabled,
     graphite_enabled:            body.graphite_enabled ?? c.graphite_enabled,
     graphite_host:               typeof body.graphite_host === "string" ? body.graphite_host.trim() : c.graphite_host,
     graphite_port:               typeof body.graphite_port === "number" && body.graphite_port > 0 ? body.graphite_port : c.graphite_port,
@@ -465,9 +434,6 @@ if (typeof registerAddonConfigApi === "function") {
   registerAddonConfigApi("observability", "config", {
     get: async () => handleGetConfig(),
     set: async (payload) => handleSetConfig((payload && typeof payload === "object" ? payload : {}) as Partial<ObservabilityConfig>),
-  }, import.meta.dir);
-  registerAddonConfigApi("observability", "browser-config", {
-    get: async () => await handleGetBrowserConfig(),
   }, import.meta.dir);
 }
 
@@ -526,29 +492,42 @@ function getTurnKey(record: LogRecord, chatJid: string): string {
   return readRecordString(record, "turnId", "turn_id") || chatJid;
 }
 
+export function buildAppInsightsActorAttributes(chatJid: string, sessionLeafId: string | null | undefined, instance: string): Record<string, string> {
+  const attrs: Record<string, string> = {};
+  const normalizedChatJid = chatJid.trim();
+  const normalizedSessionLeafId = sessionLeafId?.trim() || "";
+  const aiSessionId = normalizedSessionLeafId || normalizedChatJid || instance;
+
+  if (normalizedChatJid) {
+    attrs["piclaw.chat_jid"] = normalizedChatJid;
+    attrs["piclaw.actor.kind"] = "chat_jid";
+    attrs["piclaw.actor.id"] = normalizedChatJid;
+    // Azure Monitor maps these OpenTelemetry attributes into App Insights user fields:
+    // enduser.id -> ai.user.authUserId, enduser.pseudo.id -> ai.user.id.
+    attrs["enduser.id"] = normalizedChatJid;
+    attrs["enduser.pseudo.id"] = normalizedChatJid;
+    // Keep explicit AI tag names as custom dimensions too; the official exporter
+    // currently maps user fields but not session fields from OTel attributes.
+    attrs["ai.user.authUserId"] = normalizedChatJid;
+    attrs["ai.user.id"] = normalizedChatJid;
+  }
+  if (aiSessionId) {
+    attrs["session.id"] = aiSessionId;
+    attrs["ai.session.id"] = aiSessionId;
+    attrs["piclaw.session.id"] = aiSessionId;
+  }
+  if (normalizedSessionLeafId) attrs["piclaw.session_leaf_id"] = normalizedSessionLeafId;
+  return attrs;
+}
+
 function getSharedSpanAttributes(record: LogRecord, chatJid: string, instance: string): Record<string, string | number | boolean> {
+  const sessionLeafId = readRecordString(record, "sessionLeafId", "session_leaf_id");
   const attrs: Record<string, string | number | boolean> = {
     "piclaw.instance": instance,
+    ...buildAppInsightsActorAttributes(chatJid, sessionLeafId, instance),
   };
-  if (chatJid) {
-    attrs["piclaw.chat_jid"] = chatJid;
-    attrs["piclaw.actor.kind"] = "chat_jid";
-    attrs["piclaw.actor.id"] = chatJid;
-    attrs["enduser.id"] = chatJid;
-  }
   const turnId = readRecordString(record, "turnId", "turn_id");
   if (turnId) attrs["piclaw.turn_id"] = turnId;
-  const sessionLeafId = readRecordString(record, "sessionLeafId", "session_leaf_id");
-  if (sessionLeafId) attrs["piclaw.session_leaf_id"] = sessionLeafId;
-  const userId = readRecordString(record, "userId", "user_id");
-  if (userId) attrs["piclaw.browser_user_id"] = userId;
-  const sessionId = readRecordString(record, "sessionId", "session_id");
-  if (sessionId) {
-    attrs["piclaw.browser_session_id"] = sessionId;
-    attrs["session.id"] = chatJid ? `${chatJid}:${sessionId}` : sessionId;
-  }
-  const clientId = readRecordString(record, "clientId", "client_id");
-  if (clientId) attrs["piclaw.browser_client_id"] = clientId;
   return attrs;
 }
 
