@@ -29,7 +29,7 @@ When the user clicks **Insert into chat**, the widget sends the edited content b
 
 ## Design goals
 
-- spreadsheet-like editing without a wall of input boxes
+- spreadsheet-like editing with direct `contenteditable` cells instead of a wall of input boxes
 - PiClaw theme-aware styling
 - minimal dependencies (v1 uses a dependency-free grid)
 - clean Markdown in and clean Markdown out

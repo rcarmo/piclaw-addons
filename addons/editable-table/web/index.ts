@@ -29,7 +29,7 @@ function ensureStyles() {
 #${PANEL_ID} .et-corner{position:sticky;left:0;top:0;z-index:4;min-width:54px;width:54px;background:var(--bg-primary,#0f172a)}
 #${PANEL_ID} .et-row-head{position:sticky;left:0;z-index:3;min-width:54px;width:54px;text-align:center;font-size:.78rem;font-weight:700;color:var(--text-secondary,#94a3b8);background:var(--bg-primary,#0f172a)}
 #${PANEL_ID} .et-head{position:sticky;top:0;z-index:2;background:var(--bg-primary,#0f172a)}
-#${PANEL_ID} .et-cell{display:block;min-height:42px;padding:10px 12px;outline:none;white-space:pre-wrap;line-height:1.4;color:var(--text-primary,#e5e7eb)}
+#${PANEL_ID} .et-cell{display:block;min-height:42px;padding:10px 12px;outline:none;white-space:pre-wrap;line-height:1.4;color:var(--text-primary,#e5e7eb);cursor:text;user-select:text;-webkit-user-select:text;overflow-wrap:anywhere}
 #${PANEL_ID} .et-head .et-cell{font-weight:700}
 #${PANEL_ID} .et-cell:focus{background:color-mix(in srgb,var(--accent-color,#3b82f6) 10%, var(--bg-secondary,#111827));box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--accent-color,#3b82f6) 72%, transparent)}
 #${PANEL_ID} .et-footer{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 20px;border-top:1px solid var(--border-color,rgba(148,163,184,.18));background:var(--bg-secondary,#111827)}
@@ -45,6 +45,26 @@ function escapeHtml(value) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/\"/g, "&quot;");
+}
+
+function editableCellHtml(value, label) {
+  return `<div class="et-cell" role="textbox" aria-label="${escapeHtml(label)}" contenteditable="true" spellcheck="false" inputmode="text" enterkeyhint="next">${escapeHtml(value)}</div>`;
+}
+
+function insertPlainTextAtSelection(text) {
+  const selection = window.getSelection?.();
+  if (!selection || selection.rangeCount === 0) {
+    document.execCommand?.("insertText", false, text);
+    return;
+  }
+  const range = selection.getRangeAt(0);
+  range.deleteContents();
+  const node = document.createTextNode(String(text || ""));
+  range.insertNode(node);
+  range.setStartAfter(node);
+  range.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(range);
 }
 
 function ensurePanel() {
@@ -116,8 +136,8 @@ function renderTable(root, state) {
   while (state.headers.length < width) state.headers.push(`Column ${state.headers.length + 1}`);
   state.rows = state.rows.map((row) => Array.from({ length: width }, (_unused, index) => row[index] ?? ""));
 
-  thead.innerHTML = `<tr><th class="et-corner"></th>${state.headers.map((header, index) => `<th class="et-head" data-col="${index}"><div class="et-cell" contenteditable="plaintext-only" spellcheck="false">${escapeHtml(header)}</div></th>`).join("")}</tr>`;
-  tbody.innerHTML = state.rows.map((row, rowIndex) => `<tr data-row="${rowIndex}"><th class="et-row-head">${rowIndex + 1}</th>${row.map((cell, colIndex) => `<td data-col="${colIndex}"><div class="et-cell" contenteditable="plaintext-only" spellcheck="false">${escapeHtml(cell)}</div></td>`).join("")}</tr>`).join("");
+  thead.innerHTML = `<tr><th class="et-corner"></th>${state.headers.map((header, index) => `<th class="et-head" data-col="${index}">${editableCellHtml(header, `Column header ${index + 1}`)}</th>`).join("")}</tr>`;
+  tbody.innerHTML = state.rows.map((row, rowIndex) => `<tr data-row="${rowIndex}"><th class="et-row-head">${rowIndex + 1}</th>${row.map((cell, colIndex) => `<td data-col="${colIndex}">${editableCellHtml(cell, `Row ${rowIndex + 1}, column ${colIndex + 1}`)}</td>`).join("")}</tr>`).join("");
   summary.textContent = `${state.rows.length} row${state.rows.length === 1 ? "" : "s"} · ${width} column${width === 1 ? "" : "s"}`;
 }
 
@@ -231,15 +251,25 @@ function installEditableTableBridge() {
 
     root.onpaste = (e) => {
       const cell = e.target?.closest?.(".et-cell");
-      const td = cell?.closest?.("td");
-      if (!cell || !td) return;
+      if (!cell) return;
       const text = e.clipboardData?.getData("text/plain") || "";
-      if (!/[\t\n]/.test(text)) return;
+      const td = cell.closest?.("td");
+      if (!td || !/[\t\n]/.test(text)) {
+        e.preventDefault();
+        insertPlainTextAtSelection(text);
+        queueMicrotask(syncStateFromDom);
+        return;
+      }
       e.preventDefault();
       syncStateFromDom();
       const startRow = Number(td.closest("tr")?.dataset?.row || 0);
       const startCol = Number(td.dataset.col || 0);
       const matrix = text.split(/\r?\n/).filter(Boolean).map((line) => line.split("\t"));
+      if (matrix.length === 0) {
+        insertPlainTextAtSelection(text);
+        queueMicrotask(syncStateFromDom);
+        return;
+      }
       const neededCols = startCol + Math.max(...matrix.map((row) => row.length));
       while (state.headers.length < neededCols) state.headers.push(`Column ${state.headers.length + 1}`);
       while (state.rows.length < startRow + matrix.length) state.rows.push(Array.from({ length: state.headers.length }, () => ""));
