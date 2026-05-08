@@ -27,7 +27,7 @@ The pane loads/saves non-secret settings through the direct backend add-on confi
 | **Live Metrics Stream** | checkbox | on | Real-time telemetry in the Azure portal ([QuickPulse](https://learn.microsoft.com/en-us/azure/azure-monitor/app/live-stream)) |
 | **Standard metrics** | checkbox | on | OTel standard metrics collection (CPU, memory, request rate) |
 | **Sampling ratio** | number | 1 | 0–1. 1 = send all traces. 0.5 = sample 50%. |
-| **Browser agent telemetry** | checkbox | on | Loads the App Insights browser SDK and translates agent SSE/follow-up activity into custom events keyed by chat JID. |
+| **Browser agent telemetry** | checkbox | off | Explicit opt-in. When enabled, loads the App Insights browser SDK and wraps fetch/EventSource to translate agent UI activity into custom events keyed by chat JID. |
 | **Graphite enabled** | checkbox | off | Sub-toggle for Carbon plaintext push |
 | **Host** | text | — | Graphite/Carbon receiver host, e.g. `192.168.1.250` |
 | **Port** | number | 2003 | Carbon plaintext port |
@@ -39,7 +39,7 @@ The pane loads/saves non-secret settings through the direct backend add-on confi
 |---|---|
 | App Insights connection string | **Keychain** — entry `azure/appinsights-connection-string`. Entered directly in the settings pane. |
 | All other settings | **Runtime database** — extension KV store (SQLite, global scope, extension ID `observability`) |
-| Browser actor identity | **Derived at runtime** — the browser SDK maps App Insights actor identity to `chatJid` and preserves browser IDs as separate custom dimensions |
+| Browser actor identity | **Derived only when Browser agent telemetry is explicitly enabled** — the browser SDK maps App Insights actor identity to `chatJid` and preserves browser IDs as separate custom dimensions |
 
 No config files are written to disk.
 
@@ -167,6 +167,8 @@ This makes App Insights charts and `customEvents` more useful for agent analytic
 | Any warn/error with `operation` | `log.warn` / `log.error` | — |
 
 ### Browser custom events
+
+Browser custom events are disabled by default. They are emitted only after **Browser agent telemetry** is explicitly enabled in Settings → Observability.
 
 | Browser event | Source | Primary identity |
 |---|---|---|

@@ -1,7 +1,10 @@
 import { expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 import {
   deriveTelemetryEventsFromSse,
+  isBrowserTelemetryConfigEnabled,
   normalizeChatJid,
   parseChatJidFromUrl,
 } from "./index.ts";
@@ -44,6 +47,28 @@ test("deriveTelemetryEventsFromSse emits turn start, phase, and completion by ch
   }, state);
   expect(completed.map((event) => event.name)).toEqual(["agent.turn.complete"]);
   expect(completed[0]?.measurements?.contextPercent).toBe(31);
+});
+
+test("browser telemetry requires an explicit enabled config", () => {
+  expect(isBrowserTelemetryConfigEnabled({
+    enabled: true,
+    appinsights_enabled: true,
+    appinsights_browser_enabled: true,
+    appinsights_keychain: "azure/appinsights-connection-string",
+  })).toBe(true);
+  expect(isBrowserTelemetryConfigEnabled({
+    enabled: true,
+    appinsights_enabled: true,
+    appinsights_browser_enabled: false,
+    appinsights_keychain: "azure/appinsights-connection-string",
+  })).toBe(false);
+});
+
+test("web entry does not install browser telemetry wrappers directly at load", () => {
+  const source = readFileSync(join(import.meta.dir, "index.ts"), "utf8");
+  expect(source).toContain("void bootstrapBrowserTelemetryIfEnabled()");
+  expect(source).not.toMatch(/try\s*{\s*installObservabilityFetchHeaders\(\)/);
+  expect(source).not.toMatch(/try\s*{\s*installAgentTelemetry\(\)/);
 });
 
 test("deriveTelemetryEventsFromSse maps followup lifecycle events", () => {

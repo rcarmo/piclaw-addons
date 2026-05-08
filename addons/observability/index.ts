@@ -36,7 +36,7 @@ export interface ObservabilityConfig {
   appinsights_live_metrics: boolean;     // enable Live Metrics Stream (QuickPulse)
   appinsights_standard_metrics: boolean; // enable standard OTel metrics collection
   appinsights_sampling_ratio: number;    // 0–1, 1 = send everything
-  appinsights_browser_enabled: boolean;  // expose the connection string to the authenticated web UI for agent-centric browser events
+  appinsights_browser_enabled: boolean;  // opt-in: expose the connection string to the authenticated web UI for agent-centric browser events
 
   // Graphite (Carbon plaintext)
   graphite_enabled: boolean;
@@ -53,7 +53,7 @@ const DEFAULT_CONFIG: ObservabilityConfig = {
   appinsights_live_metrics: true,
   appinsights_standard_metrics: true,
   appinsights_sampling_ratio: 1,
-  appinsights_browser_enabled: true,
+  appinsights_browser_enabled: false,
   graphite_enabled: false,
   graphite_host: "",
   graphite_port: 2003,

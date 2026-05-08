@@ -1,4 +1,6 @@
 import { expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 import {
   buildSyntheticDependencyAttributes,
@@ -32,6 +34,11 @@ test("buildSyntheticDependencyAttributes adds dependency-style semantics for mod
     "piclaw.dependency.kind": "model",
   });
   expect(String(attrs["url.full"])).toBe("piclaw://openai/model/call");
+});
+
+test("browser telemetry is disabled by default", () => {
+  const source = readFileSync(join(import.meta.dir, "index.ts"), "utf8");
+  expect(source).toContain("appinsights_browser_enabled: false");
 });
 
 test("modelDependencyTarget prefers the provider prefix and falls back to llm", () => {

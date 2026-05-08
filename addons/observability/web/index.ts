@@ -219,6 +219,7 @@ function getTelemetryRuntimeState() {
       turnStates: {},
       eventQueue: [],
       initialized: false,
+      browserTelemetryEnabled: false,
     };
   }
   return window.__piclawObservabilityAgentTelemetryState;
@@ -376,13 +377,13 @@ function flushQueuedTelemetry() {
   }
 }
 
-async function ensureBrowserAgentTelemetryReady() {
+async function ensureBrowserAgentTelemetryReady(preloadedBrowserConfig = null) {
   if (typeof window === "undefined") return null;
   if (window.__piclawObservabilityTelemetryReadyPromise) return window.__piclawObservabilityTelemetryReadyPromise;
   window.__piclawObservabilityTelemetryReadyPromise = (async () => {
     const state = getTelemetryRuntimeState();
-    const browserConfig = await loadBrowserTelemetryConfig();
-    if (!browserConfig) return null;
+    const browserConfig = preloadedBrowserConfig || await loadBrowserTelemetryConfig();
+    if (!browserConfig?.enabled) return null;
     state.browserConfig = browserConfig;
     await loadScriptOnce(APP_INSIGHTS_SDK_URL);
     const appInsights = createAppInsightsClient(browserConfig);
@@ -397,6 +398,7 @@ async function ensureBrowserAgentTelemetryReady() {
 
 function emitAgentTelemetryEvent(name, options = {}) {
   const state = getTelemetryRuntimeState();
+  if (!state.browserTelemetryEnabled) return;
   const chatJid = normalizeChatJid(options.chatJid) || normalizeChatJid(state.activeChatJid) || null;
   const event = {
     name,
@@ -517,13 +519,13 @@ async function buildFetchTelemetrySpec(input, init, targetUrl, state) {
 
 function installObservabilityFetchHeaders() {
   if (typeof window === "undefined" || window.__piclawObservabilityFetchHeadersInstalled) return;
-  window.__piclawObservabilityFetchHeadersInstalled = true;
 
   const ids = getBrowserObservabilityIds();
-  const originalFetch = window.fetch?.bind(window);
+  const originalFetch = window.__piclawObservabilityOriginalFetch || window.fetch?.bind(window);
   if (!originalFetch) return;
 
   window.__piclawObservabilityOriginalFetch = originalFetch;
+  window.__piclawObservabilityFetchHeadersInstalled = true;
   window.fetch = async (input, init) => {
     const request = input instanceof Request ? input : null;
     const rawUrl = request ? request.url : String(input || "");
@@ -575,9 +577,15 @@ function installObservabilityFetchHeaders() {
   };
 }
 
+function uninstallObservabilityFetchHeaders() {
+  if (typeof window === "undefined" || !window.__piclawObservabilityFetchHeadersInstalled) return;
+  if (window.__piclawObservabilityOriginalFetch) window.fetch = window.__piclawObservabilityOriginalFetch;
+  window.__piclawObservabilityFetchHeadersInstalled = false;
+}
+
 function installObservabilityEventSourceBridge() {
   if (typeof window === "undefined" || window.__piclawObservabilityEventSourceInstalled) return;
-  const OriginalEventSource = window.EventSource;
+  const OriginalEventSource = window.__piclawObservabilityOriginalEventSource || window.EventSource;
   if (typeof OriginalEventSource !== "function") return;
   window.__piclawObservabilityEventSourceInstalled = true;
   window.__piclawObservabilityOriginalEventSource = OriginalEventSource;
@@ -600,11 +608,71 @@ function installObservabilityEventSourceBridge() {
   window.EventSource = WrappedEventSource;
 }
 
-function installAgentTelemetry() {
-  if (typeof window === "undefined" || window.__piclawObservabilityAgentTelemetryInstalled) return;
+function uninstallObservabilityEventSourceBridge() {
+  if (typeof window === "undefined" || !window.__piclawObservabilityEventSourceInstalled) return;
+  if (window.__piclawObservabilityOriginalEventSource) window.EventSource = window.__piclawObservabilityOriginalEventSource;
+  window.__piclawObservabilityEventSourceInstalled = false;
+}
+
+function installAgentTelemetry(browserConfig) {
+  if (typeof window === "undefined") return;
+  const state = getTelemetryRuntimeState();
+  if (window.__piclawObservabilityAgentTelemetryInstalled) return;
   window.__piclawObservabilityAgentTelemetryInstalled = true;
+  state.browserTelemetryEnabled = true;
+  state.browserConfig = browserConfig || state.browserConfig;
+  installObservabilityFetchHeaders();
   installObservabilityEventSourceBridge();
-  void ensureBrowserAgentTelemetryReady();
+  void ensureBrowserAgentTelemetryReady(browserConfig || null);
+}
+
+function disableAgentTelemetry() {
+  if (typeof window === "undefined") return;
+  const state = getTelemetryRuntimeState();
+  state.browserTelemetryEnabled = false;
+  state.appInsights = null;
+  state.browserConfig = null;
+  state.eventQueue = [];
+  window.__piclawObservabilityAgentTelemetryInstalled = false;
+  window.__piclawObservabilityTelemetryReadyPromise = null;
+  uninstallObservabilityFetchHeaders();
+  uninstallObservabilityEventSourceBridge();
+}
+
+function resetBrowserTelemetryConfigCache() {
+  if (typeof window === "undefined") return;
+  window.__piclawObservabilityBrowserConfigPromise = null;
+  window.__piclawObservabilityTelemetryReadyPromise = null;
+}
+
+export function isBrowserTelemetryConfigEnabled(config) {
+  return Boolean(config?.enabled && config?.appinsights_enabled && config?.appinsights_browser_enabled && config?.appinsights_keychain);
+}
+
+async function bootstrapBrowserTelemetryIfEnabled() {
+  if (typeof window === "undefined") return null;
+  if (window.__piclawObservabilityBrowserTelemetryBootstrapPromise) return window.__piclawObservabilityBrowserTelemetryBootstrapPromise;
+  window.__piclawObservabilityBrowserTelemetryBootstrapPromise = (async () => {
+    const browserConfig = await loadBrowserTelemetryConfig();
+    if (!browserConfig?.enabled) {
+      disableAgentTelemetry();
+      return null;
+    }
+    installAgentTelemetry(browserConfig);
+    return browserConfig;
+  })();
+  return window.__piclawObservabilityBrowserTelemetryBootstrapPromise;
+}
+
+function syncBrowserTelemetryFromSavedConfig(config) {
+  if (typeof window === "undefined") return;
+  resetBrowserTelemetryConfigCache();
+  window.__piclawObservabilityBrowserTelemetryBootstrapPromise = null;
+  if (isBrowserTelemetryConfigEnabled(config)) {
+    void bootstrapBrowserTelemetryIfEnabled();
+  } else {
+    disableAgentTelemetry();
+  }
 }
 
 async function loadKeychainHas(name) {
@@ -663,6 +731,7 @@ function ObservabilitySettings() {
       const j = await r.json();
       if (j.ok) {
         setCfg(j.config);
+        syncBrowserTelemetryFromSavedConfig(j.config);
         setMsg("Saved");
         setTimeout(() => setMsg(""), 2000);
       } else {
@@ -750,7 +819,7 @@ function ObservabilitySettings() {
       ${num("Sampling ratio", "appinsights_sampling_ratio", "1")}
       ${hint("0–1. 1 = send all traces. 0.5 = sample 50%.")}
       ${check("Browser agent telemetry", "appinsights_browser_enabled")}
-      ${hint("Loads the App Insights browser SDK and translates agent SSE/follow-up activity into custom events keyed by chat JID.")}
+      ${hint("Off by default. When explicitly enabled, loads the App Insights browser SDK and wraps fetch/EventSource to translate agent UI activity into custom events keyed by chat JID.")}
 
       <h4 style=${H}>Graphite (Carbon plaintext)</h4>
       ${check("Graphite enabled", "graphite_enabled")}
@@ -801,11 +870,7 @@ function scheduleObservabilitySettingsPaneRegistration() {
 }
 
 try {
-  installObservabilityFetchHeaders();
-} catch {}
-
-try {
-  installAgentTelemetry();
+  void bootstrapBrowserTelemetryIfEnabled();
 } catch {}
 
 try {
