@@ -1,0 +1,13 @@
+export const CODEX_FALLBACK_SHELL = "/bin/bash";
+
+export function isFishShell(shell: string | undefined): boolean {
+	const name = shell?.replace(/\\/g, "/").split("/").pop()?.toLowerCase();
+	return name === "fish";
+}
+
+export function getCodexRuntimeShell(shell: string | undefined): string {
+	if (!shell) {
+		return CODEX_FALLBACK_SHELL;
+	}
+	return isFishShell(shell) ? CODEX_FALLBACK_SHELL : shell;
+}

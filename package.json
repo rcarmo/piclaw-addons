@@ -26,6 +26,7 @@
       "addons/autoresearch/index.ts",
       "addons/cheapskate/index.ts",
       "addons/code-validator/index.ts",
+      "addons/codex-conversion/src/index.ts",
       "addons/delegate/index.ts",
       "addons/dev-tools/index.ts",
       "addons/drawio-editor/index.ts",
