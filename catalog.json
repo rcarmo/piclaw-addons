@@ -804,6 +804,30 @@
         "url": "https://github.com/rcarmo"
       },
       "contributors": []
+    },
+    {
+      "slug": "stealth-browser",
+      "name": "@rcarmo/piclaw-addon-stealth-browser",
+      "version": "0.1.0",
+      "description": "Stealth browser automation via mochi.js — human-like interactions, fingerprint consistency, anti-detection bypass",
+      "category": "tools",
+      "author": {
+        "login": "rcarmo",
+        "url": "https://github.com/rcarmo"
+      },
+      "install": {
+        "kind": "tarball",
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-stealth-browser-0.1.0.tgz"
+      },
+      "keywords": [
+        "browser",
+        "stealth",
+        "automation",
+        "mochi",
+        "cdp",
+        "scraping"
+      ],
+      "readme": "Stealth browser tool powered by mochi.js. Provides human-like browser automation with anti-bot detection bypass, consistent fingerprints, and Chrome-native TLS. Complements the built-in cdp_browser tool for scenarios requiring undetected automation."
     }
   ]
 }
