@@ -55,14 +55,17 @@ html,body{min-height:100%;background:var(--bg);color:var(--ink);font-family:var(
   line-height:1.04;margin-bottom:.6rem}
 .hero-sub{font-size:1.1rem;opacity:.78;max-width:540px;margin:0 0 1.4rem;line-height:1.6}
 .hero-meta{font-size:.82rem;opacity:.55}
-.hero-source{display:inline-flex;align-items:center;gap:.4rem;margin-top:1rem;
+.hero-actions{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-top:1rem}
+.hero-source{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;min-height:2.35rem;
   padding:.5rem 1rem;border-radius:10px;border:1px solid rgba(255,255,255,.25);
-  color:rgba(255,255,255,.85);text-decoration:none;font-size:.8rem;font-weight:700}
+  color:rgba(255,255,255,.85);text-decoration:none;font-size:.8rem;font-weight:700;line-height:1}
+.hero-source svg{display:block;flex:0 0 auto}
 .hero-source:hover{background:rgba(255,255,255,.1)}
 @media(max-width:640px){
   .hero-inner{flex-direction:column;text-align:center}
   .hero-logo{width:120px;height:120px}
   .hero-sub{margin:0 auto 1.4rem}
+  .hero-actions{justify-content:center}
 }
 
 /* ── Search ─── */
@@ -209,7 +212,7 @@ footer a{color:var(--accent);text-decoration:none}
 
 <div class="detail-hero">
   <div class="detail-hero-inner">
-    <img class="detail-icon" src="/piclaw-addons/assets/icons/default-00.png" alt="">
+    <img class="detail-icon" src="/piclaw-addons/assets/icons/default-02.png" alt="">
     <div>
       <div class="detail-title-row">
         <div class="detail-title">diagram-tools</div>

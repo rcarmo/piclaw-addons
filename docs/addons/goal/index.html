@@ -222,7 +222,7 @@ footer a{color:var(--accent);text-decoration:none}
       <div class="detail-sub">Session-scoped goal seeking loop with editable prompts, a settings pane, and /goal command support</div>
       <div class="detail-tags"><span class="badge">automation</span><span class="badge">goal-seeking</span><span class="badge">loop</span><span class="badge">productivity</span><span class="badge">session</span></div>
       <div class="detail-meta">
-        <span class="detail-version">v0.1.13</span>
+        <span class="detail-version">v0.1.17</span>
         
         
       </div>
@@ -249,9 +249,7 @@ footer a{color:var(--accent);text-decoration:none}
 <li>stores a per-chat goal state (objective, enabled flag, token budget, usage, latest progress phase)</li>
 <li>adds <code>/goal</code> commands for starting, resuming, pausing, clearing, and inspecting a goal run</li>
 <li>auto-continues the active goal after each turn while goal seeking is enabled</li>
-<li>posts compact <code>goal-status</code> timeline updates when a run starts, resumes, continues, reaches its budget, or completes</li>
 <li>updates the standard Pi progress UI live with phase labels and a Braille glyph bar showing remaining tokens for the run</li>
-<li>restores an active web progress strip from saved state after page refreshes, tab visibility changes, and chat tab returns</li>
 <li>provides an internal <code>update_goal</code> tool so the model can mark a goal complete after verification</li>
 </ul>
 <h2><code>/goal</code> command</h2><ul>
@@ -260,7 +258,7 @@ footer a{color:var(--accent);text-decoration:none}
 <li><code>/goal status</code> — show the current goal state</li>
 <li><code>/goal on</code> or <code>/goal resume</code> — resume the saved objective</li>
 <li><code>/goal off</code> — pause goal seeking in this chat</li>
-<li><code>/goal clear</code> — clear the saved goal state</li>
+<li><code>/goal clear</code> or <code>/goal reset</code> — clear the saved goal state</li>
 </ul>
 <h2>Settings pane</h2><p>Open <strong>Settings → Goal</strong> to:</p>
 <ul>
@@ -303,11 +301,11 @@ footer a{color:var(--accent);text-decoration:none}
 <h2>Notes</h2><ul>
 <li>Goal seeking is scoped to the current chat/session, not globally across all chats.</li>
 <li>The add-on uses a token-budget heuristic based on assistant message usage.</li>
-<li>Goal execution emits durable but compact timeline status messages such as <code>🎯 Starting \</code>/goal`, objective: …`; detailed phase/token progress stays in native/web streaming progress UI.</li>
+<li>Goal execution keeps detailed phase/token progress in native/web streaming progress UI rather than emitting extra timeline status messages.</li>
 <li>The default token budget is <code>400k</code> tokens.</li>
 <li>The native Pi progress indicator uses a Braille token-availability bar, e.g. <code>[⣿⣿⣦⣀]</code>, where filled cells are remaining budget; visible token counts use friendly units such as <code>20k</code> or <code>1.25m</code>.</li>
 <li>Live progress phases include starting, waiting for model, working, receiving response, tool use, usage updated, continuing, budget-limited, and complete.</li>
-<li>The web progress bridge polls saved goal state while the page is open, so active goal progress reappears after refreshes or returning to a chat tab without adding timeline messages.</li>
+<li>Goal progress uses only the core Pi progress indicator (no extra goal overlay strip in the web UI).</li>
 <li>When the objective is truly done, the model should call <code>update_goal</code> with status <code>complete</code>.</li>
 </ul>
 

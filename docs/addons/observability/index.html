@@ -55,14 +55,17 @@ html,body{min-height:100%;background:var(--bg);color:var(--ink);font-family:var(
   line-height:1.04;margin-bottom:.6rem}
 .hero-sub{font-size:1.1rem;opacity:.78;max-width:540px;margin:0 0 1.4rem;line-height:1.6}
 .hero-meta{font-size:.82rem;opacity:.55}
-.hero-source{display:inline-flex;align-items:center;gap:.4rem;margin-top:1rem;
+.hero-actions{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-top:1rem}
+.hero-source{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;min-height:2.35rem;
   padding:.5rem 1rem;border-radius:10px;border:1px solid rgba(255,255,255,.25);
-  color:rgba(255,255,255,.85);text-decoration:none;font-size:.8rem;font-weight:700}
+  color:rgba(255,255,255,.85);text-decoration:none;font-size:.8rem;font-weight:700;line-height:1}
+.hero-source svg{display:block;flex:0 0 auto}
 .hero-source:hover{background:rgba(255,255,255,.1)}
 @media(max-width:640px){
   .hero-inner{flex-direction:column;text-align:center}
   .hero-logo{width:120px;height:120px}
   .hero-sub{margin:0 auto 1.4rem}
+  .hero-actions{justify-content:center}
 }
 
 /* ── Search ─── */
@@ -219,7 +222,7 @@ footer a{color:var(--accent);text-decoration:none}
       <div class="detail-sub">OpenTelemetry observability — trace errors and agent turns across piclaw instances to Azure Application Insights (with Live Metrics) and local Graphite</div>
       <div class="detail-tags"><span class="badge">application-insights</span><span class="badge">graphite</span><span class="badge">live-metrics</span><span class="badge">metrics</span><span class="badge">observability</span><span class="badge">opentelemetry</span><span class="badge">otel</span><span class="badge">tracing</span></div>
       <div class="detail-meta">
-        <span class="detail-version">v0.1.5</span>
+        <span class="detail-version">v0.1.8</span>
         
         
       </div>
@@ -241,7 +244,7 @@ footer a{color:var(--accent);text-decoration:none}
 <figure class="md-figure"><img src="./azure-app-insights-live-metrics.jpg" alt="Azure App Insights Live Metrics example" loading="lazy"></figure>
 <p>Uses the runtime&#39;s structured log-sink contract. The runtime never imports OTel — it just logs structured records. This addon subscribes to those records and creates OTel spans, exceptions, and Graphite metrics from them.</p>
 <h2>Setup</h2><h3>1. Install</h3><p>Open <strong>Settings → Add-Ons</strong> and install <strong>observability</strong> from the catalog.</p>
-<h3>2. Configure via Settings → Observability</h3><p>The pane loads/saves non-secret settings through the direct backend add-on config API (<code>/agent/addons/api/observability/config</code> and <code>/agent/addons/api/observability/browser-config</code>). The connection string can be pasted directly into the settings pane — it is saved to the keychain automatically as <code>azure/appinsights-connection-string</code>. A restart is needed after setting or changing the connection string.</p>
+<h3>2. Configure via Settings → Observability</h3><p>The pane loads/saves non-secret settings through the direct backend add-on config API (<code>/agent/addons/api/observability/config</code>). The connection string can be pasted directly into the settings pane — it is saved to the keychain automatically as <code>azure/appinsights-connection-string</code>. A restart is needed after setting or changing the connection string.</p>
 <figure class="md-figure"><img src="./assets/settings-pane-microvm.png" alt="Observability settings pane on the microVM test instance" loading="lazy"></figure>
 <table>
 <thead>
@@ -295,12 +298,6 @@ footer a{color:var(--accent);text-decoration:none}
 <td>0–1. 1 = send all traces. 0.5 = sample 50%.</td>
 </tr>
 <tr>
-<td><strong>Browser agent telemetry</strong></td>
-<td>checkbox</td>
-<td>on</td>
-<td>Loads the App Insights browser SDK and translates agent SSE/follow-up activity into custom events keyed by chat JID.</td>
-</tr>
-<tr>
 <td><strong>Graphite enabled</strong></td>
 <td>checkbox</td>
 <td>off</td>
@@ -341,8 +338,8 @@ footer a{color:var(--accent);text-decoration:none}
 <td><strong>Runtime database</strong> — extension KV store (SQLite, global scope, extension ID <code>observability</code>)</td>
 </tr>
 <tr>
-<td>Browser actor identity</td>
-<td><strong>Derived at runtime</strong> — the browser SDK maps App Insights actor identity to <code>chatJid</code> and preserves browser IDs as separate custom dimensions</td>
+<td>App Insights actor/session identity</td>
+<td><strong>Derived on the backend</strong> from Piclaw log records (<code>chatJid</code>, <code>sessionLeafId</code>, <code>turnId</code>)</td>
 </tr>
 </tbody></table>
 <p>No config files are written to disk.</p>
@@ -382,7 +379,7 @@ footer a{color:var(--accent);text-decoration:none}
   <line x1="120" y1="160" x2="275" y2="215" stroke="#16a34a" stroke-width="1.5" stroke-dasharray="6 3" marker-end="url(#ah)"/>
   <text x="180" y="200" text-anchor="middle" fill="#16a34a" font-size="10" font-weight="600">Carbon plaintext</text>
 </svg><hr>
-<h2>How it works</h2><p>The addon uses piclaw&#39;s <strong>log-sink contract</strong> — a generic API that any addon can use. Server-side spans are derived from runtime records, and the browser layer translates agent SSE/follow-up activity into App Insights <code>customEvents</code> keyed by <code>chatJid</code>.</p>
+<h2>How it works</h2><p>The addon uses piclaw&#39;s <strong>log-sink contract</strong> — a generic API that any addon can use. Server-side spans are derived from runtime records. The add-on does not install browser telemetry, wrap <code>fetch</code>, wrap <code>EventSource</code>, or load the browser Application Insights SDK.</p>
 <p>Server side:</p>
 <div class="addon-code-block"><div class="addon-code-block-header"><span class="addon-code-lang">text</span><button type="button" class="addon-code-copy-btn" aria-label="Copy code" title="Copy code" data-copy-state="idle"><span class="addon-code-copy-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg></span><span class="addon-code-copy-label">Copy</span></button></div><pre><code>runtime                              addon
 ───────                              ─────
@@ -443,35 +440,75 @@ log.info(&quot;Agent run completed&quot;, {
 </tr>
 </tbody></table>
 <hr>
-<h2>Agent identity mapping</h2><table>
+<h2>Application Insights user/session model</h2><p>The goal is to make the standard Application Insights UX behave as if Piclaw were a normal web application, while still deriving all telemetry from backend runtime events.</p>
+<table>
 <thead>
 <tr>
-<th>Concept</th>
-<th>Mapping</th>
+<th>App Insights concept</th>
+<th>Piclaw source</th>
+<th>OTel/App Insights fields emitted</th>
 </tr>
 </thead>
 <tbody><tr>
-<td>Primary actor</td>
-<td><code>chatJid</code></td>
+<td>User</td>
+<td>Chat/agent actor</td>
+<td><code>enduser.id = chatJid</code>, <code>enduser.pseudo.id = chatJid</code>, <code>piclaw.chat_jid</code>, <code>piclaw.actor.id</code></td>
 </tr>
 <tr>
-<td>Primary transaction</td>
-<td><code>turnId</code></td>
+<td>Authenticated user</td>
+<td>Same stable actor identity</td>
+<td>Azure Monitor maps <code>enduser.id</code> to <code>ai.user.authUserId</code>; <code>ai.user.authUserId</code> is also kept as a custom dimension</td>
 </tr>
 <tr>
-<td>Runtime session / fork identity</td>
-<td><code>sessionLeafId</code> when present</td>
+<td>User ID</td>
+<td>Same stable actor identity</td>
+<td>Azure Monitor maps <code>enduser.pseudo.id</code> to <code>ai.user.id</code>; <code>ai.user.id</code> is also kept as a custom dimension</td>
 </tr>
 <tr>
-<td>Browser correlation</td>
-<td><code>piclaw.browser_user_id</code>, <code>piclaw.browser_session_id</code>, <code>piclaw.browser_client_id</code></td>
+<td>Session</td>
+<td>Piclaw runtime session/fork</td>
+<td><code>session.id</code>, <code>ai.session.id</code>, <code>piclaw.session.id</code>; value is <code>sessionLeafId</code> when available, otherwise <code>chatJid</code></td>
 </tr>
 <tr>
-<td>App Insights user-style field</td>
-<td><code>enduser.id = chatJid</code></td>
+<td>Operation / transaction</td>
+<td>One agent turn</td>
+<td><code>piclaw.turn_id</code>; child model/tool spans share the same trace/operation</td>
+</tr>
+<tr>
+<td>Request</td>
+<td>User-visible agent turn</td>
+<td><code>agent.turn</code> SERVER span, request-style attributes (<code>http.route=/agent/turn</code>)</td>
+</tr>
+<tr>
+<td>Dependency</td>
+<td>Work performed by the turn</td>
+<td><code>model.call</code>, <code>tool.call</code>, <code>provider.error</code> CLIENT/dependency spans</td>
+</tr>
+<tr>
+<td>Metrics</td>
+<td>Spend and performance</td>
+<td>token dimensions on <code>model.call</code>, duration/count metrics in Graphite, standard Azure Monitor metrics when enabled</td>
 </tr>
 </tbody></table>
-<p>This makes App Insights charts and <code>customEvents</code> more useful for agent analytics: the actor is the chat/agent JID, not the anonymous browser user.</p>
+<h3>Why these fields</h3><p>Azure Monitor&#39;s OpenTelemetry exporter maps:</p>
+<table>
+<thead>
+<tr>
+<th>OTel attribute</th>
+<th>App Insights field</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>enduser.id</code></td>
+<td><code>ai.user.authUserId</code></td>
+</tr>
+<tr>
+<td><code>enduser.pseudo.id</code></td>
+<td><code>ai.user.id</code></td>
+</tr>
+</tbody></table>
+<p>The exporter does not currently map <code>session.id</code> into the App Insights session tag for spans, so the add-on emits both standard (<code>session.id</code>) and App Insights-style (<code>ai.session.id</code>) attributes as queryable dimensions. This keeps the data available in Transaction Search/KQL and gives us a single place to add a custom exporter/processor later if needed.</p>
+<h3>Backend-only interaction principle</h3><p>Browser telemetry is intentionally absent. The web entry only registers the Settings pane. Front-end actions should be represented by backend log records and then mapped by this add-on into synthetic App Insights requests/events/spans. This keeps telemetry consistent across web, mobile, WhatsApp, scheduled tasks, and other channels.</p>
 <hr>
 <h2>Data sent</h2><h3>Log operation → Span / Metric mapping</h3><table>
 <thead>
@@ -532,37 +569,56 @@ log.info(&quot;Agent run completed&quot;, {
 <td>—</td>
 </tr>
 </tbody></table>
-<h3>Browser custom events</h3><table>
+<h3>Backend-synthesized interaction events planned next</h3><p>These interactions should be emitted by the backend as structured log records and then mapped here into App Insights request/event-style spans:</p>
+<table>
 <thead>
 <tr>
-<th>Browser event</th>
-<th>Source</th>
-<th>Primary identity</th>
+<th>Interaction</th>
+<th>Backend source</th>
+<th>Suggested App Insights item</th>
+<th>Identity/session</th>
 </tr>
 </thead>
 <tbody><tr>
-<td><code>agent.turn.start</code> / <code>agent.turn.phase</code> / <code>agent.turn.complete</code> / <code>agent.turn.fail</code></td>
-<td>translated from <code>agent_status</code> SSE</td>
-<td><code>chatJid</code></td>
-</tr>
-<tr>
-<td><code>agent.followup.queued</code> / <code>agent.followup.consumed</code> / <code>agent.followup.removed</code></td>
-<td>translated from follow-up SSE</td>
-<td><code>chatJid</code></td>
-</tr>
-<tr>
-<td><code>agent.steer.queued</code></td>
-<td>translated from <code>agent_steer_queued</code> SSE</td>
-<td><code>chatJid</code></td>
-</tr>
-<tr>
+<td>User sends a message</td>
+<td><code>handle_agent_message</code> accepted payload</td>
 <td><code>agent.message.sent</code></td>
-<td>translated from <code>POST /agent/:id/message</code></td>
+<td><code>chatJid</code>, <code>sessionLeafId</code> when known</td>
+</tr>
+<tr>
+<td>Message queued as follow-up</td>
+<td>queue/follow-up backend path</td>
+<td><code>agent.followup.queued</code></td>
+<td><code>chatJid</code>, active <code>turnId</code> when known</td>
+</tr>
+<tr>
+<td>Queued follow-up consumed</td>
+<td>follow-up materialization path</td>
+<td><code>agent.followup.consumed</code></td>
+<td><code>chatJid</code>, next <code>turnId</code></td>
+</tr>
+<tr>
+<td>Queued follow-up removed</td>
+<td>queue remove backend handler</td>
+<td><code>agent.followup.removed</code></td>
 <td><code>chatJid</code></td>
 </tr>
 <tr>
-<td><code>agent.stream.connected</code></td>
-<td>translated from SSE connect</td>
+<td>Steering message queued</td>
+<td>steer backend path</td>
+<td><code>agent.steer.queued</code></td>
+<td><code>chatJid</code>, active <code>turnId</code> when known</td>
+</tr>
+<tr>
+<td>Model changed</td>
+<td>backend model command path</td>
+<td><code>agent.model.changed</code></td>
+<td><code>chatJid</code></td>
+</tr>
+<tr>
+<td>UI command handled</td>
+<td>backend command handlers</td>
+<td><code>agent.ui.command</code></td>
 <td><code>chatJid</code></td>
 </tr>
 </tbody></table>
@@ -576,6 +632,9 @@ log.info(&quot;Agent run completed&quot;, {
     &quot;piclaw.actor.kind&quot;: &quot;chat_jid&quot;,
     &quot;piclaw.actor.id&quot;: &quot;web:default:branch:0f3858079ad7&quot;,
     &quot;enduser.id&quot;: &quot;web:default:branch:0f3858079ad7&quot;,
+    &quot;enduser.pseudo.id&quot;: &quot;web:default:branch:0f3858079ad7&quot;,
+    &quot;session.id&quot;: &quot;session-leaf-123&quot;,
+    &quot;ai.session.id&quot;: &quot;session-leaf-123&quot;,
     &quot;piclaw.instance&quot;: &quot;smith&quot;,
     &quot;piclaw.model&quot;: &quot;azure-openai/gpt-5-4&quot;,
     &quot;piclaw.turn.status&quot;: &quot;success&quot;,
@@ -588,6 +647,9 @@ log.info(&quot;Agent run completed&quot;, {
   &quot;duration&quot;: &quot;8912ms&quot;,
   &quot;attributes&quot;: {
     &quot;piclaw.chat_jid&quot;: &quot;web:default:branch:0f3858079ad7&quot;,
+    &quot;enduser.id&quot;: &quot;web:default:branch:0f3858079ad7&quot;,
+    &quot;enduser.pseudo.id&quot;: &quot;web:default:branch:0f3858079ad7&quot;,
+    &quot;session.id&quot;: &quot;session-leaf-123&quot;,
     &quot;piclaw.instance&quot;: &quot;smith&quot;,
     &quot;piclaw.model&quot;: &quot;azure-openai/gpt-5-4&quot;,
     &quot;piclaw.turn.status&quot;: &quot;error&quot;,
@@ -683,8 +745,8 @@ piclaw.relay.provider.error.*      # all provider errors on relay</code></pre></
 <td><code>agent.turn</code> maps more naturally to Incoming Requests, while <code>model.call</code> and <code>tool.call</code> map more naturally to outgoing dependency metrics</td>
 </tr>
 <tr>
-<td><strong>Users / Events</strong></td>
-<td>Agent-centric browser custom events when browser agent telemetry is enabled (<code>chatJid</code> mapped as the actor)</td>
+<td><strong>Users / Sessions</strong></td>
+<td>Backend-derived actor/session fields: <code>chatJid</code> maps to App Insights user fields; <code>sessionLeafId</code> maps to queryable session dimensions</td>
 </tr>
 </tbody></table>
 <blockquote>
@@ -725,12 +787,13 @@ piclaw.relay.provider.error.*      # all provider errors on relay</code></pre></
           tool_name = tostring(customDimensions[&quot;piclaw.tool.name&quot;]),
           turn_status = tostring(customDimensions[&quot;piclaw.turn.status&quot;]),
           classifier = tostring(customDimensions[&quot;piclaw.error.classifier&quot;])
-| order by timestamp desc</code></pre></div><h4>3) Agent-centric browser events by chat JID</h4><div class="addon-code-block"><div class="addon-code-block-header"><span class="addon-code-lang">kusto</span><button type="button" class="addon-code-copy-btn" aria-label="Copy code" title="Copy code" data-copy-state="idle"><span class="addon-code-copy-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg></span><span class="addon-code-copy-label">Copy</span></button></div><pre><code class="language-kusto">customEvents
+| order by timestamp desc</code></pre></div><h4>3) Backend-derived users and sessions by chat JID</h4><div class="addon-code-block"><div class="addon-code-block-header"><span class="addon-code-lang">kusto</span><button type="button" class="addon-code-copy-btn" aria-label="Copy code" title="Copy code" data-copy-state="idle"><span class="addon-code-copy-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg></span><span class="addon-code-copy-label">Copy</span></button></div><pre><code class="language-kusto">union withsource=table requests, dependencies, traces, exceptions
 | where timestamp &gt; ago(24h)
 | extend chat_jid = coalesce(user_AuthenticatedId, tostring(customDimensions[&quot;piclaw.chat_jid&quot;]))
+| extend session_id = coalesce(session_Id, tostring(customDimensions[&quot;ai.session.id&quot;]), tostring(customDimensions[&quot;session.id&quot;]), tostring(customDimensions[&quot;piclaw.session.id&quot;]))
 | where isnotempty(chat_jid)
-| summarize events = count() by name, chat_jid
-| order by events desc</code></pre></div><h4>4) Agent-turn throughput and latency by instance</h4><div class="addon-code-block"><div class="addon-code-block-header"><span class="addon-code-lang">kusto</span><button type="button" class="addon-code-copy-btn" aria-label="Copy code" title="Copy code" data-copy-state="idle"><span class="addon-code-copy-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg></span><span class="addon-code-copy-label">Copy</span></button></div><pre><code class="language-kusto">requests
+| summarize items = count(), sessions = dcount(session_id), failures = countif(success == false or severityLevel &gt;= 3) by chat_jid
+| order by items desc</code></pre></div><h4>4) Agent-turn throughput and latency by instance</h4><div class="addon-code-block"><div class="addon-code-block-header"><span class="addon-code-lang">kusto</span><button type="button" class="addon-code-copy-btn" aria-label="Copy code" title="Copy code" data-copy-state="idle"><span class="addon-code-copy-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg></span><span class="addon-code-copy-label">Copy</span></button></div><pre><code class="language-kusto">requests
 | extend piclaw_instance = coalesce(tostring(customDimensions[&quot;piclaw.instance&quot;]), cloud_RoleInstance)
 | where timestamp &gt; ago(24h)
 | where name == &quot;agent.turn&quot;
@@ -795,25 +858,22 @@ piclaw.relay.provider.error.*      # all provider errors on relay</code></pre></
           outerMessage,
           problemId,
           type
-| order by timestamp desc</code></pre></div><h4>9) Token counters on <code>agent.turn</code> spans</h4><blockquote>
-<p><strong>Note:</strong> token usage is persisted in piclaw&#39;s runtime database even when App Insights is not yet carrying token attributes. This query returns rows only when the observability exporter emits <code>piclaw.turn.input_tokens</code>, <code>piclaw.turn.output_tokens</code>, <code>piclaw.turn.cache_read_tokens</code>, <code>piclaw.turn.cache_write_tokens</code>, and <code>piclaw.turn.total_tokens</code> on <code>agent.turn</code> telemetry.</p>
-</blockquote>
-<div class="addon-code-block"><div class="addon-code-block-header"><span class="addon-code-lang">kusto</span><button type="button" class="addon-code-copy-btn" aria-label="Copy code" title="Copy code" data-copy-state="idle"><span class="addon-code-copy-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg></span><span class="addon-code-copy-label">Copy</span></button></div><pre><code class="language-kusto">requests
+| order by timestamp desc</code></pre></div><h4>9) Token counters on <code>model.call</code> dependency spans</h4><div class="addon-code-block"><div class="addon-code-block-header"><span class="addon-code-lang">kusto</span><button type="button" class="addon-code-copy-btn" aria-label="Copy code" title="Copy code" data-copy-state="idle"><span class="addon-code-copy-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg></span><span class="addon-code-copy-label">Copy</span></button></div><pre><code class="language-kusto">dependencies
 | extend piclaw_instance = coalesce(tostring(customDimensions[&quot;piclaw.instance&quot;]), cloud_RoleInstance)
 | where timestamp &gt; ago(24h)
-| where name == &quot;agent.turn&quot;
+| where name == &quot;model.call&quot;
 | extend model = tostring(customDimensions[&quot;piclaw.model&quot;])
-| extend input_tokens = todouble(customDimensions[&quot;piclaw.turn.input_tokens&quot;])
-| extend output_tokens = todouble(customDimensions[&quot;piclaw.turn.output_tokens&quot;])
-| extend cache_read_tokens = todouble(customDimensions[&quot;piclaw.turn.cache_read_tokens&quot;])
-| extend cache_write_tokens = todouble(customDimensions[&quot;piclaw.turn.cache_write_tokens&quot;])
-| extend total_tokens = todouble(customDimensions[&quot;piclaw.turn.total_tokens&quot;])
+| extend input_tokens = todouble(customDimensions[&quot;piclaw.model.input_tokens&quot;])
+| extend output_tokens = todouble(customDimensions[&quot;piclaw.model.output_tokens&quot;])
+| extend cache_read_tokens = todouble(customDimensions[&quot;piclaw.model.cache_read_tokens&quot;])
+| extend cache_write_tokens = todouble(customDimensions[&quot;piclaw.model.cache_write_tokens&quot;])
+| extend total_tokens = todouble(customDimensions[&quot;piclaw.model.total_tokens&quot;])
 | where isnotnull(input_tokens)
    or isnotnull(output_tokens)
    or isnotnull(cache_read_tokens)
    or isnotnull(cache_write_tokens)
    or isnotnull(total_tokens)
-| summarize turns = count(),
+| summarize model_calls = count(),
             input_tokens = sum(input_tokens),
             output_tokens = sum(output_tokens),
             cache_read_tokens = sum(cache_read_tokens),

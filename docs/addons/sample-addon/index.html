@@ -55,14 +55,17 @@ html,body{min-height:100%;background:var(--bg);color:var(--ink);font-family:var(
   line-height:1.04;margin-bottom:.6rem}
 .hero-sub{font-size:1.1rem;opacity:.78;max-width:540px;margin:0 0 1.4rem;line-height:1.6}
 .hero-meta{font-size:.82rem;opacity:.55}
-.hero-source{display:inline-flex;align-items:center;gap:.4rem;margin-top:1rem;
+.hero-actions{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-top:1rem}
+.hero-source{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;min-height:2.35rem;
   padding:.5rem 1rem;border-radius:10px;border:1px solid rgba(255,255,255,.25);
-  color:rgba(255,255,255,.85);text-decoration:none;font-size:.8rem;font-weight:700}
+  color:rgba(255,255,255,.85);text-decoration:none;font-size:.8rem;font-weight:700;line-height:1}
+.hero-source svg{display:block;flex:0 0 auto}
 .hero-source:hover{background:rgba(255,255,255,.1)}
 @media(max-width:640px){
   .hero-inner{flex-direction:column;text-align:center}
   .hero-logo{width:120px;height:120px}
   .hero-sub{margin:0 auto 1.4rem}
+  .hero-actions{justify-content:center}
 }
 
 /* ── Search ─── */
@@ -219,7 +222,7 @@ footer a{color:var(--accent);text-decoration:none}
       <div class="detail-sub">Sample add-on — starter template showing a settings pane, keychain secret, SQLite KV config, and a test endpoint</div>
       <div class="detail-tags"><span class="badge">developer</span><span class="badge">sample</span><span class="badge">template</span></div>
       <div class="detail-meta">
-        <span class="detail-version">v0.1.8</span>
+        <span class="detail-version">v0.1.9</span>
         
         
       </div>
@@ -257,7 +260,7 @@ await fetch(&quot;/agent/addons/api/sample-addon/config&quot;, {
 <li><strong>Password field</strong> — a secret (API key), saved directly to the keychain with a Save button</li>
 <li><strong>Key presence indicator</strong> — ✓/✗ showing whether the keychain entry exists</li>
 </ul>
-<figure class="md-figure"><img src="./assets/settings-pane-microvm.png" alt="Sample Addon settings pane on the microVM test instance" loading="lazy"></figure>
+<figure class="md-figure"><img src="./assets/settings-pane-microvm.png" alt="Sample Addon settings pane on a test instance" loading="lazy"></figure>
 <h3>2. Direct backend config API</h3><p>The runtime entry registers config handlers directly with piclaw:</p>
 <div class="addon-code-block"><div class="addon-code-block-header"><span class="addon-code-lang">typescript</span><button type="button" class="addon-code-copy-btn" aria-label="Copy code" title="Copy code" data-copy-state="idle"><span class="addon-code-copy-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg></span><span class="addon-code-copy-label">Copy</span></button></div><pre><code class="language-typescript">const registerAddonConfigApi = globalThis.__piclaw_registerAddonConfigApi;
 
@@ -281,7 +284,7 @@ const cfg = kv.get(&quot;config&quot;, &quot;global&quot;);</code></pre></div><p
 <div class="addon-code-block"><div class="addon-code-block-header"><span class="addon-code-lang">text</span><button type="button" class="addon-code-copy-btn" aria-label="Copy code" title="Copy code" data-copy-state="idle"><span class="addon-code-copy-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg></span><span class="addon-code-copy-label">Copy</span></button></div><pre><code>&gt; use sample_test
 Greeting: Hello from sample addon!
 Secret configured: yes</code></pre></div><h3>6. UX test fixture</h3><p>This add-on includes <code>tests/features/settings.feature</code> plus Playwright step definitions under <code>tests/steps/</code>.
-The repository add-on E2E harness turns those Gherkin scenarios into runnable Playwright tests and, in CI, publishes a PDF/HTML report with the package and add-on page.</p>
+The add-on catalog&#39;s E2E harness turns those Gherkin scenarios into runnable Playwright tests and, in CI, publishes a PDF/HTML report with the package and add-on page.</p>
 <h2>Storage model</h2><table>
 <thead>
 <tr>
@@ -311,7 +314,7 @@ The repository add-on E2E harness turns those Gherkin scenarios into runnable Pl
 <li>Replace the greeting field with your config</li>
 <li>Replace the secret keychain entry name</li>
 <li>Replace the test tool with your tool</li>
-<li>If your add-on exposes a settings pane or other meaningful web UI, capture a screenshot on the microVM test instance and store it under <code>addons/your-addon/assets/</code>, then reference it from the README. For settings panes, prefer an overlayfs-based clean fixture, show only the target pane during the screenshot, and restore <code>cheapskate</code> afterward.</li>
+<li>If your add-on exposes a settings pane or other meaningful web UI, capture a screenshot on a test instance and store it under <code>addons/your-addon/assets/</code>, then reference it from the README. For Linux environments, prefer an <code>overlayfs</code>-based clean fixture, show only the target pane during the screenshot, and restore the state afterward.</li>
 <li>Run <code>bun run scripts/sync-catalog.ts --write</code> to update the catalog</li>
 </ol>
 
