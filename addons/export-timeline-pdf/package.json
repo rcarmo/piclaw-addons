@@ -1,0 +1,33 @@
+{
+  "name": "@rcarmo/piclaw-addon-export-timeline-pdf",
+  "version": "0.1.0",
+  "description": "Export chat timelines to PDF with inline avatars and referenced message pills",
+  "type": "module",
+  "piclaw": {
+    "type": "skill",
+    "compatibleVersions": ">=2.3.0",
+    "tags": [
+      "export",
+      "pdf",
+      "timeline"
+    ],
+    "skills": [
+      "skills/export-timeline-pdf"
+    ]
+  },
+  "license": "MIT",
+  "keywords": [
+    "pi-package",
+    "piclaw",
+    "piclaw-addon",
+    "export",
+    "pdf",
+    "timeline"
+  ],
+  "pi": {
+    "skills": [
+      "skills"
+    ]
+  },
+  "homepage": "https://rcarmo.github.io/piclaw-addons/addons/export-timeline-pdf/"
+}
