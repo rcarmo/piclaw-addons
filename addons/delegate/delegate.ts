@@ -16,6 +16,8 @@ import { spawn as nodeSpawn } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { resolve, join } from "node:path";
 
+import { createExtensionStorage, type ExtensionStorage } from "./compat/extension-kv.js";
+
 const DEFAULT_TIMEOUT_SEC = 120;
 const MAX_OUTPUT_CHARS = 50_000;
 const DELEGATE_STATUS_KEY = "delegate";
@@ -27,6 +29,46 @@ const EXCLUDED_EXTENSIONS = new Set([
   "delegate.ts",           // prevent recursion
   "kanban-board-widget.ts", // UI-only
 ]);
+
+const EXTENSION_ID = "delegate";
+const AZURE_PROVIDER_RE = /^azure-/i;
+const DEFAULT_SEARCHABLE_PROVIDER_ORDER = ["anthropic", "openai", "openai-codex", "google", "github-copilot"];
+const MIN_MODEL_MATCH_SCORE = 75;
+
+export interface DelegateConfig {
+  searchable_providers: string[] | null;
+}
+
+const DEFAULT_CONFIG: DelegateConfig = {
+  searchable_providers: null, // null = all discovered non-azure providers; [] = intentionally disabled
+};
+
+let storage: ExtensionStorage | null = null;
+function kv(): ExtensionStorage {
+  if (!storage) storage = createExtensionStorage(EXTENSION_ID);
+  return storage;
+}
+
+function loadConfig(): DelegateConfig {
+  try {
+    const saved = kv().get<Partial<DelegateConfig>>("config", "global");
+    if (saved) return { ...DEFAULT_CONFIG, ...saved };
+  } catch { /* first run */ }
+  return { ...DEFAULT_CONFIG };
+}
+
+function saveConfig(config: DelegateConfig): void {
+  kv().set("config", config, "global");
+}
+
+function normalizeProviderList(values: unknown): string[] | null {
+  if (values == null) return null;
+  if (!Array.isArray(values)) return [];
+  return [...new Set(values
+    .map((value) => typeof value === "string" ? value.trim() : "")
+    .filter((value) => value && !AZURE_PROVIDER_RE.test(value)))]
+    .sort((a, b) => a.localeCompare(b));
+}
 
 /**
  * Discover the MCP adapter extension path.
@@ -114,15 +156,160 @@ const MODEL_TIERS: ModelTier[] = [
 // O(1) lookup by model ID
 const MODEL_TIER_MAP = new Map<string, ModelTier>(MODEL_TIERS.map((m) => [m.id, m]));
 
+export interface AvailableModel {
+  provider: string;
+  id: string;
+  fullId: string;
+  context?: string;
+  maxOut?: string;
+  thinking?: string;
+  images?: string;
+}
+
+interface ModelCandidate extends ModelTier {
+  sourceId: string;
+  provider: string;
+  modelId: string;
+  matchScore: number;
+}
+
 function getModelTier(modelId: string): ModelTier | null {
   return MODEL_TIER_MAP.get(modelId) ?? null;
 }
 
-function getCurrentTier(ctx: any): number {
+function normalizeModelName(value: string): string {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/^github-copilot\//, "")
+    .replace(/^openai\//, "")
+    .replace(/^anthropic\//, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function modelTokens(value: string): string[] {
+  return normalizeModelName(value).split("-").filter(Boolean);
+}
+
+function familyFromModelId(modelId: string): string {
+  const normalized = normalizeModelName(modelId);
+  if (normalized.includes("claude")) return "claude";
+  if (normalized.includes("gpt") || normalized.includes("o1") || normalized.includes("o3") || normalized.includes("o4")) return "gpt";
+  if (normalized.includes("gemini")) return "gemini";
+  if (normalized.includes("grok")) return "grok";
+  if (normalized.includes("llama")) return "llama";
+  if (normalized.includes("qwen")) return "qwen";
+  return normalized.split("-")[0] || "unknown";
+}
+
+export function modelSimilarityScore(referenceModelId: string, candidateModelId: string): number {
+  const ref = normalizeModelName(referenceModelId);
+  const candidate = normalizeModelName(candidateModelId);
+  if (!ref || !candidate) return 0;
+  if (ref === candidate) return 100;
+  if (candidate.startsWith(ref) || ref.startsWith(candidate)) return 90;
+  const refTokens = new Set(modelTokens(ref));
+  const candidateTokens = new Set(modelTokens(candidate));
+  if (!refTokens.size || !candidateTokens.size) return 0;
+  const intersection = [...refTokens].filter((token) => candidateTokens.has(token)).length;
+  const union = new Set([...refTokens, ...candidateTokens]).size;
+  const jaccard = intersection / union;
+  const familyBonus = familyFromModelId(ref) === familyFromModelId(candidate) ? 12 : 0;
+  const versionBonus = [...refTokens].some((token) => /^\d+$/.test(token) && candidateTokens.has(token)) ? 8 : 0;
+  return Math.round((jaccard * 80) + familyBonus + versionBonus);
+}
+
+function isCompatibleModelMatch(referenceModelId: string, candidateModelId: string): boolean {
+  const referenceTokens = new Set(modelTokens(referenceModelId));
+  const candidateTokens = new Set(modelTokens(candidateModelId));
+  if (familyFromModelId(referenceModelId) !== familyFromModelId(candidateModelId)) return false;
+  const requiredVariantGroups = [
+    ["haiku", "sonnet", "opus"],
+    ["mini"],
+    ["codex"],
+    ["flash"],
+    ["pro"],
+  ];
+  for (const group of requiredVariantGroups) {
+    const referenceVariant = group.find((token) => referenceTokens.has(token));
+    if (referenceVariant && !candidateTokens.has(referenceVariant)) return false;
+  }
+  return true;
+}
+
+function providerPreference(provider: string, searchableProviders: string[] | null): number {
+  const configured = searchableProviders?.indexOf(provider) ?? -1;
+  if (configured >= 0) return configured;
+  const preferred = DEFAULT_SEARCHABLE_PROVIDER_ORDER.indexOf(provider);
+  if (preferred >= 0) return preferred;
+  return 100 + provider.localeCompare("github-copilot");
+}
+
+function getAllowedProviders(models: AvailableModel[], config: DelegateConfig): string[] {
+  const discovered = [...new Set(models.map((model) => model.provider).filter((provider) => !AZURE_PROVIDER_RE.test(provider)))].sort();
+  const configured = normalizeProviderList(config.searchable_providers);
+  if (configured === null) return discovered;
+  const discoveredSet = new Set(discovered);
+  return configured.filter((provider) => discoveredSet.has(provider));
+}
+
+export function buildModelCandidates(models: AvailableModel[], config: DelegateConfig = DEFAULT_CONFIG): ModelCandidate[] {
+  const allowedProviders = new Set(getAllowedProviders(models, config));
+  const candidates: ModelCandidate[] = [];
+  for (const reference of MODEL_TIERS) {
+    const referenceModelId = reference.id.split("/").slice(1).join("/");
+    const referenceProvider = reference.id.split("/", 1)[0] || "";
+    const matches = models
+      .filter((model) => !AZURE_PROVIDER_RE.test(model.provider) && allowedProviders.has(model.provider))
+      .map((model) => ({ model, score: modelSimilarityScore(referenceModelId, model.id) }))
+      .filter(({ model, score }) =>
+        (score >= MIN_MODEL_MATCH_SCORE && isCompatibleModelMatch(referenceModelId, model.id)) ||
+        (model.provider === referenceProvider && model.id === referenceModelId)
+      )
+      .sort((a, b) => {
+        const byScore = b.score - a.score;
+        if (byScore !== 0) return byScore;
+        const byProvider = providerPreference(a.model.provider, config.searchable_providers) - providerPreference(b.model.provider, config.searchable_providers);
+        if (byProvider !== 0) return byProvider;
+        return a.model.fullId.localeCompare(b.model.fullId);
+      });
+    for (const match of matches) {
+      candidates.push({
+        id: match.model.fullId,
+        tier: reference.tier,
+        family: reference.family,
+        sourceId: reference.id,
+        provider: match.model.provider,
+        modelId: match.model.id,
+        matchScore: match.score,
+      });
+    }
+  }
+  const seen = new Set<string>();
+  return candidates.filter((candidate) => {
+    const key = `${candidate.id}:${candidate.tier}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function inferModelTier(modelId: string, candidates: ModelCandidate[]): ModelTier | null {
+  const exact = getModelTier(modelId);
+  if (exact) return exact;
+  const [, currentModelName = modelId] = modelId.split(/\/(.+)/);
+  const match = candidates
+    .map((candidate) => ({ candidate, score: modelSimilarityScore(candidate.modelId, currentModelName) }))
+    .filter(({ score }) => score >= MIN_MODEL_MATCH_SCORE)
+    .sort((a, b) => b.score - a.score || b.candidate.tier - a.candidate.tier)[0]?.candidate;
+  return match ? { id: modelId, tier: match.tier, family: match.family } : null;
+}
+
+function getCurrentTier(ctx: any, candidates: ModelCandidate[] = []): number {
   const model = ctx?.model;
   if (!model) return 3; // default to tier 3 if unknown
   const fullId = `${model.provider}/${model.id}`;
-  const tier = getModelTier(fullId);
+  const tier = inferModelTier(fullId, candidates);
   return tier?.tier ?? 3;
 }
 
@@ -141,8 +328,15 @@ const CATEGORY_TARGET_TIER: Record<TaskCategory, number> = {
 
 const VALID_CATEGORIES = new Set<TaskCategory>(["quick", "summarize", "code", "analyze", "reason", "judge"]);
 
-function selectModel(category: TaskCategory, maxTier: number, currentModelId?: string): string {
-  const candidates = MODEL_TIERS.filter((m) => m.tier <= maxTier);
+function selectModel(category: TaskCategory, maxTier: number, currentModelId?: string, discoveredCandidates: ModelCandidate[] = []): string {
+  const sourceCandidates = discoveredCandidates.length > 0 ? discoveredCandidates : MODEL_TIERS.map((model) => ({
+    ...model,
+    sourceId: model.id,
+    provider: model.id.split("/", 1)[0] || "",
+    modelId: model.id.split("/").slice(1).join("/"),
+    matchScore: 100,
+  }));
+  const candidates = sourceCandidates.filter((m) => m.tier <= maxTier && !AZURE_PROVIDER_RE.test(m.provider));
   if (candidates.length === 0) {
     return "github-copilot/gpt-5.4-mini"; // consistent fallback
   }
@@ -152,7 +346,7 @@ function selectModel(category: TaskCategory, maxTier: number, currentModelId?: s
 
   // For judge: prefer a different model family than the current agent
   if (category === "judge" && currentModelId) {
-    const currentFamily = getModelTier(currentModelId)?.family;
+    const currentFamily = inferModelTier(currentModelId, discoveredCandidates)?.family;
     if (currentFamily) {
       const differentFamily = candidates.find(
         (m) => m.tier === targetTier && m.family !== currentFamily
@@ -178,6 +372,74 @@ function selectModel(category: TaskCategory, maxTier: number, currentModelId?: s
 
   // Last resort: best available
   return candidates[candidates.length - 1].id;
+}
+
+// ── Model discovery ────────────────────────────────────────────
+
+export function parsePiListModelsOutput(output: string): AvailableModel[] {
+  const lines = String(output || "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const models: AvailableModel[] = [];
+  for (const line of lines) {
+    if (/^provider\s+model\s+/i.test(line)) continue;
+    const parts = line.split(/\s+/).filter(Boolean);
+    if (parts.length < 2) continue;
+    const [provider, id, context, maxOut, thinking, images] = parts;
+    if (!provider || !id) continue;
+    models.push({ provider, id, fullId: `${provider}/${id}`, context, maxOut, thinking, images });
+  }
+  return models;
+}
+
+function runPiListModels(timeoutMs = 20_000): Promise<string> {
+  return new Promise((resolvePromise, reject) => {
+    const child = nodeSpawn("pi", ["--list-models"], {
+      cwd: "/workspace",
+      stdio: ["ignore", "pipe", "pipe"],
+      env: process.env,
+    });
+    let stdout = "";
+    let stderr = "";
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      try { child.kill("SIGTERM"); } catch {}
+      reject(new Error("pi --list-models timed out"));
+    }, timeoutMs);
+    child.stdout?.on("data", (chunk: Buffer) => { stdout += chunk.toString(); });
+    child.stderr?.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
+    child.on("close", (code) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (code !== 0) reject(new Error(stderr.trim() || `pi --list-models exited ${code}`));
+      else resolvePromise(stdout);
+    });
+    child.on("error", (error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      reject(error);
+    });
+  });
+}
+
+let discoveredModelsCache: AvailableModel[] | null = null;
+async function getDiscoveredModels(refresh = false): Promise<AvailableModel[]> {
+  if (!refresh && discoveredModelsCache) return discoveredModelsCache;
+  try {
+    const output = await runPiListModels();
+    discoveredModelsCache = parsePiListModelsOutput(output);
+    return discoveredModelsCache;
+  } catch {
+    discoveredModelsCache = [];
+    return [];
+  }
+}
+
+async function getModelCandidates(config: DelegateConfig, refresh = false): Promise<ModelCandidate[]> {
+  const models = await getDiscoveredModels(refresh);
+  return buildModelCandidates(models, config);
 }
 
 // ── Default tool sets per task profile ─────────────────────────
@@ -237,6 +499,56 @@ function setDelegateProgress(ctx: any, options: { model: string; category: TaskC
 function clearDelegateProgress(ctx: any): void {
   try { ctx?.ui?.setStatus?.(DELEGATE_STATUS_KEY, undefined); } catch { /* ignore */ }
   try { ctx?.ui?.setWorkingMessage?.(undefined); } catch { /* ignore */ }
+}
+
+// ── Settings API ───────────────────────────────────────────────
+
+type AddonConfigApiRegistrar = (
+  addonId: string,
+  action: string,
+  handlers: { get?: (payload: unknown, req: Request) => unknown | Promise<unknown>; set?: (payload: unknown, req: Request) => unknown | Promise<unknown> },
+  extensionPath?: string,
+) => "created" | "updated";
+
+function providerSummaries(models: AvailableModel[], config: DelegateConfig) {
+  const enabled = new Set(getAllowedProviders(models, config));
+  const providers = [...new Set(models.map((model) => model.provider))].sort();
+  return providers.map((provider) => ({
+    provider,
+    enabled: !AZURE_PROVIDER_RE.test(provider) && enabled.has(provider),
+    blacklisted: AZURE_PROVIDER_RE.test(provider),
+    modelCount: models.filter((model) => model.provider === provider).length,
+  }));
+}
+
+async function handleGetModels(refresh = false) {
+  const config = loadConfig();
+  const models = await getDiscoveredModels(refresh);
+  const candidates = buildModelCandidates(models, config);
+  return {
+    ok: true,
+    config,
+    providers: providerSummaries(models, config),
+    models,
+    candidates: candidates.map(({ id, tier, family, sourceId, provider, modelId, matchScore }) => ({ id, tier, family, sourceId, provider, modelId, matchScore })),
+  };
+}
+
+const registerAddonConfigApi = (globalThis as Record<string, unknown>).__piclaw_registerAddonConfigApi as AddonConfigApiRegistrar | undefined;
+if (typeof registerAddonConfigApi === "function") {
+  registerAddonConfigApi(EXTENSION_ID, "config", {
+    get: async () => ({ ok: true, config: loadConfig() }),
+    set: async (payload) => {
+      const body = payload && typeof payload === "object" ? payload as Partial<DelegateConfig> : {};
+      const next = { ...loadConfig(), searchable_providers: normalizeProviderList(body.searchable_providers) };
+      saveConfig(next);
+      return { ok: true, config: next };
+    },
+  }, import.meta.dir);
+  registerAddonConfigApi(EXTENSION_ID, "models", {
+    get: async () => handleGetModels(false),
+    set: async () => handleGetModels(true),
+  }, import.meta.dir);
 }
 
 // ── Extension ──────────────────────────────────────────────────
@@ -326,11 +638,16 @@ export default function (pi: ExtensionAPI) {
       // #13: Validate category
       const rawCategory = (params.task_category as TaskCategory) || "summarize";
       const category: TaskCategory = VALID_CATEGORIES.has(rawCategory) ? rawCategory : "summarize";
-      const maxTier = getCurrentTier(ctx);
+      const config = loadConfig();
+      const discoveredCandidates = await getModelCandidates(config);
+      if (!params.model && Array.isArray(config.searchable_providers) && discoveredCandidates.length === 0) {
+        return result("❌ No delegate model candidates found for the selected providers. Enable at least one searchable provider or refresh the model list in Delegate settings.");
+      }
+      const maxTier = getCurrentTier(ctx, discoveredCandidates);
 
       // Model selection
       const currentModelId = ctx?.model ? `${ctx.model.provider}/${ctx.model.id}` : undefined;
-      const model = params.model || selectModel(category, maxTier, currentModelId);
+      const model = params.model || selectModel(category, maxTier, currentModelId, discoveredCandidates);
 
       const timeout = params.timeout_sec || DEFAULT_TIMEOUT_SEC;
 
@@ -382,10 +699,10 @@ export default function (pi: ExtensionAPI) {
       // Modality-aware tier bumping: if visual input detected and target tier < 3, bump to 3
       let effectiveModel = model;
       if (hasVisualInput && !params.model) {
-        const modelTier = getModelTier(model);
+        const modelTier = inferModelTier(model, discoveredCandidates);
         if (modelTier && modelTier.tier < 3) {
           // Override category to 'analyze' for visual input — forces tier 3 selection
-          effectiveModel = selectModel("analyze", maxTier, currentModelId);
+          effectiveModel = selectModel("analyze", maxTier, currentModelId, discoveredCandidates);
         }
       }
 

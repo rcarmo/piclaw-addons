@@ -4,7 +4,9 @@ Send tasks to a cheaper/faster model in a fresh context with auto model selectio
 
 ## Features
 
-- **Auto model selection** — picks the best model for the task category, never exceeding the current model's tier
+- **Auto model selection** — picks the best close model match for the task category, never exceeding the current model's tier
+- **Provider-aware matching** — searches configured providers for equivalents to the Copilot reference model list while excluding `azure-` providers
+- **Settings pane** — searchable provider checkboxes plus a model-list refresh action
 - **6 task categories** — quick, summarize, code, analyze, reason, judge
 - **Tool access** — delegate has read, grep, find, ls, bash, MCP tools by default
 - **MCP support** — any servers in `.pi/mcp.json` are available
@@ -61,11 +63,11 @@ This is redundant if using the extension (it self-activates), but useful if you 
 
 | Category | Model picked | Use for |
 |---|---|---|
-| `quick` | gpt-5.4-mini (tier 2) | Formatting, factual Q&A, translation |
-| `summarize` | gpt-5.4-mini (tier 2) | File/note/code summaries |
-| `code` | claude-sonnet-4.6 (tier 3) | Code gen, refactoring |
-| `analyze` | claude-sonnet-4.6 (tier 3) | Code review, debugging |
-| `reason` | claude-sonnet-4.6 (tier 3) | Complex logic — if you need frontier, don't delegate |
+| `quick` | gpt-5.4-mini equivalent (tier 2) | Formatting, factual Q&A, translation |
+| `summarize` | gpt-5.4-mini equivalent (tier 2) | File/note/code summaries |
+| `code` | claude-sonnet-4.6 equivalent (tier 3) | Code gen, refactoring |
+| `analyze` | claude-sonnet-4.6 equivalent (tier 3) | Code review, debugging |
+| `reason` | claude-sonnet-4.6 equivalent (tier 3) | Complex logic — if you need frontier, don't delegate |
 | `judge` | Different family than current (tier 3) | Second opinion, verify, double check |
 
 | Tool profile | Tools included |

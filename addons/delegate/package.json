@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-delegate",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Delegate tasks to cheaper/faster models with auto model selection, tool access, and MCP support",
   "type": "module",
   "main": "index.ts",
@@ -39,6 +39,11 @@
     "extensions": [
       "index.ts"
     ],
+    "web": {
+      "entries": [
+        "web/index.ts"
+      ]
+    },
     "skills": [
       "skills"
     ]
