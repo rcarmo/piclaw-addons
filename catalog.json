@@ -738,7 +738,8 @@
       "install": {
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-smart-compaction-0.1.0.tgz"
-      }
+      },
+      "updatedAt": "2026-05-10"
     },
     {
       "slug": "stealth-browser",
