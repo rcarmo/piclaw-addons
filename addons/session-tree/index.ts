@@ -1,7 +1,7 @@
 /**
  * session-tree/index.ts — Session tree timeline widget addon.
  *
- * Registers a tree widget HTML provider via __piclaw_registerTreeWidgetHtml.
+ * Registers a tree widget HTML provider via __piclaw_registerWidgetKind.
  * When loaded, the /tree command emits an HTML dashboard widget instead of
  * plain text, giving an interactive expandable session tree in the web UI.
  */
