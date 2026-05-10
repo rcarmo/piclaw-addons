@@ -2,6 +2,7 @@
 const ADDON_ID = "yolo-vibe";
 const STYLE_ID = "piclaw-yolo-vibe-style";
 const TOOLBAR_CLASS = "piclaw-yolo-vibe-toolbar";
+const HOST_CLASS = "piclaw-yolo-vibe-host";
 const DEFAULT_CHAT_JID = "web:default";
 
 export const YOLO_VIBE_BUTTONS = [
@@ -44,12 +45,13 @@ function ensureStyles() {
   const style = document.createElement("style");
   style.id = STYLE_ID;
   style.textContent = `
-.${TOOLBAR_CLASS}{display:flex;align-items:center;justify-content:flex-end;gap:4px;margin:30px 0 2px auto;max-width:100%;z-index:4;pointer-events:auto}
-.${TOOLBAR_CLASS} button{appearance:none;border:1px solid color-mix(in srgb,var(--accent-color,#3b82f6) 34%,var(--border-color,rgba(148,163,184,.24)));background:color-mix(in srgb,var(--bg-secondary,#111827) 82%,var(--accent-color,#3b82f6) 18%);color:var(--text-primary,#e5e7eb);border-radius:999px;padding:3px 8px;font-size:11px;font-weight:700;line-height:1.25;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.12);transition:transform .12s ease,background .12s ease,border-color .12s ease,opacity .12s ease}
-.${TOOLBAR_CLASS} button:hover,.${TOOLBAR_CLASS} button:focus-visible{transform:translateY(-1px);background:color-mix(in srgb,var(--bg-secondary,#111827) 70%,var(--accent-color,#3b82f6) 30%);border-color:var(--accent-color,#3b82f6);outline:none}
-.${TOOLBAR_CLASS} button:disabled{opacity:.58;cursor:progress;transform:none}
+.${HOST_CLASS}{max-width:none!important;gap:4px}
+.${TOOLBAR_CLASS}{display:inline-flex;align-items:center;justify-content:flex-end;gap:4px;margin:0;z-index:6;pointer-events:auto}
+.${TOOLBAR_CLASS} button{appearance:none;border:1px solid var(--border-color);background:var(--bg-primary);color:var(--text-secondary);border-radius:var(--radius-full,999px);padding:3px 8px;font-size:11px;font-weight:700;line-height:1.25;cursor:pointer;transition:background-color var(--ui-transition-fast,.12s),color var(--ui-transition-fast,.12s),border-color var(--ui-transition-fast,.12s),opacity var(--ui-transition-fast,.12s)}
+.${TOOLBAR_CLASS} button:hover,.${TOOLBAR_CLASS} button:focus-visible{background:var(--bg-hover);color:var(--text-primary);border-color:var(--accent-color);outline:none}
+.${TOOLBAR_CLASS} button:disabled{opacity:.58;cursor:progress}
 .${TOOLBAR_CLASS}[data-busy="true"] button:not([data-sending="true"]){opacity:.45}
-@media (max-width: 640px){.${TOOLBAR_CLASS}{gap:3px;margin-top:31px}.${TOOLBAR_CLASS} button{font-size:10.5px;padding:3px 6px}}
+@media (max-width: 640px){.${HOST_CLASS}{gap:3px}.${TOOLBAR_CLASS}{gap:3px}.${TOOLBAR_CLASS} button{font-size:10.5px;padding:3px 6px}}
 `;
   document.head.appendChild(style);
 }
@@ -84,9 +86,8 @@ export function findComposeInsertionPoint(root = document) {
   const wrapper = root.querySelector?.(".compose-input-wrapper");
   if (!wrapper) return null;
   const sessionGroup = wrapper.querySelector?.(".compose-session-trigger-group.compose-session-trigger-top");
-  const inputMain = wrapper.querySelector?.(".compose-input-main");
-  if (!inputMain) return null;
-  return { wrapper, sessionGroup, inputMain };
+  if (!sessionGroup) return null;
+  return { wrapper, sessionGroup };
 }
 
 function buildToolbar() {
@@ -116,9 +117,10 @@ export function installYoloVibe(root = document) {
   ensureStyles();
   const point = findComposeInsertionPoint(root);
   if (!point) return false;
-  if (point.wrapper.querySelector(`.${TOOLBAR_CLASS}`)) return true;
+  if (point.sessionGroup.querySelector(`.${TOOLBAR_CLASS}`)) return true;
+  point.sessionGroup.classList.add(HOST_CLASS);
   const toolbar = buildToolbar();
-  point.wrapper.insertBefore(toolbar, point.inputMain);
+  point.sessionGroup.appendChild(toolbar);
   return true;
 }
 

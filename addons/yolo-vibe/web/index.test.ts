@@ -1,4 +1,6 @@
 import { expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 import {
   buildAgentMessageRequest,
@@ -17,6 +19,20 @@ test("yolo-vibe defines the requested quick prompts", () => {
 test("normalizeChatJid falls back to web:default", () => {
   expect(normalizeChatJid(" web:addons ")).toBe("web:addons");
   expect(normalizeChatJid(" ")).toBe("web:default");
+});
+
+test("web entry attaches the toolbar to the floating session pill", () => {
+  const source = readFileSync(join(import.meta.dir, "index.ts"), "utf8");
+  expect(source).toContain("point.sessionGroup.appendChild(toolbar)");
+  expect(source).toContain("piclaw-yolo-vibe-host");
+  expect(source).not.toContain("insertBefore(toolbar, point.inputMain)");
+});
+
+test("web entry uses flat host styling without shadows or gradients", () => {
+  const source = readFileSync(join(import.meta.dir, "index.ts"), "utf8");
+  expect(source).not.toContain("box-shadow");
+  expect(source).not.toContain("linear-gradient");
+  expect(source).not.toContain("color-mix");
 });
 
 test("buildAgentMessageRequest posts to the current chat in auto mode", () => {
