@@ -10,8 +10,6 @@
  *
  * Drop into .pi/extensions/ and /restart.
  */
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { Type } from "@sinclair/typebox";
 import { spawn as nodeSpawn } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { resolve, join } from "node:path";
@@ -553,7 +551,7 @@ if (typeof registerAddonConfigApi === "function") {
 
 // ── Extension ──────────────────────────────────────────────────
 
-export default function (pi: ExtensionAPI) {
+export default function (pi: any) {
   const HINT = [
     "## Delegate tool",
     "Use `delegate` to send a task to a cheaper/faster model and get the result inline.",
@@ -584,55 +582,55 @@ export default function (pi: ExtensionAPI) {
       "Use for: summarizing files, quick questions, code generation, data extraction, codebase exploration, " +
       "or any task that doesn't require the full conversation context. " +
       "The model is auto-selected based on the task category — never more capable than the current model.",
-    parameters: Type.Object({
-      prompt: Type.String({
-        description: "The task to delegate. Be specific — the delegate has no conversation history.",
-      }),
-      task_category: Type.Optional(
-        Type.Union([
-          Type.Literal("quick",     { description: "Fast/simple: formatting, extraction, translation, factual Q&A" }),
-          Type.Literal("summarize", { description: "Summarize files, notes, code, or text" }),
-          Type.Literal("code",      { description: "Code generation, refactoring, or mechanical edits" }),
-          Type.Literal("analyze",   { description: "Code review, architecture analysis, debugging" }),
-          Type.Literal("reason",    { description: "Complex reasoning, planning, multi-step logic" }),
-          Type.Literal("judge",     { description: "Review/critique the main agent's last response — uses a different model family" }),
-        ], {
+    parameters: {
+      type: "object",
+      required: ["prompt"],
+      properties: {
+        prompt: {
+          type: "string",
+          description: "The task to delegate. Be specific — the delegate has no conversation history.",
+        },
+        task_category: {
+          anyOf: [
+            { const: "quick", type: "string", description: "Fast/simple: formatting, extraction, translation, factual Q&A" },
+            { const: "summarize", type: "string", description: "Summarize files, notes, code, or text" },
+            { const: "code", type: "string", description: "Code generation, refactoring, or mechanical edits" },
+            { const: "analyze", type: "string", description: "Code review, architecture analysis, debugging" },
+            { const: "reason", type: "string", description: "Complex reasoning, planning, multi-step logic" },
+            { const: "judge", type: "string", description: "Review/critique the main agent's last response — uses a different model family" },
+          ],
           description: "Task category for auto model selection. Default: summarize",
-        })
-      ),
-      model: Type.Optional(
-        Type.String({
+        },
+        model: {
+          type: "string",
           description: "Explicit model override (provider/id). Skips auto-selection.",
-        })
-      ),
-      files: Type.Optional(
-        Type.Array(Type.String(), {
+        },
+        files: {
+          type: "array",
+          items: { type: "string" },
           description: "File paths to include as context in the prompt.",
-        })
-      ),
-      tools: Type.Optional(
-        Type.Union([
-          Type.Literal("read_only", { description: "read, grep, find, ls, mcp" }),
-          Type.Literal("standard",  { description: "read, grep, find, ls, bash, mcp (default)" }),
-          Type.Literal("full",      { description: "read, grep, find, ls, bash, edit, write, mcp" }),
-          Type.String({ description: "Comma-separated tool names" }),
-        ], {
+        },
+        tools: {
+          anyOf: [
+            { const: "read_only", type: "string", description: "read, grep, find, ls, mcp" },
+            { const: "standard", type: "string", description: "read, grep, find, ls, bash, mcp (default)" },
+            { const: "full", type: "string", description: "read, grep, find, ls, bash, edit, write, mcp" },
+            { type: "string", description: "Comma-separated tool names" },
+          ],
           description: "Tool profile or explicit list. Default: standard (read, grep, find, ls, bash)",
-        })
-      ),
-      system_prompt: Type.Optional(
-        Type.String({
+        },
+        system_prompt: {
+          type: "string",
           description: "Custom system prompt override.",
-        })
-      ),
-      timeout_sec: Type.Optional(
-        Type.Integer({
+        },
+        timeout_sec: {
+          type: "integer",
           description: `Timeout in seconds. Default: ${DEFAULT_TIMEOUT_SEC}`,
           minimum: 5,
           maximum: 300,
-        })
-      ),
-    }),
+        },
+      },
+    },
 
     async execute(_toolCallId, params, signal, _update, ctx) {
       // #13: Validate category

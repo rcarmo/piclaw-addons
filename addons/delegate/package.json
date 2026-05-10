@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-delegate",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Delegate tasks to cheaper/faster models with auto model selection, tool access, and MCP support",
   "type": "module",
   "main": "index.ts",
@@ -23,13 +23,6 @@
         "path": "./skills/delegate"
       }
     ]
-  },
-  "dependencies": {
-    "@sinclair/typebox": "*"
-  },
-  "peerDependencies": {
-    "@earendil-works/pi-coding-agent": "*",
-    "@sinclair/typebox": "*"
   },
   "license": "MIT",
   "keywords": [

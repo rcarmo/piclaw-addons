@@ -78,13 +78,15 @@ anthropic       claude-sonnet-4.6  200K     32K      yes       yes
     expect(source).toContain("models");
   });
 
-  test("delegate manifest declares typebox for runtime and compatibility", () => {
+  test("delegate package stays dependency-light for add-on installs", () => {
     const manifest = JSON.parse(readFileSync(resolve(addonDir, "package.json"), "utf8")) as {
       dependencies?: Record<string, string>;
       peerDependencies?: Record<string, string>;
     };
-    expect(manifest.dependencies?.["@sinclair/typebox"]).toBe("*");
-    expect(manifest.peerDependencies?.["@sinclair/typebox"]).toBe("*");
-    expect(manifest.peerDependencies?.["@earendil-works/pi-coding-agent"]).toBe("*");
+    expect(manifest.dependencies || {}).toEqual({});
+    expect(manifest.peerDependencies || {}).toEqual({});
+    const source = readFileSync(resolve(addonDir, "delegate.ts"), "utf8");
+    expect(source).not.toContain(`@sinclair/${"typebox"}`);
+    expect(source).not.toContain(`@earendil-works/${"pi-coding-agent"}`);
   });
 });
