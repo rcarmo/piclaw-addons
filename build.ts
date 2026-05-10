@@ -263,8 +263,15 @@ function ownerChips(addon: Addon): string {
   return `<div class="owner-row">${parts.join("")}</div>`;
 }
 
+function tarballUrl(addon: Addon): string {
+  return addon.install?.spec || `/piclaw-addons/packages/${addon.name.replace(/^@[^/]+\//, '')}-${addon.version}.tgz`;
+}
+
+function downloadPill(addon: Addon): string {
+  return `<a class="download-pill" href="${esc(tarballUrl(addon))}" download aria-label="Download ${esc(addon.slug)} ${esc(addon.version)} tarball">↓ Download .tgz</a>`;
+}
+
 function installSnippet(addon: Addon): string {
-  const pkg = addon.install;
   return `<div class="install-block">
     <svg class="install-icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.751.751 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Z"/></svg>
     <span class="install-text">Open <strong>Settings → Add-Ons</strong> and pick <strong>${esc(addon.slug)}</strong></span>
@@ -445,6 +452,8 @@ html,body{min-height:100%;background:var(--bg);color:var(--ink);font-family:var(
 .detail-tags .badge{background:rgba(255,255,255,.16);color:#fff}
 .detail-meta{display:flex;align-items:center;gap:.8rem;flex-wrap:wrap;margin-top:.55rem}
 .detail-version{font-family:var(--font-mono);font-size:.78rem;opacity:.6}
+.download-pill{display:inline-flex;align-items:center;justify-content:center;gap:.35rem;min-height:1.85rem;padding:.32rem .7rem;border-radius:999px;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.14);color:#fff;text-decoration:none;font-size:.76rem;font-weight:800;line-height:1;white-space:nowrap}
+.download-pill:hover,.download-pill:focus-visible{background:rgba(255,255,255,.23);border-color:rgba(255,255,255,.42);outline:none}
 .detail-type-row,.detail-title-row{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.6rem}
 .type-badge{display:inline-block;padding:.2rem .6rem;border-radius:6px;font-size:.72rem;
   font-weight:800;letter-spacing:.05em;text-transform:uppercase;
@@ -698,6 +707,7 @@ ${CLARITY_SCRIPT}
       <div class="detail-tags">${addon.tags.map(tagBadge).join("")}</div>
       <div class="detail-meta">
         <span class="detail-version">v${esc(addon.version)}</span>
+        ${downloadPill(addon)}
         ${addon.openIssues ? `<span class="detail-issues">${addon.openIssues} open issue${addon.openIssues!==1?'s':''}</span>` : ''}
         ${ownerRow(addon)}
       </div>
