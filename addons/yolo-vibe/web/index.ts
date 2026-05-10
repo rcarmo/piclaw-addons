@@ -46,12 +46,12 @@ function ensureStyles() {
   style.id = STYLE_ID;
   style.textContent = `
 .${HOST_CLASS}{position:relative}
-.${TOOLBAR_CLASS}{align-self:flex-end;display:inline-flex;align-items:center;justify-content:flex-end;gap:4px;margin:0 6px 0 0;z-index:6;pointer-events:auto;white-space:nowrap}
+.${TOOLBAR_CLASS}{position:fixed;display:inline-flex;align-items:center;justify-content:flex-end;gap:4px;margin:0;z-index:12;pointer-events:auto;white-space:nowrap}
 .${TOOLBAR_CLASS} button{appearance:none;border:1px solid var(--border-color);background:var(--bg-primary);color:var(--text-secondary);border-radius:var(--radius-full,999px);padding:3px 8px;font-size:11px;font-weight:700;line-height:1.25;cursor:pointer;transition:background-color var(--ui-transition-fast,.12s),color var(--ui-transition-fast,.12s),border-color var(--ui-transition-fast,.12s),opacity var(--ui-transition-fast,.12s)}
 .${TOOLBAR_CLASS} button:hover,.${TOOLBAR_CLASS} button:focus-visible{background:var(--bg-hover);color:var(--text-primary);border-color:var(--accent-color);outline:none}
 .${TOOLBAR_CLASS} button:disabled{opacity:.58;cursor:progress}
 .${TOOLBAR_CLASS}[data-busy="true"] button:not([data-sending="true"]){opacity:.45}
-@media (max-width: 640px){.${TOOLBAR_CLASS}{gap:3px;margin-right:4px}.${TOOLBAR_CLASS} button{font-size:10.5px;padding:3px 6px}}
+@media (max-width: 640px){.${TOOLBAR_CLASS}{gap:3px}.${TOOLBAR_CLASS} button{font-size:10.5px;padding:3px 6px}}
 `;
   document.head.appendChild(style);
 }
@@ -115,12 +115,20 @@ function buildToolbar() {
 }
 
 function positionToolbar(point, toolbar) {
-  const sessionWidth = Math.ceil(point.sessionGroup.getBoundingClientRect?.().width || 0);
-  const composeWidth = Math.ceil(point.composeBox.getBoundingClientRect?.().width || point.wrapper.getBoundingClientRect?.().width || 0);
-  const toolbarWidth = Math.ceil(toolbar.getBoundingClientRect?.().width || 0);
-  const desired = sessionWidth + 12;
-  const max = composeWidth && toolbarWidth ? Math.max(0, composeWidth - toolbarWidth - 8) : desired;
-  toolbar.style.marginRight = `${Math.min(desired, max)}px`;
+  const win = toolbar.ownerDocument?.defaultView || globalThis;
+  const wrapperRect = point.wrapper.getBoundingClientRect?.();
+  const composeRect = point.composeBox.getBoundingClientRect?.();
+  const toolbarRect = toolbar.getBoundingClientRect?.();
+  if (!wrapperRect || !composeRect || !toolbarRect) return;
+  const viewportWidth = win.innerWidth || toolbar.ownerDocument?.documentElement?.clientWidth || wrapperRect.right;
+  const toolbarWidth = Math.ceil(toolbarRect.width || 0);
+  const toolbarHeight = Math.ceil(toolbarRect.height || 0);
+  const left = Math.max(8, Math.min(Math.round(wrapperRect.right - toolbarWidth), viewportWidth - toolbarWidth - 8));
+  const top = Math.max(8, Math.round(composeRect.top - toolbarHeight - 6));
+  toolbar.style.left = `${left}px`;
+  toolbar.style.top = `${top}px`;
+  toolbar.style.right = "auto";
+  toolbar.style.bottom = "auto";
 }
 
 export function installYoloVibe(root = typeof document !== "undefined" ? document : null) {
@@ -128,12 +136,15 @@ export function installYoloVibe(root = typeof document !== "undefined" ? documen
   ensureStyles();
   const point = findComposeInsertionPoint(root);
   if (!point) return false;
-  const existing = point.composeBox.querySelector(`.${TOOLBAR_CLASS}`) || point.sessionGroup.querySelector(`.${TOOLBAR_CLASS}`);
+  const owner = point.wrapper.ownerDocument || document;
+  const target = owner.body || owner.documentElement;
+  const existing = owner.querySelector(`.${TOOLBAR_CLASS}[data-addon="${ADDON_ID}"]`) || point.composeBox.querySelector(`.${TOOLBAR_CLASS}`) || point.sessionGroup.querySelector(`.${TOOLBAR_CLASS}`);
   const toolbar = existing || buildToolbar();
   point.sessionGroup.classList.remove(HOST_CLASS);
-  point.composeBox.classList.add(HOST_CLASS);
-  if (toolbar.parentElement !== point.composeBox) point.composeBox.insertBefore(toolbar, point.wrapper);
+  point.composeBox.classList.remove(HOST_CLASS);
+  if (toolbar.parentElement !== target) target.appendChild(toolbar);
   positionToolbar(point, toolbar);
+  try { requestAnimationFrame?.(() => positionToolbar(point, toolbar)); } catch {}
   return true;
 }
 
@@ -145,6 +156,10 @@ function scheduleInstall() {
   try { setTimeout(attempt, 0); } catch {}
   try { setTimeout(attempt, 250); } catch {}
   try { setTimeout(attempt, 1000); } catch {}
+  if (typeof window !== "undefined") {
+    try { window.addEventListener("resize", attempt, { passive: true }); } catch {}
+    try { window.addEventListener("scroll", attempt, { passive: true, capture: true }); } catch {}
+  }
   if (typeof MutationObserver !== "undefined" && typeof document !== "undefined") {
     const observer = new MutationObserver(() => attempt());
     observer.observe(document.body || document.documentElement, { childList: true, subtree: true });
