@@ -10,7 +10,7 @@ import {
 
 test("yolo-vibe defines the requested quick prompts", () => {
   expect(YOLO_VIBE_BUTTONS).toEqual([
-    { id: "continue", label: "Continue", prompt: "continue" },
+    { id: "continue", label: "Continue", prompt: "continue, according to plan" },
     { id: "audit", label: "Audit", prompt: "audit for code smells and logic errors, fixing as you go" },
     { id: "docs", label: "Docs", prompt: "review and update all documentation, then commit and push" },
   ]);
@@ -25,7 +25,8 @@ test("web entry floats the toolbar over the timeline without taking compose spac
   const source = readFileSync(join(import.meta.dir, "index.ts"), "utf8");
   expect(source).toContain(`.${"${TOOLBAR_CLASS}"}{position:fixed`);
   expect(source).toContain("target.appendChild(toolbar)");
-  expect(source).toContain("wrapperRect.right - toolbarWidth");
+  expect(source).toContain("FLOATING_RIGHT_GUTTER_PX = 96");
+  expect(source).toContain("wrapperRect.right - FLOATING_RIGHT_GUTTER_PX");
   expect(source).toContain("composeRect.top - toolbarHeight - 6");
   expect(source).toContain("point.composeBox.classList.remove(HOST_CLASS)");
   expect(source).not.toContain("point.composeBox.insertBefore(toolbar, point.wrapper)");

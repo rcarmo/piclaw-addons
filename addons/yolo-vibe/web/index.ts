@@ -4,9 +4,10 @@ const STYLE_ID = "piclaw-yolo-vibe-style";
 const TOOLBAR_CLASS = "piclaw-yolo-vibe-toolbar";
 const HOST_CLASS = "piclaw-yolo-vibe-host";
 const DEFAULT_CHAT_JID = "web:default";
+const FLOATING_RIGHT_GUTTER_PX = 96;
 
 export const YOLO_VIBE_BUTTONS = [
-  { id: "continue", label: "Continue", prompt: "continue" },
+  { id: "continue", label: "Continue", prompt: "continue, according to plan" },
   { id: "audit", label: "Audit", prompt: "audit for code smells and logic errors, fixing as you go" },
   { id: "docs", label: "Docs", prompt: "review and update all documentation, then commit and push" },
 ];
@@ -123,7 +124,8 @@ function positionToolbar(point, toolbar) {
   const viewportWidth = win.innerWidth || toolbar.ownerDocument?.documentElement?.clientWidth || wrapperRect.right;
   const toolbarWidth = Math.ceil(toolbarRect.width || 0);
   const toolbarHeight = Math.ceil(toolbarRect.height || 0);
-  const left = Math.max(8, Math.min(Math.round(wrapperRect.right - toolbarWidth), viewportWidth - toolbarWidth - 8));
+  const targetRight = Math.min(wrapperRect.right - FLOATING_RIGHT_GUTTER_PX, viewportWidth - 8);
+  const left = Math.max(8, Math.min(Math.round(targetRight - toolbarWidth), viewportWidth - toolbarWidth - 8));
   const top = Math.max(8, Math.round(composeRect.top - toolbarHeight - 6));
   toolbar.style.left = `${left}px`;
   toolbar.style.top = `${top}px`;

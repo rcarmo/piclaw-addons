@@ -2,11 +2,11 @@
 
 Quick compose-box YOLO buttons for the PiClaw web UI.
 
-This add-on floats three compact buttons over the bottom-right timeline edge, just above the compose box, without taking layout space from the editor:
+This add-on floats three compact buttons over the bottom timeline area, shifted left from the right edge to avoid UI affordances, without taking layout space from the editor:
 
 | Button | Submitted prompt |
 |---|---|
-| Continue | `continue` |
+| Continue | `continue, according to plan` |
 | Audit | `audit for code smells and logic errors, fixing as you go` |
 | Docs | `review and update all documentation, then commit and push` |
 
