@@ -61,7 +61,7 @@ export function tryNoOpCompaction(
     hasKeptUserContext: boolean;
     hasTurnPrefixHumanUser: boolean;
   },
-  ctx: { ui: { notify: (msg: string, level?: "info" | "warning" | "error") => void } },
+  ctx: { ui: { setWorkingMessage?: (msg?: string) => void } },
 ): { compaction: CompactionResult } | null {
   const { previousSummary, fileOps } = preparation;
 
@@ -93,9 +93,8 @@ export function tryNoOpCompaction(
     const delta = buildMechanicalDelta(llmMessages, modifiedFiles, readFiles);
     const summary = appendDeltaToSummary(previousSummary, delta, fileOps);
 
-    ctx.ui.notify(
-      `No-op compaction: split-turn continuation (0 user msgs, ${llmMessages.length} tool msgs) → reused summary + delta`,
-      "info",
+    ctx.ui.setWorkingMessage?.(
+      `Smart compaction: reused summary for split-turn continuation (${llmMessages.length} tool msgs)…`,
     );
 
     return {
@@ -116,9 +115,8 @@ export function tryNoOpCompaction(
   ) {
     const summary = updateFileLists(previousSummary, fileOps);
 
-    ctx.ui.notify(
-      `No-op compaction: minimal content (${userTotalChars} user chars, 0 modifications) → reused summary`,
-      "info",
+    ctx.ui.setWorkingMessage?.(
+      `Smart compaction: reused summary for minimal-content compaction (${userTotalChars} user chars)…`,
     );
 
     return {

@@ -51,12 +51,6 @@ export function smartCompaction(pi: ExtensionAPI): void {
     console.warn(
       "[smart-compaction] Disabled: this standalone add-on is intended for vanilla pi users; Piclaw already includes smart compaction.",
     );
-    pi.on("session_start", async (_event, ctx) => {
-      ctx.ui.notify(
-        "Standalone smart-compaction add-on disabled: this package is intended for vanilla pi users; Piclaw already includes smart compaction.",
-        "warning",
-      );
-    });
     return;
   }
 
@@ -147,7 +141,7 @@ export function smartCompaction(pi: ExtensionAPI): void {
         const safeKeepRecent = clampKeepRecentTokens(configuredKeepRecent, contextWindow);
         const postFit = estimatePostCompactionFit(noOpResult.compaction.summary, configuredKeepRecent, contextWindow);
         if (!postFit.fits || configuredKeepRecent > safeKeepRecent) {
-          ctx.ui.notify(
+          log.debug(
             `No-op compaction: post-compaction estimate ${postFit.estimatedTotal} tokens is unsafe for ${contextWindow} context (configured kept ${configuredKeepRecent}t, safe kept ${safeKeepRecent}t, margin ${postFit.margin}t). Falling through to LLM compaction.`,
             "warning",
           );
@@ -171,7 +165,7 @@ export function smartCompaction(pi: ExtensionAPI): void {
       const configuredKeepRecent = Math.max(0, Number(settings.keepRecentTokens) || 0);
       const safeKeepRecent = clampKeepRecentTokens(configuredKeepRecent, contextWindow);
       if (safeKeepRecent < configuredKeepRecent) {
-        ctx.ui.notify(
+        log.debug(
           `keepRecentTokens setting ${configuredKeepRecent} exceeds safe ${safeKeepRecent} for ${contextWindow} context; post-compaction fit checks will use the configured kept-window estimate to avoid under-reporting`,
           "warning",
         );
@@ -179,7 +173,7 @@ export function smartCompaction(pi: ExtensionAPI): void {
 
       ctx.ui.setWorkingMessage(`Smart compaction: extracting signal from ${messagesToSummarize.length} messages…`);
       publishContextEstimate(ctx, tokensBefore, "extracting");
-      ctx.ui.notify(
+      log.debug(
         `Smart compaction: ${messagesToSummarize.length} msgs → selective extraction`,
         "info",
       );
@@ -192,7 +186,7 @@ export function smartCompaction(pi: ExtensionAPI): void {
         humanUserIndexes,
       );
 
-      ctx.ui.notify(
+      log.debug(
         `Prompt: ${Math.round(promptText.length / 1000)}k chars (vs ~${Math.round(tokensBefore / 1000)}k tokens full)`,
         "info",
       );
@@ -201,12 +195,12 @@ export function smartCompaction(pi: ExtensionAPI): void {
       // Model — use the session's own model (already session-scoped)
       const model = ctx.model;
       if (!model) {
-        ctx.ui.notify("No model available for smart compaction", "warning");
+        log.debug("No model available for smart compaction", "warning");
         return;
       }
       const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
       if (!auth.ok) {
-        ctx.ui.notify(`Compaction model is not configured in pi settings: ${auth.error}`, "warning");
+        log.debug(`Compaction model is not configured in pi settings: ${auth.error}`, "warning");
         return;
       }
 
@@ -214,7 +208,7 @@ export function smartCompaction(pi: ExtensionAPI): void {
       if (budget.forceProgressive || promptText.length > budget.promptBudgetChars) {
         try {
           ctx.ui.setWorkingMessage("Smart compaction: progressive iterative mode…");
-          ctx.ui.notify(
+          log.debug(
             `Progressive compaction enabled: prompt ${Math.round(promptText.length / 1000)}k chars exceeds ${Math.round(budget.promptBudgetChars / 1000)}k budget for ${budget.contextWindow.toLocaleString()} context`,
             "info",
           );
@@ -247,12 +241,12 @@ export function smartCompaction(pi: ExtensionAPI): void {
           finalContextTokens = postFit.estimatedTotal;
           publishContextEstimate(ctx, postFit.estimatedTotal, "completed_progressive");
           if (!postFit.fits) {
-            ctx.ui.notify(
+            log.debug(
               `⚠️ Progressive compaction: post-compaction estimate ${postFit.estimatedTotal} tokens still exceeds ${contextWindow} context window (summary ${postFit.summaryTokens}t + kept ${configuredKeepRecent}t + overhead ${postFit.overheadTokens}t, margin ${postFit.margin}t)`,
               "warning",
             );
           }
-          ctx.ui.notify("Progressive compaction complete ✓", "info");
+          log.debug("Progressive compaction complete ✓", "info");
           return {
             compaction: {
               summary: fullSummary,
@@ -263,7 +257,7 @@ export function smartCompaction(pi: ExtensionAPI): void {
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           if (abortSignal.aborted || /Compaction cancelled/i.test(msg)) return { cancel: true };
-          ctx.ui.notify(`Progressive compaction error: ${msg}; not falling back to single-pass because the prompt already exceeds this model's compaction budget`, "warning");
+          log.debug(`Progressive compaction error: ${msg}; not falling back to single-pass because the prompt already exceeds this model's compaction budget`, "warning");
           return { cancel: true };
         }
       }
@@ -293,7 +287,7 @@ export function smartCompaction(pi: ExtensionAPI): void {
         );
 
         if (response.stopReason === "error") {
-          ctx.ui.notify(
+          log.debug(
             `Smart compaction LLM error: ${(response as any).errorMessage || "unknown"}`,
             "warning",
           );
@@ -307,7 +301,7 @@ export function smartCompaction(pi: ExtensionAPI): void {
           .trim();
 
         if (summary.length < MIN_SUMMARY_CHARS) {
-          ctx.ui.notify(
+          log.debug(
             "Smart compaction summary too short, falling back to built-in",
             "warning",
           );
@@ -349,12 +343,12 @@ export function smartCompaction(pi: ExtensionAPI): void {
         );
 
         if (!postFit.fits) {
-          ctx.ui.notify(
+          log.debug(
             `⚠️ Single-pass compaction: post-compaction estimate ${postFit.estimatedTotal} tokens still exceeds ${contextWindow} context window (summary ${postFit.summaryTokens}t + kept ${configuredKeepRecent}t + overhead ${postFit.overheadTokens}t, margin ${postFit.margin}t)`,
             "warning",
           );
         }
-        ctx.ui.notify("Smart compaction complete ✓", "info");
+        log.debug("Smart compaction complete ✓", "info");
 
         return {
           compaction: {
@@ -366,7 +360,7 @@ export function smartCompaction(pi: ExtensionAPI): void {
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         if (!abortSignal.aborted) {
-          ctx.ui.notify(`Smart compaction error: ${msg}`, "warning");
+          log.debug(`Smart compaction error: ${msg}`, "warning");
         }
         // If aborted, return cancel so upstream doesn't access the
         // potentially-cleared _compactionAbortController.

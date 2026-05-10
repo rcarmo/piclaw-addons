@@ -13,6 +13,7 @@ This is a standalone, code-complete Pi extension package that ports Piclaw's sel
 - Uses no-op mechanical compaction for safe split-turn/minimal-content cases.
 - Uses progressive chunk/merge compaction when the prompt is too large for the active model.
 - Adds deterministic `<read-files>` and `<modified-files>` sections.
+- Uses Pi's standard working-status feedback only; it does not create extra notification/message panes.
 
 ## Install
 

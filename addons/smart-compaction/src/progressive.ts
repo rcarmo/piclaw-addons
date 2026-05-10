@@ -275,7 +275,7 @@ async function mergeProgressiveSummaries(input: {
   budget: ProgressiveCompactionBudget;
   maxTokens: number;
   abortSignal: AbortSignal;
-  ctx: { ui: { setWorkingMessage?: (msg?: string) => void; notify?: (msg: string, level?: "info" | "warning" | "error") => void } };
+  ctx: { ui: { setWorkingMessage?: (msg?: string) => void } };
   finalPromptExtras: Omit<Parameters<typeof buildMergePrompt>[0], "summaries" | "rangeLabel" | "final">;
   publishEstimate?: (tokens: number, phase: string) => void;
 }): Promise<string> {
@@ -316,7 +316,7 @@ async function mergeProgressiveSummaries(input: {
         input.abortSignal,
       ));
     }
-    input.ctx.ui.notify?.(`Progressive compaction: merge pass ${pass} reduced ${summaries.length} → ${next.length} summaries`, "info");
+    input.ctx.ui.setWorkingMessage?.(`Smart compaction: merge pass ${pass} reduced ${summaries.length} → ${next.length} summaries…`);
     summaries = next;
     pass += 1;
   }
@@ -351,7 +351,7 @@ export async function runProgressiveCompaction(input: {
   fileOps: FileOperations;
   budget: ProgressiveCompactionBudget;
   abortSignal: AbortSignal;
-  ctx: { ui: { setWorkingMessage?: (msg?: string) => void; notify?: (msg: string, level?: "info" | "warning" | "error") => void } };
+  ctx: { ui: { setWorkingMessage?: (msg?: string) => void } };
   /** Compaction timeout (ms) — used to enforce a time budget so progressive doesn't run over. */
   timeoutMs?: number;
   /** Timestamp when compaction started — paired with timeoutMs for elapsed-time guard. */
@@ -377,9 +377,8 @@ export async function runProgressiveCompaction(input: {
       Math.max(input.budget.chunkBudgetChars, enlargedBudget),
       input.humanUserIndexes,
     );
-    input.ctx.ui.notify?.(
-      `Progressive compaction: re-chunked to ${allChunks.length} chunks (capped from ${originalChunkCount}, budget ${Math.round(enlargedBudget / 1000)}k chars/chunk)`,
-      "info",
+    input.ctx.ui.setWorkingMessage?.(
+      `Smart compaction: re-chunked to ${allChunks.length} chunks (capped from ${originalChunkCount})…`,
     );
     if (allChunks.length > MAX_PROGRESSIVE_CHUNKS) {
       throw new Error(
@@ -390,9 +389,8 @@ export async function runProgressiveCompaction(input: {
 
   const chunks = allChunks;
   const maxTokens = Math.floor(0.8 * input.settings.reserveTokens);
-  input.ctx.ui.notify?.(
-    `Progressive compaction: ${input.llmMessages.length} messages → ${chunks.length} chunks (budget ${Math.round(input.budget.chunkBudgetChars / 1000)}k chars/chunk)`,
-    "info",
+  input.ctx.ui.setWorkingMessage?.(
+    `Smart compaction: ${input.llmMessages.length} messages → ${chunks.length} chunks…`,
   );
 
   const chunkSummaries: string[] = [];
@@ -416,7 +414,7 @@ export async function runProgressiveCompaction(input: {
       maxTokens,
       input.abortSignal,
     ));
-    input.ctx.ui.notify?.(`Progressive compaction: chunk ${chunk.index}/${chunks.length} summarized`, "info");
+    input.ctx.ui.setWorkingMessage?.(`Smart compaction: summarized chunk ${chunk.index}/${chunks.length}…`);
   }
 
   if (chunkSummaries.length === 0) {

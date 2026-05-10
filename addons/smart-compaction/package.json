@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-smart-compaction",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Standalone Pi-compatible smart compaction extension for vanilla pi users; Piclaw already includes this behavior natively.",
   "type": "module",
   "main": "index.ts",
