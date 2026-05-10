@@ -45,13 +45,13 @@ function ensureStyles() {
   const style = document.createElement("style");
   style.id = STYLE_ID;
   style.textContent = `
-.${HOST_CLASS}{position:absolute!important}
-.${TOOLBAR_CLASS}{position:absolute;top:0;right:calc(100% + 6px);display:inline-flex;align-items:center;justify-content:flex-end;gap:4px;margin:0;z-index:6;pointer-events:auto;white-space:nowrap}
+.${HOST_CLASS}{position:relative}
+.${TOOLBAR_CLASS}{align-self:flex-end;display:inline-flex;align-items:center;justify-content:flex-end;gap:4px;margin:0 6px 0 0;z-index:6;pointer-events:auto;white-space:nowrap}
 .${TOOLBAR_CLASS} button{appearance:none;border:1px solid var(--border-color);background:var(--bg-primary);color:var(--text-secondary);border-radius:var(--radius-full,999px);padding:3px 8px;font-size:11px;font-weight:700;line-height:1.25;cursor:pointer;transition:background-color var(--ui-transition-fast,.12s),color var(--ui-transition-fast,.12s),border-color var(--ui-transition-fast,.12s),opacity var(--ui-transition-fast,.12s)}
 .${TOOLBAR_CLASS} button:hover,.${TOOLBAR_CLASS} button:focus-visible{background:var(--bg-hover);color:var(--text-primary);border-color:var(--accent-color);outline:none}
 .${TOOLBAR_CLASS} button:disabled{opacity:.58;cursor:progress}
 .${TOOLBAR_CLASS}[data-busy="true"] button:not([data-sending="true"]){opacity:.45}
-@media (max-width: 640px){.${TOOLBAR_CLASS}{gap:3px;right:calc(100% + 4px)}.${TOOLBAR_CLASS} button{font-size:10.5px;padding:3px 6px}}
+@media (max-width: 640px){.${TOOLBAR_CLASS}{gap:3px;margin-right:4px}.${TOOLBAR_CLASS} button{font-size:10.5px;padding:3px 6px}}
 `;
   document.head.appendChild(style);
 }
@@ -87,7 +87,9 @@ export function findComposeInsertionPoint(root = typeof document !== "undefined"
   if (!wrapper) return null;
   const sessionGroup = wrapper.querySelector?.(".compose-session-trigger-group.compose-session-trigger-top");
   if (!sessionGroup) return null;
-  return { wrapper, sessionGroup };
+  const composeBox = wrapper.closest?.(".compose-box") || wrapper.parentElement;
+  if (!composeBox) return null;
+  return { composeBox, wrapper, sessionGroup };
 }
 
 function buildToolbar() {
@@ -112,15 +114,26 @@ function buildToolbar() {
   return toolbar;
 }
 
+function positionToolbar(point, toolbar) {
+  const sessionWidth = Math.ceil(point.sessionGroup.getBoundingClientRect?.().width || 0);
+  const composeWidth = Math.ceil(point.composeBox.getBoundingClientRect?.().width || point.wrapper.getBoundingClientRect?.().width || 0);
+  const toolbarWidth = Math.ceil(toolbar.getBoundingClientRect?.().width || 0);
+  const desired = sessionWidth + 12;
+  const max = composeWidth && toolbarWidth ? Math.max(0, composeWidth - toolbarWidth - 8) : desired;
+  toolbar.style.marginRight = `${Math.min(desired, max)}px`;
+}
+
 export function installYoloVibe(root = typeof document !== "undefined" ? document : null) {
   if (typeof document === "undefined" || !root) return false;
   ensureStyles();
   const point = findComposeInsertionPoint(root);
   if (!point) return false;
-  if (point.sessionGroup.querySelector(`.${TOOLBAR_CLASS}`)) return true;
-  point.sessionGroup.classList.add(HOST_CLASS);
-  const toolbar = buildToolbar();
-  point.sessionGroup.appendChild(toolbar);
+  const existing = point.composeBox.querySelector(`.${TOOLBAR_CLASS}`) || point.sessionGroup.querySelector(`.${TOOLBAR_CLASS}`);
+  const toolbar = existing || buildToolbar();
+  point.sessionGroup.classList.remove(HOST_CLASS);
+  point.composeBox.classList.add(HOST_CLASS);
+  if (toolbar.parentElement !== point.composeBox) point.composeBox.insertBefore(toolbar, point.wrapper);
+  positionToolbar(point, toolbar);
   return true;
 }
 

@@ -21,11 +21,13 @@ test("normalizeChatJid falls back to web:default", () => {
   expect(normalizeChatJid(" ")).toBe("web:default");
 });
 
-test("web entry floats the toolbar left of the session pill without widening it", () => {
+test("web entry places the toolbar above the edit field without resizing the field", () => {
   const source = readFileSync(join(import.meta.dir, "index.ts"), "utf8");
-  expect(source).toContain("point.sessionGroup.appendChild(toolbar)");
-  expect(source).toContain("piclaw-yolo-vibe-host");
-  expect(source).toContain("position:absolute;top:0;right:calc(100% + 6px)");
+  expect(source).toContain("point.composeBox.insertBefore(toolbar, point.wrapper)");
+  expect(source).toContain("positionToolbar(point, toolbar)");
+  expect(source).toContain("point.sessionGroup.classList.remove(HOST_CLASS)");
+  expect(source).not.toContain("point.sessionGroup.appendChild(toolbar)");
+  expect(source).not.toContain("position:absolute;top:0;right:calc(100% + 6px)");
   expect(source).not.toContain("max-width:none");
   expect(source).not.toContain("insertBefore(toolbar, point.inputMain)");
 });
