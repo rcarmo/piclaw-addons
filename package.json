@@ -49,6 +49,7 @@
       "addons/sample-addon/index.ts",
       "addons/session-tree/index.ts",
       "addons/skill-model-effort/src/index.ts",
+      "addons/smart-compaction/index.ts",
       "addons/stealth-browser/index.ts",
       "addons/vent/index.ts",
       "addons/voice-pipeline/index.ts",

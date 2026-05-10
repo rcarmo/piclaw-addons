@@ -1,0 +1,36 @@
+{
+  "name": "@rcarmo/piclaw-addon-smart-compaction",
+  "version": "0.1.0",
+  "description": "Standalone Pi-compatible smart compaction extension for vanilla pi users; Piclaw already includes this behavior natively.",
+  "type": "module",
+  "main": "index.ts",
+  "piclaw": {
+    "type": "extension",
+    "compatibleVersions": ">=2.3.0",
+    "tags": [
+      "compaction",
+      "context",
+      "pi",
+      "vanilla-pi"
+    ]
+  },
+  "pi": {
+    "extensions": [
+      "index.ts"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "keywords": [
+    "pi-package",
+    "piclaw",
+    "piclaw-addon",
+    "compaction",
+    "context",
+    "vanilla-pi"
+  ],
+  "license": "MIT",
+  "homepage": "https://rcarmo.github.io/piclaw-addons/addons/smart-compaction/"
+}

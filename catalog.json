@@ -721,6 +721,26 @@
       "updatedAt": "2026-05-08"
     },
     {
+      "slug": "smart-compaction",
+      "name": "@rcarmo/piclaw-addon-smart-compaction",
+      "version": "0.1.0",
+      "type": "extension",
+      "description": "Standalone Pi-compatible smart compaction extension for vanilla pi users; Piclaw already includes this behavior natively.",
+      "path": "addons/smart-compaction",
+      "homepage": "https://rcarmo.github.io/piclaw-addons/addons/smart-compaction/",
+      "tags": [
+        "compaction",
+        "context",
+        "pi",
+        "vanilla-pi"
+      ],
+      "skills": [],
+      "install": {
+        "kind": "tarball",
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-smart-compaction-0.1.0.tgz"
+      }
+    },
+    {
       "slug": "stealth-browser",
       "name": "@rcarmo/piclaw-addon-stealth-browser",
       "version": "0.1.0",
