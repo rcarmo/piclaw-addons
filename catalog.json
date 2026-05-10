@@ -544,7 +544,7 @@
       "name": "@rcarmo/piclaw-addon-office-viewer",
       "version": "0.1.1",
       "type": "extension",
-      "description": "Office document viewer (.docx, .xlsx, .pptx) and PDF viewer for Piclaw",
+      "description": "Office document viewer (.docx, .xlsx, .pptx, .odt, .ods, .odp) for Piclaw",
       "path": "addons/office-viewer",
       "homepage": "https://rcarmo.github.io/piclaw-addons/addons/office-viewer/",
       "tags": [
@@ -560,7 +560,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-office-viewer-0.1.1.tgz"
       },
-      "updatedAt": "2026-05-06"
+      "updatedAt": "2026-05-10"
     },
     {
       "slug": "plan-sidebar",
@@ -674,7 +674,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-session-tree-0.1.0.tgz"
       },
-      "updatedAt": "2026-05-07"
+      "updatedAt": "2026-05-10"
     },
     {
       "slug": "settings-dialog-screenshot",
@@ -719,6 +719,29 @@
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-skill-model-effort-0.1.1.tgz"
       },
       "updatedAt": "2026-05-08"
+    },
+    {
+      "slug": "stealth-browser",
+      "name": "@rcarmo/piclaw-addon-stealth-browser",
+      "version": "0.1.0",
+      "type": "extension",
+      "description": "Stealth browser automation via mochi.js — human-like interactions, fingerprint consistency, anti-detection bypass",
+      "path": "addons/stealth-browser",
+      "homepage": "https://rcarmo.github.io/piclaw-addons/addons/stealth-browser/",
+      "tags": [
+        "automation",
+        "browser",
+        "stealth",
+        "web"
+      ],
+      "skills": [
+        "stealth-browse"
+      ],
+      "install": {
+        "kind": "tarball",
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-stealth-browser-0.1.0.tgz"
+      },
+      "updatedAt": "2026-05-09"
     },
     {
       "slug": "vent",
@@ -780,6 +803,48 @@
       "contributors": []
     },
     {
+      "slug": "web-viewer",
+      "name": "@rcarmo/piclaw-addon-web-viewer",
+      "version": "0.1.0",
+      "type": "extension",
+      "description": "HTML, image, and video viewer panes and routes for Piclaw",
+      "path": "addons/web-viewer",
+      "homepage": "https://rcarmo.github.io/piclaw-addons/addons/web-viewer/",
+      "tags": [
+        "html",
+        "image",
+        "media",
+        "video",
+        "viewer"
+      ],
+      "skills": [],
+      "install": {
+        "kind": "tarball",
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-web-viewer-0.1.0.tgz"
+      },
+      "updatedAt": "2026-05-10"
+    },
+    {
+      "slug": "yolo-vibe",
+      "name": "@rcarmo/piclaw-addon-yolo-vibe",
+      "version": "0.1.0",
+      "type": "extension",
+      "description": "Quick compose-box YOLO buttons for Continue, Audit, and Docs prompts",
+      "path": "addons/yolo-vibe",
+      "homepage": "https://rcarmo.github.io/piclaw-addons/addons/yolo-vibe/",
+      "tags": [
+        "compose",
+        "quick-actions",
+        "web-ui",
+        "workflow"
+      ],
+      "skills": [],
+      "install": {
+        "kind": "tarball",
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-yolo-vibe-0.1.0.tgz"
+      }
+    },
+    {
       "slug": "yolochat",
       "name": "@rcarmo/piclaw-addon-yolochat",
       "version": "0.1.0",
@@ -804,30 +869,6 @@
         "url": "https://github.com/rcarmo"
       },
       "contributors": []
-    },
-    {
-      "slug": "stealth-browser",
-      "name": "@rcarmo/piclaw-addon-stealth-browser",
-      "version": "0.1.0",
-      "description": "Stealth browser automation via mochi.js — human-like interactions, fingerprint consistency, anti-detection bypass",
-      "category": "tools",
-      "author": {
-        "login": "rcarmo",
-        "url": "https://github.com/rcarmo"
-      },
-      "install": {
-        "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-stealth-browser-0.1.0.tgz"
-      },
-      "keywords": [
-        "browser",
-        "stealth",
-        "automation",
-        "mochi",
-        "cdp",
-        "scraping"
-      ],
-      "readme": "Stealth browser tool powered by mochi.js. Provides human-like browser automation with anti-bot detection bypass, consistent fingerprints, and Chrome-native TLS. Complements the built-in cdp_browser tool for scenarios requiring undetected automation."
     }
   ]
 }

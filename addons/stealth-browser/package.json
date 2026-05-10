@@ -2,8 +2,34 @@
   "name": "@rcarmo/piclaw-addon-stealth-browser",
   "version": "0.1.0",
   "description": "Stealth browser automation via mochi.js — human-like interactions, fingerprint consistency, anti-detection bypass",
+  "type": "module",
   "main": "index.ts",
-  "keywords": ["piclaw-addon", "browser", "stealth", "automation", "mochi", "cdp"],
+  "piclaw": {
+    "type": "extension",
+    "compatibleVersions": ">=2.0.0",
+    "tags": [
+      "browser",
+      "automation",
+      "stealth",
+      "web"
+    ]
+  },
+  "pi": {
+    "extensions": [
+      "index.ts"
+    ],
+    "skills": [
+      "skills"
+    ]
+  },
+  "agents": {
+    "skills": [
+      {
+        "name": "stealth-browse",
+        "path": "./skills/stealth-browse"
+      }
+    ]
+  },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",
     "@sinclair/typebox": "*"
@@ -11,8 +37,14 @@
   "dependencies": {
     "@mochi.js/core": "^0.1.0"
   },
-  "piclaw": {
-    "settings": true,
-    "skills": ["skills/stealth-browse"]
-  }
+  "keywords": [
+    "piclaw-addon",
+    "browser",
+    "stealth",
+    "automation",
+    "mochi",
+    "cdp"
+  ],
+  "license": "MIT",
+  "homepage": "https://rcarmo.github.io/piclaw-addons/addons/stealth-browser/"
 }

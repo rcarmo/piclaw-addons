@@ -49,8 +49,11 @@
       "addons/sample-addon/index.ts",
       "addons/session-tree/index.ts",
       "addons/skill-model-effort/src/index.ts",
+      "addons/stealth-browser/index.ts",
       "addons/vent/index.ts",
-      "addons/voice-pipeline/index.ts"
+      "addons/voice-pipeline/index.ts",
+      "addons/web-viewer/index.ts",
+      "addons/yolo-vibe/index.ts"
     ],
     "runtime": {
       "entries": [
@@ -61,7 +64,8 @@
       "addons/autoresearch/skills",
       "addons/delegate/skills",
       "addons/editable-table/skills",
-      "addons/settings-dialog-screenshot/skills"
+      "addons/settings-dialog-screenshot/skills",
+      "addons/stealth-browser/skills"
     ]
   },
   "agents": {
@@ -81,6 +85,10 @@
       {
         "name": "settings-dialog-screenshot",
         "path": "./addons/settings-dialog-screenshot/skills/settings-dialog-screenshot"
+      },
+      {
+        "name": "stealth-browse",
+        "path": "./addons/stealth-browser/skills/stealth-browse"
       }
     ]
   },

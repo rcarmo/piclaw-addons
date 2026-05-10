@@ -1,0 +1,39 @@
+{
+  "name": "@rcarmo/piclaw-addon-yolo-vibe",
+  "version": "0.1.0",
+  "description": "Quick compose-box YOLO buttons for Continue, Audit, and Docs prompts",
+  "type": "module",
+  "main": "index.ts",
+  "piclaw": {
+    "type": "extension",
+    "compatibleVersions": ">=2.0.0",
+    "tags": [
+      "compose",
+      "workflow",
+      "quick-actions",
+      "web-ui"
+    ]
+  },
+  "pi": {
+    "extensions": [
+      "index.ts"
+    ],
+    "web": {
+      "entries": [
+        "web/index.ts"
+      ]
+    }
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "keywords": [
+    "pi-package",
+    "piclaw",
+    "piclaw-addon",
+    "compose",
+    "quick-actions"
+  ],
+  "license": "MIT",
+  "homepage": "https://rcarmo.github.io/piclaw-addons/addons/yolo-vibe/"
+}
