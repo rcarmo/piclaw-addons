@@ -45,13 +45,13 @@ function ensureStyles() {
   const style = document.createElement("style");
   style.id = STYLE_ID;
   style.textContent = `
-.${HOST_CLASS}{max-width:none!important;gap:4px}
-.${TOOLBAR_CLASS}{display:inline-flex;align-items:center;justify-content:flex-end;gap:4px;margin:0;z-index:6;pointer-events:auto}
+.${HOST_CLASS}{position:absolute!important}
+.${TOOLBAR_CLASS}{position:absolute;top:0;right:calc(100% + 6px);display:inline-flex;align-items:center;justify-content:flex-end;gap:4px;margin:0;z-index:6;pointer-events:auto;white-space:nowrap}
 .${TOOLBAR_CLASS} button{appearance:none;border:1px solid var(--border-color);background:var(--bg-primary);color:var(--text-secondary);border-radius:var(--radius-full,999px);padding:3px 8px;font-size:11px;font-weight:700;line-height:1.25;cursor:pointer;transition:background-color var(--ui-transition-fast,.12s),color var(--ui-transition-fast,.12s),border-color var(--ui-transition-fast,.12s),opacity var(--ui-transition-fast,.12s)}
 .${TOOLBAR_CLASS} button:hover,.${TOOLBAR_CLASS} button:focus-visible{background:var(--bg-hover);color:var(--text-primary);border-color:var(--accent-color);outline:none}
 .${TOOLBAR_CLASS} button:disabled{opacity:.58;cursor:progress}
 .${TOOLBAR_CLASS}[data-busy="true"] button:not([data-sending="true"]){opacity:.45}
-@media (max-width: 640px){.${HOST_CLASS}{gap:3px}.${TOOLBAR_CLASS}{gap:3px}.${TOOLBAR_CLASS} button{font-size:10.5px;padding:3px 6px}}
+@media (max-width: 640px){.${TOOLBAR_CLASS}{gap:3px;right:calc(100% + 4px)}.${TOOLBAR_CLASS} button{font-size:10.5px;padding:3px 6px}}
 `;
   document.head.appendChild(style);
 }
@@ -82,8 +82,8 @@ async function submitPrompt(prompt, button, toolbar) {
   }
 }
 
-export function findComposeInsertionPoint(root = document) {
-  const wrapper = root.querySelector?.(".compose-input-wrapper");
+export function findComposeInsertionPoint(root = typeof document !== "undefined" ? document : null) {
+  const wrapper = root?.querySelector?.(".compose-input-wrapper");
   if (!wrapper) return null;
   const sessionGroup = wrapper.querySelector?.(".compose-session-trigger-group.compose-session-trigger-top");
   if (!sessionGroup) return null;
@@ -112,8 +112,8 @@ function buildToolbar() {
   return toolbar;
 }
 
-export function installYoloVibe(root = document) {
-  if (typeof document === "undefined") return false;
+export function installYoloVibe(root = typeof document !== "undefined" ? document : null) {
+  if (typeof document === "undefined" || !root) return false;
   ensureStyles();
   const point = findComposeInsertionPoint(root);
   if (!point) return false;

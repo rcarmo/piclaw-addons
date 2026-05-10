@@ -21,10 +21,12 @@ test("normalizeChatJid falls back to web:default", () => {
   expect(normalizeChatJid(" ")).toBe("web:default");
 });
 
-test("web entry attaches the toolbar to the floating session pill", () => {
+test("web entry floats the toolbar left of the session pill without widening it", () => {
   const source = readFileSync(join(import.meta.dir, "index.ts"), "utf8");
   expect(source).toContain("point.sessionGroup.appendChild(toolbar)");
   expect(source).toContain("piclaw-yolo-vibe-host");
+  expect(source).toContain("position:absolute;top:0;right:calc(100% + 6px)");
+  expect(source).not.toContain("max-width:none");
   expect(source).not.toContain("insertBefore(toolbar, point.inputMain)");
 });
 

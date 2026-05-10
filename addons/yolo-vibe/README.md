@@ -2,7 +2,7 @@
 
 Quick compose-box YOLO buttons for the PiClaw web UI.
 
-This add-on places three compact buttons in the compose box, directly under the current session name:
+This add-on places three compact buttons in the compose box, floating to the left of the current session button above the text field:
 
 | Button | Submitted prompt |
 |---|---|
