@@ -26,6 +26,7 @@ function installPlanSidebar() {
     editorThemeCompartment: null,
     themeObserver: null,
     fallbackTextarea: null,
+    livePreviewHost: null,
     resizeStart: null,
     pendingRemoteRefresh: false,
   };
@@ -152,6 +153,7 @@ function installPlanSidebar() {
       }
     } else if (state.fallbackTextarea && state.fallbackTextarea.value !== next) {
       state.fallbackTextarea.value = next;
+      renderLivePreview();
     }
   }
 
@@ -166,40 +168,127 @@ function installPlanSidebar() {
   }
 
   async function ensureEditor() {
-    if (state.editorView || state.fallbackTextarea) return;
-    try {
-      const cm = await import("/editor-vendor/codemirror.js");
-      state.cm = cm;
-      state.editorThemeCompartment = new cm.Compartment();
-      const extensions = [
-        cm.minimalSetup,
-        cm.markdown(),
-        cm.EditorView.lineWrapping,
-        state.editorThemeCompartment.of(buildEditorThemeExtensions(cm)),
-        cm.EditorView.updateListener.of((update) => {
-          if (update.docChanged) markDirty(true);
-        }),
-      ];
-      state.editorView = new cm.EditorView({
-        state: cm.EditorState.create({ doc: state.markdown || "", extensions }),
-        parent: editorHost,
-      });
-      ensureThemeObserver();
-    } catch (error) {
-      console.warn("[plan-sidebar] CodeMirror unavailable, falling back to textarea", error);
-      const textarea = document.createElement("textarea");
-      textarea.className = "plan-sidebar-textarea";
-      textarea.spellcheck = false;
-      textarea.value = state.markdown || "";
-      textarea.addEventListener("input", () => markDirty(true));
-      editorHost.appendChild(textarea);
-      state.fallbackTextarea = textarea;
-    }
+    if (state.livePreviewHost && state.fallbackTextarea) return;
+    const textarea = document.createElement("textarea");
+    textarea.className = "plan-sidebar-textarea plan-sidebar-markdown-source";
+    textarea.spellcheck = false;
+    textarea.value = state.markdown || "";
+    textarea.addEventListener("input", () => {
+      state.markdown = textarea.value;
+      renderLivePreview();
+      markDirty(true);
+    });
+    const preview = document.createElement("div");
+    preview.className = "plan-sidebar-live-preview";
+    preview.setAttribute("role", "textbox");
+    preview.setAttribute("aria-multiline", "true");
+    preview.tabIndex = 0;
+    editorHost.appendChild(textarea);
+    editorHost.appendChild(preview);
+    state.fallbackTextarea = textarea;
+    state.livePreviewHost = preview;
+    renderLivePreview();
   }
 
   function focusEditor() {
     if (state.editorView) state.editorView.focus();
+    else if (state.livePreviewHost) state.livePreviewHost.focus();
     else state.fallbackTextarea?.focus();
+  }
+
+  function setPlainEditable(element) {
+    try { element.contentEditable = "plaintext-only"; }
+    catch { element.contentEditable = "true"; }
+  }
+
+  function editableText(element) {
+    return String(element.textContent || "").replace(/\u200b/g, "");
+  }
+
+  function replacePlanLine(index, nextLine, { rerender = false } = {}) {
+    if (!state.fallbackTextarea) return;
+    const lines = state.fallbackTextarea.value.split("\n");
+    lines[index] = nextLine;
+    state.fallbackTextarea.value = lines.join("\n");
+    state.markdown = state.fallbackTextarea.value;
+    if (rerender) renderLivePreview();
+    markDirty(true);
+  }
+
+  function insertPlanLine(index, nextLine) {
+    if (!state.fallbackTextarea) return;
+    const lines = state.fallbackTextarea.value.split("\n");
+    lines.splice(index, 0, nextLine);
+    state.fallbackTextarea.value = lines.join("\n");
+    state.markdown = state.fallbackTextarea.value;
+    renderLivePreview();
+    markDirty(true);
+  }
+
+  function focusLiveLine(index) {
+    const row = state.livePreviewHost?.querySelector?.(`[data-plan-line="${index}"]`);
+    const target = row?.querySelector?.(".plan-sidebar-live-text") || row;
+    if (!target) return;
+    target.focus();
+    try {
+      const range = document.createRange();
+      range.selectNodeContents(target);
+      range.collapse(false);
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+    } catch {}
+  }
+
+  function renderLivePreview() {
+    if (!state.livePreviewHost || !state.fallbackTextarea) return;
+    const markdown = state.fallbackTextarea.value || "";
+    const lines = markdown.split("\n");
+    state.livePreviewHost.replaceChildren();
+    lines.forEach((line, index) => {
+      const taskMatch = line.match(/^(\s*(?:[-*+]|\d+[.)])\s+)\[([ xX-])\](\s*)(.*)$/);
+      const row = document.createElement("div");
+      row.className = taskMatch ? "plan-sidebar-live-line plan-sidebar-live-task" : "plan-sidebar-live-line";
+      row.dataset.planLine = String(index);
+      if (taskMatch) {
+        const [, prefix, checked, spacing, text] = taskMatch;
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.className = "plan-sidebar-live-checkbox";
+        checkbox.checked = checked.toLowerCase() === "x";
+        checkbox.setAttribute("aria-label", text ? `Mark ${text} complete` : "Mark checklist item complete");
+        const textSpan = document.createElement("span");
+        textSpan.className = "plan-sidebar-live-text";
+        textSpan.textContent = text || "\u200b";
+        setPlainEditable(textSpan);
+        checkbox.addEventListener("change", () => {
+          replacePlanLine(index, `${prefix}[${checkbox.checked ? "x" : " "}]${spacing || " "}${editableText(textSpan)}`, { rerender: true });
+          setTimeout(() => focusLiveLine(index), 0);
+        });
+        textSpan.addEventListener("input", () => {
+          replacePlanLine(index, `${prefix}[${checkbox.checked ? "x" : " "}]${spacing || " "}${editableText(textSpan)}`);
+        });
+        textSpan.addEventListener("keydown", (event) => {
+          if (event.key !== "Enter") return;
+          event.preventDefault();
+          insertPlanLine(index + 1, `${prefix}[ ] `);
+          setTimeout(() => focusLiveLine(index + 1), 0);
+        });
+        row.append(checkbox, textSpan);
+      } else {
+        row.classList.add(line.trim() ? "plan-sidebar-live-markdown" : "plan-sidebar-live-empty");
+        row.textContent = line || "\u200b";
+        setPlainEditable(row);
+        row.addEventListener("input", () => replacePlanLine(index, editableText(row)));
+        row.addEventListener("keydown", (event) => {
+          if (event.key !== "Enter") return;
+          event.preventDefault();
+          insertPlanLine(index + 1, "");
+          setTimeout(() => focusLiveLine(index + 1), 0);
+        });
+      }
+      state.livePreviewHost.appendChild(row);
+    });
   }
 
   function buildEditorThemeExtensions(cm) {
@@ -637,7 +726,45 @@ function injectStyles() {
       background: var(--accent-color,#2563eb);
       transition: width var(--ui-transition-fast, .18s);
     }
-    .plan-sidebar-editor { flex: 1; min-height: 0; overflow: hidden; }
+    .plan-sidebar-editor { flex: 1; min-height: 0; overflow: auto; }
+    .plan-sidebar-live-preview {
+      min-height: 100%;
+      padding: 10px 12px;
+      box-sizing: border-box;
+      background: var(--bg-primary,#0b1020);
+      color: var(--text-primary,#e5e7eb);
+      font: 13px/1.45 var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+      outline: none;
+    }
+    .plan-sidebar-live-line {
+      min-height: 1.45em;
+      padding: 2px 4px;
+      border-radius: 6px;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+    .plan-sidebar-live-line:focus, .plan-sidebar-live-text:focus {
+      outline: 1px solid color-mix(in srgb, var(--accent-color,#2563eb) 70%, transparent);
+      outline-offset: 1px;
+      background: color-mix(in srgb, var(--accent-color,#2563eb) 8%, transparent);
+    }
+    .plan-sidebar-live-task {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      align-items: start;
+      gap: 8px;
+    }
+    .plan-sidebar-live-checkbox {
+      width: 14px;
+      height: 14px;
+      margin: 3px 0 0;
+      accent-color: var(--accent-color,#2563eb);
+      cursor: pointer;
+    }
+    .plan-sidebar-live-text { min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .plan-sidebar-live-markdown { color: var(--text-secondary,#94a3b8); }
+    .plan-sidebar-live-empty { opacity: .65; }
+    .plan-sidebar-markdown-source { display: none !important; }
     .plan-sidebar-textarea {
       width: 100%;
       height: 100%;

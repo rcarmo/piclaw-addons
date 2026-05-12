@@ -2,7 +2,7 @@
 
 Adds a right-side slide-out sidebar for the current chat/session plan.
 
-- Markdown checklist editor powered by a minimal CodeMirror instance.
+- Live-preview Markdown checklist editor with rendered checkbox controls.
 - Persists the plan per `chat_jid` in Piclaw's extension KV store.
 - Survives browser refreshes and follows the active web chat/session.
 - Provides a `plan` tool with `get` and `set` actions so the model can inspect or update the same session plan.

@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-plan-sidebar",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "description": "Right-side session plan sidebar with a Markdown checklist editor and plan get/set tool",
   "type": "module",
   "main": "index.ts",

@@ -124,6 +124,16 @@ test("web sidebar renders progress bar and collapsed meter", () => {
 });
 
 
+test("web sidebar renders checkboxes as live preview controls", () => {
+  const source = readFileSync(resolve(addonDir, "web", "index.ts"), "utf8");
+  expect(source).toContain("function renderLivePreview()");
+  expect(source).toContain('checkbox.type = "checkbox"');
+  expect(source).toContain('preview.className = "plan-sidebar-live-preview"');
+  expect(source).toContain('element.contentEditable = "plaintext-only"');
+  expect(source).toContain("replacePlanLine(index");
+});
+
+
 test("visible sidebar listens for model plan update events and refreshes without clobbering dirty edits", () => {
   const source = readFileSync(resolve(addonDir, "web", "index.ts"), "utf8");
   expect(source).toContain('window.addEventListener("piclaw-extension-ui:status", handleRemotePlanUpdate);');
