@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import delegateAddon, { buildModelCandidates, delegateTaskPreview, modelSimilarityScore, parsePiListModelsOutput } from "./delegate.ts";
+import delegateAddon, { buildDelegateStatusUpdate, buildModelCandidates, delegateStatusModelHint, delegateTaskPreview, modelSimilarityScore, parsePiListModelsOutput } from "./delegate.ts";
 
 const addonDir = import.meta.dir;
 
@@ -23,6 +23,15 @@ describe("delegate addon", () => {
     expect(source).toContain("clearDelegateProgress(ctx)");
     expect(source).toContain("visible one-sentence timeline update");
     expect(source).toContain("what you are delegating");
+  });
+
+  test("delegate status exposes model hint and prompt arguments", () => {
+    const prompt = "  Summarize\n\nthis file and list the important decisions for Rui  ";
+    expect(buildDelegateStatusUpdate("openai/gpt-5.4-mini", prompt)).toBe(
+      "Delegate model: openai/gpt-5.4-mini\nArguments: Summarize this file and list the important decisions for Rui",
+    );
+    expect(delegateStatusModelHint({ model: "anthropic/claude-sonnet-4.6", prompt })).toBe("anthropic/claude-sonnet-4.6");
+    expect(delegateStatusModelHint({ prompt }, { output_preview: buildDelegateStatusUpdate("openai/gpt-5.4-mini", prompt) })).toBe("openai/gpt-5.4-mini");
   });
 
   test("parses pi model list output", () => {
