@@ -54,6 +54,7 @@
       "addons/vent/index.ts",
       "addons/voice-pipeline/index.ts",
       "addons/web-viewer/index.ts",
+      "addons/win-ui/index.ts",
       "addons/yolo-vibe/index.ts"
     ],
     "runtime": {

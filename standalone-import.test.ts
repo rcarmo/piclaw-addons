@@ -13,7 +13,7 @@ afterEach(() => {
   }
 });
 
-async function importStandaloneAddon(slug: "autoresearch" | "cheapskate" | "delegate" | "editable-table" | "goal" | "image-processing" | "imap" | "kanban-editor" | "mindmap" | "office-viewer" | "plan-sidebar" | "portainer" | "proxmox" | "session-tree" | "skill-model-effort" | "vent" | "yolo-vibe") {
+async function importStandaloneAddon(slug: "autoresearch" | "cheapskate" | "delegate" | "editable-table" | "goal" | "image-processing" | "imap" | "kanban-editor" | "mindmap" | "office-viewer" | "plan-sidebar" | "portainer" | "proxmox" | "session-tree" | "skill-model-effort" | "vent" | "win-ui" | "yolo-vibe") {
   const tempRoot = mkdtempSync(join(tmpdir(), `piclaw-addon-${slug}-`));
   tempDirs.push(tempRoot);
 
@@ -102,6 +102,11 @@ test("standalone piclaw-addon-skill-model-effort imports outside the monorepo ro
 
 test("standalone piclaw-addon-vent imports outside the monorepo root", async () => {
   const mod = await importStandaloneAddon("vent");
+  expect(typeof mod.default).toBe("function");
+});
+
+test("standalone piclaw-addon-win-ui imports outside the monorepo root", async () => {
+  const mod = await importStandaloneAddon("win-ui");
   expect(typeof mod.default).toBe("function");
 });
 

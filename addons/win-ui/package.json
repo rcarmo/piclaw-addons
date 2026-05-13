@@ -1,0 +1,35 @@
+{
+  "name": "@rcarmo/piclaw-addon-win-ui",
+  "version": "0.1.0",
+  "description": "Windows desktop automation tools via Win32 UI Automation and screenshots",
+  "type": "module",
+  "main": "index.ts",
+  "piclaw": {
+    "type": "extension",
+    "compatibleVersions": ">=2.0.0",
+    "tags": [
+      "windows",
+      "automation",
+      "desktop",
+      "screenshots"
+    ]
+  },
+  "pi": {
+    "extensions": [
+      "index.ts"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@sinclair/typebox": "*"
+  },
+  "keywords": [
+    "pi-package",
+    "piclaw",
+    "piclaw-addon",
+    "windows",
+    "automation"
+  ],
+  "license": "MIT",
+  "homepage": "https://rcarmo.github.io/piclaw-addons/addons/win-ui/"
+}
