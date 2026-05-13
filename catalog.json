@@ -846,6 +846,32 @@
       "updatedAt": "2026-05-10"
     },
     {
+      "slug": "win-ui",
+      "name": "@rcarmo/piclaw-addon-win-ui",
+      "version": "0.1.0",
+      "type": "extension",
+      "description": "Windows desktop automation tools via Win32 UI Automation and screenshots",
+      "path": "addons/win-ui",
+      "homepage": "https://rcarmo.github.io/piclaw-addons/addons/win-ui/",
+      "tags": [
+        "automation",
+        "desktop",
+        "screenshots",
+        "windows"
+      ],
+      "skills": [],
+      "install": {
+        "kind": "tarball",
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-win-ui-0.1.0.tgz"
+      },
+      "updatedAt": "2026-05-13",
+      "owner": {
+        "login": "rcarmo",
+        "url": "https://github.com/rcarmo"
+      },
+      "contributors": []
+    },
+    {
       "slug": "yolo-vibe",
       "name": "@rcarmo/piclaw-addon-yolo-vibe",
       "version": "0.1.6",
