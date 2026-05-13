@@ -22,6 +22,8 @@ const DELEGATE_STATUS_KEY = "delegate";
 const MAX_TEXT_FILE_BYTES = 100_000; // 100KB limit for text file inlining
 const WORKSPACE_ROOT = "/workspace";
 
+const DELEGATE_STATUS_ICON_SVG = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M16 3h5v5"></path><path d="M21 3l-7 7"></path><path d="M8 21H3v-5"></path><path d="M3 21l7-7"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
+
 // Extensions that should NOT be loaded in delegate (UI-only, recursive, or heavy)
 const EXCLUDED_EXTENSIONS = new Set([
   "delegate.ts",           // prevent recursion
@@ -487,6 +489,75 @@ export function delegateTaskPreview(prompt: string, maxLength = 96): string {
   return collapsed.length > maxLength ? `${collapsed.slice(0, maxLength - 1)}…` : collapsed;
 }
 
+function readTrimmedString(...values: unknown[]): string | null {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return null;
+}
+
+function readRecord(value: unknown): Record<string, unknown> | null {
+  if (!value) return null;
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return parsed && typeof parsed === "object" ? parsed as Record<string, unknown> : null;
+    } catch {
+      return null;
+    }
+  }
+  return typeof value === "object" ? value as Record<string, unknown> : null;
+}
+
+function extractDelegateStatusArgs(args: unknown): Record<string, unknown> | null {
+  const record = readRecord(args);
+  if (!record) return null;
+  const nested = readRecord(record.arguments) || readRecord(record.input) || readRecord(record.params) || readRecord(record.parameters) || readRecord(record.args) || readRecord(record.payload);
+  return nested || record;
+}
+
+export function buildDelegateStatusUpdate(model: string, prompt: string): string {
+  return `Delegate model: ${model}\nArguments: ${delegateTaskPreview(prompt, 160)}`;
+}
+
+function modelFromDelegateStatusPreview(payload: Record<string, unknown> | null): string | null {
+  const preview = readTrimmedString(payload?.output_preview, payload?.outputPreview);
+  if (!preview) return null;
+  const match = preview.match(/^Delegate model:\s*([^\n]+)/i);
+  return match?.[1]?.trim() || null;
+}
+
+export function delegateStatusModelHint(args: unknown, payload?: Record<string, unknown> | null): string | null {
+  const record = extractDelegateStatusArgs(args);
+  return modelFromDelegateStatusPreview(payload || null) || readTrimmedString(record?.model);
+}
+
+type ToolStatusHintRegistrar = (provider: {
+  id: string;
+  buildHints: (ctx: { toolName: string; args: unknown; payload?: Record<string, unknown> }) => unknown;
+}) => void;
+
+function registerToolStatusHintProvider(provider: Parameters<ToolStatusHintRegistrar>[0]): void {
+  const fn = (globalThis as Record<string, unknown>).__piclaw_registerToolStatusHintProvider;
+  if (typeof fn === "function") (fn as ToolStatusHintRegistrar)(provider);
+}
+
+registerToolStatusHintProvider({
+  id: "delegate",
+  buildHints: ({ toolName, args, payload }) => {
+    if (toolName !== "delegate") return null;
+    const model = delegateStatusModelHint(args, payload || null);
+    if (!model) return null;
+    return {
+      key: "delegate-model",
+      icon_svg: DELEGATE_STATUS_ICON_SVG,
+      label: model,
+      title: `Delegate model • ${model}`,
+      kind: "model",
+    };
+  },
+});
+
 function setDelegateProgress(ctx: any, options: { model: string; category: TaskCategory; prompt: string }): void {
   const preview = delegateTaskPreview(options.prompt);
   const message = `Delegating ${options.category} to ${options.model}: ${preview}`;
@@ -632,7 +703,7 @@ export default function (pi: any) {
       },
     },
 
-    async execute(_toolCallId, params, signal, _update, ctx) {
+    async execute(_toolCallId, params, signal, onUpdate, ctx) {
       // #13: Validate category
       const rawCategory = (params.task_category as TaskCategory) || "summarize";
       const category: TaskCategory = VALID_CATEGORIES.has(rawCategory) ? rawCategory : "summarize";
@@ -705,6 +776,7 @@ export default function (pi: any) {
       }
 
       setDelegateProgress(ctx, { model: effectiveModel, category, prompt: params.prompt });
+      onUpdate?.(result(buildDelegateStatusUpdate(effectiveModel, params.prompt)));
 
       // Build pi args (direct spawn, no shell wrapper)
       const piArgs: string[] = [
