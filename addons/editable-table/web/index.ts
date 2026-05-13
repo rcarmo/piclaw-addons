@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { parseMarkdownTable, serializeMarkdownTable, trimEmptyTrailingRows } from "../shared.js";
+import { parseMarkdownTable, serializeMarkdownTable, trimEmptyTrailingRows } from "../shared.ts";
 
 const WIDGET_EVENT = "piclaw-extension-ui:widget";
 const PANEL_ID = "piclaw-editable-table-panel";
