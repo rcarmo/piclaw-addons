@@ -33,6 +33,38 @@ export {
 const log = { debug: (...args: unknown[]) => { if (process.env.PI_SMART_COMPACTION_DEBUG === "1") console.debug("[smart-compaction]", ...args); } };
 
 // ---------------------------------------------------------------------------
+// Resilient UI proxy – ctx.ui can throw when the extension context is invalidated
+// after a session replacement/reload. UI updates are cosmetic; losing them must
+// never abort the compaction itself.
+// ---------------------------------------------------------------------------
+
+function resilientUi(ctx: { ui: Record<string, unknown> }): typeof ctx.ui {
+  return new Proxy(ctx.ui, {
+    get(target, prop, receiver) {
+      const value = Reflect.get(target, prop, receiver);
+      if (typeof value !== "function") return value;
+      return (...args: unknown[]) => {
+        try {
+          return (value as Function).apply(target, args);
+        } catch (err) {
+          if (err instanceof Error && /stale|disposed|invalid/i.test(err.message)) {
+            log.debug(`UI call ${String(prop)} suppressed (stale ctx)`);
+            return undefined;
+          }
+          throw err;
+        }
+      };
+    },
+  });
+}
+
+type ResilientCtx<T> = Omit<T, "ui"> & { ui: T extends { ui: infer U } ? U : never };
+
+function makeResilientCtx<T extends { ui: Record<string, unknown> }>(ctx: T): ResilientCtx<T> {
+  return Object.create(ctx, { ui: { get: () => resilientUi(ctx), configurable: true } });
+}
+
+// ---------------------------------------------------------------------------
 // Extension factory
 // ---------------------------------------------------------------------------
 
@@ -54,7 +86,8 @@ export function smartCompaction(pi: ExtensionAPI): void {
     return;
   }
 
-  pi.on("session_before_compact", async (event, ctx) => {
+  pi.on("session_before_compact", async (event, rawCtx) => {
+    const ctx = makeResilientCtx(rawCtx as any) as typeof rawCtx;
     const { preparation, signal, customInstructions, branchEntries } = event;
     const {
       messagesToSummarize,
