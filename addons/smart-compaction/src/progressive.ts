@@ -278,10 +278,27 @@ async function mergeProgressiveSummaries(input: {
   ctx: { ui: { setWorkingMessage?: (msg?: string) => void } };
   finalPromptExtras: Omit<Parameters<typeof buildMergePrompt>[0], "summaries" | "rangeLabel" | "final">;
   publishEstimate?: (tokens: number, phase: string) => void;
+  timeoutMs?: number;
+  startedAt?: number;
 }): Promise<string> {
+  const MAX_PROGRESSIVE_MERGE_PASSES = 12;
   let summaries = input.summaries;
   let pass = 1;
   while (summaries.join("\n\n").length > input.budget.mergeBudgetChars && summaries.length > 1) {
+    if (pass > MAX_PROGRESSIVE_MERGE_PASSES) {
+      throw new Error(`Progressive compaction merge exceeded ${MAX_PROGRESSIVE_MERGE_PASSES} passes; refusing potential infinite merge loop`);
+    }
+    if (input.timeoutMs && input.startedAt) {
+      const elapsed = Date.now() - input.startedAt;
+      if (elapsed > input.timeoutMs * PROGRESSIVE_TIME_BUDGET_FRACTION) {
+        throw new Error(
+          `Progressive compaction time budget exhausted during merge pass ${pass} (${Math.round(elapsed / 1000)}s of ${Math.round(input.timeoutMs / 1000)}s)`,
+        );
+      }
+    }
+
+    const previousChars = summaries.join("\n\n").length;
+    const previousCount = summaries.length;
     const next: string[] = [];
     let batch: string[] = [];
     let chars = 0;
@@ -316,9 +333,25 @@ async function mergeProgressiveSummaries(input: {
         input.abortSignal,
       ));
     }
+    const nextChars = next.join("\n\n").length;
+    if (next.length >= previousCount && nextChars >= previousChars) {
+      throw new Error(
+        `Progressive compaction merge made no progress on pass ${pass} (${previousCount}/${previousChars} → ${next.length}/${nextChars}); refusing potential infinite merge loop`,
+      );
+    }
+
     input.ctx.ui.setWorkingMessage?.(`Smart compaction: merge pass ${pass} reduced ${summaries.length} → ${next.length} summaries…`);
     summaries = next;
     pass += 1;
+  }
+
+  if (input.timeoutMs && input.startedAt) {
+    const elapsed = Date.now() - input.startedAt;
+    if (elapsed > input.timeoutMs * PROGRESSIVE_TIME_BUDGET_FRACTION) {
+      throw new Error(
+        `Progressive compaction time budget exhausted before final merge (${Math.round(elapsed / 1000)}s of ${Math.round(input.timeoutMs / 1000)}s)`,
+      );
+    }
   }
 
   input.ctx.ui.setWorkingMessage?.("Smart compaction: final progressive merge…");
@@ -430,6 +463,8 @@ export async function runProgressiveCompaction(input: {
     abortSignal: input.abortSignal,
     ctx: input.ctx,
     publishEstimate: input.publishEstimate,
+    timeoutMs: input.timeoutMs,
+    startedAt: input.startedAt,
     finalPromptExtras: {
       previousSummary: input.previousSummary,
       keptMessagesSummary: input.keptMessagesSummary,

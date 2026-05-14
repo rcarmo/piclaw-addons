@@ -13,7 +13,7 @@ afterEach(() => {
   }
 });
 
-async function importStandaloneAddon(slug: "autoresearch" | "cheapskate" | "delegate" | "editable-table" | "goal" | "image-processing" | "imap" | "kanban-editor" | "mindmap" | "office-viewer" | "plan-sidebar" | "portainer" | "proxmox" | "session-tree" | "skill-model-effort" | "vent" | "win-ui" | "yolo-vibe") {
+async function importStandaloneAddon(slug: "autoresearch" | "cheapskate" | "delegate" | "editable-table" | "goal" | "image-processing" | "imap" | "kanban-editor" | "mindmap" | "office-viewer" | "plan-sidebar" | "portainer" | "proxmox" | "session-tree" | "skill-model-effort" | "smart-compaction" | "vent" | "win-ui" | "yolo-vibe") {
   const tempRoot = mkdtempSync(join(tmpdir(), `piclaw-addon-${slug}-`));
   tempDirs.push(tempRoot);
 
@@ -97,6 +97,11 @@ test("standalone piclaw-addon-session-tree imports outside the monorepo root", a
 
 test("standalone piclaw-addon-skill-model-effort imports outside the monorepo root", async () => {
   const mod = await importStandaloneAddon("skill-model-effort");
+  expect(typeof mod.default).toBe("function");
+});
+
+test("standalone piclaw-addon-smart-compaction imports outside the monorepo root", async () => {
+  const mod = await importStandaloneAddon("smart-compaction");
   expect(typeof mod.default).toBe("function");
 });
 
