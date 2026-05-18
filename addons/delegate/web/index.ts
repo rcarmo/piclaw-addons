@@ -26,6 +26,9 @@ function DelegateSettings() {
   const [providers, setProviders] = useState([]);
   const [candidates, setCandidates] = useState([]);
   const [filter, setFilter] = useState("");
+  const [excludedModelsText, setExcludedModelsText] = useState("");
+  const [cli, setCli] = useState("");
+  const [discoveryError, setDiscoveryError] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -36,9 +39,13 @@ function DelegateSettings() {
       const payload = refresh
         ? await apiJson("models", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ refresh: true }) })
         : await apiJson("models");
-      setConfig(payload.config || { searchable_providers: null });
+      const nextConfig = payload.config || { searchable_providers: null, excluded_providers: null, excluded_models: [] };
+      setConfig(nextConfig);
+      setExcludedModelsText(Array.isArray(nextConfig.excluded_models) ? nextConfig.excluded_models.join("\n") : "");
       setProviders(payload.providers || []);
       setCandidates(payload.candidates || []);
+      setCli(payload.cli || "");
+      setDiscoveryError(payload.discovery_error || "");
       setMessage(refresh ? "Model list refreshed." : "");
       if (refresh) setTimeout(() => setMessage(""), 2500);
     } catch (error) {
@@ -50,31 +57,43 @@ function DelegateSettings() {
 
   useEffect(() => { load(false); }, [load]);
 
-  const saveProviders = useCallback(async (nextProviders) => {
+  const saveConfigPatch = useCallback(async (patch, successMessage = "Saved delegate settings.") => {
     setSaving(true);
     setMessage("");
     try {
       const payload = await apiJson("config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ searchable_providers: nextProviders }),
+        body: JSON.stringify(patch),
       });
-      setConfig(payload.config || { searchable_providers: nextProviders });
+      const nextConfig = payload.config || { ...config, ...patch };
+      setConfig(nextConfig);
+      setExcludedModelsText(Array.isArray(nextConfig.excluded_models) ? nextConfig.excluded_models.join("\n") : "");
       await load(false);
-      setMessage("Saved provider list.");
+      setMessage(successMessage);
       setTimeout(() => setMessage(""), 2200);
     } catch (error) {
-      setMessage(error?.message || "Failed to save provider list.");
+      setMessage(error?.message || "Failed to save delegate settings.");
     } finally {
       setSaving(false);
     }
-  }, [load]);
+  }, [config, load]);
+
+  const saveProviders = useCallback((nextProviders) => saveConfigPatch({ searchable_providers: nextProviders }, "Saved provider list."), [saveConfigPatch]);
+  const saveExcludedProviders = useCallback((nextProviders) => saveConfigPatch({ excluded_providers: nextProviders }, "Saved exclusion list."), [saveConfigPatch]);
+  const saveExcludedModels = useCallback(() => {
+    const patterns = excludedModelsText.split(/[\n,]+/).map((item) => item.trim()).filter(Boolean).sort();
+    saveConfigPatch({ excluded_models: patterns }, "Saved model exclusions.");
+  }, [excludedModelsText, saveConfigPatch]);
 
   if (!config) return html`<div style="padding:1rem;color:var(--text-secondary)">Loading delegate settings…</div>`;
 
   const enabledSet = new Set(Array.isArray(config.searchable_providers)
     ? config.searchable_providers
     : providers.filter((provider) => provider.enabled).map((provider) => provider.provider));
+  const excludedSet = new Set(Array.isArray(config.excluded_providers)
+    ? config.excluded_providers
+    : providers.filter((provider) => provider.excluded).map((provider) => provider.provider));
   const q = filter.trim().toLowerCase();
   const visibleProviders = providers.filter((provider) => !q || provider.provider.toLowerCase().includes(q));
 
@@ -87,7 +106,9 @@ function DelegateSettings() {
     <div style="padding:0.5rem 0;">
       <h4 style=${H}>Searchable providers</h4>
       <div style=${{ fontSize: "0.78rem", color: "var(--text-secondary)", lineHeight: 1.45, marginBottom: "0.7rem" }}>
-        Delegate searches for close matches to its Copilot reference model list across checked providers. Providers starting with <code>azure-</code> are always blacklisted.
+        Delegate searches for close matches to its Copilot reference model list across checked providers. Providers on the configurable exclusion list are ignored; by default discovered <code>azure-*</code> providers are excluded.
+        ${cli && html`<div style=${{ marginTop: "0.35rem" }}>CLI: <code>${cli}</code></div>`}
+        ${discoveryError && html`<div style=${{ marginTop: "0.35rem", color: "var(--danger-color)" }}>Model discovery failed: ${discoveryError}</div>`}
       </div>
       <div style=${{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "0.65rem" }}>
         <input style=${I} type="search" value=${filter} placeholder="Filter providers…" onInput=${(e) => setFilter(e.target.value)} />
@@ -95,20 +116,43 @@ function DelegateSettings() {
       </div>
       <div style=${{ display: "grid", gap: "0.35rem" }}>
         ${visibleProviders.map((provider) => {
-          const checked = enabledSet.has(provider.provider) && !provider.blacklisted;
+          const excluded = excludedSet.has(provider.provider);
+          const checked = enabledSet.has(provider.provider) && !excluded;
           return html`
-            <label key=${provider.provider} style=${{ ...S, opacity: provider.blacklisted ? 0.55 : 1 }}>
-              <input type="checkbox" checked=${checked} disabled=${saving || provider.blacklisted}
-                onChange=${(e) => {
-                  const next = new Set(enabledSet);
-                  if (e.target.checked) next.add(provider.provider);
-                  else next.delete(provider.provider);
-                  saveProviders([...next].sort());
-                }} />
+            <div key=${provider.provider} style=${{ ...S, opacity: excluded ? 0.58 : 1 }}>
+              <label style=${{ display: "flex", alignItems: "center", gap: "0.4rem", minWidth: "5.4rem" }}>
+                <input type="checkbox" checked=${checked} disabled=${saving || excluded}
+                  onChange=${(e) => {
+                    const next = new Set(enabledSet);
+                    if (e.target.checked) next.add(provider.provider);
+                    else next.delete(provider.provider);
+                    saveProviders([...next].sort());
+                  }} />
+                <span>Search</span>
+              </label>
+              <label style=${{ display: "flex", alignItems: "center", gap: "0.4rem", minWidth: "5.6rem" }}>
+                <input type="checkbox" checked=${excluded} disabled=${saving}
+                  onChange=${(e) => {
+                    const next = new Set(excludedSet);
+                    if (e.target.checked) next.add(provider.provider);
+                    else next.delete(provider.provider);
+                    saveExcludedProviders([...next].sort());
+                  }} />
+                <span>Exclude</span>
+              </label>
               <span style=${{ minWidth: "150px", fontFamily: "var(--font-mono, monospace)", fontSize: "0.82rem" }}>${provider.provider}</span>
-              <span style=${{ color: "var(--text-secondary)", fontSize: "0.76rem" }}>${provider.modelCount} models${provider.blacklisted ? " · blacklisted" : ""}</span>
-            </label>`;
+              <span style=${{ color: "var(--text-secondary)", fontSize: "0.76rem" }}>${provider.modelCount} models${excluded ? (provider.defaultExcluded ? " · default excluded" : " · excluded") : ""}</span>
+            </div>`;
         })}
+      </div>
+
+      <h4 style=${H}>Excluded model patterns</h4>
+      <div style=${{ fontSize: "0.78rem", color: "var(--text-secondary)", marginBottom: "0.45rem" }}>
+        Optional model exclusions, one per line or comma-separated. Supports exact ids, substrings, or <code>*</code> wildcards, e.g. <code>gpt-4o</code> or <code>azure-*/*</code>.
+      </div>
+      <textarea style=${{ ...I, minHeight: "74px", resize: "vertical", fontFamily: "var(--font-mono, monospace)" }} value=${excludedModelsText} disabled=${saving} placeholder="gpt-4o\n*/experimental-*" onInput=${(e) => setExcludedModelsText(e.target.value)} />
+      <div style=${{ display: "flex", justifyContent: "flex-end", marginTop: "0.4rem" }}>
+        <button type="button" style=${buttonStyle} disabled=${saving} onClick=${saveExcludedModels}>Save exclusions</button>
       </div>
 
       <h4 style=${H}>Matched delegate candidates</h4>

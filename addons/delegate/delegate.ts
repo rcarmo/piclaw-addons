@@ -12,7 +12,7 @@
  */
 import { spawn as nodeSpawn } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
-import { resolve, join } from "node:path";
+import { delimiter, resolve, join } from "node:path";
 
 import { createExtensionStorage, type ExtensionStorage } from "./compat/extension-kv.js";
 
@@ -37,10 +37,16 @@ const MIN_MODEL_MATCH_SCORE = 75;
 
 export interface DelegateConfig {
   searchable_providers: string[] | null;
+  /** null = default exclusions (currently discovered azure-* providers); [] = exclude nothing */
+  excluded_providers: string[] | null;
+  /** Model id/full-id exclusion patterns. Supports `*` wildcards and substring fallback. */
+  excluded_models: string[];
 }
 
 const DEFAULT_CONFIG: DelegateConfig = {
-  searchable_providers: null, // null = all discovered non-azure providers; [] = intentionally disabled
+  searchable_providers: null, // null = all discovered, minus excluded providers; [] = intentionally disabled
+  excluded_providers: null,
+  excluded_models: [],
 };
 
 let storage: ExtensionStorage | null = null;
@@ -49,25 +55,43 @@ function kv(): ExtensionStorage {
   return storage;
 }
 
+function normalizeStringList(values: unknown): string[] | null {
+  if (values == null) return null;
+  const source = Array.isArray(values)
+    ? values
+    : (typeof values === "string" ? values.split(/[\n,]+/) : []);
+  return [...new Set(source
+    .map((value) => typeof value === "string" ? value.trim() : "")
+    .filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b));
+}
+
+function normalizeProviderList(values: unknown): string[] | null {
+  return normalizeStringList(values);
+}
+
+function normalizeModelExclusionList(values: unknown): string[] {
+  return normalizeStringList(values) ?? [];
+}
+
+function normalizeConfig(config: Partial<DelegateConfig> | null | undefined): DelegateConfig {
+  return {
+    searchable_providers: normalizeProviderList(config?.searchable_providers),
+    excluded_providers: normalizeProviderList(config?.excluded_providers),
+    excluded_models: normalizeModelExclusionList(config?.excluded_models),
+  };
+}
+
 function loadConfig(): DelegateConfig {
   try {
     const saved = kv().get<Partial<DelegateConfig>>("config", "global");
-    if (saved) return { ...DEFAULT_CONFIG, ...saved };
+    if (saved) return normalizeConfig({ ...DEFAULT_CONFIG, ...saved });
   } catch { /* first run */ }
   return { ...DEFAULT_CONFIG };
 }
 
 function saveConfig(config: DelegateConfig): void {
-  kv().set("config", config, "global");
-}
-
-function normalizeProviderList(values: unknown): string[] | null {
-  if (values == null) return null;
-  if (!Array.isArray(values)) return [];
-  return [...new Set(values
-    .map((value) => typeof value === "string" ? value.trim() : "")
-    .filter((value) => value && !AZURE_PROVIDER_RE.test(value)))]
-    .sort((a, b) => a.localeCompare(b));
+  kv().set("config", normalizeConfig(config), "global");
 }
 
 /**
@@ -86,6 +110,48 @@ function findMcpAdapter(): string | null {
   }
   _mcpPathCache = null;
   return null;
+}
+
+type DelegateCliCommand = { command: string; argsPrefix: string[]; label: string };
+
+function isExecutableFile(path: string): boolean {
+  try {
+    const stat = statSync(path);
+    return stat.isFile() && (stat.mode & 0o111) !== 0;
+  } catch {
+    return false;
+  }
+}
+
+function findExecutableOnPath(name: string): string | null {
+  for (const dir of String(process.env.PATH || "").split(delimiter).filter(Boolean)) {
+    const candidate = join(dir, name);
+    if (isExecutableFile(candidate)) return candidate;
+  }
+  return null;
+}
+
+export function resolveDelegateCliCommand(): DelegateCliCommand {
+  const override = process.env.PI_DELEGATE_CLI?.trim();
+  if (override) {
+    const [command, ...argsPrefix] = override.split(/\s+/).filter(Boolean);
+    if (command) return { command, argsPrefix, label: override };
+  }
+
+  const piPath = findExecutableOnPath("pi");
+  if (piPath) return { command: piPath, argsPrefix: [], label: piPath };
+
+  const cliPath = join(
+    process.env.BUN_INSTALL || "/usr/local/lib/bun",
+    "install/global/node_modules",
+    `@earendil-works/${"pi-coding-agent"}`,
+    "dist/cli.js",
+  );
+  if (existsSync(cliPath)) {
+    return { command: process.execPath || "bun", argsPrefix: [cliPath], label: `${process.execPath || "bun"} ${cliPath}` };
+  }
+
+  return { command: "pi", argsPrefix: [], label: "pi" };
 }
 
 /**
@@ -245,22 +311,51 @@ function providerPreference(provider: string, searchableProviders: string[] | nu
   return 100 + provider.localeCompare("github-copilot");
 }
 
+function getDiscoveredProviders(models: AvailableModel[]): string[] {
+  return [...new Set(models.map((model) => model.provider).filter(Boolean))].sort();
+}
+
+function getExcludedProviders(models: AvailableModel[], config: DelegateConfig): string[] {
+  const discovered = getDiscoveredProviders(models);
+  const configured = normalizeProviderList(config.excluded_providers);
+  if (configured !== null) return configured.filter((provider) => discovered.includes(provider));
+  return discovered.filter((provider) => AZURE_PROVIDER_RE.test(provider));
+}
+
 function getAllowedProviders(models: AvailableModel[], config: DelegateConfig): string[] {
-  const discovered = [...new Set(models.map((model) => model.provider).filter((provider) => !AZURE_PROVIDER_RE.test(provider)))].sort();
+  const discovered = getDiscoveredProviders(models);
+  const excluded = new Set(getExcludedProviders(models, config));
   const configured = normalizeProviderList(config.searchable_providers);
-  if (configured === null) return discovered;
+  const providerPool = configured === null ? discovered : configured;
   const discoveredSet = new Set(discovered);
-  return configured.filter((provider) => discoveredSet.has(provider));
+  return providerPool.filter((provider) => discoveredSet.has(provider) && !excluded.has(provider));
+}
+
+function modelExclusionMatches(pattern: string, model: AvailableModel): boolean {
+  const normalizedPattern = pattern.trim().toLowerCase();
+  if (!normalizedPattern) return false;
+  const haystacks = [model.fullId, model.id].map((value) => value.toLowerCase());
+  if (normalizedPattern.includes("*")) {
+    const escaped = normalizedPattern.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*");
+    const re = new RegExp(`^${escaped}$`, "i");
+    return haystacks.some((value) => re.test(value));
+  }
+  return haystacks.some((value) => value === normalizedPattern || value.includes(normalizedPattern));
+}
+
+function isExcludedModel(model: AvailableModel, config: DelegateConfig): boolean {
+  return normalizeModelExclusionList(config.excluded_models).some((pattern) => modelExclusionMatches(pattern, model));
 }
 
 export function buildModelCandidates(models: AvailableModel[], config: DelegateConfig = DEFAULT_CONFIG): ModelCandidate[] {
-  const allowedProviders = new Set(getAllowedProviders(models, config));
+  const normalizedConfig = normalizeConfig(config);
+  const allowedProviders = new Set(getAllowedProviders(models, normalizedConfig));
   const candidates: ModelCandidate[] = [];
   for (const reference of MODEL_TIERS) {
     const referenceModelId = reference.id.split("/").slice(1).join("/");
     const referenceProvider = reference.id.split("/", 1)[0] || "";
     const matches = models
-      .filter((model) => !AZURE_PROVIDER_RE.test(model.provider) && allowedProviders.has(model.provider))
+      .filter((model) => allowedProviders.has(model.provider) && !isExcludedModel(model, normalizedConfig))
       .map((model) => ({ model, score: modelSimilarityScore(referenceModelId, model.id) }))
       .filter(({ model, score }) =>
         (score >= MIN_MODEL_MATCH_SCORE && isCompatibleModelMatch(referenceModelId, model.id)) ||
@@ -269,7 +364,7 @@ export function buildModelCandidates(models: AvailableModel[], config: DelegateC
       .sort((a, b) => {
         const byScore = b.score - a.score;
         if (byScore !== 0) return byScore;
-        const byProvider = providerPreference(a.model.provider, config.searchable_providers) - providerPreference(b.model.provider, config.searchable_providers);
+        const byProvider = providerPreference(a.model.provider, normalizedConfig.searchable_providers) - providerPreference(b.model.provider, normalizedConfig.searchable_providers);
         if (byProvider !== 0) return byProvider;
         return a.model.fullId.localeCompare(b.model.fullId);
       });
@@ -336,7 +431,7 @@ function selectModel(category: TaskCategory, maxTier: number, currentModelId?: s
     modelId: model.id.split("/").slice(1).join("/"),
     matchScore: 100,
   }));
-  const candidates = sourceCandidates.filter((m) => m.tier <= maxTier && !AZURE_PROVIDER_RE.test(m.provider));
+  const candidates = sourceCandidates.filter((m) => m.tier <= maxTier);
   if (candidates.length === 0) {
     return "github-copilot/gpt-5.4-mini"; // consistent fallback
   }
@@ -392,7 +487,8 @@ export function parsePiListModelsOutput(output: string): AvailableModel[] {
 
 function runPiListModels(timeoutMs = 20_000): Promise<string> {
   return new Promise((resolvePromise, reject) => {
-    const child = nodeSpawn("pi", ["--list-models"], {
+    const cli = resolveDelegateCliCommand();
+    const child = nodeSpawn(cli.command, [...cli.argsPrefix, "--list-models"], {
       cwd: "/workspace",
       stdio: ["ignore", "pipe", "pipe"],
       env: process.env,
@@ -404,7 +500,7 @@ function runPiListModels(timeoutMs = 20_000): Promise<string> {
       if (settled) return;
       settled = true;
       try { child.kill("SIGTERM"); } catch {}
-      reject(new Error("pi --list-models timed out"));
+      reject(new Error(`${cli.label} --list-models timed out`));
     }, timeoutMs);
     child.stdout?.on("data", (chunk: Buffer) => { stdout += chunk.toString(); });
     child.stderr?.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
@@ -412,7 +508,7 @@ function runPiListModels(timeoutMs = 20_000): Promise<string> {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      if (code !== 0) reject(new Error(stderr.trim() || `pi --list-models exited ${code}`));
+      if (code !== 0) reject(new Error(stderr.trim() || `${cli.label} --list-models exited ${code}`));
       else resolvePromise(stdout);
     });
     child.on("error", (error) => {
@@ -425,13 +521,16 @@ function runPiListModels(timeoutMs = 20_000): Promise<string> {
 }
 
 let discoveredModelsCache: AvailableModel[] | null = null;
+let lastModelDiscoveryError: string | null = null;
 async function getDiscoveredModels(refresh = false): Promise<AvailableModel[]> {
   if (!refresh && discoveredModelsCache) return discoveredModelsCache;
   try {
     const output = await runPiListModels();
     discoveredModelsCache = parsePiListModelsOutput(output);
+    lastModelDiscoveryError = null;
     return discoveredModelsCache;
-  } catch {
+  } catch (error) {
+    lastModelDiscoveryError = error instanceof Error ? error.message : String(error);
     discoveredModelsCache = [];
     return [];
   }
@@ -581,11 +680,14 @@ type AddonConfigApiRegistrar = (
 
 function providerSummaries(models: AvailableModel[], config: DelegateConfig) {
   const enabled = new Set(getAllowedProviders(models, config));
-  const providers = [...new Set(models.map((model) => model.provider))].sort();
+  const excluded = new Set(getExcludedProviders(models, config));
+  const providers = getDiscoveredProviders(models);
   return providers.map((provider) => ({
     provider,
-    enabled: !AZURE_PROVIDER_RE.test(provider) && enabled.has(provider),
-    blacklisted: AZURE_PROVIDER_RE.test(provider),
+    enabled: enabled.has(provider),
+    excluded: excluded.has(provider),
+    blacklisted: excluded.has(provider),
+    defaultExcluded: config.excluded_providers === null && AZURE_PROVIDER_RE.test(provider),
     modelCount: models.filter((model) => model.provider === provider).length,
   }));
 }
@@ -597,6 +699,8 @@ async function handleGetModels(refresh = false) {
   return {
     ok: true,
     config,
+    cli: resolveDelegateCliCommand().label,
+    discovery_error: lastModelDiscoveryError,
     providers: providerSummaries(models, config),
     models,
     candidates: candidates.map(({ id, tier, family, sourceId, provider, modelId, matchScore }) => ({ id, tier, family, sourceId, provider, modelId, matchScore })),
@@ -609,7 +713,13 @@ if (typeof registerAddonConfigApi === "function") {
     get: async () => ({ ok: true, config: loadConfig() }),
     set: async (payload) => {
       const body = payload && typeof payload === "object" ? payload as Partial<DelegateConfig> : {};
-      const next = { ...loadConfig(), searchable_providers: normalizeProviderList(body.searchable_providers) };
+      const current = loadConfig();
+      const next = normalizeConfig({
+        ...current,
+        ...(Object.prototype.hasOwnProperty.call(body, "searchable_providers") ? { searchable_providers: body.searchable_providers } : {}),
+        ...(Object.prototype.hasOwnProperty.call(body, "excluded_providers") ? { excluded_providers: body.excluded_providers } : {}),
+        ...(Object.prototype.hasOwnProperty.call(body, "excluded_models") ? { excluded_models: body.excluded_models } : {}),
+      });
       saveConfig(next);
       return { ok: true, config: next };
     },
@@ -856,7 +966,8 @@ function runDelegateProcess(
   signal?: AbortSignal | undefined,
 ): Promise<{ stdout: string; stderr: string; exitCode: number | null }> {
   return new Promise((resolve, reject) => {
-    const child = nodeSpawn("pi", piArgs, {
+    const cli = resolveDelegateCliCommand();
+    const child = nodeSpawn(cli.command, [...cli.argsPrefix, ...piArgs], {
       cwd: "/workspace",
       stdio: ["pipe", "pipe", "pipe"],
       env: process.env,
