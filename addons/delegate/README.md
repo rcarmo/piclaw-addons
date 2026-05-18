@@ -6,7 +6,7 @@ Send tasks to a cheaper/faster model in a fresh context with auto model selectio
 
 - **Auto model selection** — picks the best close model match for the task category, never exceeding the current model's tier
 - **Provider-aware matching** — searches configured providers for equivalents to the Copilot reference model list while excluding `azure-` providers
-- **Settings pane** — searchable provider checkboxes plus a model-list refresh action
+- **Settings pane** — searchable provider checkboxes, configurable provider/model exclusions, plus a model-list refresh action
 - **6 task categories** — quick, summarize, code, analyze, reason, judge
 - **Tool access** — delegate has read, grep, find, ls, bash, MCP tools by default
 - **MCP support** — any servers in `.pi/mcp.json` are available

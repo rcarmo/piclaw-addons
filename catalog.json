@@ -131,7 +131,7 @@
     {
       "slug": "delegate",
       "name": "@rcarmo/piclaw-addon-delegate",
-      "version": "0.1.6",
+      "version": "0.1.7",
       "type": "extension",
       "description": "Delegate tasks to cheaper/faster models with auto model selection, tool access, and MCP support",
       "path": "addons/delegate",
@@ -146,9 +146,9 @@
       ],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-delegate-0.1.6.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-delegate-0.1.7.tgz"
       },
-      "updatedAt": "2026-05-13",
+      "updatedAt": "2026-05-18",
       "owner": {
         "login": "cjnova",
         "url": "https://github.com/cjnova"
