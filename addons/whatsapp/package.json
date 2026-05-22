@@ -4,7 +4,10 @@
   "description": "WhatsApp channel for PiClaw via Baileys. Connects to WhatsApp Web, receives/sends messages, and routes them through the agent.",
   "license": "MIT",
   "pi": {
-    "extensions": ["index.ts"]
+    "extensions": ["index.ts"],
+    "web": {
+      "entries": ["web/index.ts"]
+    }
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"
