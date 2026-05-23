@@ -131,7 +131,7 @@
     {
       "slug": "delegate",
       "name": "@rcarmo/piclaw-addon-delegate",
-      "version": "0.1.7",
+      "version": "0.1.8",
       "type": "extension",
       "description": "Delegate tasks to cheaper/faster models with auto model selection, tool access, and MCP support",
       "path": "addons/delegate",
@@ -146,9 +146,9 @@
       ],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-delegate-0.1.7.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-delegate-0.1.8.tgz"
       },
-      "updatedAt": "2026-05-18",
+      "updatedAt": "2026-05-23",
       "owner": {
         "login": "cjnova",
         "url": "https://github.com/cjnova"
@@ -765,6 +765,31 @@
       "updatedAt": "2026-05-10"
     },
     {
+      "slug": "telegram",
+      "name": "@rcarmo/piclaw-addon-telegram",
+      "version": "0.1.0",
+      "type": "extension",
+      "description": "Telegram Bot channel for PiClaw. Connects via Bot API long polling, receives/sends messages, and routes them through the agent.",
+      "path": "addons/telegram",
+      "homepage": "https://rcarmo.github.io/piclaw-addons/addons/telegram/",
+      "tags": [
+        "channel",
+        "messaging",
+        "telegram"
+      ],
+      "skills": [],
+      "install": {
+        "kind": "tarball",
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-telegram-0.1.0.tgz"
+      },
+      "updatedAt": "2026-05-23",
+      "owner": {
+        "login": "rcarmo",
+        "url": "https://github.com/rcarmo"
+      },
+      "contributors": []
+    },
+    {
       "slug": "vent",
       "name": "@rcarmo/piclaw-addon-vent",
       "version": "0.1.1",
@@ -844,6 +869,31 @@
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-web-viewer-0.1.0.tgz"
       },
       "updatedAt": "2026-05-10"
+    },
+    {
+      "slug": "whatsapp",
+      "name": "@rcarmo/piclaw-addon-whatsapp",
+      "version": "0.1.0",
+      "type": "extension",
+      "description": "WhatsApp channel for PiClaw via Baileys. Connects to WhatsApp Web, receives/sends messages, and routes them through the agent.",
+      "path": "addons/whatsapp",
+      "homepage": "https://rcarmo.github.io/piclaw-addons/addons/whatsapp/",
+      "tags": [
+        "channel",
+        "messaging",
+        "whatsapp"
+      ],
+      "skills": [],
+      "install": {
+        "kind": "tarball",
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-whatsapp-0.1.0.tgz"
+      },
+      "updatedAt": "2026-05-23",
+      "owner": {
+        "login": "rcarmo",
+        "url": "https://github.com/rcarmo"
+      },
+      "contributors": []
     },
     {
       "slug": "win-ui",

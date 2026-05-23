@@ -104,6 +104,36 @@ anthropic       claude-sonnet-4.6  200K     32K      yes       yes
     expect(cli.label.length).toBeGreaterThan(0);
   });
 
+  test("delegate runs the Pi CLI through the current runtime instead of node PATH", () => {
+    const cliPath = "/opt/pi/dist/cli.js";
+    const cli = resolveDelegateCliCommand({
+      env: { PATH: "/bin", BUN_INSTALL: "/missing" },
+      platform: "linux",
+      execPath: "/runtime/bun",
+      resolvePackageCli: () => cliPath,
+      exists: (path) => path === cliPath,
+      isExecutable: () => false,
+    });
+    expect(cli).toEqual({
+      command: "/runtime/bun",
+      argsPrefix: [cliPath],
+      label: `/runtime/bun ${cliPath}`,
+    });
+  });
+
+  test("delegate PATH fallback handles Windows shims without POSIX executable bits", () => {
+    const cli = resolveDelegateCliCommand({
+      env: { PATH: "C:\\Tools;C:\\Windows", PATHEXT: ".CMD;.EXE" },
+      platform: "win32",
+      execPath: "C:\\Runtime\\bun.exe",
+      resolvePackageCli: () => null,
+      exists: () => false,
+      isExecutable: (path, platform) => platform === "win32" && /pi\.CMD$/i.test(path),
+    });
+    expect(cli.command).toMatch(/pi\.CMD$/i);
+    expect(cli.argsPrefix).toEqual([]);
+  });
+
   test("delegate settings pane exposes provider/model exclusions and model refresh", () => {
     const source = readFileSync(resolve(addonDir, "web/index.ts"), "utf8");
     expect(source).toContain("type=\"checkbox\"");

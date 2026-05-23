@@ -12,7 +12,8 @@
  */
 import { spawn as nodeSpawn } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
-import { delimiter, resolve, join } from "node:path";
+import { createRequire } from "node:module";
+import { delimiter, dirname, resolve, join } from "node:path";
 
 import { createExtensionStorage, type ExtensionStorage } from "./compat/extension-kv.js";
 
@@ -112,44 +113,110 @@ function findMcpAdapter(): string | null {
   return null;
 }
 
-type DelegateCliCommand = { command: string; argsPrefix: string[]; label: string };
+export type DelegateCliCommand = { command: string; argsPrefix: string[]; label: string };
 
-function isExecutableFile(path: string): boolean {
+type DelegateCliResolveOptions = {
+  env?: Record<string, string | undefined>;
+  platform?: string;
+  execPath?: string;
+  exists?: (path: string) => boolean;
+  isExecutable?: (path: string, platform: string) => boolean;
+  resolvePackageCli?: () => string | null;
+};
+
+const requireFromHere = createRequire(import.meta.url);
+const PI_CODING_AGENT_PACKAGE = `@earendil-works/${"pi-coding-agent"}`;
+
+function isExecutableFile(path: string, platform = process.platform): boolean {
   try {
     const stat = statSync(path);
-    return stat.isFile() && (stat.mode & 0o111) !== 0;
+    if (!stat.isFile()) return false;
+    // Windows does not use POSIX executable bits. If the file exists and has a
+    // runnable extension, let CreateProcess/cmd handle it.
+    if (platform === "win32") return true;
+    return (stat.mode & 0o111) !== 0;
   } catch {
     return false;
   }
 }
 
-function findExecutableOnPath(name: string): string | null {
-  for (const dir of String(process.env.PATH || "").split(delimiter).filter(Boolean)) {
-    const candidate = join(dir, name);
-    if (isExecutableFile(candidate)) return candidate;
+function pathListDelimiter(platform: string): string {
+  return platform === "win32" ? ";" : delimiter;
+}
+
+function pathExecutableExtensions(env: Record<string, string | undefined>, platform: string): string[] {
+  if (platform !== "win32") return [""];
+  return String(env.PATHEXT || ".COM;.EXE;.BAT;.CMD")
+    .split(";")
+    .map((ext) => ext.trim())
+    .filter(Boolean);
+}
+
+function findExecutableOnPath(
+  name: string,
+  env: Record<string, string | undefined> = process.env,
+  platform = process.platform,
+  isExecutable: (path: string, platform: string) => boolean = isExecutableFile,
+): string | null {
+  const hasExtension = /\.[^/\\]+$/.test(name);
+  const extensions = hasExtension ? [""] : pathExecutableExtensions(env, platform);
+  for (const dir of String(env.PATH || "").split(pathListDelimiter(platform)).filter(Boolean)) {
+    const candidates = platform === "win32"
+      ? [join(dir, name), ...extensions.map((ext) => join(dir, `${name}${ext}`))]
+      : [join(dir, name)];
+    for (const candidate of [...new Set(candidates)]) {
+      if (isExecutable(candidate, platform)) return candidate;
+    }
   }
   return null;
 }
 
-export function resolveDelegateCliCommand(): DelegateCliCommand {
-  const override = process.env.PI_DELEGATE_CLI?.trim();
+function resolvePackagePiCliPath(): string | null {
+  try {
+    const direct = requireFromHere.resolve(`${PI_CODING_AGENT_PACKAGE}/dist/cli.js`);
+    if (direct) return direct;
+  } catch { /* package exports may hide dist/cli.js */ }
+  try {
+    const packageJson = requireFromHere.resolve(`${PI_CODING_AGENT_PACKAGE}/package.json`);
+    return join(dirname(packageJson), "dist/cli.js");
+  } catch {
+    return null;
+  }
+}
+
+function candidatePiCliPaths(env: Record<string, string | undefined>, resolvePackageCli: () => string | null): string[] {
+  return [
+    resolvePackageCli(),
+    join(env.BUN_INSTALL || "/usr/local/lib/bun", "install/global/node_modules", PI_CODING_AGENT_PACKAGE, "dist/cli.js"),
+    join("/usr/local/lib/bun", "install/global/node_modules", PI_CODING_AGENT_PACKAGE, "dist/cli.js"),
+  ].filter((path): path is string => Boolean(path));
+}
+
+export function resolveDelegateCliCommand(options: DelegateCliResolveOptions = {}): DelegateCliCommand {
+  const env = options.env ?? process.env;
+  const platform = options.platform ?? process.platform;
+  const exists = options.exists ?? existsSync;
+  const isExecutable = options.isExecutable ?? isExecutableFile;
+  const execPath = options.execPath || process.execPath || "";
+  const override = env.PI_DELEGATE_CLI?.trim();
   if (override) {
     const [command, ...argsPrefix] = override.split(/\s+/).filter(Boolean);
     if (command) return { command, argsPrefix, label: override };
   }
 
-  const piPath = findExecutableOnPath("pi");
-  if (piPath) return { command: piPath, argsPrefix: [], label: piPath };
-
-  const cliPath = join(
-    process.env.BUN_INSTALL || "/usr/local/lib/bun",
-    "install/global/node_modules",
-    `@earendil-works/${"pi-coding-agent"}`,
-    "dist/cli.js",
-  );
-  if (existsSync(cliPath)) {
-    return { command: process.execPath || "bun", argsPrefix: [cliPath], label: `${process.execPath || "bun"} ${cliPath}` };
+  // Prefer invoking the Pi CLI JS entrypoint through the current runtime. This
+  // avoids shebangs like `#!/usr/bin/env node`, so delegate works when Node is
+  // not in PATH and also when Piclaw runs under Bun, Node, or a packaged runtime.
+  if (execPath) {
+    for (const cliPath of candidatePiCliPaths(env, options.resolvePackageCli ?? resolvePackagePiCliPath)) {
+      if (exists(cliPath)) return { command: execPath, argsPrefix: [cliPath], label: `${execPath} ${cliPath}` };
+    }
   }
+
+  // Last resort: a platform shim/shell script on PATH. This may rely on its own
+  // runtime, so only use it after direct current-runtime execution is unavailable.
+  const piPath = findExecutableOnPath("pi", env, platform, isExecutable);
+  if (piPath) return { command: piPath, argsPrefix: [], label: piPath };
 
   return { command: "pi", argsPrefix: [], label: "pi" };
 }
