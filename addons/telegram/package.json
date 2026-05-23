@@ -1,0 +1,15 @@
+{
+  "name": "@rcarmo/piclaw-addon-telegram",
+  "version": "0.1.0",
+  "description": "Telegram Bot channel for PiClaw. Connects via Bot API long polling, receives/sends messages, and routes them through the agent.",
+  "license": "MIT",
+  "pi": {
+    "extensions": ["index.ts"],
+    "web": {
+      "entries": ["web/index.ts"]
+    }
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  }
+}
