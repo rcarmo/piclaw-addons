@@ -328,7 +328,7 @@
     {
       "slug": "goal",
       "name": "@rcarmo/piclaw-addon-goal",
-      "version": "0.1.18",
+      "version": "0.1.19",
       "type": "extension",
       "description": "Codex-style persisted thread goals with get_goal, create_goal, update_goal, /goal controls, and settings UI",
       "path": "addons/goal",
@@ -343,7 +343,7 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-goal-0.1.18.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-goal-0.1.19.tgz"
       },
       "updatedAt": "2026-05-27"
     },
@@ -565,9 +565,9 @@
     {
       "slug": "plan-sidebar",
       "name": "@rcarmo/piclaw-addon-plan-sidebar",
-      "version": "0.1.14",
+      "version": "0.1.15",
       "type": "extension",
-      "description": "Right-side session plan sidebar with Codex-style update_plan and Markdown checklist tools",
+      "description": "Right-side session plan sidebar with canonical plan action=update and Markdown storage",
       "path": "addons/plan-sidebar",
       "homepage": "https://rcarmo.github.io/piclaw-addons/addons/plan-sidebar/",
       "tags": [
@@ -579,7 +579,7 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-plan-sidebar-0.1.14.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-plan-sidebar-0.1.15.tgz"
       },
       "updatedAt": "2026-05-27"
     },

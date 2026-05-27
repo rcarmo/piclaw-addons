@@ -293,7 +293,7 @@ export function buildGoalContinuationPrompt(goal: ThreadGoal): string {
     "Use the current worktree and external state as authoritative. Previous conversation context can help locate relevant work, but inspect the current state before relying on it. Improve, replace, or remove existing work as needed to satisfy the actual objective.",
     "",
     "Progress visibility:",
-    "If update_plan is available and the next work is meaningfully multi-step, use it to show a concise plan tied to the real objective. Keep the plan current as steps complete or the next best action changes. Skip planning overhead for trivial one-step progress, and do not treat a plan update as a substitute for doing the work.",
+    "If the plan tool is available and the next work is meaningfully multi-step, use plan action=update to show a concise structured plan tied to the real objective. Keep the plan current as steps complete or the next best action changes. Skip planning overhead for trivial one-step progress, and do not treat a plan update as a substitute for doing the work.",
     "",
     "Fidelity:",
     "- Optimize each turn for movement toward the requested end state, not for the smallest stable-looking subset or easiest passing change.",

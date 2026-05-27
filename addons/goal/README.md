@@ -20,7 +20,7 @@ Open **Settings → Add-Ons** and install **goal** from the catalog.
 - auto-continues active goals when the agent is idle and no user input is pending
 - marks goals `budget_limited` when the configured token budget is exhausted and emits a Codex-style wrap-up prompt
 - uses Codex's strict completion and blocked-audit prompt language
-- integrates with `update_plan` when available, so multi-step goal turns can keep a live plan current
+- integrates with Plan Sidebar's `plan action=update` when available, so multi-step goal turns can keep a live plan current
 - provides a **Goal** settings pane for inspecting and editing the current thread goal
 
 ## `/goal` command
@@ -123,4 +123,4 @@ The prompt templates are intentionally no longer editable. The add-on embeds Cod
 - Goal state is scoped to the current Piclaw chat/session (`chat_jid`).
 - Token accounting uses assistant message usage from Piclaw events, then applies Codex-style budget-limit behavior.
 - The continuation prompt treats the objective as untrusted user-provided task context and XML-escapes it before embedding.
-- `update_plan` is not bundled in this add-on; it is supplied by the Plan Sidebar add-on. The goal prompt is written to use it when available.
+- Plan storage is not bundled in this add-on; it is supplied by the Plan Sidebar add-on. The goal prompt is written to use `plan action=update` when available.
