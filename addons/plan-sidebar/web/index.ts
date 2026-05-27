@@ -59,6 +59,7 @@ function installPlanSidebar() {
         <div class="plan-sidebar-status" aria-live="polite"></div>
         <div class="plan-sidebar-actions">
           <button class="plan-sidebar-refresh" type="button">Refresh</button>
+          <button class="plan-sidebar-reset" type="button">Reset</button>
           <button class="plan-sidebar-save" type="button">Save</button>
           <button class="plan-sidebar-submit" type="button">Submit to model</button>
         </div>
@@ -79,6 +80,7 @@ function installPlanSidebar() {
   const editorHost = root.querySelector(".plan-sidebar-editor");
   const status = root.querySelector(".plan-sidebar-status");
   const refreshButton = root.querySelector(".plan-sidebar-refresh");
+  const resetButton = root.querySelector(".plan-sidebar-reset");
   const saveButton = root.querySelector(".plan-sidebar-save");
   const submitButton = root.querySelector(".plan-sidebar-submit");
   const resizer = root.querySelector(".plan-sidebar-resizer");
@@ -98,6 +100,7 @@ function installPlanSidebar() {
     saveButton.disabled = state.loading || !state.dirty;
     submitButton.disabled = state.loading;
     refreshButton.disabled = state.loading;
+    resetButton.disabled = state.loading;
   }
 
   function renderProgress(planProgress) {
@@ -397,12 +400,37 @@ function installPlanSidebar() {
 
   function handleRemotePlanUpdate(event) {
     const payload = event?.detail?.payload || event?.detail || {};
-    if (payload?.key !== "plan-sidebar.plan-updated") return;
+    const key = payload?.key;
+    if (key !== "plan.changes" && key !== "plan-sidebar.plan-updated") return;
     const chatJid = normalizeChatJid(payload.chat_jid);
     if (chatJid !== state.chatJid) return;
-    if (!state.open) return;
-    const remoteLabel = payload.source === "tool" ? "model" : "remote";
+    const remoteLabel = payload.source === "tool" ? "model" : payload.action === "reset" ? "reset" : "remote";
     void loadPlan({ preserveDirty: true, remote: true, remoteLabel });
+  }
+
+  async function resetPlan() {
+    if (!confirm("Reset this chat plan to the default checklist?")) return null;
+    state.loading = true;
+    renderChrome();
+    try {
+      const payload = await apiJson(planUrl(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat_jid: state.chatJid, action: "reset" }),
+      });
+      const plan = payload.plan || payload;
+      state.updatedAt = plan.updated_at || null;
+      setEditorValue(plan.markdown || "");
+      markDirty(false);
+      setStatus(`Reset ${formatTime(state.updatedAt)}`, "ok");
+      return plan;
+    } catch (error) {
+      setStatus(String(error?.message || error), "error");
+      throw error;
+    } finally {
+      state.loading = false;
+      renderChrome();
+    }
   }
 
   async function savePlan() {
@@ -416,7 +444,7 @@ function installPlanSidebar() {
       });
       const plan = payload.plan || payload;
       state.updatedAt = plan.updated_at || null;
-      state.markdown = plan.markdown || getEditorValue();
+      setEditorValue(plan.markdown || getEditorValue());
       markDirty(false);
       setStatus(`Saved ${formatTime(state.updatedAt)}`, "ok");
       return plan;
@@ -435,8 +463,10 @@ function installPlanSidebar() {
       "",
       "- Continue with the next relevant item.",
       "- Update the plan as work changes or completes.",
-      "- Prefer `plan` `action=edit` with exact whole-line replacements for checklist updates.",
-      "- Use `action=write` only for a full rewrite.",
+      "- Prefer `plan` `action=update` with structured items for full-plan updates.",
+      "- Use `action=edit` with exact whole-line replacements for small checklist updates.",
+      "- Use `action=write` only for a full raw Markdown rewrite.",
+      "- Keep at most one item in progress (`[-]`).",
       "- Report periodically on progress and next steps.",
       "",
       "```markdown",
@@ -485,6 +515,7 @@ function installPlanSidebar() {
     else setOpen(true);
   });
   refreshButton.addEventListener("click", () => loadPlan());
+  resetButton.addEventListener("click", () => resetPlan().catch(() => undefined));
   saveButton.addEventListener("click", () => savePlan().catch(() => undefined));
   submitButton.addEventListener("click", () => submitToModel().catch(() => undefined));
 

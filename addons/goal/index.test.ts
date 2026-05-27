@@ -117,11 +117,12 @@ test("goalResponse matches Codex-style tool response fields", () => {
   expect(response.completionBudgetReport).toBeNull();
 });
 
-test("goal prompts port Codex fidelity, escaping, update_plan, and blocked audit language", () => {
+test("goal prompts port Codex fidelity, escaping, plan action=update, and blocked audit language", () => {
   const goal = createThreadGoal("web:goal", "Fix <x> & ship", 1000);
   const continuation = buildGoalContinuationPrompt(goal);
   expect(continuation).toContain("Fix &lt;x&gt; &amp; ship");
-  expect(continuation).toContain("If update_plan is available");
+  expect(continuation).toContain("If the plan tool is available");
+  expect(continuation).toContain("plan action=update");
   expect(continuation).toContain("Completion audit:");
   expect(continuation).toContain("Blocked audit:");
   expect(continuation).toContain("at least three consecutive goal turns");

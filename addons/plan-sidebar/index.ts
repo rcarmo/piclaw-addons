@@ -6,6 +6,7 @@ import { getChatJid } from "./compat/chat-context.js";
 
 const EXTENSION_ID = "plan-sidebar";
 const PLAN_KEY = "plan";
+const UI_PLAN_CHANGED_KEY = "plan.changes";
 
 export interface SessionPlan {
   chat_jid: string;
@@ -25,8 +26,13 @@ export interface UpdatePlanArgs {
   plan: UpdatePlanItem[];
 }
 
+export interface StructuredSessionPlan extends SessionPlan {
+  explanation: string | null;
+  plan: UpdatePlanItem[];
+}
+
 type PlanUpdateSource = "api" | "tool";
-type PlanUpdateAction = "write" | "edit" | "update_plan";
+type PlanUpdateAction = "write" | "edit" | "update" | "reset";
 type PiclawBroadcastEvent = (type: string, data: unknown) => void;
 
 const DEFAULT_PLAN = [
@@ -36,6 +42,8 @@ const DEFAULT_PLAN = [
   "- [ ] Verify the result",
   "- [ ] Report progress and next step",
 ].join("\n");
+
+const CHECKLIST_LINE_RE = /^(\s*(?:[-*+]|\d+[.)])\s+)\[([ xX-])\](\s*)(.*)$/;
 
 let kvStore: ExtensionStorage | null = null;
 function kv(): ExtensionStorage {
@@ -47,7 +55,7 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
-function normalizePlanMarkdown(value: unknown): string {
+function normalizeLineEndings(value: unknown): string {
   return typeof value === "string" ? value.replace(/\r\n/g, "\n") : "";
 }
 
@@ -85,12 +93,116 @@ export function resolveActiveChatJid(ctx?: PlanRuntimeContext, defaultValue = "w
   return normalizeChatJid(ambient || fromContext || defaultValue);
 }
 
+function statusFromMarkdownMarker(marker: string): PlanItemStatus {
+  if (marker.toLowerCase() === "x") return "completed";
+  if (marker === "-") return "in_progress";
+  return "pending";
+}
+
+function markerForStatus(status: PlanItemStatus): string {
+  switch (status) {
+    case "completed": return "x";
+    case "in_progress": return "-";
+    case "pending": return " ";
+  }
+}
+
+function normalizePlanStep(value: unknown): string {
+  return normalizeText(value).replace(/\s+/g, " ");
+}
+
+function normalizePlanStatus(value: unknown): PlanItemStatus {
+  if (value === "pending" || value === "in_progress" || value === "completed") return value;
+  throw new Error("Invalid plan status " + JSON.stringify(value) + "; expected pending, in_progress, or completed.");
+}
+
+export function normalizeUpdatePlanArgs(input: unknown): UpdatePlanArgs {
+  const raw = input && typeof input === "object" ? input as { explanation?: unknown; plan?: unknown } : {};
+  if (!Array.isArray(raw.plan)) throw new Error("plan action=update requires a plan array.");
+  let inProgressCount = 0;
+  const plan = raw.plan.map((item, index): UpdatePlanItem => {
+    const entry = item && typeof item === "object" ? item as { step?: unknown; status?: unknown } : {};
+    const step = normalizePlanStep(entry.step);
+    if (!step) throw new Error("plan update item " + (index + 1) + " requires a non-empty step.");
+    const status = normalizePlanStatus(entry.status);
+    if (status === "in_progress") inProgressCount += 1;
+    return { step, status };
+  });
+  if (inProgressCount > 1) throw new Error("plan update accepts at most one in_progress step.");
+  const explanation = normalizeText(raw.explanation);
+  return explanation ? { explanation, plan } : { plan };
+}
+
+export function parsePlanMarkdown(markdownInput: unknown): { explanation: string | null; plan: UpdatePlanItem[]; inProgressCount: number } {
+  const lines = normalizeLineEndings(markdownInput).split("\n");
+  const explanationLines: string[] = [];
+  const plan: UpdatePlanItem[] = [];
+  let inProgressCount = 0;
+  let sawTask = false;
+  for (const line of lines) {
+    const match = line.match(CHECKLIST_LINE_RE);
+    if (match) {
+      sawTask = true;
+      const status = statusFromMarkdownMarker(match[2]);
+      if (status === "in_progress") inProgressCount += 1;
+      plan.push({ step: normalizePlanStep(match[4]), status });
+      continue;
+    }
+    if (!sawTask && line.trim().startsWith(">")) {
+      explanationLines.push(line.trim().replace(/^>\s?/, ""));
+    }
+  }
+  const explanation = explanationLines.join("\n").trim() || null;
+  return { explanation, plan, inProgressCount };
+}
+
+export function normalizeStoredPlanMarkdown(markdownInput: unknown): string {
+  const lines = normalizeLineEndings(markdownInput).split("\n");
+  let inProgressCount = 0;
+  const next = lines.map((line) => {
+    const match = line.match(CHECKLIST_LINE_RE);
+    if (!match) return line;
+    const [, prefix, marker, spacing, text] = match;
+    const status = statusFromMarkdownMarker(marker);
+    if (status === "in_progress") inProgressCount += 1;
+    return `${prefix}[${markerForStatus(status)}]${spacing || " "}${text}`;
+  }).join("\n");
+  if (inProgressCount > 1) throw new Error("Plan Markdown can contain at most one in-progress checklist item (`[-]`).");
+  return next;
+}
+
+function quoteMarkdownNote(note: string): string[] {
+  return normalizeLineEndings(note)
+    .split("\n")
+    .map((line) => (`> ${line.trim()}`).trimEnd());
+}
+
+export function updatePlanArgsToMarkdown(input: unknown): string {
+  const args = normalizeUpdatePlanArgs(input);
+  const lines: string[] = [];
+  if (args.explanation) lines.push(...quoteMarkdownNote(args.explanation), "");
+  for (const item of args.plan) lines.push(`- [${markerForStatus(item.status)}] ${item.step}`);
+  return lines.join("\n").trimEnd();
+}
+
+function structuredPlanDetails(plan: SessionPlan): StructuredSessionPlan {
+  const parsed = parsePlanMarkdown(plan.markdown);
+  return { ...plan, explanation: parsed.explanation, plan: parsed.plan };
+}
+
 export function loadSessionPlan(chatJidInput?: unknown): SessionPlan {
   const chat_jid = normalizeChatJid(chatJidInput);
   const saved = kv().get<Partial<SessionPlan>>(PLAN_KEY, "chat", chat_jid);
+  const rawMarkdown = normalizeLineEndings(saved?.markdown || DEFAULT_PLAN);
+  let markdown = rawMarkdown;
+  try {
+    markdown = normalizeStoredPlanMarkdown(rawMarkdown);
+  } catch {
+    // Existing user-authored Markdown is still readable even if it needs cleanup before mutation.
+  }
   return {
     chat_jid,
-    markdown: normalizePlanMarkdown(saved?.markdown || DEFAULT_PLAN),
+    markdown,
     updated_at: typeof saved?.updated_at === "string" && saved.updated_at.trim() ? saved.updated_at : null,
   };
 }
@@ -99,7 +211,7 @@ export function saveSessionPlan(chatJidInput: unknown, markdownInput: unknown): 
   const chat_jid = normalizeChatJid(chatJidInput);
   const next: SessionPlan = {
     chat_jid,
-    markdown: normalizePlanMarkdown(markdownInput),
+    markdown: normalizeStoredPlanMarkdown(markdownInput),
     updated_at: nowIso(),
   };
   kv().set(PLAN_KEY, next, "chat", chat_jid);
@@ -124,7 +236,7 @@ function countOccurrences(haystack: string, needle: string): number {
 }
 
 export function applyPlanEdits(markdownInput: unknown, editsInput: unknown): string {
-  const markdown = normalizePlanMarkdown(markdownInput);
+  const markdown = normalizeLineEndings(markdownInput);
   const edits = Array.isArray(editsInput) ? editsInput : [];
   if (!edits.length) throw new Error("plan action=edit requires at least one edit block.");
 
@@ -150,7 +262,7 @@ export function applyPlanEdits(markdownInput: unknown, editsInput: unknown): str
     next += markdown.slice(cursor, range.from) + range.newText;
     cursor = range.to;
   }
-  return next + markdown.slice(cursor);
+  return normalizeStoredPlanMarkdown(next + markdown.slice(cursor));
 }
 
 export function editSessionPlan(chatJidInput: unknown, editsInput: unknown): SessionPlan {
@@ -158,52 +270,8 @@ export function editSessionPlan(chatJidInput: unknown, editsInput: unknown): Ses
   return saveSessionPlan(current.chat_jid, applyPlanEdits(current.markdown, editsInput));
 }
 
-function normalizePlanStep(value: unknown): string {
-  return normalizeText(value).replace(/\s+/g, " ");
-}
-
-function normalizePlanStatus(value: unknown): PlanItemStatus {
-  if (value === "pending" || value === "in_progress" || value === "completed") return value;
-  throw new Error("Invalid update_plan status " + JSON.stringify(value) + "; expected pending, in_progress, or completed.");
-}
-
-export function normalizeUpdatePlanArgs(input: unknown): UpdatePlanArgs {
-  const raw = input && typeof input === "object" ? input as { explanation?: unknown; plan?: unknown } : {};
-  if (!Array.isArray(raw.plan)) throw new Error("update_plan requires a plan array.");
-  let inProgressCount = 0;
-  const plan = raw.plan.map((item, index): UpdatePlanItem => {
-    const entry = item && typeof item === "object" ? item as { step?: unknown; status?: unknown } : {};
-    const step = normalizePlanStep(entry.step);
-    if (!step) throw new Error("update_plan item " + (index + 1) + " requires a non-empty step.");
-    const status = normalizePlanStatus(entry.status);
-    if (status === "in_progress") inProgressCount += 1;
-    return { step, status };
-  });
-  if (inProgressCount > 1) throw new Error("update_plan accepts at most one in_progress step.");
-  const explanation = normalizeText(raw.explanation);
-  return explanation ? { explanation, plan } : { plan };
-}
-
-function markdownPrefixForPlanStatus(status: PlanItemStatus): string {
-  switch (status) {
-    case "completed": return "- [x]";
-    case "in_progress": return "- [-]";
-    case "pending": return "- [ ]";
-  }
-}
-
-function quoteMarkdownNote(note: string): string[] {
-  return normalizePlanMarkdown(note)
-    .split("\n")
-    .map((line) => (`> ${line.trim()}`).trimEnd());
-}
-
-export function updatePlanArgsToMarkdown(input: unknown): string {
-  const args = normalizeUpdatePlanArgs(input);
-  const lines: string[] = [];
-  if (args.explanation) lines.push(...quoteMarkdownNote(args.explanation), "");
-  for (const item of args.plan) lines.push(`${markdownPrefixForPlanStatus(item.status)} ${item.step}`);
-  return lines.join("\n").trimEnd();
+export function resetSessionPlan(chatJidInput: unknown): SessionPlan {
+  return saveSessionPlan(chatJidInput, DEFAULT_PLAN);
 }
 
 function getBroadcastEvent(): PiclawBroadcastEvent | null {
@@ -214,7 +282,8 @@ function getBroadcastEvent(): PiclawBroadcastEvent | null {
 function broadcastPlanUpdated(plan: SessionPlan, source: PlanUpdateSource, action: PlanUpdateAction): void {
   try {
     getBroadcastEvent()?.("extension_ui_status", {
-      key: "plan-sidebar.plan-updated",
+      key: UI_PLAN_CHANGED_KEY,
+      addon: EXTENSION_ID,
       chat_jid: plan.chat_jid,
       updated_at: plan.updated_at,
       source,
@@ -251,14 +320,15 @@ if (typeof registerAddonConfigApi === "function") {
   registerAddonConfigApi("plan-sidebar", "plan", {
     get: async (payload, req) => {
       const body = payload && typeof payload === "object" ? payload as Record<string, unknown> : undefined;
-      return loadSessionPlan(readChatJidFromRequest(req, body));
+      return structuredPlanDetails(loadSessionPlan(readChatJidFromRequest(req, body)));
     },
     set: async (payload, req) => {
       const body = payload && typeof payload === "object" ? payload as Record<string, unknown> : {};
       const chatJid = readChatJidFromRequest(req, body);
-      const plan = saveSessionPlan(chatJid, body.markdown);
-      broadcastPlanUpdated(plan, "api", "write");
-      return { ok: true, plan };
+      const isReset = body.action === "reset";
+      const plan = isReset ? resetSessionPlan(chatJid) : saveSessionPlan(chatJid, body.markdown);
+      broadcastPlanUpdated(plan, "api", isReset ? "reset" : "write");
+      return { ok: true, plan: structuredPlanDetails(plan) };
     },
   }, import.meta.dir);
 }
@@ -268,7 +338,17 @@ const PlanToolSchema = Type.Object({
     Type.Literal("read"),
     Type.Literal("write"),
     Type.Literal("edit"),
-  ], { description: "Use read to inspect the active session plan, write to replace it, edit for exact atomic text replacements." }),
+    Type.Literal("update"),
+  ], { description: "Use read to inspect the active session plan, update for structured full-plan updates, write for full Markdown replacement, or edit for exact atomic text replacements." }),
+  explanation: Type.Optional(Type.String({ description: "Optional concise explanation for action=update." })),
+  plan: Type.Optional(Type.Array(Type.Object({
+    step: Type.String({ description: "A concrete plan step for action=update." }),
+    status: Type.Union([
+      Type.Literal("pending"),
+      Type.Literal("in_progress"),
+      Type.Literal("completed"),
+    ], { description: "One of: pending, in_progress, completed." }),
+  }), { description: "The full current structured plan for action=update. At most one step may be in_progress." })),
   markdown: Type.Optional(Type.String({ description: "Complete Markdown checklist to save when action is write." })),
   edits: Type.Optional(Type.Array(Type.Object({
     oldText: Type.String({ description: "Exact text to replace. Must occur exactly once in the current plan." }),
@@ -277,29 +357,17 @@ const PlanToolSchema = Type.Object({
   chat_jid: Type.Optional(Type.String({ description: "Optional explicit chat/session JID. Defaults to the active session." })),
 });
 
-const UpdatePlanToolSchema = Type.Object({
-  explanation: Type.Optional(Type.String({ description: "Optional concise explanation for why the plan changed." })),
-  plan: Type.Array(Type.Object({
-    step: Type.String({ description: "A concrete plan step." }),
-    status: Type.Union([
-      Type.Literal("pending"),
-      Type.Literal("in_progress"),
-      Type.Literal("completed"),
-    ], { description: "One of: pending, in_progress, completed." }),
-  }), { description: "The full current plan. At most one step may be in_progress." }),
-  chat_jid: Type.Optional(Type.String({ description: "Optional explicit chat/session JID. Defaults to the active session." })),
-});
-
 export function buildPlanSystemPrompt(plan: SessionPlan): string {
-  const markdown = normalizePlanMarkdown(plan.markdown).trim();
+  const markdown = normalizeLineEndings(plan.markdown).trim();
   if (!markdown) return "";
   return [
     "## Plan Sidebar",
     `The current session has a Plan sidebar checklist for ${plan.chat_jid}.`,
     "This checklist is editable shared state, not static context: you can modify it and must keep it current as work proceeds.",
-    "Prefer the Codex-compatible `update_plan` tool for structured full-plan updates: pass `plan: [{ step, status }]` with status `pending`, `in_progress`, or `completed`; at most one step may be `in_progress`.",
-    "Use the `plan` tool with `action=read` to inspect raw Markdown, `action=edit` for atomic exact item/text replacements, and `action=write` only when replacing the whole Markdown checklist.",
-    "Treat `[x]` items as completed, `[-]` items as in progress, unchecked items as pending, and update the plan after meaningful progress or plan changes.",
+    "Use the `plan` tool with `action=update` for structured full-plan updates: pass `plan: [{ step, status }]` with status `pending`, `in_progress`, or `completed`; at most one step may be `in_progress`.",
+    "Use `action=read` to inspect raw Markdown, `action=edit` for atomic exact item/text replacements, and `action=write` only when replacing the whole Markdown checklist.",
+    "All plan mutations are normalized into the same Markdown storage. Treat `[x]` items as completed, `[-]` items as in progress, unchecked items as pending, and update the plan after meaningful progress or plan changes.",
+    "There may be at most one `[-]` / `in_progress` item.",
     "",
     "Current plan:",
     "```markdown",
@@ -309,6 +377,7 @@ export function buildPlanSystemPrompt(plan: SessionPlan): string {
 }
 
 export function resetPlanSidebarAddonForTests(): void {
+  try { kv().clear(); } catch { /* ignore cleanup failures */ }
   kvStore = null;
 }
 
@@ -323,34 +392,17 @@ export default function planSidebarAddon(pi: ExtensionAPI): void {
   });
 
   pi.registerTool({
-    name: "update_plan",
-    label: "update_plan",
-    description: "Updates the task plan. Provide an optional explanation and a full list of plan items, each with a step and status. At most one step can be in_progress at a time.",
-    promptSnippet: "update_plan: Codex-compatible structured plan update. Pass the full current plan as plan: [{ step, status: pending|in_progress|completed }]; at most one item may be in_progress.",
-    parameters: UpdatePlanToolSchema,
-    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const chatJid = normalizeChatJid(params.chat_jid || resolveActiveChatJid(ctx));
-      const update = normalizeUpdatePlanArgs(params);
-      const plan = saveSessionPlan(chatJid, updatePlanArgsToMarkdown(update));
-      broadcastPlanUpdated(plan, "tool", "update_plan");
-      return {
-        content: [{ type: "text", text: "Plan updated" }],
-        details: { ...plan, update_plan: update },
-      };
-    },
-  });
-
-  pi.registerTool({
     name: "plan",
     label: "plan",
-    description: "Read or edit the current session's editable Markdown checklist plan shown in the right-side Plan sidebar. Prefer atomic edit blocks for item updates; keep the plan current as tasks change or complete.",
-    promptSnippet: "plan: editable session checklist. Use action=read to inspect it, action=edit with exact oldText/newText blocks for atomic item updates, and action=write only to replace the whole checklist.",
+    description: "Read or update the current session's Plan sidebar. Use action=update for structured Codex-style plan updates; all writes/edits are normalized into one Markdown storage format with at most one in_progress item.",
+    promptSnippet: "plan: session checklist. Prefer action=update with plan: [{ step, status: pending|in_progress|completed }]. Use read/edit/write only when raw Markdown is needed. At most one item may be in_progress.",
     parameters: PlanToolSchema,
     prepareArguments(args) {
       if (!args || typeof args !== "object") return args;
-      const input = args as { action?: unknown; markdown?: unknown; oldText?: unknown; newText?: unknown; edits?: unknown };
+      const input = args as { action?: unknown; markdown?: unknown; oldText?: unknown; newText?: unknown; edits?: unknown; plan?: unknown };
       if (input.action === "get") return { ...input, action: "read" };
       if (input.action === "set") return { ...input, action: "write" };
+      if (input.action === undefined && Array.isArray(input.plan)) return { ...input, action: "update" };
       if (input.action === "edit" && !Array.isArray(input.edits) && typeof input.oldText === "string" && typeof input.newText === "string") {
         return { ...input, edits: [{ oldText: input.oldText, newText: input.newText }] };
       }
@@ -362,7 +414,17 @@ export default function planSidebarAddon(pi: ExtensionAPI): void {
         const plan = loadSessionPlan(chatJid);
         return {
           content: [{ type: "text", text: `Plan for ${plan.chat_jid}:\n\n${plan.markdown || "(empty)"}` }],
-          details: plan,
+          details: structuredPlanDetails(plan),
+        };
+      }
+
+      if (params.action === "update") {
+        const update = normalizeUpdatePlanArgs(params);
+        const plan = saveSessionPlan(chatJid, updatePlanArgsToMarkdown(update));
+        broadcastPlanUpdated(plan, "tool", "update");
+        return {
+          content: [{ type: "text", text: "Plan updated." }],
+          details: structuredPlanDetails(plan),
         };
       }
 
@@ -371,7 +433,7 @@ export default function planSidebarAddon(pi: ExtensionAPI): void {
         broadcastPlanUpdated(plan, "tool", "edit");
         return {
           content: [{ type: "text", text: `Edited plan for ${plan.chat_jid}.` }],
-          details: plan,
+          details: structuredPlanDetails(plan),
         };
       }
 
@@ -382,7 +444,7 @@ export default function planSidebarAddon(pi: ExtensionAPI): void {
       broadcastPlanUpdated(plan, "tool", "write");
       return {
         content: [{ type: "text", text: `Updated plan for ${plan.chat_jid}.` }],
-        details: plan,
+        details: structuredPlanDetails(plan),
       };
     },
   });
