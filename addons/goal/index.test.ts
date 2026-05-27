@@ -193,15 +193,17 @@ describe("/goal command and runtime loop", () => {
     expect(notifications.at(-1)?.message).toContain("server-side continuation queued");
   });
 
-  test("/goal requires confirmation before replacing an active goal", async () => {
+  test("/goal replaces an existing goal without hidden confirmation", async () => {
     const { commands, sentUserMessages, confirmations, ctx } = createHarness({ confirm: false });
     await withChatContext("web:goal", "web", async () => {
       await commands.get("goal").handler("First goal", ctx);
       await commands.get("goal").handler("Second goal", ctx);
     });
-    expect(confirmations).toHaveLength(1);
-    expect(loadThreadGoal("web:goal")?.objective).toBe("First goal");
-    expect(sentUserMessages).toHaveLength(1);
+    expect(confirmations).toHaveLength(0);
+    expect(loadThreadGoal("web:goal")?.objective).toBe("Second goal");
+    expect(loadThreadGoal("web:goal")?.status).toBe("active");
+    expect(sentUserMessages).toHaveLength(2);
+    expect(String(sentUserMessages[1]?.content)).toContain("objective was edited");
   });
 
   test("/goal pause, resume, and clear are user-controlled", async () => {

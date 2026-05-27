@@ -705,19 +705,7 @@ export default function goalAddon(pi: ExtensionAPI): void {
       }
 
       const objective = validateGoalObjective(parsed.objective);
-      let shouldReplace = !current || current.status === "complete";
-      if (current && !shouldReplace) {
-        try {
-          shouldReplace = await ctx.ui.confirm?.(`Replace current goal?\n\n${current.objective}`) === true;
-        } catch {
-          shouldReplace = false;
-        }
-        if (!shouldReplace) {
-          ctx.ui.notify("Kept current goal. Clear it first or confirm replacement.", "warning");
-          return current;
-        }
-      }
-      const goal = shouldReplace && current ? replaceThreadGoal(chatJid, objective) : createThreadGoal(chatJid, objective);
+      const goal = current ? replaceThreadGoal(chatJid, objective) : createThreadGoal(chatJid, objective);
       broadcastGoalUpdated(goal, chatJid, "command", current ? "update" : "create");
       const queued = await enqueueGoalPrompt(goal, current ? objectiveUpdatedPrompt(goal) : buildGoalContinuationPrompt(goal), current ? "objective_updated" : "start");
       ctx.ui.notify(queued ? "Goal active — server-side continuation queued" : "Goal active — continuation enqueue failed", queued ? "info" : "warning");
