@@ -225,24 +225,25 @@ describe("/goal command and runtime loop", () => {
     const input = handlers.find((entry) => entry.event === "input")?.handler;
     await withChatContext("web:goal", "web", async () => {
       await commands.get("goal").handler("Finish docs", ctx);
-      expect(String(sentUserMessages[0]?.content)).toContain("piclaw-goal");
+      expect(String(sentUserMessages[0]?.content)).toContain("Continue working toward the active thread goal");
+      expect(String(sentUserMessages[0]?.content)).not.toContain("piclaw-goal");
       await commands.get("goal").handler("stop", ctx);
       expect(loadThreadGoal("web:goal")?.status).toBe("paused");
       const result = await input({ type: "input", text: sentUserMessages[0]?.content, source: "extension" }, ctx);
       expect(result).toEqual({ action: "handled" });
     });
-    expect(String((sentMessages.at(-1)?.message as any)?.display)).toContain("skipped queued start continuation");
+    expect(String((sentMessages.at(-1)?.message as any)?.display)).toContain("skipped queued continuation continuation");
   });
 
-  test("active marked goal prompts are transformed to hide queue metadata", async () => {
+  test("active goal prompts continue without timeline metadata", async () => {
     const { commands, handlers, sentUserMessages, ctx } = createHarness();
     const input = handlers.find((entry) => entry.event === "input")?.handler;
     await withChatContext("web:goal", "web", async () => {
       await commands.get("goal").handler("Finish docs", ctx);
       const result = await input({ type: "input", text: sentUserMessages[0]?.content, source: "extension" }, ctx);
-      expect(result.action).toBe("transform");
-      expect(result.text).toContain("Continue working toward the active thread goal");
-      expect(result.text).not.toContain("piclaw-goal");
+      expect(result).toEqual({ action: "continue" });
+      expect(String(sentUserMessages[0]?.content)).toContain("Continue working toward the active thread goal");
+      expect(String(sentUserMessages[0]?.content)).not.toContain("piclaw-goal");
     });
   });
 

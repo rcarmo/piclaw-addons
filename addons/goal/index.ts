@@ -7,7 +7,6 @@ import { getChatJid } from "./compat/chat-context.js";
 const EXTENSION_ID = "goal";
 const GOAL_KEY = "thread-goal";
 const UI_GOAL_UPDATED_KEY = "goal.thread-goal-updated";
-const GOAL_PROMPT_MARKER_PREFIX = "<!-- piclaw-goal ";
 
 export type ThreadGoalStatus = "active" | "paused" | "blocked" | "usage_limited" | "budget_limited" | "complete";
 
@@ -276,35 +275,36 @@ function escapeXmlText(input: string): string {
   return input.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-function goalPromptMarker(goal: ThreadGoal, reason: GoalPromptReason): string {
-  return `${GOAL_PROMPT_MARKER_PREFIX}${JSON.stringify({ chatJid: goal.chat_jid, goalId: goal.goal_id, reason })} -->`;
+function extractBetween(text: string, start: string, end: string): string | null {
+  const startIndex = text.indexOf(start);
+  if (startIndex < 0) return null;
+  const valueStart = startIndex + start.length;
+  const endIndex = text.indexOf(end, valueStart);
+  if (endIndex < 0) return null;
+  return text.slice(valueStart, endIndex).trim();
 }
 
-function withGoalPromptMarker(goal: ThreadGoal, reason: GoalPromptReason, prompt: string): string {
-  return `${goalPromptMarker(goal, reason)}\n${prompt}`;
-}
-
-function parseGoalPromptMarker(text: unknown): { chatJid: string; goalId: string; reason: GoalPromptReason; prompt: string } | null {
-  if (typeof text !== "string" || !text.startsWith(GOAL_PROMPT_MARKER_PREFIX)) return null;
-  const end = text.indexOf(" -->");
-  if (end < 0) return null;
-  try {
-    const marker = JSON.parse(text.slice(GOAL_PROMPT_MARKER_PREFIX.length, end));
-    const reason = marker?.reason;
-    if (reason !== "start" && reason !== "resume" && reason !== "objective_updated" && reason !== "continuation" && reason !== "budget_limited") return null;
-    const chatJid = normalizeChatJid(marker?.chatJid);
-    const goalId = normalizeText(marker?.goalId);
-    if (!goalId) return null;
-    return { chatJid, goalId, reason, prompt: text.slice(end + " -->".length).replace(/^\n/, "") };
-  } catch {
-    return null;
+function parseGoalPrompt(text: unknown): { reason: GoalPromptReason; escapedObjective: string } | null {
+  if (typeof text !== "string") return null;
+  if (text.startsWith("The active thread goal objective was edited by the user.")) {
+    const escapedObjective = extractBetween(text, "<untrusted_objective>", "</untrusted_objective>");
+    return escapedObjective ? { reason: "objective_updated", escapedObjective } : null;
   }
+  if (text.startsWith("The active thread goal has reached its token budget.")) {
+    const escapedObjective = extractBetween(text, "<objective>", "</objective>");
+    return escapedObjective ? { reason: "budget_limited", escapedObjective } : null;
+  }
+  if (text.startsWith("Continue working toward the active thread goal.")) {
+    const escapedObjective = extractBetween(text, "<objective>", "</objective>");
+    return escapedObjective ? { reason: "continuation", escapedObjective } : null;
+  }
+  return null;
 }
 
-function shouldRunMarkedGoalPrompt(marker: { chatJid: string; goalId: string; reason: GoalPromptReason }): boolean {
-  const goal = loadThreadGoal(marker.chatJid);
-  if (!goal || goal.goal_id !== marker.goalId) return false;
-  if (marker.reason === "budget_limited") return goal.status === "budget_limited";
+function shouldRunGoalPrompt(chatJid: string, parsed: { reason: GoalPromptReason; escapedObjective: string }): boolean {
+  const goal = loadThreadGoal(chatJid);
+  if (!goal || escapeXmlText(goal.objective) !== parsed.escapedObjective) return false;
+  if (parsed.reason === "budget_limited") return goal.status === "budget_limited";
   return goal.status === "active";
 }
 
@@ -459,13 +459,13 @@ function accountGoalProgress(chatJidInput: unknown, tokenDeltaInput = 0): Thread
   });
 }
 
-function sendGoalSkippedActivity(pi: ExtensionAPI, marker: { chatJid: string; goalId: string; reason: GoalPromptReason }, status: string): void {
+function sendGoalSkippedActivity(pi: ExtensionAPI, chatJid: string, reason: GoalPromptReason, status: string): void {
   try {
     pi.sendMessage({
       customType: "goal_activity",
-      content: { ...marker, status, skipped: true },
-      display: `🎯 Goal ${status}: skipped queued ${marker.reason.replace(/_/g, " ")} continuation for ${marker.chatJid}`,
-      details: { marker, status, goal: protocolGoal(loadThreadGoal(marker.chatJid)) },
+      content: { chatJid, reason, status, skipped: true },
+      display: `🎯 Goal ${status}: skipped queued ${reason.replace(/_/g, " ")} continuation for ${chatJid}`,
+      details: { chatJid, reason, status, goal: protocolGoal(loadThreadGoal(chatJid)) },
     });
   } catch {
     // Best-effort visibility only.
@@ -500,7 +500,7 @@ async function sendGoalPromptViaLocalAgent(goal: ThreadGoal, content: string): P
 
 async function dispatchGoalPrompt(goal: ThreadGoal, prompt: string, reason: GoalPromptReason): Promise<void> {
   if (!prompt.trim()) return;
-  await sendGoalPromptViaLocalAgent(goal, withGoalPromptMarker(goal, reason, prompt));
+  await sendGoalPromptViaLocalAgent(goal, prompt);
 }
 
 export function setGoalPromptSenderForTests(sender: ((goal: ThreadGoal, content: string) => Promise<void>) | null): void {
@@ -612,15 +612,16 @@ const UpdateGoalSchema = Type.Object({
 });
 
 export default function goalAddon(pi: ExtensionAPI): void {
-  pi.on("input", (event) => {
-    const marker = parseGoalPromptMarker((event as { text?: unknown }).text);
-    if (!marker) return { action: "continue" as const };
-    if (!shouldRunMarkedGoalPrompt(marker)) {
-      const goal = loadThreadGoal(marker.chatJid);
-      sendGoalSkippedActivity(pi, marker, goal?.status || "stopped");
+  pi.on("input", (event, ctx) => {
+    const parsed = parseGoalPrompt((event as { text?: unknown }).text);
+    if (!parsed) return { action: "continue" as const };
+    const chatJid = resolveActiveChatJid(ctx);
+    if (!shouldRunGoalPrompt(chatJid, parsed)) {
+      const goal = loadThreadGoal(chatJid);
+      sendGoalSkippedActivity(pi, chatJid, parsed.reason, goal?.status || "stopped");
       return { action: "handled" as const };
     }
-    return { action: "transform" as const, text: marker.prompt, images: (event as { images?: never }).images };
+    return { action: "continue" as const };
   });
 
   pi.registerTool({
