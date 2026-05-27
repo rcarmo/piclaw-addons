@@ -1,7 +1,7 @@
 {
   "name": "@rcarmo/piclaw-addon-goal",
-  "version": "0.1.17",
-  "description": "Session-scoped goal seeking loop with editable prompts, a settings pane, and /goal command support",
+  "version": "0.1.18",
+  "description": "Codex-style persisted thread goals with get_goal, create_goal, update_goal, /goal controls, and settings UI",
   "type": "module",
   "main": "index.ts",
   "piclaw": {
