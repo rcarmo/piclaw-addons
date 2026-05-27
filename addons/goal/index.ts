@@ -7,6 +7,9 @@ import { getChatJid } from "./compat/chat-context.js";
 const EXTENSION_ID = "goal";
 const GOAL_KEY = "thread-goal";
 const UI_GOAL_UPDATED_KEY = "goal.thread-goal-updated";
+const GOAL_VISIBLE_CONTINUE_PREFIX = "🎯 Continue goal:";
+const GOAL_VISIBLE_UPDATED_PREFIX = "🎯 Goal updated:";
+const GOAL_VISIBLE_BUDGET_PREFIX = "🎯 Goal budget reached:";
 
 export type ThreadGoalStatus = "active" | "paused" | "blocked" | "usage_limited" | "budget_limited" | "complete";
 
@@ -493,9 +496,20 @@ async function sendGoalPromptViaLocalAgent(goal: ThreadGoal, content: string): P
   }
 }
 
-async function dispatchGoalPrompt(goal: ThreadGoal, prompt: string, reason: GoalPromptReason): Promise<void> {
-  if (!prompt.trim()) return;
-  await sendGoalPromptViaLocalAgent(goal, prompt);
+function buildVisibleGoalPrompt(goal: ThreadGoal, reason: GoalPromptReason): string {
+  if (reason === "budget_limited") return `${GOAL_VISIBLE_BUDGET_PREFIX} ${goal.objective}`;
+  if (reason === "objective_updated") return `${GOAL_VISIBLE_UPDATED_PREFIX} ${goal.objective}`;
+  return `${GOAL_VISIBLE_CONTINUE_PREFIX} ${goal.objective}`;
+}
+
+function expandedPromptForReason(goal: ThreadGoal, reason: GoalPromptReason): string {
+  if (reason === "budget_limited") return buildGoalBudgetLimitPrompt(goal);
+  if (reason === "objective_updated") return objectiveUpdatedPrompt(goal);
+  return buildGoalContinuationPrompt(goal);
+}
+
+async function dispatchGoalPrompt(goal: ThreadGoal, _prompt: string, reason: GoalPromptReason): Promise<void> {
+  await sendGoalPromptViaLocalAgent(goal, buildVisibleGoalPrompt(goal, reason));
 }
 
 export function setGoalPromptSenderForTests(sender: ((goal: ThreadGoal, content: string) => Promise<void>) | null): void {
@@ -608,11 +622,28 @@ const UpdateGoalSchema = Type.Object({
 
 export default function goalAddon(pi: ExtensionAPI): void {
   pi.on("input", (event, ctx) => {
-    const parsed = parseGoalPrompt((event as { text?: unknown }).text);
-    if (!parsed) return { action: "continue" as const };
+    const text = (event as { text?: unknown }).text;
     const chatJid = resolveActiveChatJid(ctx);
+    const goal = loadThreadGoal(chatJid);
+    if (typeof text === "string") {
+      const visibleReason: GoalPromptReason | null = text.startsWith(GOAL_VISIBLE_BUDGET_PREFIX)
+        ? "budget_limited"
+        : text.startsWith(GOAL_VISIBLE_UPDATED_PREFIX)
+          ? "objective_updated"
+          : text.startsWith(GOAL_VISIBLE_CONTINUE_PREFIX)
+            ? "continuation"
+            : null;
+      if (visibleReason) {
+        if (!goal || (visibleReason === "budget_limited" ? goal.status !== "budget_limited" : goal.status !== "active")) {
+          sendGoalSkippedActivity(pi, chatJid, visibleReason, goal?.status || "stopped");
+          return { action: "handled" as const };
+        }
+        return { action: "transform" as const, text: expandedPromptForReason(goal, visibleReason), images: (event as { images?: never }).images };
+      }
+    }
+    const parsed = parseGoalPrompt(text);
+    if (!parsed) return { action: "continue" as const };
     if (!shouldRunGoalPrompt(chatJid, parsed)) {
-      const goal = loadThreadGoal(chatJid);
       sendGoalSkippedActivity(pi, chatJid, parsed.reason, goal?.status || "stopped");
       return { action: "handled" as const };
     }

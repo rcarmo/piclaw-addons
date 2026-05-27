@@ -188,7 +188,7 @@ describe("/goal command and runtime loop", () => {
     expect(goal?.status).toBe("active");
     expect(sentUserMessages).toHaveLength(1);
     await flushGoalPromptDispatchesForTests();
-    expect(String(sentUserMessages[0]?.content)).toContain("Continue working toward the active thread goal");
+    expect(String(sentUserMessages[0]?.content)).toBe("🎯 Continue goal: Ship the release");
     expect(sentUserMessages[0]?.options).toEqual({ via: "local-agent-endpoint" });
     expect(notifications.at(-1)?.message).toContain("server-side continuation queued");
   });
@@ -203,7 +203,7 @@ describe("/goal command and runtime loop", () => {
     expect(loadThreadGoal("web:goal")?.objective).toBe("Second goal");
     expect(loadThreadGoal("web:goal")?.status).toBe("active");
     expect(sentUserMessages).toHaveLength(2);
-    expect(String(sentUserMessages[1]?.content)).toContain("objective was edited");
+    expect(String(sentUserMessages[1]?.content)).toBe("🎯 Goal updated: Second goal");
   });
 
   test("/goal pause, resume, and clear are user-controlled", async () => {
@@ -225,7 +225,7 @@ describe("/goal command and runtime loop", () => {
     const input = handlers.find((entry) => entry.event === "input")?.handler;
     await withChatContext("web:goal", "web", async () => {
       await commands.get("goal").handler("Finish docs", ctx);
-      expect(String(sentUserMessages[0]?.content)).toContain("Continue working toward the active thread goal");
+      expect(String(sentUserMessages[0]?.content)).toBe("🎯 Continue goal: Finish docs");
       expect(String(sentUserMessages[0]?.content)).not.toContain("piclaw-goal");
       await commands.get("goal").handler("stop", ctx);
       expect(loadThreadGoal("web:goal")?.status).toBe("paused");
@@ -241,8 +241,9 @@ describe("/goal command and runtime loop", () => {
     await withChatContext("web:goal", "web", async () => {
       await commands.get("goal").handler("Finish docs", ctx);
       const result = await input({ type: "input", text: sentUserMessages[0]?.content, source: "extension" }, ctx);
-      expect(result).toEqual({ action: "continue" });
-      expect(String(sentUserMessages[0]?.content)).toContain("Continue working toward the active thread goal");
+      expect(result.action).toBe("transform");
+      expect(result.text).toContain("Continue working toward the active thread goal");
+      expect(String(sentUserMessages[0]?.content)).toBe("🎯 Continue goal: Finish docs");
       expect(String(sentUserMessages[0]?.content)).not.toContain("piclaw-goal");
     });
   });
@@ -258,7 +259,7 @@ describe("/goal command and runtime loop", () => {
     });
     expect(loadThreadGoal("web:goal")?.tokens_used).toBe(123);
     expect(sentUserMessages).toHaveLength(2);
-    expect(String(sentUserMessages[1]?.content)).toContain("Tokens used: 123");
+    expect(String(sentUserMessages[1]?.content)).toBe("🎯 Continue goal: Finish docs");
   });
 
   test("agent_end does not auto-continue when pending user input exists", async () => {
@@ -283,6 +284,6 @@ describe("/goal command and runtime loop", () => {
     });
     expect(loadThreadGoal("web:goal")?.status).toBe("budget_limited");
     expect(sentUserMessages).toHaveLength(1);
-    expect(String(sentUserMessages[0]?.content)).toContain("has reached its token budget");
+    expect(String(sentUserMessages[0]?.content)).toBe("🎯 Goal budget reached: Stabilize deployment");
   });
 });
