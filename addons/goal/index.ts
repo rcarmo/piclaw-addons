@@ -50,8 +50,6 @@ type GoalMutationAction = "create" | "update" | "clear" | "pause" | "resume" | "
 type GoalPromptReason = "start" | "resume" | "objective_updated" | "continuation" | "budget_limited";
 
 let kvStore: ExtensionStorage | null = null;
-const pendingGoalDispatches = new Set<Promise<void>>();
-const pendingGoalTimers = new Set<ReturnType<typeof setTimeout>>();
 let goalPromptSenderForTests: ((goal: ThreadGoal, content: string) => Promise<void>) | null = null;
 
 function kv(): ExtensionStorage {
@@ -143,9 +141,6 @@ export function resetGoalAddonForTests(): void {
   try { kv().clear(); } catch { /* ignore test cleanup failures */ }
   kvStore = null;
   goalPromptSenderForTests = null;
-  for (const timer of pendingGoalTimers) clearTimeout(timer);
-  pendingGoalTimers.clear();
-  pendingGoalDispatches.clear();
 }
 
 export function loadThreadGoal(chatJidInput?: unknown): ThreadGoal | null {
@@ -532,7 +527,7 @@ async function enqueueGoalPrompt(goal: ThreadGoal, prompt: string, reason: GoalP
 }
 
 export async function flushGoalPromptDispatchesForTests(): Promise<void> {
-  while (pendingGoalDispatches.size > 0) await Promise.all([...pendingGoalDispatches]);
+  // Kept for compatibility with older tests; continuations are now enqueued synchronously.
 }
 
 function parseGoalCommandInput(input: string): { mode: "summary" | "clear" | "pause" | "resume" | "edit" | "start"; objective?: string } {

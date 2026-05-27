@@ -328,7 +328,7 @@
     {
       "slug": "goal",
       "name": "@rcarmo/piclaw-addon-goal",
-      "version": "0.1.24",
+      "version": "0.1.25",
       "type": "extension",
       "description": "Codex-style persisted thread goals with get_goal, create_goal, update_goal, /goal controls, and settings UI",
       "path": "addons/goal",
@@ -343,7 +343,7 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-goal-0.1.24.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-goal-0.1.25.tgz"
       },
       "updatedAt": "2026-05-27"
     },
