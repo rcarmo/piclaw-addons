@@ -537,7 +537,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-office-tools-0.1.2.tgz"
       },
-      "updatedAt": "2026-05-08"
+      "updatedAt": "2026-05-27"
     },
     {
       "slug": "office-viewer",
@@ -560,7 +560,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-office-viewer-0.1.2.tgz"
       },
-      "updatedAt": "2026-05-10"
+      "updatedAt": "2026-05-27"
     },
     {
       "slug": "plan-sidebar",
