@@ -51,9 +51,9 @@ type GoalMutationAction = "create" | "update" | "clear" | "pause" | "resume" | "
 type GoalPromptReason = "start" | "resume" | "objective_updated" | "continuation" | "budget_limited";
 
 let kvStore: ExtensionStorage | null = null;
-let activeGoalPi: ExtensionAPI | null = null;
 const pendingGoalDispatches = new Set<Promise<void>>();
 const pendingGoalTimers = new Set<ReturnType<typeof setTimeout>>();
+let goalPromptSenderForTests: ((goal: ThreadGoal, content: string) => Promise<void>) | null = null;
 
 function kv(): ExtensionStorage {
   if (!kvStore) kvStore = createExtensionStorage(EXTENSION_ID);
@@ -143,7 +143,7 @@ function normalizeStatus(value: unknown, fallback: ThreadGoalStatus = "active"):
 export function resetGoalAddonForTests(): void {
   try { kv().clear(); } catch { /* ignore test cleanup failures */ }
   kvStore = null;
-  activeGoalPi = null;
+  goalPromptSenderForTests = null;
   for (const timer of pendingGoalTimers) clearTimeout(timer);
   pendingGoalTimers.clear();
   pendingGoalDispatches.clear();
@@ -459,26 +459,6 @@ function accountGoalProgress(chatJidInput: unknown, tokenDeltaInput = 0): Thread
   });
 }
 
-function sendGoalActivity(pi: ExtensionAPI, goal: ThreadGoal, reason: GoalPromptReason): void {
-  try {
-    pi.sendMessage({
-      customType: "goal_activity",
-      content: {
-        reason,
-        chatJid: goal.chat_jid,
-        goalId: goal.goal_id,
-        objective: goal.objective,
-        status: goal.status,
-        updatedAt: goal.updated_at,
-      },
-      display: `🎯 Goal ${reason.replace(/_/g, " ")}: queued server-side continuation for ${goal.chat_jid}`,
-      details: goalResponse(goal),
-    });
-  } catch {
-    // The user-message turn below is the authoritative activity; this marker is best-effort visibility.
-  }
-}
-
 function sendGoalSkippedActivity(pi: ExtensionAPI, marker: { chatJid: string; goalId: string; reason: GoalPromptReason }, status: string): void {
   try {
     pi.sendMessage({
@@ -492,23 +472,50 @@ function sendGoalSkippedActivity(pi: ExtensionAPI, marker: { chatJid: string; go
   }
 }
 
-function dispatchGoalPrompt(pi: ExtensionAPI, goal: ThreadGoal, prompt: string, reason: GoalPromptReason): void {
-  if (!prompt.trim()) return;
-  sendGoalActivity(pi, goal, reason);
-  // Always pass deliverAs=followUp. When the agent is idle this still starts a normal server-side turn;
-  // when it is busy it becomes a visible queued follow-up instead of trying to nest a turn.
-  pi.sendUserMessage(withGoalPromptMarker(goal, reason, prompt), { deliverAs: "followUp" });
+function resolveLocalAgentBaseUrl(): string {
+  const fromEnv = normalizeText(process.env.PICLAW_AGENT_BASE_URL || process.env.PICLAW_WEB_BASE_URL || process.env.PICLAW_BASE_URL);
+  if (fromEnv) return fromEnv.replace(/\/+$/, "");
+  let port = normalizeText(process.env.PICLAW_PORT || process.env.PORT, "8080");
+  for (let index = 0; index < process.argv.length; index += 1) {
+    const arg = process.argv[index];
+    if (arg === "--port" && process.argv[index + 1]) port = process.argv[index + 1];
+    else if (arg.startsWith("--port=")) port = arg.slice("--port=".length);
+  }
+  return `http://127.0.0.1:${port}`;
 }
 
-function scheduleGoalPrompt(pi: ExtensionAPI | null, goal: ThreadGoal, prompt: string, reason: GoalPromptReason): boolean {
-  if (!pi || !prompt.trim()) return false;
+async function sendGoalPromptViaLocalAgent(goal: ThreadGoal, content: string): Promise<void> {
+  if (goalPromptSenderForTests) return await goalPromptSenderForTests(goal, content);
+  const url = `${resolveLocalAgentBaseUrl()}/agent/default/message?chat_jid=${encodeURIComponent(goal.chat_jid)}`;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ content, mode: "auto" }),
+  });
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    throw new Error(`goal continuation enqueue failed: ${response.status} ${response.statusText}${body ? `: ${body.slice(0, 500)}` : ""}`);
+  }
+}
+
+async function dispatchGoalPrompt(goal: ThreadGoal, prompt: string, reason: GoalPromptReason): Promise<void> {
+  if (!prompt.trim()) return;
+  await sendGoalPromptViaLocalAgent(goal, withGoalPromptMarker(goal, reason, prompt));
+}
+
+export function setGoalPromptSenderForTests(sender: ((goal: ThreadGoal, content: string) => Promise<void>) | null): void {
+  goalPromptSenderForTests = sender;
+}
+
+function scheduleGoalPrompt(goal: ThreadGoal, prompt: string, reason: GoalPromptReason): boolean {
+  if (!prompt.trim()) return false;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const pending = new Promise<void>((resolve) => {
-    timer = setTimeout(() => {
+    timer = setTimeout(async () => {
       if (timer) pendingGoalTimers.delete(timer);
       try {
         if (reason !== "budget_limited" && cancelIfGoalStopped(goal)) return;
-        dispatchGoalPrompt(pi, goal, prompt, reason);
+        await dispatchGoalPrompt(goal, prompt, reason);
       } catch (error) {
         try {
           getBroadcastEvent()?.("extension_ui_status", {
@@ -595,7 +602,7 @@ if (typeof registerAddonConfigApi === "function") {
       const reason: GoalPromptReason | null = body.objective !== undefined
         ? (current ? "objective_updated" : "start")
         : goal.status === "active" ? "resume" : null;
-      const continuationQueued = reason ? scheduleGoalPrompt(activeGoalPi, goal, reason === "objective_updated" ? objectiveUpdatedPrompt(goal) : buildGoalContinuationPrompt(goal), reason) : false;
+      const continuationQueued = reason ? scheduleGoalPrompt(goal, reason === "objective_updated" ? objectiveUpdatedPrompt(goal) : buildGoalContinuationPrompt(goal), reason) : false;
       return { ok: true, ...goalResponse(goal), continuationQueued, continuationReason: reason };
     },
   }, import.meta.dir);
@@ -615,8 +622,6 @@ const UpdateGoalSchema = Type.Object({
 });
 
 export default function goalAddon(pi: ExtensionAPI): void {
-  activeGoalPi = pi;
-
   pi.on("input", (event) => {
     const marker = parseGoalPromptMarker((event as { text?: unknown }).text);
     if (!marker) return { action: "continue" as const };
@@ -700,7 +705,7 @@ export default function goalAddon(pi: ExtensionAPI): void {
       if (parsed.mode === "resume") {
         const goal = patchThreadGoal(chatJid, { status: "active", last_accounted_at: nowIso(), blocked_turns: 0, last_blocker: "" });
         broadcastGoalUpdated(goal, chatJid, "command", "resume");
-        scheduleGoalPrompt(pi, goal, buildGoalContinuationPrompt(goal), "resume");
+        scheduleGoalPrompt(goal, buildGoalContinuationPrompt(goal), "resume");
         ctx.ui.notify("Goal resumed — server-side continuation queued", "info");
         return goal;
       }
@@ -724,7 +729,7 @@ export default function goalAddon(pi: ExtensionAPI): void {
       }
       const goal = shouldReplace && current ? replaceThreadGoal(chatJid, objective) : createThreadGoal(chatJid, objective);
       broadcastGoalUpdated(goal, chatJid, "command", current ? "update" : "create");
-      scheduleGoalPrompt(pi, goal, current ? objectiveUpdatedPrompt(goal) : buildGoalContinuationPrompt(goal), current ? "objective_updated" : "start");
+      scheduleGoalPrompt(goal, current ? objectiveUpdatedPrompt(goal) : buildGoalContinuationPrompt(goal), current ? "objective_updated" : "start");
       ctx.ui.notify("Goal active — server-side continuation queued", "info");
       return goal;
     },
@@ -747,11 +752,11 @@ export default function goalAddon(pi: ExtensionAPI): void {
     if (goal.status === "budget_limited" && !goal.budget_limit_reported) {
       const reported = saveThreadGoal({ ...goal, budget_limit_reported: true, last_accounted_at: null });
       broadcastGoalUpdated(reported, chatJid, "runtime", "budget_limited");
-      dispatchGoalPrompt(pi, reported, buildGoalBudgetLimitPrompt(reported), "budget_limited");
+      await dispatchGoalPrompt(reported, buildGoalBudgetLimitPrompt(reported), "budget_limited");
       return;
     }
     if (goal.status !== "active") return;
     if (ctx.hasPendingMessages?.()) return;
-    dispatchGoalPrompt(pi, goal, buildGoalContinuationPrompt(goal), "continuation");
+    await dispatchGoalPrompt(goal, buildGoalContinuationPrompt(goal), "continuation");
   });
 }

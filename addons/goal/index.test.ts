@@ -11,6 +11,7 @@ import goalAddon, {
   loadThreadGoal,
   resetGoalAddonForTests,
   resolveActiveChatJid,
+  setGoalPromptSenderForTests,
 } from "./index.ts";
 import { withChatContext } from "./compat/chat-context.ts";
 
@@ -39,6 +40,10 @@ function createHarness(options: { confirm?: boolean; pending?: boolean } = {}) {
     sendMessage(message: unknown, options?: unknown) { sentMessages.push({ message, options }); },
     sendUserMessage(content: unknown, options?: unknown) { sentUserMessages.push({ content, options }); },
   } as any;
+
+  setGoalPromptSenderForTests(async (_goal, content) => {
+    sentUserMessages.push({ content, options: { via: "local-agent-endpoint" } });
+  });
 
   const ctx = {
     ui: {
@@ -184,8 +189,7 @@ describe("/goal command and runtime loop", () => {
     expect(sentUserMessages).toHaveLength(0);
     await flushGoalPromptDispatchesForTests();
     expect(String(sentUserMessages[0]?.content)).toContain("Continue working toward the active thread goal");
-    expect(sentUserMessages[0]?.options).toEqual({ deliverAs: "followUp" });
-    expect(String((sentMessages[0]?.message as any)?.display)).toContain("server-side continuation");
+    expect(sentUserMessages[0]?.options).toEqual({ via: "local-agent-endpoint" });
     expect(notifications.at(-1)?.message).toContain("server-side continuation queued");
   });
 
