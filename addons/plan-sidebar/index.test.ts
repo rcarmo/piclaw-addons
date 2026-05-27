@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import planSidebarAddon, { applyPlanEdits, loadSessionPlan, resetPlanSidebarAddonForTests, saveSessionPlan } from "./index";
+import planSidebarAddon, { applyPlanEdits, loadSessionPlan, normalizeUpdatePlanArgs, resetPlanSidebarAddonForTests, saveSessionPlan, updatePlanArgsToMarkdown } from "./index";
 
 const addonDir = import.meta.dir;
 
@@ -49,6 +49,63 @@ test("plan tool gets and sets active session plan", async () => {
   }
 });
 
+test("update_plan stores a Codex-style structured plan in the sidebar", async () => {
+  resetPlanSidebarAddonForTests();
+  const tools = new Map<string, any>();
+  const events: Array<{ type: string; data: any }> = [];
+  const previousBroadcast = (globalThis as any).__PICLAW_BROADCAST_EVENT__;
+  (globalThis as any).__PICLAW_BROADCAST_EVENT__ = (type: string, data: any) => events.push({ type, data });
+  const pi: any = {
+    on() {},
+    registerTool(definition: any) { tools.set(definition.name, definition); },
+  };
+  try {
+    planSidebarAddon(pi);
+    const updatePlan = tools.get("update_plan");
+    expect(updatePlan?.description).toContain("At most one step can be in_progress");
+
+    const ctx: any = { sessionManager: { getSessionDir: () => "/tmp/web_default" } };
+    const result = await updatePlan.execute("1", {
+      explanation: "Reorder after inspection",
+      plan: [
+        { step: "Inspect current code", status: "completed" },
+        { step: "Port Codex update_plan contract", status: "in_progress" },
+        { step: "Run tests", status: "pending" },
+      ],
+    }, undefined, undefined, ctx);
+
+    expect(result.content[0].text).toBe("Plan updated");
+    expect(result.details.markdown).toBe("> Reorder after inspection\n\n- [x] Inspect current code\n- [-] Port Codex update_plan contract\n- [ ] Run tests");
+    expect(loadSessionPlan("web:default").markdown).toContain("- [-] Port Codex update_plan contract");
+    expect(events.at(-1)).toMatchObject({
+      type: "extension_ui_status",
+      data: { key: "plan-sidebar.plan-updated", chat_jid: "web:default", source: "tool", action: "update_plan" },
+    });
+  } finally {
+    if (previousBroadcast) (globalThis as any).__PICLAW_BROADCAST_EVENT__ = previousBroadcast;
+    else delete (globalThis as any).__PICLAW_BROADCAST_EVENT__;
+  }
+});
+
+test("update_plan rejects multiple in-progress steps", () => {
+  expect(() => normalizeUpdatePlanArgs({
+    plan: [
+      { step: "first", status: "in_progress" },
+      { step: "second", status: "in_progress" },
+    ],
+  })).toThrow(/at most one in_progress/);
+});
+
+test("update_plan markdown conversion normalizes status markers", () => {
+  expect(updatePlanArgsToMarkdown({
+    plan: [
+      { step: "done", status: "completed" },
+      { step: "working", status: "in_progress" },
+      { step: "later", status: "pending" },
+    ],
+  })).toBe("- [x] done\n- [-] working\n- [ ] later");
+});
+
 test("saved plan is injected into the next model turn", async () => {
   resetPlanSidebarAddonForTests();
   let beforeAgentStart: any = null;
@@ -67,6 +124,8 @@ test("saved plan is injected into the next model turn", async () => {
   expect(result.systemPrompt).toContain("## Plan Sidebar");
   expect(result.systemPrompt).toContain("editable shared state");
   expect(result.systemPrompt).toContain("must keep it current");
+  expect(result.systemPrompt).toContain("`update_plan` tool");
+  expect(result.systemPrompt).toContain("pending`, `in_progress`, or `completed`");
   expect(result.systemPrompt).toContain("`plan` tool");
   expect(result.systemPrompt).toContain("action=edit");
   expect(result.systemPrompt).toContain("action=write");
@@ -128,6 +187,8 @@ test("web sidebar renders checkboxes as live preview controls", () => {
   const source = readFileSync(resolve(addonDir, "web", "index.ts"), "utf8");
   expect(source).toContain("function renderLivePreview()");
   expect(source).toContain('checkbox.type = "checkbox"');
+  expect(source).toContain('checkbox.indeterminate = checked === "-"');
+  expect(source).toContain("plan-sidebar-live-in-progress");
   expect(source).toContain('preview.className = "plan-sidebar-live-preview"');
   expect(source).toContain('element.contentEditable = "plaintext-only"');
   expect(source).toContain("replacePlanLine(index");

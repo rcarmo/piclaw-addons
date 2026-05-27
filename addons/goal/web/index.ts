@@ -1,6 +1,6 @@
 // @ts-nocheck
 const ADDON_ID = "goal";
-const API = `/agent/addons/api/${ADDON_ID}`;
+const API = `/agent/addons/api/${ADDON_ID}/goal`;
 const DEFAULT_CHAT_JID = "web:default";
 
 const preactHtm = globalThis.__piclawPreactHtm || globalThis.__piclawPreact || null;
@@ -46,33 +46,21 @@ async function apiJson(url, options) {
   return payload;
 }
 
-async function loadConfig() {
-  return await apiJson(`${API}/config`);
+async function loadGoal(chatJid) {
+  return await apiJson(withChat(API, chatJid));
 }
 
-async function saveConfig(patch) {
-  return await apiJson(`${API}/config`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(patch),
-  });
-}
-
-async function loadSession(chatJid) {
-  return await apiJson(withChat(`${API}/session`, chatJid));
-}
-
-async function saveSession(chatJid, patch) {
-  return await apiJson(withChat(`${API}/session`, chatJid), {
+async function saveGoal(chatJid, patch) {
+  return await apiJson(withChat(API, chatJid), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ...patch, chat_jid: normalizeChatJid(chatJid) }),
   });
 }
 
-function positiveNumber(value, fallback = 1) {
+function positiveOrEmpty(value) {
   const numeric = Number(value);
-  return Number.isFinite(numeric) && numeric > 0 ? Math.trunc(numeric) : fallback;
+  return Number.isFinite(numeric) && numeric > 0 ? Math.trunc(numeric) : null;
 }
 
 function formatTokenCount(value) {
@@ -90,15 +78,15 @@ function formatTokenCount(value) {
   return `${scaled.toFixed(decimals).replace(/\.0+$|(?<=\.\d)0+$/g, "")}${unit}`;
 }
 
-function removeLegacyProgressBridge() {
-  if (typeof window === "undefined" || typeof document === "undefined") return;
-  try { delete window.__piclawGoalProgressBridgeInstalled; } catch {}
-  try { document.getElementById("piclaw-goal-progress-bridge")?.remove(); } catch {}
-  try {
-    for (const node of Array.from(document.querySelectorAll("style"))) {
-      if (String(node.textContent || "").includes("piclaw-goal-progress-bridge")) node.remove();
-    }
-  } catch {}
+function statusLabel(status) {
+  return ({
+    active: "active",
+    paused: "paused",
+    blocked: "blocked",
+    usage_limited: "usage limited",
+    budget_limited: "budget limited",
+    complete: "complete",
+  })[status] || "none";
 }
 
 function registerPane() {
@@ -121,16 +109,21 @@ function registerPane() {
 function GoalSettingsPane() {
   if (!HAS_RUNTIME) return null;
   const [chatJid, setChatJid] = useState(getCurrentChatJid);
-  const [config, setConfig] = useState(null);
-  const [session, setSession] = useState(null);
+  const [response, setResponse] = useState(null);
+  const [draftObjective, setDraftObjective] = useState("");
+  const [draftBudget, setDraftBudget] = useState("");
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
 
+  const goal = response?.goal || null;
+  const remaining = response?.remainingTokens;
+
   const load = useCallback(async () => {
     setMessage("");
-    const [cfg, sess] = await Promise.all([loadConfig(), loadSession(chatJid)]);
-    setConfig(cfg);
-    setSession(sess);
+    const result = await loadGoal(chatJid);
+    setResponse(result);
+    setDraftObjective(result.goal?.objective || "");
+    setDraftBudget(result.goal?.tokenBudget == null ? "" : String(result.goal.tokenBudget));
   }, [chatJid]);
 
   useEffect(() => { load().catch((error) => setMessage(String(error?.message || error))); }, [load]);
@@ -145,25 +138,25 @@ function GoalSettingsPane() {
     };
   }, []);
 
-  const saveGlobal = useCallback(async (patch) => {
-    setSaving(true);
-    try {
-      const result = await saveConfig(patch);
-      setConfig(result.config || result);
-      setMessage("Saved global goal settings.");
-    } catch (error) {
-      setMessage(String(error?.message || error));
-    } finally {
-      setSaving(false);
-    }
-  }, []);
+  useEffect(() => {
+    const handler = (event) => {
+      const payload = event?.detail?.payload || event?.detail || {};
+      if (payload?.key !== "goal.thread-goal-updated") return;
+      if (normalizeChatJid(payload.chat_jid) !== chatJid) return;
+      load().catch((error) => setMessage(String(error?.message || error)));
+    };
+    globalThis.addEventListener?.("piclaw-extension-ui:status", handler);
+    return () => globalThis.removeEventListener?.("piclaw-extension-ui:status", handler);
+  }, [chatJid, load]);
 
-  const saveCurrentSession = useCallback(async (patch) => {
+  const save = useCallback(async (patch, label = "Saved goal.") => {
     setSaving(true);
     try {
-      const result = await saveSession(chatJid, patch);
-      setSession(result.session || result);
-      setMessage("Saved current chat goal settings.");
+      const result = await saveGoal(chatJid, patch);
+      setResponse(result);
+      setDraftObjective(result.goal?.objective || "");
+      setDraftBudget(result.goal?.tokenBudget == null ? "" : String(result.goal.tokenBudget));
+      setMessage(label);
     } catch (error) {
       setMessage(String(error?.message || error));
     } finally {
@@ -171,129 +164,80 @@ function GoalSettingsPane() {
     }
   }, [chatJid]);
 
-  const saveSessionTokenBudget = useCallback(async (value) => {
-    const tokenBudget = positiveNumber(value, config?.default_token_budget || 1);
-    setSession((current) => current ? { ...current, token_budget: tokenBudget } : current);
-    await saveCurrentSession({ token_budget: tokenBudget });
-  }, [config?.default_token_budget, saveCurrentSession]);
-
-  const saveDefaultTokenBudget = useCallback(async (value) => {
-    const tokenBudget = positiveNumber(value, config?.default_token_budget || 1);
-    setConfig((current) => current ? { ...current, default_token_budget: tokenBudget } : current);
-    setSession((current) => current ? { ...current, token_budget: tokenBudget } : current);
+  const clear = useCallback(async () => {
     setSaving(true);
     try {
-      const [cfgResult, sessionResult] = await Promise.all([
-        saveConfig({ default_token_budget: tokenBudget }),
-        saveSession(chatJid, { token_budget: tokenBudget }),
-      ]);
-      setConfig(cfgResult.config || cfgResult);
-      setSession(sessionResult.session || sessionResult);
-      setMessage("Saved global default and current chat token budget.");
+      const result = await saveGoal(chatJid, { objective: "" });
+      setResponse(result);
+      setDraftObjective("");
+      setDraftBudget("");
+      setMessage("Cleared goal state.");
     } catch (error) {
       setMessage(String(error?.message || error));
     } finally {
       setSaving(false);
     }
-  }, [chatJid, config?.default_token_budget]);
-
-  if (!config || !session) {
-    return html`<div style="padding:1rem;color:var(--text-secondary)">Loading goal settings…</div>`;
-  }
+  }, [chatJid]);
 
   const S = { display: "flex", alignItems: "center", gap: "0.5rem", margin: "0.45rem 0" };
-  const L = { minWidth: "160px", color: "var(--text-secondary)", fontSize: "0.85rem", alignSelf: "flex-start", paddingTop: "0.35rem" };
+  const L = { minWidth: "130px", color: "var(--text-secondary)", fontSize: "0.85rem", alignSelf: "flex-start", paddingTop: "0.35rem" };
   const I = { flex: 1, padding: "6px 10px", background: "var(--bg-secondary)", color: "var(--text-primary)", border: "1px solid var(--border-color)", borderRadius: "6px", fontSize: "0.84rem" };
-  const PROMPT_TEXTAREA_STYLE = { ...I, minHeight: "110px", fontFamily: "var(--font-mono, monospace)", whiteSpace: "pre", tabSize: "2" };
   const H = { margin: "1.15rem 0 0.45rem", fontSize: "0.9rem", color: "var(--text-primary)", borderBottom: "1px solid var(--border-color)", paddingBottom: "0.3rem" };
-  const hint = (text) => html`<div style=${{ fontSize: "0.73rem", color: "var(--text-secondary)", margin: "-0.1rem 0 0.5rem 168px" }}>${text}</div>`;
-  const remaining = Math.max(0, Number(session.token_budget || 0) - Number(session.tokens_used || 0));
-  const phase = session.progress_phase || session.status;
+  const hint = (text) => html`<div style=${{ fontSize: "0.73rem", color: "var(--text-secondary)", margin: "-0.1rem 0 0.5rem 138px" }}>${text}</div>`;
 
   return html`
     <div style="padding:0.5rem 0;">
-      <h4 style=${H}>Current chat session</h4>
+      <h4 style=${H}>Codex-style thread goal</h4>
       <div style=${{ fontSize: "0.78rem", color: "var(--text-secondary)", marginBottom: "0.75rem" }}>
         Chat: <code style="font-family:var(--font-mono, monospace)">${chatJid}</code>
       </div>
 
-      <label style=${S}>
-        <span style=${L}>Goal seeking enabled</span>
-        <input type="checkbox" checked=${!!session.enabled} onChange=${(e) => saveCurrentSession({ enabled: e.target.checked })} disabled=${saving} />
-      </label>
-      ${hint("Toggle whether this chat keeps auto-continuing an active goal after each turn.")}
+      <div style=${{ padding: "0.6rem", border: "1px solid var(--border-color)", borderRadius: "8px", background: "var(--bg-secondary)" }}>
+        <div><strong>Status:</strong> ${statusLabel(goal?.status)}</div>
+        <div><strong>Tokens:</strong> ${formatTokenCount(goal?.tokensUsed || 0)}${goal?.tokenBudget == null ? " / no budget" : ` / ${formatTokenCount(goal.tokenBudget)} (${formatTokenCount(remaining || 0)} remaining)`}</div>
+        <div><strong>Time:</strong> ${goal?.timeUsedSeconds || 0}s</div>
+      </div>
 
       <label style=${S}>
         <span style=${L}>Objective</span>
-        <textarea style=${{ ...I, minHeight: "84px" }} value=${session.objective || ""}
-          placeholder="Describe the goal for this chat session. Use /goal <objective> to kick off a new run."
-          onBlur=${(e) => saveCurrentSession({ objective: e.target.value })}
+        <textarea style=${{ ...I, minHeight: "96px" }} value=${draftObjective}
+          placeholder="Describe the full goal objective. This replaces the current thread goal."
+          onInput=${(e) => setDraftObjective(e.target.value)}
           disabled=${saving}></textarea>
       </label>
-      ${hint("Editing the objective here updates the saved session goal. Use /goal <objective> to start a fresh run immediately.")}
+      ${hint("Use /goal <objective> to start from chat, or save here to replace the thread goal state.")}
 
       <label style=${S}>
         <span style=${L}>Token budget</span>
-        <input type="number" min="1" step="1000" style=${I} value=${session.token_budget || config.default_token_budget}
-          onInput=${(e) => setSession((current) => current ? { ...current, token_budget: positiveNumber(e.target.value, config.default_token_budget) } : current)}
-          onBlur=${(e) => saveSessionTokenBudget(e.target.value)}
+        <input type="number" min="1" step="1000" style=${I} value=${draftBudget}
+          placeholder="unbounded"
+          onInput=${(e) => setDraftBudget(e.target.value)}
           disabled=${saving} />
       </label>
-      ${hint(`Used ${formatTokenCount(session.tokens_used || 0)} tokens so far, ${formatTokenCount(remaining)} remaining. Status: ${session.status}; phase: ${phase}.`) }
+      ${hint("Empty means no token budget. Budget exhaustion marks the goal budget_limited and emits a wrap-up prompt.")}
 
-      <div style=${{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "0.35rem" }}>
-        <button onClick=${() => saveCurrentSession({ enabled: true })} disabled=${saving}>Turn On</button>
-        <button onClick=${() => saveCurrentSession({ enabled: false })} disabled=${saving}>Turn Off</button>
-        <button onClick=${() => saveCurrentSession({ objective: "", enabled: false, status: "idle", token_budget: config.default_token_budget })} disabled=${saving}>Clear session goal</button>
+      <div style=${{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "0.5rem" }}>
+        <button onClick=${() => save({ objective: draftObjective, token_budget: positiveOrEmpty(draftBudget) }, "Saved/replaced goal.")} disabled=${saving || !draftObjective.trim()}>Save / Replace</button>
+        <button onClick=${() => save({ status: "active", token_budget: positiveOrEmpty(draftBudget) }, "Goal resumed.")} disabled=${saving || !goal}>Resume</button>
+        <button onClick=${() => save({ status: "paused", token_budget: positiveOrEmpty(draftBudget) }, "Goal paused.")} disabled=${saving || !goal}>Pause</button>
+        <button onClick=${() => save({ status: "blocked", token_budget: positiveOrEmpty(draftBudget) }, "Goal marked blocked.")} disabled=${saving || !goal}>Blocked</button>
+        <button onClick=${() => save({ status: "complete", token_budget: positiveOrEmpty(draftBudget) }, "Goal marked complete.")} disabled=${saving || !goal}>Complete</button>
+        <button onClick=${() => clear()} disabled=${saving || !goal}>Clear</button>
         <button onClick=${() => load()} disabled=${saving}>Refresh</button>
       </div>
-      <div style=${{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: "0.65rem" }}>
-        Use <code>/goal &lt;objective&gt;</code> to start a goal run, <code>/goal status</code> to inspect it, and <code>/goal off</code> to pause it from chat.
+
+      <h4 style=${H}>Model tools</h4>
+      <div style=${{ fontSize: "0.78rem", color: "var(--text-secondary)", lineHeight: 1.45 }}>
+        The add-on exposes Codex-style <code>get_goal</code>, <code>create_goal</code>, and <code>update_goal</code>. <code>update_goal</code> can only mark <code>complete</code> or <code>blocked</code>; pause, resume, clear, budget-limit, and usage-limit are user/runtime controlled.
       </div>
-
-      <h4 style=${H}>Prompt templates</h4>
-
-      <label style=${S}>
-        <span style=${L}>Default token budget</span>
-        <input type="number" min="1" step="1000" style=${I} value=${config.default_token_budget}
-          onInput=${(e) => setConfig((current) => current ? { ...current, default_token_budget: positiveNumber(e.target.value, current.default_token_budget) } : current)}
-          onBlur=${(e) => saveDefaultTokenBudget(e.target.value)}
-          disabled=${saving} />
-      </label>
-
-      <label style=${S}>
-        <span style=${L}>System prompt</span>
-        <textarea style=${PROMPT_TEXTAREA_STYLE} value=${config.system_prompt}
-          spellcheck="false"
-          onBlur=${(e) => saveGlobal({ system_prompt: e.target.value })}
-          disabled=${saving}></textarea>
-      </label>
-
-      <label style=${S}>
-        <span style=${L}>Continuation prompt</span>
-        <textarea style=${{ ...PROMPT_TEXTAREA_STYLE, minHeight: "220px" }} value=${config.continuation_prompt}
-          spellcheck="false"
-          onBlur=${(e) => saveGlobal({ continuation_prompt: e.target.value })}
-          disabled=${saving}></textarea>
-      </label>
-
-      <label style=${S}>
-        <span style=${L}>Budget-limit prompt</span>
-        <textarea style=${{ ...PROMPT_TEXTAREA_STYLE, minHeight: "170px" }} value=${config.budget_limit_prompt}
-          spellcheck="false"
-          onBlur=${(e) => saveGlobal({ budget_limit_prompt: e.target.value })}
-          disabled=${saving}></textarea>
-      </label>
-      ${hint("Available placeholders: {{ objective }}, {{ time_used_seconds }}, {{ tokens_used }}, {{ token_budget }}, {{ remaining_tokens }}, {{ status }}, {{ chat_jid }}, {{ completion_summary }}")}
 
       ${message ? html`<div style=${{ marginTop: "0.75rem", fontSize: "0.8rem", color: /failed|error/i.test(message) ? "var(--danger-color,#dc2626)" : "var(--accent-color,#2563eb)" }}>${message}</div>` : null}
     </div>`;
 }
 
 try {
-  removeLegacyProgressBridge();
   registerPane();
   if (typeof window !== "undefined") {
-    window.addEventListener("piclaw:addons-loaded", () => { try { removeLegacyProgressBridge(); registerPane(); } catch {} });
+    window.addEventListener("piclaw:addons-loaded", () => { try { registerPane(); } catch {} });
   }
 } catch {}

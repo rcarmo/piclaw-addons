@@ -13,8 +13,20 @@ export interface SessionPlan {
   updated_at: string | null;
 }
 
+export type PlanItemStatus = "pending" | "in_progress" | "completed";
+
+export interface UpdatePlanItem {
+  step: string;
+  status: PlanItemStatus;
+}
+
+export interface UpdatePlanArgs {
+  explanation?: string;
+  plan: UpdatePlanItem[];
+}
+
 type PlanUpdateSource = "api" | "tool";
-type PlanUpdateAction = "write" | "edit";
+type PlanUpdateAction = "write" | "edit" | "update_plan";
 type PiclawBroadcastEvent = (type: string, data: unknown) => void;
 
 const DEFAULT_PLAN = [
@@ -37,6 +49,10 @@ function nowIso(): string {
 
 function normalizePlanMarkdown(value: unknown): string {
   return typeof value === "string" ? value.replace(/\r\n/g, "\n") : "";
+}
+
+function normalizeText(value: unknown, fallback = ""): string {
+  return typeof value === "string" ? value.trim() : fallback;
 }
 
 export function normalizeChatJid(value: unknown): string {
@@ -142,6 +158,54 @@ export function editSessionPlan(chatJidInput: unknown, editsInput: unknown): Ses
   return saveSessionPlan(current.chat_jid, applyPlanEdits(current.markdown, editsInput));
 }
 
+function normalizePlanStep(value: unknown): string {
+  return normalizeText(value).replace(/\s+/g, " ");
+}
+
+function normalizePlanStatus(value: unknown): PlanItemStatus {
+  if (value === "pending" || value === "in_progress" || value === "completed") return value;
+  throw new Error("Invalid update_plan status " + JSON.stringify(value) + "; expected pending, in_progress, or completed.");
+}
+
+export function normalizeUpdatePlanArgs(input: unknown): UpdatePlanArgs {
+  const raw = input && typeof input === "object" ? input as { explanation?: unknown; plan?: unknown } : {};
+  if (!Array.isArray(raw.plan)) throw new Error("update_plan requires a plan array.");
+  let inProgressCount = 0;
+  const plan = raw.plan.map((item, index): UpdatePlanItem => {
+    const entry = item && typeof item === "object" ? item as { step?: unknown; status?: unknown } : {};
+    const step = normalizePlanStep(entry.step);
+    if (!step) throw new Error("update_plan item " + (index + 1) + " requires a non-empty step.");
+    const status = normalizePlanStatus(entry.status);
+    if (status === "in_progress") inProgressCount += 1;
+    return { step, status };
+  });
+  if (inProgressCount > 1) throw new Error("update_plan accepts at most one in_progress step.");
+  const explanation = normalizeText(raw.explanation);
+  return explanation ? { explanation, plan } : { plan };
+}
+
+function markdownPrefixForPlanStatus(status: PlanItemStatus): string {
+  switch (status) {
+    case "completed": return "- [x]";
+    case "in_progress": return "- [-]";
+    case "pending": return "- [ ]";
+  }
+}
+
+function quoteMarkdownNote(note: string): string[] {
+  return normalizePlanMarkdown(note)
+    .split("\n")
+    .map((line) => (`> ${line.trim()}`).trimEnd());
+}
+
+export function updatePlanArgsToMarkdown(input: unknown): string {
+  const args = normalizeUpdatePlanArgs(input);
+  const lines: string[] = [];
+  if (args.explanation) lines.push(...quoteMarkdownNote(args.explanation), "");
+  for (const item of args.plan) lines.push(`${markdownPrefixForPlanStatus(item.status)} ${item.step}`);
+  return lines.join("\n").trimEnd();
+}
+
 function getBroadcastEvent(): PiclawBroadcastEvent | null {
   const candidate = (globalThis as Record<string, unknown>).__PICLAW_BROADCAST_EVENT__;
   return typeof candidate === "function" ? candidate as PiclawBroadcastEvent : null;
@@ -213,6 +277,19 @@ const PlanToolSchema = Type.Object({
   chat_jid: Type.Optional(Type.String({ description: "Optional explicit chat/session JID. Defaults to the active session." })),
 });
 
+const UpdatePlanToolSchema = Type.Object({
+  explanation: Type.Optional(Type.String({ description: "Optional concise explanation for why the plan changed." })),
+  plan: Type.Array(Type.Object({
+    step: Type.String({ description: "A concrete plan step." }),
+    status: Type.Union([
+      Type.Literal("pending"),
+      Type.Literal("in_progress"),
+      Type.Literal("completed"),
+    ], { description: "One of: pending, in_progress, completed." }),
+  }), { description: "The full current plan. At most one step may be in_progress." }),
+  chat_jid: Type.Optional(Type.String({ description: "Optional explicit chat/session JID. Defaults to the active session." })),
+});
+
 export function buildPlanSystemPrompt(plan: SessionPlan): string {
   const markdown = normalizePlanMarkdown(plan.markdown).trim();
   if (!markdown) return "";
@@ -220,8 +297,9 @@ export function buildPlanSystemPrompt(plan: SessionPlan): string {
     "## Plan Sidebar",
     `The current session has a Plan sidebar checklist for ${plan.chat_jid}.`,
     "This checklist is editable shared state, not static context: you can modify it and must keep it current as work proceeds.",
-    "Use the `plan` tool with `action=read` to inspect it, `action=edit` for atomic exact item/text replacements, and `action=write` only when replacing the whole checklist.",
-    "Treat checked items as completed, unchecked items as pending, and update the plan after meaningful progress or plan changes.",
+    "Prefer the Codex-compatible `update_plan` tool for structured full-plan updates: pass `plan: [{ step, status }]` with status `pending`, `in_progress`, or `completed`; at most one step may be `in_progress`.",
+    "Use the `plan` tool with `action=read` to inspect raw Markdown, `action=edit` for atomic exact item/text replacements, and `action=write` only when replacing the whole Markdown checklist.",
+    "Treat `[x]` items as completed, `[-]` items as in progress, unchecked items as pending, and update the plan after meaningful progress or plan changes.",
     "",
     "Current plan:",
     "```markdown",
@@ -242,6 +320,24 @@ export default function planSidebarAddon(pi: ExtensionAPI): void {
     const prompt = buildPlanSystemPrompt(plan);
     if (!prompt) return {};
     return { systemPrompt: `${event.systemPrompt}\n\n${prompt}` };
+  });
+
+  pi.registerTool({
+    name: "update_plan",
+    label: "update_plan",
+    description: "Updates the task plan. Provide an optional explanation and a full list of plan items, each with a step and status. At most one step can be in_progress at a time.",
+    promptSnippet: "update_plan: Codex-compatible structured plan update. Pass the full current plan as plan: [{ step, status: pending|in_progress|completed }]; at most one item may be in_progress.",
+    parameters: UpdatePlanToolSchema,
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      const chatJid = normalizeChatJid(params.chat_jid || resolveActiveChatJid(ctx));
+      const update = normalizeUpdatePlanArgs(params);
+      const plan = saveSessionPlan(chatJid, updatePlanArgsToMarkdown(update));
+      broadcastPlanUpdated(plan, "tool", "update_plan");
+      return {
+        content: [{ type: "text", text: "Plan updated" }],
+        details: { ...plan, update_plan: update },
+      };
+    },
   });
 
   pi.registerTool({

@@ -3,13 +3,13 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import goalAddon, {
-  formatGoalTokenCount,
-  loadGoalSession,
-  renderGoalTemplate,
-  renderGoalTokenAvailabilityBar,
+  buildGoalBudgetLimitPrompt,
+  buildGoalContinuationPrompt,
+  createThreadGoal,
+  goalResponse,
+  loadThreadGoal,
   resetGoalAddonForTests,
   resolveActiveChatJid,
-  saveGoalSession,
 } from "./index.ts";
 import { withChatContext } from "./compat/chat-context.ts";
 
@@ -21,80 +21,33 @@ afterEach(() => {
   delete (globalThis as { __PICLAW_BROADCAST_EVENT__?: unknown }).__PICLAW_BROADCAST_EVENT__;
 });
 
-function createHarness() {
+function createHarness(options: { confirm?: boolean; pending?: boolean } = {}) {
   const commands = new Map<string, any>();
   const tools = new Map<string, any>();
   const handlers: Array<{ event: string; handler: (...args: any[]) => any }> = [];
   const sentUserMessages: Array<{ content: unknown; options?: unknown }> = [];
-  const customMessages: Array<{ message: any; options?: unknown }> = [];
   const notifications: Array<{ message: string; level: string }> = [];
-  const statuses: Array<{ key: string; text: string | undefined }> = [];
-  const workingMessages: Array<string | undefined> = [];
-  const workingIndicators: Array<{ frames?: string[]; intervalMs?: number } | undefined> = [];
-  const workingVisible: boolean[] = [];
+  const confirmations: string[] = [];
 
   const api = {
     on(event: string, handler: (...args: any[]) => any) { handlers.push({ event, handler }); },
     registerTool(tool: any) { tools.set(tool.name, tool); },
-    registerCommand(name: string, options: any) { commands.set(name, options); },
-    registerShortcut() {},
-    registerFlag() {},
-    getFlag() { return undefined; },
-    registerMessageRenderer() {},
-    sendMessage(message: any, options?: unknown) { customMessages.push({ message, options }); },
+    registerCommand(name: string, command: any) { commands.set(name, command); },
     sendUserMessage(content: unknown, options?: unknown) { sentUserMessages.push({ content, options }); },
-    appendEntry() {},
-    setSessionName() {},
-    getSessionName() { return undefined; },
-    setLabel() {},
-    exec: async () => ({ exitCode: 0, stdout: "", stderr: "" }),
-    getActiveTools: () => [],
-    getAllTools: () => [],
-    setActiveTools() {},
-    getCommands: () => [],
-    setModel: async () => true,
-    getThinkingLevel: () => "off",
-    setThinkingLevel() {},
-    registerProvider() {},
-    unregisterProvider() {},
-    events: { on() {}, off() {}, emit() {} },
   } as any;
 
   const ctx = {
     ui: {
-      notify(message: string, level = "info") {
-        notifications.push({ message, level });
-      },
-      setStatus(key: string, text: string | undefined) {
-        statuses.push({ key, text });
-      },
-      setWorkingMessage(message?: string) {
-        workingMessages.push(message);
-      },
-      setWorkingIndicator(options?: { frames?: string[]; intervalMs?: number }) {
-        workingIndicators.push(options);
-      },
-      setWorkingVisible(visible: boolean) {
-        workingVisible.push(visible);
-      },
+      notify(message: string, level = "info") { notifications.push({ message, level }); },
+      async confirm(message: string) { confirmations.push(message); return options.confirm === true; },
     },
-    hasUI: false,
-    cwd: "/workspace",
-    sessionManager: { getSessionId: () => "session-1" },
-    modelRegistry: {} as any,
-    model: undefined,
+    sessionManager: { getSessionDir: () => "/tmp/web_default" },
     isIdle: () => true,
-    abort() {},
-    hasPendingMessages: () => false,
-    shutdown() {},
-    getContextUsage: () => undefined,
-    compact() {},
-    getSystemPrompt: () => "base prompt",
-    waitForIdle: async () => {},
+    hasPendingMessages: () => options.pending === true,
   } as any;
 
   goalAddon(api);
-  return { api, commands, tools, handlers, sentUserMessages, customMessages, notifications, statuses, workingMessages, workingIndicators, workingVisible, ctx };
+  return { api, commands, tools, handlers, sentUserMessages, notifications, confirmations, ctx };
 }
 
 test("goal addon exports an extension entrypoint", () => {
@@ -107,133 +60,25 @@ test("goal manifest declares the web entry", () => {
   expect(manifest.pi?.web?.entries).toEqual(["web/index.ts"]);
 });
 
-test("goal README documents /goal and editable prompts", () => {
+test("goal README documents Codex-compatible tools and statuses", () => {
   const readme = readFileSync(resolve(addonDir, "README.md"), "utf8");
-  expect(readme).toContain("/goal <objective>");
-  expect(readme).toContain("Prompt placeholders");
+  expect(readme).toContain("get_goal");
+  expect(readme).toContain("create_goal");
   expect(readme).toContain("update_goal");
+  expect(readme).toContain("budget_limited");
+  expect(readme).toContain("blocked");
 });
 
-test("goal web entry targets config/session addon APIs and active chat context", () => {
+test("goal web pane targets the thread-goal addon API", () => {
   const source = readFileSync(resolve(addonDir, "web", "index.ts"), "utf8");
-  expect(source).toContain("const API = `/agent/addons/api/${ADDON_ID}`");
-  expect(source).toContain("`${API}/config`");
-  expect(source).toContain("`${API}/session`");
+  expect(source).toContain("const API = `/agent/addons/api/${ADDON_ID}/goal`");
   expect(source).toContain("registerSettingsPane");
-  expect(source).toContain("__piclaw_web?.getCurrentChatJid");
-  expect(source).toContain("piclaw:current-chat-changed");
-  expect(source).toContain("window.addEventListener(\"piclaw:addons-loaded\"");
-});
-
-test("goal prompt editors are monospaced textareas", () => {
-  const source = readFileSync(resolve(addonDir, "web", "index.ts"), "utf8");
-  expect(source).toContain('const PROMPT_TEXTAREA_STYLE = { ...I, minHeight: "110px", fontFamily: "var(--font-mono, monospace)", whiteSpace: "pre", tabSize: "2" }');
-  expect(source).toContain('<textarea style=${PROMPT_TEXTAREA_STYLE} value=${config.system_prompt}');
-  expect(source).toContain('<textarea style=${{ ...PROMPT_TEXTAREA_STYLE, minHeight: "220px" }} value=${config.continuation_prompt}');
-  expect(source).toContain('<textarea style=${{ ...PROMPT_TEXTAREA_STYLE, minHeight: "170px" }} value=${config.budget_limit_prompt}');
-  expect((source.match(/spellcheck="false"/g) || []).length).toBeGreaterThanOrEqual(3);
-});
-
-test("goal session changes broadcast persistent web progress updates", () => {
-  const broadcasts: Array<{ type: string; payload: any }> = [];
-  (globalThis as { __PICLAW_BROADCAST_EVENT__?: (type: string, payload: any) => void }).__PICLAW_BROADCAST_EVENT__ = (type, payload) => {
-    broadcasts.push({ type, payload });
-  };
-
-  saveGoalSession("web:goal", {
-    enabled: true,
-    objective: "Keep progress visible across tabs",
-    status: "running",
-    token_budget: 100000,
-  });
-  saveGoalSession("web:goal", {
-    tokens_used: 2500,
-    progress_phase: "working",
-  });
-
-  expect(broadcasts.at(-1)?.type).toBe("extension_ui_status");
-  expect(broadcasts.at(-1)?.payload.key).toBe("goal.session-updated");
-  expect(broadcasts.at(-1)?.payload.chat_jid).toBe("web:goal");
-  expect(broadcasts.at(-1)?.payload.session.tokens_used).toBe(2500);
-  expect(broadcasts.at(-1)?.payload.session.progress_phase).toBe("working");
-});
-
-test("goal session endpoint reads degrade to an idle session when storage fails", () => {
-  resetGoalAddonForTests();
-  (globalThis as { __piclawRuntimeInterop?: any }).__piclawRuntimeInterop = {
-    getExtensionKvStore: () => ({
-      get: () => { throw new Error("kv unavailable"); },
-      set: () => { throw new Error("kv unavailable"); },
-      delete: () => { throw new Error("kv unavailable"); },
-      list: () => [],
-      clear: () => 0,
-    }),
-  };
-
-  const session = loadGoalSession("web:goal");
-  expect(session.chat_jid).toBe("web:goal");
-  expect(session.status).toBe("idle");
-  expect(session.enabled).toBe(false);
-  expect(session.token_budget).toBe(400000);
-});
-
-test("goal settings apply token budget changes to the current session on blur", () => {
-  const source = readFileSync(resolve(addonDir, "web", "index.ts"), "utf8");
-  expect(source).toContain("function positiveNumber");
-  expect(source).toContain("saveSessionTokenBudget");
-  expect(source).toContain("saveDefaultTokenBudget");
-  expect(source).toContain("function formatTokenCount");
-  expect(source).toContain("saveSession(chatJid, { token_budget: tokenBudget })");
-  expect(source).toContain("Saved global default and current chat token budget.");
-});
-
-test("renderGoalTemplate replaces prompt placeholders", () => {
-  const rendered = renderGoalTemplate("Goal: {{ objective }} / {{ tokens_used }} / {{ missing }}", {
-    objective: "Ship docs",
-    tokens_used: "42",
-  });
-  expect(rendered).toBe("Goal: Ship docs / 42 / ");
-});
-
-test("goal token counts use friendly units for reporting", () => {
-  expect(formatGoalTokenCount(999)).toBe("999");
-  expect(formatGoalTokenCount(20_000)).toBe("20k");
-  expect(formatGoalTokenCount(12_500)).toBe("12.5k");
-  expect(formatGoalTokenCount(1_250_000)).toBe("1.25m");
-});
-
-test("goal token availability renders a Braille glyph bar", () => {
-  expect(renderGoalTokenAvailabilityBar(0, 20000, 4)).toBe("[⣿⣿⣿⣿]");
-  expect(renderGoalTokenAvailabilityBar(20000, 20000, 4)).toBe("[⣀⣀⣀⣀]");
-  expect(renderGoalTokenAvailabilityBar(7500, 20000, 4)).toBe("[⣿⣿⣦⣀]");
-});
-
-test("goal continuation prompts require visible timeline feedback", async () => {
-  const { commands, sentUserMessages, ctx } = createHarness();
-  const command = commands.get("goal");
-
-  await withChatContext("web:goal", "web", async () => {
-    await command.handler("Ship docs", ctx);
-  });
-
-  expect(String(sentUserMessages[0]?.content)).toContain("Timeline feedback requirement");
-  expect(String(sentUserMessages[0]?.content)).toContain("visible user feedback in the timeline");
-});
-
-test("/goal with no arguments posts help text to the timeline", async () => {
-  const { commands, customMessages, notifications, ctx } = createHarness();
-  const command = commands.get("goal");
-
-  await withChatContext("web:goal", "web", async () => {
-    await command.handler("", ctx);
-  });
-
-  expect(customMessages.at(-1)?.message.customType).toBe("goal-help");
-  expect(customMessages.at(-1)?.message.content).toContain("/goal <objective>");
-  expect(customMessages.at(-1)?.message.content).toContain("/goal clear` or `/goal reset");
-  expect(customMessages.at(-1)?.message.content).toContain("Goal status for web:goal");
-  expect(customMessages.at(-1)?.options).toEqual({ triggerTurn: false });
-  expect(notifications.at(-1)?.message).toContain("/goal <objective>");
+  expect(source).toContain("goal.thread-goal-updated");
+  expect(source).toContain("get_goal");
+  expect(source).toContain("create_goal");
+  expect(source).toContain("update_goal");
+  expect(source).not.toContain("`${API}/config`");
+  expect(source).not.toContain("`${API}/session`");
 });
 
 test("resolveActiveChatJid falls back to the session directory for web branches", () => {
@@ -245,162 +90,157 @@ test("resolveActiveChatJid falls back to the session directory for web branches"
   expect(resolveActiveChatJid(ctx)).toBe("web:branch-123");
 });
 
-describe("goal command and loop behavior", () => {
-  test("/goal uses Piclaw runtime chat context when not on web:default", async () => {
-    (globalThis as { __piclawRuntimeInterop?: { getChatJid?: () => string; getChatChannel?: () => string } }).__piclawRuntimeInterop = {
-      getChatJid: () => "web:branch-123",
-      getChatChannel: () => "web",
-    };
+test("createThreadGoal stores Codex-shaped state and rejects duplicates", () => {
+  const goal = createThreadGoal("web:goal", "Ship <unsafe> & verify", 1234);
+  expect(goal.objective).toBe("Ship <unsafe> & verify");
+  expect(goal.status).toBe("active");
+  expect(goal.token_budget).toBe(1234);
+  expect(goal.tokens_used).toBe(0);
+  expect(goal.time_used_seconds).toBe(0);
+  expect(loadThreadGoal("web:goal")?.goal_id).toBe(goal.goal_id);
+  expect(() => createThreadGoal("web:goal", "second")).toThrow(/already has a goal/);
+});
+
+test("goalResponse matches Codex-style tool response fields", () => {
+  const goal = createThreadGoal("web:goal", "Ship docs", 100);
+  const response = goalResponse(goal);
+  expect(response.goal).toMatchObject({
+    threadId: "web:goal",
+    goalId: goal.goal_id,
+    objective: "Ship docs",
+    status: "active",
+    tokenBudget: 100,
+    tokensUsed: 0,
+    timeUsedSeconds: 0,
+  });
+  expect(response.remainingTokens).toBe(100);
+  expect(response.completionBudgetReport).toBeNull();
+});
+
+test("goal prompts port Codex fidelity, escaping, update_plan, and blocked audit language", () => {
+  const goal = createThreadGoal("web:goal", "Fix <x> & ship", 1000);
+  const continuation = buildGoalContinuationPrompt(goal);
+  expect(continuation).toContain("Fix &lt;x&gt; &amp; ship");
+  expect(continuation).toContain("If update_plan is available");
+  expect(continuation).toContain("Completion audit:");
+  expect(continuation).toContain("Blocked audit:");
+  expect(continuation).toContain("at least three consecutive goal turns");
+  const budget = buildGoalBudgetLimitPrompt(goal);
+  expect(budget).toContain("has reached its token budget");
+  expect(budget).toContain("Do not call update_goal unless the goal is actually complete");
+});
+
+describe("Codex-style goal tools", () => {
+  test("registers get_goal, create_goal, and update_goal", () => {
+    const { tools } = createHarness();
+    expect([...tools.keys()].sort()).toEqual(["create_goal", "get_goal", "update_goal"]);
+  });
+
+  test("create_goal and get_goal share persisted thread goal state", async () => {
+    const { tools, ctx } = createHarness();
+    const createGoal = tools.get("create_goal");
+    const getGoal = tools.get("get_goal");
+
+    const created = await createGoal.execute("call-1", { objective: "Ship goal port", token_budget: 500 }, undefined, undefined, ctx);
+    expect(created.details.goal.status).toBe("active");
+    expect(created.details.remainingTokens).toBe(500);
+
+    const read = await getGoal.execute("call-2", {}, undefined, undefined, ctx);
+    expect(read.details.goal.objective).toBe("Ship goal port");
+  });
+
+  test("update_goal can complete with final usage report", async () => {
+    const { tools, ctx } = createHarness();
+    await tools.get("create_goal").execute("call-1", { objective: "Close checklist", token_budget: 500 }, undefined, undefined, ctx);
+    const result = await tools.get("update_goal").execute("call-2", { status: "complete", summary: "Verified." }, undefined, undefined, ctx);
+    expect(result.details.goal.status).toBe("complete");
+    expect(result.details.completionBudgetReport).toContain("Goal achieved");
+    expect(loadThreadGoal("web:default")?.status).toBe("complete");
+  });
+
+  test("update_goal can mark blocked", async () => {
+    const { tools, ctx } = createHarness();
+    await tools.get("create_goal").execute("call-1", { objective: "Wait for external service" }, undefined, undefined, ctx);
+    const result = await tools.get("update_goal").execute("call-2", { status: "blocked", summary: "Service unavailable three turns." }, undefined, undefined, ctx);
+    expect(result.details.goal.status).toBe("blocked");
+    expect(loadThreadGoal("web:default")?.last_blocker).toContain("Service unavailable");
+  });
+});
+
+describe("/goal command and runtime loop", () => {
+  test("/goal starts a thread goal and queues the Codex continuation prompt", async () => {
     const { commands, sentUserMessages, notifications, ctx } = createHarness();
-    const command = commands.get("goal");
-
-    await command.handler("Finish the branch-local task", ctx);
-
-    const branchSession = loadGoalSession("web:branch-123");
-    const defaultSession = loadGoalSession("web:default");
-    expect(branchSession.objective).toBe("Finish the branch-local task");
-    expect(branchSession.enabled).toBe(true);
-    expect(defaultSession.objective).toBe("");
-    expect(String(sentUserMessages[0]?.content)).toContain("Finish the branch-local task");
-    expect(notifications.at(-1)?.message).toContain("web:branch-123");
-  });
-
-  test("/goal uses the session directory when Piclaw runtime interop is unavailable", async () => {
-    const { commands, ctx, sentUserMessages, notifications } = createHarness();
-    ctx.sessionManager.getSessionDir = () => "/workspace/.pi/agent/sessions/web_branch-456";
-    const command = commands.get("goal");
-
-    await command.handler("Finish the actual branch task", ctx);
-
-    const branchSession = loadGoalSession("web:branch-456");
-    const defaultSession = loadGoalSession("web:default");
-    expect(branchSession.objective).toBe("Finish the actual branch task");
-    expect(defaultSession.objective).toBe("");
-    expect(String(sentUserMessages[0]?.content)).toContain("Finish the actual branch task");
-    expect(notifications.at(-1)?.message).toContain("web:branch-456");
-  });
-
-  test("/goal starts a run with native Pi progress and the initial kickoff prompt", async () => {
-    const { commands, sentUserMessages, customMessages, notifications, statuses, workingMessages, workingIndicators, workingVisible, ctx } = createHarness();
-    const command = commands.get("goal");
-
     await withChatContext("web:goal", "web", async () => {
-      await command.handler("Ship the release", ctx);
+      await commands.get("goal").handler("Ship the release", ctx);
     });
+    const goal = loadThreadGoal("web:goal");
+    expect(goal?.objective).toBe("Ship the release");
+    expect(goal?.status).toBe("active");
+    expect(String(sentUserMessages[0]?.content)).toContain("Continue working toward the active thread goal");
+    expect(notifications.at(-1)?.message).toContain("Goal active");
+  });
 
-    const session = loadGoalSession("web:goal");
-    expect(session.objective).toBe("Ship the release");
-    expect(session.enabled).toBe(true);
-    expect(session.status).toBe("running");
+  test("/goal requires confirmation before replacing an active goal", async () => {
+    const { commands, sentUserMessages, confirmations, ctx } = createHarness({ confirm: false });
+    await withChatContext("web:goal", "web", async () => {
+      await commands.get("goal").handler("First goal", ctx);
+      await commands.get("goal").handler("Second goal", ctx);
+    });
+    expect(confirmations).toHaveLength(1);
+    expect(loadThreadGoal("web:goal")?.objective).toBe("First goal");
     expect(sentUserMessages).toHaveLength(1);
-    expect(String(sentUserMessages[0]?.content)).toContain("Ship the release");
-    expect(customMessages.filter((entry) => entry?.message?.customType === "goal-status")).toHaveLength(0);
-    expect(workingVisible.at(-1)).toBe(true);
-    expect(workingIndicators.at(-1)?.frames).toEqual(["[⣿⣿⣿⣿⣿⣿⣿⣿]"]);
-    expect(workingMessages.at(-1)).toContain("Goal starting");
-    expect(workingMessages.at(-1)).toContain("400k tokens left");
-    expect(notifications.at(-1)?.message).toContain("Started goal run");
   });
 
-  test("before_agent_start injects the active goal system prompt", async () => {
-    const { commands, handlers, ctx } = createHarness();
-    const command = commands.get("goal");
-    const beforeAgentStart = handlers.find((entry) => entry.event === "before_agent_start")?.handler;
-
+  test("/goal pause, resume, and clear are user-controlled", async () => {
+    const { commands, sentUserMessages, ctx } = createHarness();
     await withChatContext("web:goal", "web", async () => {
-      await command.handler("Verify the site rebuild", ctx);
-      const result = await beforeAgentStart({ systemPrompt: "base prompt" }, ctx);
-      expect(result.systemPrompt).toContain("Verify the site rebuild");
-      expect(result.systemPrompt).toContain("update_goal");
+      await commands.get("goal").handler("Finish docs", ctx);
+      await commands.get("goal").handler("pause", ctx);
+      expect(loadThreadGoal("web:goal")?.status).toBe("paused");
+      await commands.get("goal").handler("resume", ctx);
+      expect(loadThreadGoal("web:goal")?.status).toBe("active");
+      await commands.get("goal").handler("clear", ctx);
+      expect(loadThreadGoal("web:goal")).toBeNull();
     });
+    expect(sentUserMessages.length).toBeGreaterThanOrEqual(2);
   });
 
-  test("agent_end queues a continuation prompt while budget remains", async () => {
-    const { commands, handlers, sentUserMessages, customMessages, workingMessages, ctx } = createHarness();
-    const command = commands.get("goal");
+  test("message_end accounts usage and agent_end emits continuation while active", async () => {
+    const { commands, handlers, sentUserMessages, ctx } = createHarness();
     const messageEnd = handlers.find((entry) => entry.event === "message_end")?.handler;
     const agentEnd = handlers.find((entry) => entry.event === "agent_end")?.handler;
-
     await withChatContext("web:goal", "web", async () => {
-      await command.handler("Finish the docs site", ctx);
+      await commands.get("goal").handler("Finish docs", ctx);
       await messageEnd({ message: { role: "assistant", usage: { totalTokens: 123 } } }, ctx);
       await agentEnd({}, ctx);
     });
-
+    expect(loadThreadGoal("web:goal")?.tokens_used).toBe(123);
     expect(sentUserMessages).toHaveLength(2);
-    expect(String(sentUserMessages[1]?.content)).toContain("Finish the docs site");
     expect(String(sentUserMessages[1]?.content)).toContain("Tokens used: 123");
-    expect(workingMessages.some((message) => String(message).includes("usage updated"))).toBe(true);
-    expect(customMessages.filter((entry) => entry?.message?.customType === "goal-status")).toHaveLength(0);
   });
 
-  test("goal lifecycle updates native Pi progress phases without timeline spam", async () => {
-    const { commands, handlers, workingMessages, customMessages, ctx } = createHarness();
-    const command = commands.get("goal");
-    const agentStart = handlers.find((entry) => entry.event === "agent_start")?.handler;
-    const turnStart = handlers.find((entry) => entry.event === "turn_start")?.handler;
-    const messageStart = handlers.find((entry) => entry.event === "message_start")?.handler;
-    const toolStart = handlers.find((entry) => entry.event === "tool_execution_start")?.handler;
-    const toolEnd = handlers.find((entry) => entry.event === "tool_execution_end")?.handler;
-
-    await withChatContext("web:goal", "web", async () => {
-      await command.handler("Finish the live status work", ctx);
-      const timelineCount = customMessages.length;
-      await agentStart({}, ctx);
-      await turnStart({}, ctx);
-      await messageStart({ message: { role: "assistant" } }, ctx);
-      await toolStart({ toolName: "read" }, ctx);
-      await toolEnd({ toolName: "read", isError: false }, ctx);
-      expect(customMessages).toHaveLength(timelineCount);
-    });
-
-    expect(workingMessages.some((message) => String(message).includes("waiting for model"))).toBe(true);
-    expect(workingMessages.some((message) => String(message).includes("working"))).toBe(true);
-    expect(workingMessages.some((message) => String(message).includes("receiving response"))).toBe(true);
-    expect(workingMessages.some((message) => String(message).includes("using read"))).toBe(true);
-    expect(workingMessages.some((message) => String(message).includes("read done"))).toBe(true);
-    const session = loadGoalSession("web:goal");
-    expect(session.progress_phase).toBe("read done");
-    expect(session.progress_updated_at).toBeTruthy();
-  });
-
-  test("update_goal marks completion, clears native progress, and stops the continuation loop", async () => {
-    const { commands, tools, handlers, sentUserMessages, customMessages, workingIndicators, ctx } = createHarness();
-    const command = commands.get("goal");
-    const updateGoal = tools.get("update_goal");
+  test("agent_end does not auto-continue when pending user input exists", async () => {
+    const { commands, handlers, sentUserMessages, ctx } = createHarness({ pending: true });
     const agentEnd = handlers.find((entry) => entry.event === "agent_end")?.handler;
-
     await withChatContext("web:goal", "web", async () => {
-      await command.handler("Close the release checklist", ctx);
-      await updateGoal.execute("tool-1", { status: "complete", summary: "Checklist and tests verified." }, undefined, undefined, ctx);
+      await commands.get("goal").handler("Finish docs", ctx);
       await agentEnd({}, ctx);
     });
-
-    const session = loadGoalSession("web:goal");
-    expect(session.status).toBe("complete");
-    expect(session.enabled).toBe(false);
-    expect(session.completion_summary).toContain("Checklist");
     expect(sentUserMessages).toHaveLength(1);
-    expect(workingIndicators.at(-1)).toBeUndefined();
-    expect(customMessages.filter((entry) => entry?.message?.customType === "goal-status")).toHaveLength(0);
   });
 
-  test("agent_end emits a wrap-up prompt when the budget is exhausted", async () => {
-    const { commands, handlers, sentUserMessages, customMessages, ctx } = createHarness();
-    const command = commands.get("goal");
+  test("budget exhaustion marks budget_limited and emits wrap-up prompt once", async () => {
+    const { handlers, sentUserMessages, ctx } = createHarness();
+    const messageEnd = handlers.find((entry) => entry.event === "message_end")?.handler;
     const agentEnd = handlers.find((entry) => entry.event === "agent_end")?.handler;
-
     await withChatContext("web:goal", "web", async () => {
-      await command.handler("Stabilize the deployment", ctx);
-      saveGoalSession("web:goal", { tokens_used: 25000, token_budget: 20000 });
+      createThreadGoal("web:goal", "Stabilize deployment", 100);
+      await messageEnd({ message: { role: "assistant", usage: { totalTokens: 120 } } }, ctx);
+      await agentEnd({}, ctx);
       await agentEnd({}, ctx);
     });
-
-    const session = loadGoalSession("web:goal");
-    expect(session.status).toBe("budget_limited");
-    expect(session.enabled).toBe(false);
-    expect(sentUserMessages).toHaveLength(2);
-    expect(String(sentUserMessages[1]?.content)).toContain("has reached its token budget");
-    expect(customMessages.filter((entry) => entry?.message?.customType === "goal-status")).toHaveLength(0);
+    expect(loadThreadGoal("web:goal")?.status).toBe("budget_limited");
+    expect(sentUserMessages).toHaveLength(1);
+    expect(String(sentUserMessages[0]?.content)).toContain("has reached its token budget");
   });
 });
