@@ -157,3 +157,21 @@ const __webApiOV = (globalThis as any).__piclaw_web;
 if (__webApiOV && typeof __webApiOV.registerPane === 'function') {
   __webApiOV.registerPane(officeViewerPaneExtension);
 }
+
+// Register attachment preview so file pills show the View button when this addon is installed
+if (__webApiOV && typeof __webApiOV.registerAttachmentPreview === 'function') {
+  __webApiOV.registerAttachmentPreview({
+    id: 'office',
+    label: 'Office Viewer',
+    match(contentType: unknown, filename: unknown): boolean {
+      const name = typeof filename === 'string' ? filename.toLowerCase() : '';
+      const ext = name.includes('.') ? '.' + name.split('.').pop() : '';
+      return OFFICE_EXTENSIONS.has(ext);
+    },
+    buildFrameUrl(mediaId: number, filename: string): string {
+      const safeName = encodeURIComponent(filename || 'document');
+      const mediaUrl = `/media/${mediaId}/${safeName}`;
+      return `/office-viewer/?url=${encodeURIComponent(mediaUrl)}&name=${safeName}`;
+    },
+  });
+}

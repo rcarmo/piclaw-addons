@@ -519,7 +519,7 @@
     {
       "slug": "office-tools",
       "name": "@rcarmo/piclaw-addon-office-tools",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "type": "extension",
       "description": "Office document read/write tools for Piclaw (docx, xlsx, pptx, odt, md→pdf)",
       "path": "addons/office-tools",
@@ -535,14 +535,14 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-office-tools-0.1.1.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-office-tools-0.1.2.tgz"
       },
       "updatedAt": "2026-05-08"
     },
     {
       "slug": "office-viewer",
       "name": "@rcarmo/piclaw-addon-office-viewer",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "type": "extension",
       "description": "Office document viewer (.docx, .xlsx, .pptx, .odt, .ods, .odp) for Piclaw",
       "path": "addons/office-viewer",
@@ -558,7 +558,7 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-office-viewer-0.1.1.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-office-viewer-0.1.2.tgz"
       },
       "updatedAt": "2026-05-10"
     },
