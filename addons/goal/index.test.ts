@@ -186,7 +186,7 @@ describe("/goal command and runtime loop", () => {
     const goal = loadThreadGoal("web:goal");
     expect(goal?.objective).toBe("Ship the release");
     expect(goal?.status).toBe("active");
-    expect(sentUserMessages).toHaveLength(0);
+    expect(sentUserMessages).toHaveLength(1);
     await flushGoalPromptDispatchesForTests();
     expect(String(sentUserMessages[0]?.content)).toContain("Continue working toward the active thread goal");
     expect(sentUserMessages[0]?.options).toEqual({ via: "local-agent-endpoint" });
@@ -197,7 +197,6 @@ describe("/goal command and runtime loop", () => {
     const { commands, sentUserMessages, confirmations, ctx } = createHarness({ confirm: false });
     await withChatContext("web:goal", "web", async () => {
       await commands.get("goal").handler("First goal", ctx);
-      await flushGoalPromptDispatchesForTests();
       await commands.get("goal").handler("Second goal", ctx);
     });
     expect(confirmations).toHaveLength(1);
@@ -209,11 +208,9 @@ describe("/goal command and runtime loop", () => {
     const { commands, sentUserMessages, ctx } = createHarness();
     await withChatContext("web:goal", "web", async () => {
       await commands.get("goal").handler("Finish docs", ctx);
-      await flushGoalPromptDispatchesForTests();
       await commands.get("goal").handler("pause", ctx);
       expect(loadThreadGoal("web:goal")?.status).toBe("paused");
       await commands.get("goal").handler("resume", ctx);
-      await flushGoalPromptDispatchesForTests();
       expect(loadThreadGoal("web:goal")?.status).toBe("active");
       await commands.get("goal").handler("clear", ctx);
       expect(loadThreadGoal("web:goal")).toBeNull();
@@ -226,7 +223,6 @@ describe("/goal command and runtime loop", () => {
     const input = handlers.find((entry) => entry.event === "input")?.handler;
     await withChatContext("web:goal", "web", async () => {
       await commands.get("goal").handler("Finish docs", ctx);
-      await flushGoalPromptDispatchesForTests();
       expect(String(sentUserMessages[0]?.content)).toContain("piclaw-goal");
       await commands.get("goal").handler("stop", ctx);
       expect(loadThreadGoal("web:goal")?.status).toBe("paused");
@@ -241,7 +237,6 @@ describe("/goal command and runtime loop", () => {
     const input = handlers.find((entry) => entry.event === "input")?.handler;
     await withChatContext("web:goal", "web", async () => {
       await commands.get("goal").handler("Finish docs", ctx);
-      await flushGoalPromptDispatchesForTests();
       const result = await input({ type: "input", text: sentUserMessages[0]?.content, source: "extension" }, ctx);
       expect(result.action).toBe("transform");
       expect(result.text).toContain("Continue working toward the active thread goal");
@@ -255,7 +250,6 @@ describe("/goal command and runtime loop", () => {
     const agentEnd = handlers.find((entry) => entry.event === "agent_end")?.handler;
     await withChatContext("web:goal", "web", async () => {
       await commands.get("goal").handler("Finish docs", ctx);
-      await flushGoalPromptDispatchesForTests();
       await messageEnd({ message: { role: "assistant", usage: { totalTokens: 123 } } }, ctx);
       await agentEnd({}, ctx);
     });
@@ -269,7 +263,6 @@ describe("/goal command and runtime loop", () => {
     const agentEnd = handlers.find((entry) => entry.event === "agent_end")?.handler;
     await withChatContext("web:goal", "web", async () => {
       await commands.get("goal").handler("Finish docs", ctx);
-      await flushGoalPromptDispatchesForTests();
       await agentEnd({}, ctx);
     });
     expect(sentUserMessages).toHaveLength(1);

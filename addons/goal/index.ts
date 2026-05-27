@@ -507,38 +507,28 @@ export function setGoalPromptSenderForTests(sender: ((goal: ThreadGoal, content:
   goalPromptSenderForTests = sender;
 }
 
-function scheduleGoalPrompt(goal: ThreadGoal, prompt: string, reason: GoalPromptReason): boolean {
+async function enqueueGoalPrompt(goal: ThreadGoal, prompt: string, reason: GoalPromptReason): Promise<boolean> {
   if (!prompt.trim()) return false;
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const pending = new Promise<void>((resolve) => {
-    timer = setTimeout(async () => {
-      if (timer) pendingGoalTimers.delete(timer);
-      try {
-        if (reason !== "budget_limited" && cancelIfGoalStopped(goal)) return;
-        await dispatchGoalPrompt(goal, prompt, reason);
-      } catch (error) {
-        try {
-          getBroadcastEvent()?.("extension_ui_status", {
-            key: UI_GOAL_UPDATED_KEY,
-            chat_jid: goal.chat_jid,
-            updated_at: nowIso(),
-            source: "runtime",
-            action: "update",
-            goal: protocolGoal(goal),
-            error: error instanceof Error ? error.message : String(error),
-          });
-        } catch {
-          // Ignore broadcast failures; the exception must not kill the command/API turn.
-        }
-      } finally {
-        pendingGoalDispatches.delete(pending);
-        resolve();
-      }
-    }, 0);
-    pendingGoalTimers.add(timer);
-  });
-  pendingGoalDispatches.add(pending);
-  return true;
+  if (reason !== "budget_limited" && cancelIfGoalStopped(goal)) return false;
+  try {
+    await dispatchGoalPrompt(goal, prompt, reason);
+    return true;
+  } catch (error) {
+    try {
+      getBroadcastEvent()?.("extension_ui_status", {
+        key: UI_GOAL_UPDATED_KEY,
+        chat_jid: goal.chat_jid,
+        updated_at: nowIso(),
+        source: "runtime",
+        action: "update",
+        goal: protocolGoal(goal),
+        error: error instanceof Error ? error.message : String(error),
+      });
+    } catch {
+      // Ignore broadcast failures; the exception must not kill the command/API turn.
+    }
+    return false;
+  }
 }
 
 export async function flushGoalPromptDispatchesForTests(): Promise<void> {
@@ -602,7 +592,7 @@ if (typeof registerAddonConfigApi === "function") {
       const reason: GoalPromptReason | null = body.objective !== undefined
         ? (current ? "objective_updated" : "start")
         : goal.status === "active" ? "resume" : null;
-      const continuationQueued = reason ? scheduleGoalPrompt(goal, reason === "objective_updated" ? objectiveUpdatedPrompt(goal) : buildGoalContinuationPrompt(goal), reason) : false;
+      const continuationQueued = reason ? await enqueueGoalPrompt(goal, reason === "objective_updated" ? objectiveUpdatedPrompt(goal) : buildGoalContinuationPrompt(goal), reason) : false;
       return { ok: true, ...goalResponse(goal), continuationQueued, continuationReason: reason };
     },
   }, import.meta.dir);
@@ -705,8 +695,8 @@ export default function goalAddon(pi: ExtensionAPI): void {
       if (parsed.mode === "resume") {
         const goal = patchThreadGoal(chatJid, { status: "active", last_accounted_at: nowIso(), blocked_turns: 0, last_blocker: "" });
         broadcastGoalUpdated(goal, chatJid, "command", "resume");
-        scheduleGoalPrompt(goal, buildGoalContinuationPrompt(goal), "resume");
-        ctx.ui.notify("Goal resumed — server-side continuation queued", "info");
+        const queued = await enqueueGoalPrompt(goal, buildGoalContinuationPrompt(goal), "resume");
+        ctx.ui.notify(queued ? "Goal resumed — server-side continuation queued" : "Goal resumed — continuation enqueue failed", queued ? "info" : "warning");
         return goal;
       }
       if (parsed.mode === "edit") {
@@ -729,8 +719,8 @@ export default function goalAddon(pi: ExtensionAPI): void {
       }
       const goal = shouldReplace && current ? replaceThreadGoal(chatJid, objective) : createThreadGoal(chatJid, objective);
       broadcastGoalUpdated(goal, chatJid, "command", current ? "update" : "create");
-      scheduleGoalPrompt(goal, current ? objectiveUpdatedPrompt(goal) : buildGoalContinuationPrompt(goal), current ? "objective_updated" : "start");
-      ctx.ui.notify("Goal active — server-side continuation queued", "info");
+      const queued = await enqueueGoalPrompt(goal, current ? objectiveUpdatedPrompt(goal) : buildGoalContinuationPrompt(goal), current ? "objective_updated" : "start");
+      ctx.ui.notify(queued ? "Goal active — server-side continuation queued" : "Goal active — continuation enqueue failed", queued ? "info" : "warning");
       return goal;
     },
   });
