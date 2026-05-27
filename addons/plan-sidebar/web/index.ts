@@ -256,17 +256,21 @@ function installPlanSidebar() {
         checkbox.type = "checkbox";
         checkbox.className = "plan-sidebar-live-checkbox";
         checkbox.checked = checked.toLowerCase() === "x";
+        checkbox.indeterminate = checked === "-";
+        row.classList.add(checked === "-" ? "plan-sidebar-live-in-progress" : checkbox.checked ? "plan-sidebar-live-completed" : "plan-sidebar-live-pending");
         checkbox.setAttribute("aria-label", text ? `Mark ${text} complete` : "Mark checklist item complete");
         const textSpan = document.createElement("span");
         textSpan.className = "plan-sidebar-live-text";
         textSpan.textContent = text || "\u200b";
         setPlainEditable(textSpan);
+        const marker = () => checkbox.indeterminate ? "-" : checkbox.checked ? "x" : " ";
         checkbox.addEventListener("change", () => {
-          replacePlanLine(index, `${prefix}[${checkbox.checked ? "x" : " "}]${spacing || " "}${editableText(textSpan)}`, { rerender: true });
+          checkbox.indeterminate = false;
+          replacePlanLine(index, `${prefix}[${marker()}]${spacing || " "}${editableText(textSpan)}`, { rerender: true });
           setTimeout(() => focusLiveLine(index), 0);
         });
         textSpan.addEventListener("input", () => {
-          replacePlanLine(index, `${prefix}[${checkbox.checked ? "x" : " "}]${spacing || " "}${editableText(textSpan)}`);
+          replacePlanLine(index, `${prefix}[${marker()}]${spacing || " "}${editableText(textSpan)}`);
         });
         textSpan.addEventListener("keydown", (event) => {
           if (event.key !== "Enter") return;
@@ -519,22 +523,26 @@ function getPlanProgress(markdown) {
   const lines = String(markdown || "").split(/\r?\n/);
   let total = 0;
   let complete = 0;
+  let inProgress = 0;
   for (const line of lines) {
     const match = line.match(/^\s*(?:[-*+]|\d+[.)])\s+\[([ xX-])\](?:\s|$)/);
     if (!match) continue;
     total += 1;
     if (match[1].toLowerCase() === "x") complete += 1;
+    if (match[1] === "-") inProgress += 1;
   }
   return {
     total,
     complete,
+    inProgress,
     percent: total ? Math.round((complete / total) * 100) : 0,
   };
 }
 
 function formatProgressText(progress) {
   if (!progress?.total) return "No checklist items";
-  return `${progress.complete}/${progress.total} items complete (${progress.percent}%)`;
+  const suffix = progress.inProgress ? ` • ${progress.inProgress} in progress` : "";
+  return `${progress.complete}/${progress.total} items complete (${progress.percent}%)${suffix}`;
 }
 
 function getCurrentChatJid() {
@@ -754,6 +762,8 @@ function injectStyles() {
       align-items: start;
       gap: 8px;
     }
+    .plan-sidebar-live-in-progress .plan-sidebar-live-text { color: var(--accent-color,#2563eb); font-weight: 600; }
+    .plan-sidebar-live-completed .plan-sidebar-live-text { color: var(--text-secondary,#94a3b8); text-decoration: line-through; }
     .plan-sidebar-live-checkbox {
       width: 14px;
       height: 14px;
