@@ -156,7 +156,8 @@ function GoalSettingsPane() {
       setResponse(result);
       setDraftObjective(result.goal?.objective || "");
       setDraftBudget(result.goal?.tokenBudget == null ? "" : String(result.goal.tokenBudget));
-      setMessage(label);
+      const queuedSuffix = result.continuationQueued ? " Server-side continuation queued." : "";
+      setMessage(`${label}${queuedSuffix}`);
     } catch (error) {
       setMessage(String(error?.message || error));
     } finally {
@@ -205,7 +206,7 @@ function GoalSettingsPane() {
           onInput=${(e) => setDraftObjective(e.target.value)}
           disabled=${saving}></textarea>
       </label>
-      ${hint("Use /goal <objective> to start from chat, or save here to replace the thread goal state.")}
+      ${hint("Use /goal <objective> to start from chat, or save here to replace the thread goal and queue a server-side continuation.")}
 
       <label style=${S}>
         <span style=${L}>Token budget</span>
@@ -217,8 +218,8 @@ function GoalSettingsPane() {
       ${hint("Empty means no token budget. Budget exhaustion marks the goal budget_limited and emits a wrap-up prompt.")}
 
       <div style=${{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "0.5rem" }}>
-        <button onClick=${() => save({ objective: draftObjective, token_budget: positiveOrEmpty(draftBudget) }, "Saved/replaced goal.")} disabled=${saving || !draftObjective.trim()}>Save / Replace</button>
-        <button onClick=${() => save({ status: "active", token_budget: positiveOrEmpty(draftBudget) }, "Goal resumed.")} disabled=${saving || !goal}>Resume</button>
+        <button onClick=${() => save({ objective: draftObjective, token_budget: positiveOrEmpty(draftBudget) }, "Saved/replaced goal.")} disabled=${saving || !draftObjective.trim()}>Save / Replace + Run</button>
+        <button onClick=${() => save({ status: "active", token_budget: positiveOrEmpty(draftBudget) }, "Goal resumed.")} disabled=${saving || !goal}>Resume + Run</button>
         <button onClick=${() => save({ status: "paused", token_budget: positiveOrEmpty(draftBudget) }, "Goal paused.")} disabled=${saving || !goal}>Pause</button>
         <button onClick=${() => save({ status: "blocked", token_budget: positiveOrEmpty(draftBudget) }, "Goal marked blocked.")} disabled=${saving || !goal}>Blocked</button>
         <button onClick=${() => save({ status: "complete", token_budget: positiveOrEmpty(draftBudget) }, "Goal marked complete.")} disabled=${saving || !goal}>Complete</button>

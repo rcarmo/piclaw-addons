@@ -7,6 +7,7 @@ import { getChatJid } from "./compat/chat-context.js";
 const EXTENSION_ID = "goal";
 const GOAL_KEY = "thread-goal";
 const UI_GOAL_UPDATED_KEY = "goal.thread-goal-updated";
+const GOAL_PROMPT_MARKER_PREFIX = "<!-- piclaw-goal ";
 
 export type ThreadGoalStatus = "active" | "paused" | "blocked" | "usage_limited" | "budget_limited" | "complete";
 
@@ -47,8 +48,13 @@ type PiclawBroadcastEvent = (type: string, payload: Record<string, unknown>) => 
 
 type GoalMutationSource = "api" | "command" | "tool" | "runtime";
 type GoalMutationAction = "create" | "update" | "clear" | "pause" | "resume" | "complete" | "blocked" | "budget_limited";
+type GoalPromptReason = "start" | "resume" | "objective_updated" | "continuation" | "budget_limited";
 
 let kvStore: ExtensionStorage | null = null;
+let activeGoalPi: ExtensionAPI | null = null;
+const pendingGoalDispatches = new Set<Promise<void>>();
+const pendingGoalTimers = new Set<ReturnType<typeof setTimeout>>();
+
 function kv(): ExtensionStorage {
   if (!kvStore) kvStore = createExtensionStorage(EXTENSION_ID);
   return kvStore;
@@ -137,6 +143,10 @@ function normalizeStatus(value: unknown, fallback: ThreadGoalStatus = "active"):
 export function resetGoalAddonForTests(): void {
   try { kv().clear(); } catch { /* ignore test cleanup failures */ }
   kvStore = null;
+  activeGoalPi = null;
+  for (const timer of pendingGoalTimers) clearTimeout(timer);
+  pendingGoalTimers.clear();
+  pendingGoalDispatches.clear();
 }
 
 export function loadThreadGoal(chatJidInput?: unknown): ThreadGoal | null {
@@ -264,6 +274,43 @@ function broadcastGoalUpdated(goal: ThreadGoal | null, chatJidInput: unknown, so
 
 function escapeXmlText(input: string): string {
   return input.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function goalPromptMarker(goal: ThreadGoal, reason: GoalPromptReason): string {
+  return `${GOAL_PROMPT_MARKER_PREFIX}${JSON.stringify({ chatJid: goal.chat_jid, goalId: goal.goal_id, reason })} -->`;
+}
+
+function withGoalPromptMarker(goal: ThreadGoal, reason: GoalPromptReason, prompt: string): string {
+  return `${goalPromptMarker(goal, reason)}\n${prompt}`;
+}
+
+function parseGoalPromptMarker(text: unknown): { chatJid: string; goalId: string; reason: GoalPromptReason; prompt: string } | null {
+  if (typeof text !== "string" || !text.startsWith(GOAL_PROMPT_MARKER_PREFIX)) return null;
+  const end = text.indexOf(" -->");
+  if (end < 0) return null;
+  try {
+    const marker = JSON.parse(text.slice(GOAL_PROMPT_MARKER_PREFIX.length, end));
+    const reason = marker?.reason;
+    if (reason !== "start" && reason !== "resume" && reason !== "objective_updated" && reason !== "continuation" && reason !== "budget_limited") return null;
+    const chatJid = normalizeChatJid(marker?.chatJid);
+    const goalId = normalizeText(marker?.goalId);
+    if (!goalId) return null;
+    return { chatJid, goalId, reason, prompt: text.slice(end + " -->".length).replace(/^\n/, "") };
+  } catch {
+    return null;
+  }
+}
+
+function shouldRunMarkedGoalPrompt(marker: { chatJid: string; goalId: string; reason: GoalPromptReason }): boolean {
+  const goal = loadThreadGoal(marker.chatJid);
+  if (!goal || goal.goal_id !== marker.goalId) return false;
+  if (marker.reason === "budget_limited") return goal.status === "budget_limited";
+  return goal.status === "active";
+}
+
+function cancelIfGoalStopped(goal: ThreadGoal): boolean {
+  const latest = loadThreadGoal(goal.chat_jid);
+  return !latest || latest.goal_id !== goal.goal_id || latest.status !== "active";
 }
 
 export function buildGoalContinuationPrompt(goal: ThreadGoal): string {
@@ -412,10 +459,83 @@ function accountGoalProgress(chatJidInput: unknown, tokenDeltaInput = 0): Thread
   });
 }
 
-function sendGoalPrompt(pi: ExtensionAPI, ctx: ExtensionContext | ExtensionCommandContext, prompt: string): void {
+function sendGoalActivity(pi: ExtensionAPI, goal: ThreadGoal, reason: GoalPromptReason): void {
+  try {
+    pi.sendMessage({
+      customType: "goal_activity",
+      content: {
+        reason,
+        chatJid: goal.chat_jid,
+        goalId: goal.goal_id,
+        objective: goal.objective,
+        status: goal.status,
+        updatedAt: goal.updated_at,
+      },
+      display: `🎯 Goal ${reason.replace(/_/g, " ")}: queued server-side continuation for ${goal.chat_jid}`,
+      details: goalResponse(goal),
+    });
+  } catch {
+    // The user-message turn below is the authoritative activity; this marker is best-effort visibility.
+  }
+}
+
+function sendGoalSkippedActivity(pi: ExtensionAPI, marker: { chatJid: string; goalId: string; reason: GoalPromptReason }, status: string): void {
+  try {
+    pi.sendMessage({
+      customType: "goal_activity",
+      content: { ...marker, status, skipped: true },
+      display: `🎯 Goal ${status}: skipped queued ${marker.reason.replace(/_/g, " ")} continuation for ${marker.chatJid}`,
+      details: { marker, status, goal: protocolGoal(loadThreadGoal(marker.chatJid)) },
+    });
+  } catch {
+    // Best-effort visibility only.
+  }
+}
+
+function dispatchGoalPrompt(pi: ExtensionAPI, goal: ThreadGoal, prompt: string, reason: GoalPromptReason): void {
   if (!prompt.trim()) return;
-  if (ctx.isIdle?.()) pi.sendUserMessage(prompt);
-  else pi.sendUserMessage(prompt, { deliverAs: "followUp" });
+  sendGoalActivity(pi, goal, reason);
+  // Always pass deliverAs=followUp. When the agent is idle this still starts a normal server-side turn;
+  // when it is busy it becomes a visible queued follow-up instead of trying to nest a turn.
+  pi.sendUserMessage(withGoalPromptMarker(goal, reason, prompt), { deliverAs: "followUp" });
+}
+
+function scheduleGoalPrompt(pi: ExtensionAPI | null, goal: ThreadGoal, prompt: string, reason: GoalPromptReason): boolean {
+  if (!pi || !prompt.trim()) return false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const pending = new Promise<void>((resolve) => {
+    timer = setTimeout(() => {
+      if (timer) pendingGoalTimers.delete(timer);
+      try {
+        if (reason !== "budget_limited" && cancelIfGoalStopped(goal)) return;
+        dispatchGoalPrompt(pi, goal, prompt, reason);
+      } catch (error) {
+        try {
+          getBroadcastEvent()?.("extension_ui_status", {
+            key: UI_GOAL_UPDATED_KEY,
+            chat_jid: goal.chat_jid,
+            updated_at: nowIso(),
+            source: "runtime",
+            action: "update",
+            goal: protocolGoal(goal),
+            error: error instanceof Error ? error.message : String(error),
+          });
+        } catch {
+          // Ignore broadcast failures; the exception must not kill the command/API turn.
+        }
+      } finally {
+        pendingGoalDispatches.delete(pending);
+        resolve();
+      }
+    }, 0);
+    pendingGoalTimers.add(timer);
+  });
+  pendingGoalDispatches.add(pending);
+  return true;
+}
+
+export async function flushGoalPromptDispatchesForTests(): Promise<void> {
+  while (pendingGoalDispatches.size > 0) await Promise.all([...pendingGoalDispatches]);
 }
 
 function parseGoalCommandInput(input: string): { mode: "summary" | "clear" | "pause" | "resume" | "edit" | "start"; objective?: string } {
@@ -466,11 +586,17 @@ if (typeof registerAddonConfigApi === "function") {
         broadcastGoalUpdated(null, chatJid, "api", "clear");
         return { ok: true, ...goalResponse(null) };
       }
+      const current = loadThreadGoal(chatJid);
       const goal = body.objective !== undefined
         ? replaceThreadGoal(chatJid, body.objective, body.token_budget)
         : patchThreadGoal(chatJid, { status: normalizeStatus(body.status), token_budget: normalizePositiveIntOrNull(body.token_budget) });
-      broadcastGoalUpdated(goal, chatJid, "api", "update");
-      return { ok: true, ...goalResponse(goal) };
+      const action: GoalMutationAction = body.objective !== undefined ? (current ? "update" : "create") : goal.status === "active" ? "resume" : "update";
+      broadcastGoalUpdated(goal, chatJid, "api", action);
+      const reason: GoalPromptReason | null = body.objective !== undefined
+        ? (current ? "objective_updated" : "start")
+        : goal.status === "active" ? "resume" : null;
+      const continuationQueued = reason ? scheduleGoalPrompt(activeGoalPi, goal, reason === "objective_updated" ? objectiveUpdatedPrompt(goal) : buildGoalContinuationPrompt(goal), reason) : false;
+      return { ok: true, ...goalResponse(goal), continuationQueued, continuationReason: reason };
     },
   }, import.meta.dir);
 }
@@ -489,6 +615,19 @@ const UpdateGoalSchema = Type.Object({
 });
 
 export default function goalAddon(pi: ExtensionAPI): void {
+  activeGoalPi = pi;
+
+  pi.on("input", (event) => {
+    const marker = parseGoalPromptMarker((event as { text?: unknown }).text);
+    if (!marker) return { action: "continue" as const };
+    if (!shouldRunMarkedGoalPrompt(marker)) {
+      const goal = loadThreadGoal(marker.chatJid);
+      sendGoalSkippedActivity(pi, marker, goal?.status || "stopped");
+      return { action: "handled" as const };
+    }
+    return { action: "transform" as const, text: marker.prompt, images: (event as { images?: never }).images };
+  });
+
   pi.registerTool({
     name: "get_goal",
     label: "get_goal",
@@ -561,8 +700,8 @@ export default function goalAddon(pi: ExtensionAPI): void {
       if (parsed.mode === "resume") {
         const goal = patchThreadGoal(chatJid, { status: "active", last_accounted_at: nowIso(), blocked_turns: 0, last_blocker: "" });
         broadcastGoalUpdated(goal, chatJid, "command", "resume");
-        sendGoalPrompt(pi, ctx, buildGoalContinuationPrompt(goal));
-        ctx.ui.notify("Goal resumed", "info");
+        scheduleGoalPrompt(pi, goal, buildGoalContinuationPrompt(goal), "resume");
+        ctx.ui.notify("Goal resumed — server-side continuation queued", "info");
         return goal;
       }
       if (parsed.mode === "edit") {
@@ -585,8 +724,8 @@ export default function goalAddon(pi: ExtensionAPI): void {
       }
       const goal = shouldReplace && current ? replaceThreadGoal(chatJid, objective) : createThreadGoal(chatJid, objective);
       broadcastGoalUpdated(goal, chatJid, "command", current ? "update" : "create");
-      sendGoalPrompt(pi, ctx, current ? objectiveUpdatedPrompt(goal) : buildGoalContinuationPrompt(goal));
-      ctx.ui.notify("Goal active", "info");
+      scheduleGoalPrompt(pi, goal, current ? objectiveUpdatedPrompt(goal) : buildGoalContinuationPrompt(goal), current ? "objective_updated" : "start");
+      ctx.ui.notify("Goal active — server-side continuation queued", "info");
       return goal;
     },
   });
@@ -608,11 +747,11 @@ export default function goalAddon(pi: ExtensionAPI): void {
     if (goal.status === "budget_limited" && !goal.budget_limit_reported) {
       const reported = saveThreadGoal({ ...goal, budget_limit_reported: true, last_accounted_at: null });
       broadcastGoalUpdated(reported, chatJid, "runtime", "budget_limited");
-      sendGoalPrompt(pi, ctx, buildGoalBudgetLimitPrompt(reported));
+      dispatchGoalPrompt(pi, reported, buildGoalBudgetLimitPrompt(reported), "budget_limited");
       return;
     }
     if (goal.status !== "active") return;
     if (ctx.hasPendingMessages?.()) return;
-    sendGoalPrompt(pi, ctx, buildGoalContinuationPrompt(goal));
+    dispatchGoalPrompt(pi, goal, buildGoalContinuationPrompt(goal), "continuation");
   });
 }

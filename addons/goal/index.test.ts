@@ -6,6 +6,7 @@ import goalAddon, {
   buildGoalBudgetLimitPrompt,
   buildGoalContinuationPrompt,
   createThreadGoal,
+  flushGoalPromptDispatchesForTests,
   goalResponse,
   loadThreadGoal,
   resetGoalAddonForTests,
@@ -15,7 +16,8 @@ import { withChatContext } from "./compat/chat-context.ts";
 
 const addonDir = import.meta.dir;
 
-afterEach(() => {
+afterEach(async () => {
+  await flushGoalPromptDispatchesForTests();
   resetGoalAddonForTests();
   delete (globalThis as { __piclawRuntimeInterop?: unknown }).__piclawRuntimeInterop;
   delete (globalThis as { __PICLAW_BROADCAST_EVENT__?: unknown }).__PICLAW_BROADCAST_EVENT__;
@@ -26,6 +28,7 @@ function createHarness(options: { confirm?: boolean; pending?: boolean } = {}) {
   const tools = new Map<string, any>();
   const handlers: Array<{ event: string; handler: (...args: any[]) => any }> = [];
   const sentUserMessages: Array<{ content: unknown; options?: unknown }> = [];
+  const sentMessages: Array<{ message: unknown; options?: unknown }> = [];
   const notifications: Array<{ message: string; level: string }> = [];
   const confirmations: string[] = [];
 
@@ -33,6 +36,7 @@ function createHarness(options: { confirm?: boolean; pending?: boolean } = {}) {
     on(event: string, handler: (...args: any[]) => any) { handlers.push({ event, handler }); },
     registerTool(tool: any) { tools.set(tool.name, tool); },
     registerCommand(name: string, command: any) { commands.set(name, command); },
+    sendMessage(message: unknown, options?: unknown) { sentMessages.push({ message, options }); },
     sendUserMessage(content: unknown, options?: unknown) { sentUserMessages.push({ content, options }); },
   } as any;
 
@@ -47,7 +51,7 @@ function createHarness(options: { confirm?: boolean; pending?: boolean } = {}) {
   } as any;
 
   goalAddon(api);
-  return { api, commands, tools, handlers, sentUserMessages, notifications, confirmations, ctx };
+  return { api, commands, tools, handlers, sentUserMessages, sentMessages, notifications, confirmations, ctx };
 }
 
 test("goal addon exports an extension entrypoint", () => {
@@ -169,22 +173,27 @@ describe("Codex-style goal tools", () => {
 });
 
 describe("/goal command and runtime loop", () => {
-  test("/goal starts a thread goal and queues the Codex continuation prompt", async () => {
-    const { commands, sentUserMessages, notifications, ctx } = createHarness();
+  test("/goal starts a thread goal and asynchronously queues the Codex continuation prompt", async () => {
+    const { commands, sentUserMessages, sentMessages, notifications, ctx } = createHarness();
     await withChatContext("web:goal", "web", async () => {
       await commands.get("goal").handler("Ship the release", ctx);
     });
     const goal = loadThreadGoal("web:goal");
     expect(goal?.objective).toBe("Ship the release");
     expect(goal?.status).toBe("active");
+    expect(sentUserMessages).toHaveLength(0);
+    await flushGoalPromptDispatchesForTests();
     expect(String(sentUserMessages[0]?.content)).toContain("Continue working toward the active thread goal");
-    expect(notifications.at(-1)?.message).toContain("Goal active");
+    expect(sentUserMessages[0]?.options).toEqual({ deliverAs: "followUp" });
+    expect(String((sentMessages[0]?.message as any)?.display)).toContain("server-side continuation");
+    expect(notifications.at(-1)?.message).toContain("server-side continuation queued");
   });
 
   test("/goal requires confirmation before replacing an active goal", async () => {
     const { commands, sentUserMessages, confirmations, ctx } = createHarness({ confirm: false });
     await withChatContext("web:goal", "web", async () => {
       await commands.get("goal").handler("First goal", ctx);
+      await flushGoalPromptDispatchesForTests();
       await commands.get("goal").handler("Second goal", ctx);
     });
     expect(confirmations).toHaveLength(1);
@@ -196,14 +205,44 @@ describe("/goal command and runtime loop", () => {
     const { commands, sentUserMessages, ctx } = createHarness();
     await withChatContext("web:goal", "web", async () => {
       await commands.get("goal").handler("Finish docs", ctx);
+      await flushGoalPromptDispatchesForTests();
       await commands.get("goal").handler("pause", ctx);
       expect(loadThreadGoal("web:goal")?.status).toBe("paused");
       await commands.get("goal").handler("resume", ctx);
+      await flushGoalPromptDispatchesForTests();
       expect(loadThreadGoal("web:goal")?.status).toBe("active");
       await commands.get("goal").handler("clear", ctx);
       expect(loadThreadGoal("web:goal")).toBeNull();
     });
     expect(sentUserMessages.length).toBeGreaterThanOrEqual(2);
+  });
+
+  test("queued goal prompts are swallowed after /goal stop regardless of queue", async () => {
+    const { commands, handlers, sentUserMessages, sentMessages, ctx } = createHarness();
+    const input = handlers.find((entry) => entry.event === "input")?.handler;
+    await withChatContext("web:goal", "web", async () => {
+      await commands.get("goal").handler("Finish docs", ctx);
+      await flushGoalPromptDispatchesForTests();
+      expect(String(sentUserMessages[0]?.content)).toContain("piclaw-goal");
+      await commands.get("goal").handler("stop", ctx);
+      expect(loadThreadGoal("web:goal")?.status).toBe("paused");
+      const result = await input({ type: "input", text: sentUserMessages[0]?.content, source: "extension" }, ctx);
+      expect(result).toEqual({ action: "handled" });
+    });
+    expect(String((sentMessages.at(-1)?.message as any)?.display)).toContain("skipped queued start continuation");
+  });
+
+  test("active marked goal prompts are transformed to hide queue metadata", async () => {
+    const { commands, handlers, sentUserMessages, ctx } = createHarness();
+    const input = handlers.find((entry) => entry.event === "input")?.handler;
+    await withChatContext("web:goal", "web", async () => {
+      await commands.get("goal").handler("Finish docs", ctx);
+      await flushGoalPromptDispatchesForTests();
+      const result = await input({ type: "input", text: sentUserMessages[0]?.content, source: "extension" }, ctx);
+      expect(result.action).toBe("transform");
+      expect(result.text).toContain("Continue working toward the active thread goal");
+      expect(result.text).not.toContain("piclaw-goal");
+    });
   });
 
   test("message_end accounts usage and agent_end emits continuation while active", async () => {
@@ -212,6 +251,7 @@ describe("/goal command and runtime loop", () => {
     const agentEnd = handlers.find((entry) => entry.event === "agent_end")?.handler;
     await withChatContext("web:goal", "web", async () => {
       await commands.get("goal").handler("Finish docs", ctx);
+      await flushGoalPromptDispatchesForTests();
       await messageEnd({ message: { role: "assistant", usage: { totalTokens: 123 } } }, ctx);
       await agentEnd({}, ctx);
     });
@@ -225,6 +265,7 @@ describe("/goal command and runtime loop", () => {
     const agentEnd = handlers.find((entry) => entry.event === "agent_end")?.handler;
     await withChatContext("web:goal", "web", async () => {
       await commands.get("goal").handler("Finish docs", ctx);
+      await flushGoalPromptDispatchesForTests();
       await agentEnd({}, ctx);
     });
     expect(sentUserMessages).toHaveLength(1);
