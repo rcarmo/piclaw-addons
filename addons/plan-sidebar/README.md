@@ -2,7 +2,7 @@
 
 Adds a right-side slide-out sidebar for the current chat/session plan.
 
-- Live-preview Markdown checklist editor with rendered checkbox controls.
+- Full-text Markdown checklist editor for normal human selection, paste, deletion, and multi-line edits.
 - Persists the plan per `chat_jid` in Piclaw's extension KV store.
 - Survives browser refreshes and follows the active web chat/session.
 - Provides one canonical model-facing `plan` tool for structured updates and raw Markdown reads/edits.

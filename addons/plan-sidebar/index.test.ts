@@ -300,15 +300,17 @@ test("web sidebar renders progress bar and collapsed meter", () => {
 });
 
 
-test("web sidebar renders checkboxes as live preview controls", () => {
+test("web sidebar uses a real full-text Markdown textarea for human editing", () => {
   const source = readFileSync(resolve(addonDir, "web", "index.ts"), "utf8");
-  expect(source).toContain("function renderLivePreview()");
-  expect(source).toContain('checkbox.type = "checkbox"');
-  expect(source).toContain('checkbox.indeterminate = checked === "-"');
-  expect(source).toContain("plan-sidebar-live-in-progress");
-  expect(source).toContain('preview.className = "plan-sidebar-live-preview"');
-  expect(source).toContain('element.contentEditable = "plaintext-only"');
-  expect(source).toContain("replacePlanLine(index");
+  expect(source).toContain('const textarea = document.createElement("textarea")');
+  expect(source).toContain('textarea.className = "plan-sidebar-textarea plan-sidebar-markdown-source"');
+  expect(source).toContain('textarea.wrap = "off"');
+  expect(source).toContain("state.fallbackTextarea?.focus()");
+  expect(source).toContain("white-space: pre;");
+  expect(source).not.toContain('contentEditable = "plaintext-only"');
+  expect(source).not.toContain('checkbox.type = "checkbox"');
+  expect(source).not.toContain('preview.className = "plan-sidebar-live-preview"');
+  expect(source).not.toContain("display: none !important");
 });
 
 
