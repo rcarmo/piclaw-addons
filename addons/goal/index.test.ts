@@ -24,7 +24,7 @@ afterEach(async () => {
   delete (globalThis as { __PICLAW_BROADCAST_EVENT__?: unknown }).__PICLAW_BROADCAST_EVENT__;
 });
 
-function createHarness(options: { confirm?: boolean; pending?: boolean } = {}) {
+function createHarness(options: { confirm?: boolean; pending?: boolean; idle?: boolean } = {}) {
   const commands = new Map<string, any>();
   const tools = new Map<string, any>();
   const handlers: Array<{ event: string; handler: (...args: any[]) => any }> = [];
@@ -51,7 +51,7 @@ function createHarness(options: { confirm?: boolean; pending?: boolean } = {}) {
       async confirm(message: string) { confirmations.push(message); return options.confirm === true; },
     },
     sessionManager: { getSessionDir: () => "/tmp/web_default" },
-    isIdle: () => true,
+    isIdle: () => options.idle !== false,
     hasPendingMessages: () => options.pending === true,
   } as any;
 
@@ -264,9 +264,35 @@ describe("/goal command and runtime loop", () => {
 
   test("agent_end does not auto-continue when pending user input exists", async () => {
     const { commands, handlers, sentUserMessages, ctx } = createHarness({ pending: true });
+    const messageEnd = handlers.find((entry) => entry.event === "message_end")?.handler;
     const agentEnd = handlers.find((entry) => entry.event === "agent_end")?.handler;
     await withChatContext("web:goal", "web", async () => {
       await commands.get("goal").handler("Finish docs", ctx);
+      await messageEnd({ message: { role: "assistant", stopReason: "stop", usage: { totalTokens: 12 } } }, ctx);
+      await agentEnd({}, ctx);
+    });
+    expect(sentUserMessages).toHaveLength(1);
+  });
+
+  test("agent_end does not auto-continue after a failed assistant turn", async () => {
+    const { commands, handlers, sentUserMessages, ctx } = createHarness();
+    const messageEnd = handlers.find((entry) => entry.event === "message_end")?.handler;
+    const agentEnd = handlers.find((entry) => entry.event === "agent_end")?.handler;
+    await withChatContext("web:goal", "web", async () => {
+      await commands.get("goal").handler("Finish docs", ctx);
+      await messageEnd({ message: { role: "assistant", stopReason: "error", errorMessage: "400 No tool call found" } }, ctx);
+      await agentEnd({}, ctx);
+    });
+    expect(sentUserMessages).toHaveLength(1);
+  });
+
+  test("agent_end does not auto-continue while the runtime is not idle", async () => {
+    const { commands, handlers, sentUserMessages, ctx } = createHarness({ idle: false });
+    const messageEnd = handlers.find((entry) => entry.event === "message_end")?.handler;
+    const agentEnd = handlers.find((entry) => entry.event === "agent_end")?.handler;
+    await withChatContext("web:goal", "web", async () => {
+      await commands.get("goal").handler("Finish docs", ctx);
+      await messageEnd({ message: { role: "assistant", stopReason: "stop", usage: { totalTokens: 12 } } }, ctx);
       await agentEnd({}, ctx);
     });
     expect(sentUserMessages).toHaveLength(1);

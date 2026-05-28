@@ -54,6 +54,7 @@ type GoalPromptReason = "start" | "resume" | "objective_updated" | "continuation
 
 let kvStore: ExtensionStorage | null = null;
 let goalPromptSenderForTests: ((goal: ThreadGoal, content: string) => Promise<void>) | null = null;
+const lastAssistantOutcomeByChat = new Map<string, { ok: boolean; stopReason: string; recordedAt: number }>();
 
 function kv(): ExtensionStorage {
   if (!kvStore) kvStore = createExtensionStorage(EXTENSION_ID);
@@ -144,6 +145,7 @@ export function resetGoalAddonForTests(): void {
   try { kv().clear(); } catch { /* ignore test cleanup failures */ }
   kvStore = null;
   goalPromptSenderForTests = null;
+  lastAssistantOutcomeByChat.clear();
 }
 
 export function loadThreadGoal(chatJidInput?: unknown): ThreadGoal | null {
@@ -427,6 +429,19 @@ function goalStatusSummary(goal: ThreadGoal | null, chatJidInput: unknown): stri
     `Budget: ${budget}`,
     `Time used: ${goal.time_used_seconds} seconds`,
   ].join("\n");
+}
+
+function recordAssistantOutcome(chatJidInput: unknown, message: unknown): void {
+  const chatJid = normalizeChatJid(chatJidInput);
+  const stopReason = normalizeText(message && typeof message === "object" ? (message as { stopReason?: unknown }).stopReason : undefined);
+  const errorMessage = normalizeText(message && typeof message === "object" ? (message as { errorMessage?: unknown }).errorMessage : undefined);
+  const ok = !errorMessage && stopReason !== "error" && stopReason !== "aborted" && stopReason !== "toolUse";
+  lastAssistantOutcomeByChat.set(chatJid, { ok, stopReason, recordedAt: Date.now() });
+}
+
+function lastAssistantTurnSucceeded(chatJidInput: unknown): boolean {
+  const outcome = lastAssistantOutcomeByChat.get(normalizeChatJid(chatJidInput));
+  return Boolean(outcome?.ok);
 }
 
 function extractUsageTokens(message: unknown): number {
@@ -744,6 +759,7 @@ export default function goalAddon(pi: ExtensionAPI): void {
     const message = (event as { message?: { role?: unknown; usage?: unknown } }).message;
     if (message?.role !== "assistant") return;
     const chatJid = resolveActiveChatJid(ctx);
+    recordAssistantOutcome(chatJid, message);
     const tokens = extractUsageTokens(message);
     if (tokens <= 0) return;
     const goal = accountGoalProgress(chatJid, tokens);
@@ -761,6 +777,8 @@ export default function goalAddon(pi: ExtensionAPI): void {
       return;
     }
     if (goal.status !== "active") return;
+    if (!lastAssistantTurnSucceeded(chatJid)) return;
+    if (ctx.isIdle && !ctx.isIdle()) return;
     if (ctx.hasPendingMessages?.()) return;
     await dispatchGoalPrompt(goal, buildGoalContinuationPrompt(goal), "continuation");
   });
