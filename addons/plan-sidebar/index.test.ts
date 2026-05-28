@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import planSidebarAddon, { applyPlanEdits, loadSessionPlan, normalizeStoredPlanMarkdown, normalizeUpdatePlanArgs, parsePlanMarkdown, resetPlanSidebarAddonForTests, resetSessionPlan, saveSessionPlan, updatePlanArgsToMarkdown } from "./index";
+import planSidebarAddon, { applyPlanEdits, applyPlanPatches, loadSessionPlan, normalizeStoredPlanMarkdown, normalizeUpdatePlanArgs, parsePlanMarkdown, resetPlanSidebarAddonForTests, resetSessionPlan, saveSessionPlan, updatePlanArgsToMarkdown } from "./index";
 
 const addonDir = import.meta.dir;
 
@@ -147,7 +147,8 @@ test("saved plan is injected into the next model turn", async () => {
   expect(result.systemPrompt).toContain("## Plan Sidebar");
   expect(result.systemPrompt).toContain("editable shared state");
   expect(result.systemPrompt).toContain("must keep it current");
-  expect(result.systemPrompt).toContain("`plan` tool with `action=update`");
+  expect(result.systemPrompt).toContain("`plan` tool with `action=patch`");
+  expect(result.systemPrompt).toContain("Use `action=update` for structured full-plan replacement");
   expect(result.systemPrompt).toContain("pending`, `in_progress`, or `completed`");
   expect(result.systemPrompt).toContain("action=read");
   expect(result.systemPrompt).toContain("action=edit");
@@ -199,7 +200,46 @@ test("plan edit supports batch insert, delete, append, and replace operations", 
   expect(editResult.details.markdown).toBe("- [x] first\n- [ ] second\n- [-] inserted active\n- [ ] inserted pending\n- [ ] final appended");
 });
 
-test("legacy get/set arguments are prepared as read/write", async () => {
+test("plan patch applies multi-item add/update/remove operations by index or step match", async () => {
+  resetPlanSidebarAddonForTests();
+  let tool: any = null;
+  const pi: any = {
+    on() {},
+    registerTool(definition: any) { tool = definition; },
+  };
+  planSidebarAddon(pi);
+
+  const ctx: any = { sessionManager: { getSessionDir: () => "/tmp/web_default" } };
+  await tool.execute("1", { action: "write", markdown: "> Keep this note\n\n- [ ] inspect\n- [-] implement\n- [ ] obsolete" }, undefined, undefined, ctx);
+  const patchResult = await tool.execute("2", {
+    action: "patch",
+    patches: [
+      { operation: "update", match: "inspect", status: "completed" },
+      { operation: "update", match: "implement", step: "implement batch patches", status: "in_progress" },
+      { operation: "remove", match: "obsolete" },
+      { operation: "add", after: "implement batch patches", step: "run patch tests", status: "pending" },
+      { operation: "add", position: "start", step: "write down goal", status: "completed" },
+    ],
+  }, undefined, undefined, ctx);
+
+  expect(patchResult.content[0].text).toBe("Patched plan for web:default.");
+  expect(patchResult.details.markdown).toBe("> Keep this note\n\n- [x] write down goal\n- [x] inspect\n- [-] implement batch patches\n- [ ] run patch tests");
+  expect(patchResult.details.plan).toEqual([
+    { step: "write down goal", status: "completed" },
+    { step: "inspect", status: "completed" },
+    { step: "implement batch patches", status: "in_progress" },
+    { step: "run patch tests", status: "pending" },
+  ]);
+});
+
+
+test("plan patch rejects ambiguous matches and multiple in-progress items", () => {
+  expect(() => applyPlanPatches("- [ ] same\n- [ ] same", [{ operation: "update", match: "same", status: "completed" }])).toThrow(/exactly one/);
+  expect(() => applyPlanPatches("- [-] active\n- [ ] next", [{ operation: "update", match: "next", status: "in_progress" }])).toThrow(/at most one/);
+});
+
+
+test("legacy get/set arguments are prepared as read/write and patches imply patch action", async () => {
   resetPlanSidebarAddonForTests();
   let tool: any = null;
   const pi: any = {
@@ -211,10 +251,12 @@ test("legacy get/set arguments are prepared as read/write", async () => {
   const writeArgs = tool.prepareArguments({ action: "set", markdown: "- [ ] old" });
   const readArgs = tool.prepareArguments({ action: "get" });
   const editArgs = tool.prepareArguments({ action: "edit", oldText: "- [ ] old", newText: "- [x] old" });
+  const patchArgs = tool.prepareArguments({ patches: [{ operation: "add", step: "new" }] });
 
   expect(writeArgs.action).toBe("write");
   expect(readArgs.action).toBe("read");
   expect(editArgs.edits).toEqual([{ oldText: "- [ ] old", newText: "- [x] old" }]);
+  expect(patchArgs.action).toBe("patch");
 });
 
 test("plan edit rejects ambiguous matches without changing text", () => {

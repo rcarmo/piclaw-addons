@@ -32,7 +32,7 @@ export interface StructuredSessionPlan extends SessionPlan {
 }
 
 type PlanUpdateSource = "api" | "tool";
-type PlanUpdateAction = "write" | "edit" | "update" | "reset";
+type PlanUpdateAction = "write" | "edit" | "patch" | "update" | "reset";
 type PiclawBroadcastEvent = (type: string, data: unknown) => void;
 
 const DEFAULT_PLAN = [
@@ -228,6 +228,20 @@ export interface PlanEditBlock {
   text?: string;
 }
 
+export type PlanPatchOperation = "add" | "update" | "remove";
+export type PlanPatchPosition = "start" | "end";
+
+export interface PlanPatchBlock {
+  operation: PlanPatchOperation;
+  index?: number;
+  match?: string;
+  step?: string;
+  status?: PlanItemStatus;
+  position?: PlanPatchPosition;
+  before?: string;
+  after?: string;
+}
+
 function countOccurrences(haystack: string, needle: string): number {
   if (!needle) return 0;
   let count = 0;
@@ -306,6 +320,78 @@ export function editSessionPlan(chatJidInput: unknown, editsInput: unknown): Ses
   return saveSessionPlan(current.chat_jid, applyPlanEdits(current.markdown, editsInput));
 }
 
+function normalizePatchOperation(value: unknown): PlanPatchOperation {
+  if (value === "add" || value === "update" || value === "remove") return value;
+  throw new Error("Each plan patch needs operation add, update, or remove.");
+}
+
+function normalizePatchPosition(value: unknown): PlanPatchPosition | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (value === "start" || value === "end") return value;
+  throw new Error("Plan patch position must be start or end.");
+}
+
+function planPatchTargetIndex(items: UpdatePlanItem[], patch: Partial<PlanPatchBlock>, label = "patch"): number {
+  if (typeof patch.index === "number" && Number.isInteger(patch.index)) {
+    const index = patch.index - 1;
+    if (index < 0 || index >= items.length) throw new Error(`Plan ${label} index ${patch.index} is out of range.`);
+    return index;
+  }
+  const match = normalizePlanStep(patch.match);
+  if (!match) throw new Error(`Plan ${label} needs index or match.`);
+  const matches = items
+    .map((item, index) => ({ index, item }))
+    .filter(({ item }) => item.step === match || item.step.includes(match));
+  if (matches.length !== 1) throw new Error(`Plan ${label} match must identify exactly one item; got ${matches.length} matches for ${JSON.stringify(match)}.`);
+  return matches[0].index;
+}
+
+function planPatchInsertIndex(items: UpdatePlanItem[], patch: Partial<PlanPatchBlock>): number {
+  const position = normalizePatchPosition(patch.position);
+  if (position === "start") return 0;
+  if (position === "end") return items.length;
+  const before = normalizePlanStep(patch.before);
+  if (before) return planPatchTargetIndex(items, { match: before }, "patch before") ;
+  const after = normalizePlanStep(patch.after);
+  if (after) return planPatchTargetIndex(items, { match: after }, "patch after") + 1;
+  return items.length;
+}
+
+export function applyPlanPatches(markdownInput: unknown, patchesInput: unknown): string {
+  const patches = Array.isArray(patchesInput) ? patchesInput : [];
+  if (!patches.length) throw new Error("plan action=patch requires at least one patch block.");
+  const parsed = parsePlanMarkdown(markdownInput);
+  const items = parsed.plan.map((item) => ({ ...item }));
+
+  patches.forEach((raw, order) => {
+    const patch = raw && typeof raw === "object" ? raw as Partial<PlanPatchBlock> : {};
+    const operation = normalizePatchOperation(patch.operation);
+    if (operation === "add") {
+      const step = normalizePlanStep(patch.step);
+      if (!step) throw new Error(`Plan patch ${order + 1} add requires step.`);
+      const status = patch.status === undefined ? "pending" : normalizePlanStatus(patch.status);
+      items.splice(planPatchInsertIndex(items, patch), 0, { step, status });
+      return;
+    }
+    const index = planPatchTargetIndex(items, patch, `patch ${order + 1}`);
+    if (operation === "remove") {
+      items.splice(index, 1);
+      return;
+    }
+    const nextStep = patch.step === undefined ? items[index].step : normalizePlanStep(patch.step);
+    if (!nextStep) throw new Error(`Plan patch ${order + 1} update step must not be empty.`);
+    const nextStatus = patch.status === undefined ? items[index].status : normalizePlanStatus(patch.status);
+    items[index] = { step: nextStep, status: nextStatus };
+  });
+
+  return updatePlanArgsToMarkdown({ explanation: parsed.explanation || undefined, plan: items });
+}
+
+export function patchSessionPlan(chatJidInput: unknown, patchesInput: unknown): SessionPlan {
+  const current = loadSessionPlan(chatJidInput);
+  return saveSessionPlan(current.chat_jid, applyPlanPatches(current.markdown, patchesInput));
+}
+
 export function resetSessionPlan(chatJidInput: unknown): SessionPlan {
   return saveSessionPlan(chatJidInput, DEFAULT_PLAN);
 }
@@ -374,8 +460,9 @@ const PlanToolSchema = Type.Object({
     Type.Literal("read"),
     Type.Literal("write"),
     Type.Literal("edit"),
+    Type.Literal("patch"),
     Type.Literal("update"),
-  ], { description: "Use read to inspect the active session plan, update for structured full-plan updates, write for full Markdown replacement, or edit for exact atomic text replacements." }),
+  ], { description: "Use read to inspect the active session plan, patch for easy multi-item add/update/remove operations, update for structured full-plan updates, write for full Markdown replacement, or edit for exact atomic text replacements." }),
   explanation: Type.Optional(Type.String({ description: "Optional concise explanation for action=update." })),
   plan: Type.Optional(Type.Array(Type.Object({
     step: Type.String({ description: "A concrete plan step for action=update." }),
@@ -400,6 +487,27 @@ const PlanToolSchema = Type.Object({
     anchorText: Type.Optional(Type.String({ description: "Exact anchor text for insert_after or insert_before. Must occur exactly once." })),
     text: Type.Optional(Type.String({ description: "Text to insert for insert_after, insert_before, append, or prepend." })),
   }), { description: "Batch edits to apply when action is edit. Supports replace/delete/insert_after/insert_before/append/prepend; multiple checklist items and multi-line text are allowed in one call." })),
+  patches: Type.Optional(Type.Array(Type.Object({
+    operation: Type.Union([
+      Type.Literal("add"),
+      Type.Literal("update"),
+      Type.Literal("remove"),
+    ], { description: "Patch operation for action=patch. Use add/update/remove to change multiple plan items without exact Markdown line edits." }),
+    index: Type.Optional(Type.Number({ description: "Optional 1-based checklist item index for update/remove." })),
+    match: Type.Optional(Type.String({ description: "Optional unique exact-or-substring match against an existing step for update/remove." })),
+    step: Type.Optional(Type.String({ description: "New step text for add, or replacement step text for update." })),
+    status: Type.Optional(Type.Union([
+      Type.Literal("pending"),
+      Type.Literal("in_progress"),
+      Type.Literal("completed"),
+    ], { description: "Optional item status. Defaults to pending for add and current status for update." })),
+    position: Type.Optional(Type.Union([
+      Type.Literal("start"),
+      Type.Literal("end"),
+    ], { description: "Optional add position. Defaults to end." })),
+    before: Type.Optional(Type.String({ description: "For add, insert before the unique step matching this text." })),
+    after: Type.Optional(Type.String({ description: "For add, insert after the unique step matching this text." })),
+  }), { description: "Structured item patches for action=patch. Allows multiple add/update/remove operations in one call using indexes or step matches; normalized like all plan writes." })),
   chat_jid: Type.Optional(Type.String({ description: "Optional explicit chat/session JID. Defaults to the active session." })),
 });
 
@@ -410,8 +518,9 @@ export function buildPlanSystemPrompt(plan: SessionPlan): string {
     "## Plan Sidebar",
     `The current session has a Plan sidebar checklist for ${plan.chat_jid}.`,
     "This checklist is editable shared state, not static context: you can modify it and must keep it current as work proceeds.",
-    "Use the `plan` tool with `action=update` for structured full-plan updates: pass `plan: [{ step, status }]` with status `pending`, `in_progress`, or `completed`; at most one step may be `in_progress`.",
-    "Use `action=read` to inspect raw Markdown, `action=edit` for batch exact edits (replace/delete/insert_after/insert_before/append/prepend, including multi-line checklist blocks), and `action=write` only when replacing the whole Markdown checklist.",
+    "Use the `plan` tool with `action=patch` for easy multi-item changes: pass `patches: [{ operation: 'add'|'update'|'remove', index?, match?, step?, status?, before?, after?, position? }]` to add, edit, reorder-by-insertion, or remove several checklist items in one call without exact Markdown line edits.",
+    "Use `action=update` for structured full-plan replacement: pass `plan: [{ step, status }]` with status `pending`, `in_progress`, or `completed`; at most one step may be `in_progress`.",
+    "Use `action=read` to inspect raw Markdown, `action=edit` for batch exact Markdown edits (replace/delete/insert_after/insert_before/append/prepend, including multi-line checklist blocks), and `action=write` only when replacing the whole Markdown checklist.",
     "All plan mutations are normalized into the same Markdown storage. Treat `[x]` items as completed, `[-]` items as in progress, unchecked items as pending, and update the plan after meaningful progress or plan changes.",
     "There may be at most one `[-]` / `in_progress` item.",
     "",
@@ -440,15 +549,16 @@ export default function planSidebarAddon(pi: ExtensionAPI): void {
   pi.registerTool({
     name: "plan",
     label: "plan",
-    description: "Read or update the current session's Plan sidebar. Use action=update for structured full-plan updates; use action=edit for batch replace/delete/insert/append operations. All writes/edits are normalized into Markdown with at most one in_progress item.",
-    promptSnippet: "plan: session checklist. Prefer action=update with plan: [{ step, status }]. Use action=edit for batch exact edits: replace/delete/insert_after/insert_before/append/prepend. At most one item may be in_progress.",
+    description: "Read or update the current session's Plan sidebar. Prefer action=patch for multi-item add/update/remove operations; use action=update for full-plan replacement and action=edit only for exact Markdown edits. All mutations are normalized with at most one in_progress item.",
+    promptSnippet: "plan: session checklist. Prefer action=patch with patches: [{ operation: add|update|remove, index?, match?, step?, status? }] for multi-item changes. Use action=update for full replacement. At most one item may be in_progress.",
     parameters: PlanToolSchema,
     prepareArguments(args) {
       if (!args || typeof args !== "object") return args;
-      const input = args as { action?: unknown; markdown?: unknown; oldText?: unknown; newText?: unknown; edits?: unknown; plan?: unknown };
+      const input = args as { action?: unknown; markdown?: unknown; oldText?: unknown; newText?: unknown; edits?: unknown; patches?: unknown; plan?: unknown };
       if (input.action === "get") return { ...input, action: "read" };
       if (input.action === "set") return { ...input, action: "write" };
       if (input.action === undefined && Array.isArray(input.plan)) return { ...input, action: "update" };
+      if (input.action === undefined && Array.isArray(input.patches)) return { ...input, action: "patch" };
       if (input.action === "edit" && !Array.isArray(input.edits) && typeof input.oldText === "string" && typeof input.newText === "string") {
         return { ...input, edits: [{ oldText: input.oldText, newText: input.newText }] };
       }
@@ -479,6 +589,15 @@ export default function planSidebarAddon(pi: ExtensionAPI): void {
         broadcastPlanUpdated(plan, "tool", "edit");
         return {
           content: [{ type: "text", text: `Edited plan for ${plan.chat_jid}.` }],
+          details: structuredPlanDetails(plan),
+        };
+      }
+
+      if (params.action === "patch") {
+        const plan = patchSessionPlan(chatJid, params.patches);
+        broadcastPlanUpdated(plan, "tool", "patch");
+        return {
+          content: [{ type: "text", text: `Patched plan for ${plan.chat_jid}.` }],
           details: structuredPlanDetails(plan),
         };
       }

@@ -12,7 +12,23 @@ Adds a right-side slide-out sidebar for the current chat/session plan.
 
 ## `plan` tool
 
-Use `plan action=update` for Codex-style structured full-plan updates. The stored format remains Markdown, but every mutation path is normalized through the same parser/formatter.
+Use `plan action=patch` for the common case: add, edit, or remove multiple checklist items without exact Markdown line replacements or rewriting the entire plan.
+
+```json
+{
+  "action": "patch",
+  "patches": [
+    { "operation": "update", "match": "Inspect current code", "status": "completed" },
+    { "operation": "update", "match": "Patch plan tool", "step": "Patch plan tool batch edits", "status": "in_progress" },
+    { "operation": "add", "after": "Patch plan tool batch edits", "step": "Run targeted tests", "status": "pending" },
+    { "operation": "remove", "match": "Obsolete placeholder" }
+  ]
+}
+```
+
+Patch operations run in order. `update` and `remove` can target an existing item with a 1-based `index` or a unique `match` against the step text. `add` accepts `position: "start" | "end"`, `before`, or `after`; it defaults to appending.
+
+Use `plan action=update` for Codex-style structured full-plan replacement when you already know the whole desired checklist. The stored format remains Markdown, but every mutation path is normalized through the same parser/formatter.
 
 ```json
 {
@@ -32,7 +48,7 @@ Statuses map to canonical Markdown markers:
 - `in_progress` → `- [-] step`
 - `completed` → `- [x] step`
 
-At most one step may be `in_progress` / `[-]` at a time, regardless of whether the plan is updated structurally, written as Markdown, edited atomically, reset, or saved through the sidebar API.
+At most one step may be `in_progress` / `[-]` at a time, regardless of whether the plan is patched, updated structurally, written as Markdown, edited atomically, reset, or saved through the sidebar API.
 
 Use raw Markdown actions only when you need to inspect or precisely edit the underlying document:
 
@@ -53,7 +69,7 @@ Use raw Markdown actions only when you need to inspect or precisely edit the und
 }
 ```
 
-`action=edit` also supports batching multiple operations in one call so you can add, remove, and change several items without rewriting the whole plan:
+`action=edit` also supports batching multiple exact Markdown operations in one call. Prefer `action=patch` unless you specifically need raw Markdown anchors:
 
 ```json
 {
