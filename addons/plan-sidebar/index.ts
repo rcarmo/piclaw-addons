@@ -218,9 +218,14 @@ export function saveSessionPlan(chatJidInput: unknown, markdownInput: unknown): 
   return next;
 }
 
+export type PlanEditOperation = "replace" | "delete" | "insert_after" | "insert_before" | "append" | "prepend";
+
 export interface PlanEditBlock {
-  oldText: string;
-  newText: string;
+  operation?: PlanEditOperation;
+  oldText?: string;
+  newText?: string;
+  anchorText?: string;
+  text?: string;
 }
 
 function countOccurrences(haystack: string, needle: string): number {
@@ -235,23 +240,54 @@ function countOccurrences(haystack: string, needle: string): number {
   }
 }
 
+function normalizePlanEditOperation(edit: Partial<PlanEditBlock>): PlanEditOperation {
+  const operation = edit.operation;
+  if (operation === "replace" || operation === "delete" || operation === "insert_after" || operation === "insert_before" || operation === "append" || operation === "prepend") return operation;
+  if (typeof edit.oldText === "string" && typeof edit.newText === "string") return "replace";
+  throw new Error("Each plan edit needs operation replace, delete, insert_after, insert_before, append, or prepend.");
+}
+
+function requireEditText(value: unknown, field: string): string {
+  if (typeof value !== "string") throw new Error(`Each plan edit ${field} must be a string.`);
+  if (!value && field !== "newText") throw new Error(`Each plan edit ${field} must not be empty.`);
+  return value;
+}
+
+function findUniqueAnchor(markdown: string, anchor: string, label = "anchorText"): { from: number; to: number } {
+  const occurrences = countOccurrences(markdown, anchor);
+  if (occurrences !== 1) throw new Error(`Plan edit ${label} must match exactly once; got ${occurrences} matches for ${JSON.stringify(anchor)}.`);
+  const from = markdown.indexOf(anchor);
+  return { from, to: from + anchor.length };
+}
+
 export function applyPlanEdits(markdownInput: unknown, editsInput: unknown): string {
   const markdown = normalizeLineEndings(markdownInput);
   const edits = Array.isArray(editsInput) ? editsInput : [];
   if (!edits.length) throw new Error("plan action=edit requires at least one edit block.");
 
-  const ranges: Array<{ from: number; to: number; oldText: string; newText: string }> = [];
-  for (const raw of edits) {
+  const ranges: Array<{ from: number; to: number; newText: string; order: number }> = [];
+  edits.forEach((raw, order) => {
     const edit = raw && typeof raw === "object" ? raw as Partial<PlanEditBlock> : {};
-    if (typeof edit.oldText !== "string" || !edit.oldText) throw new Error("Each plan edit needs non-empty oldText.");
-    if (typeof edit.newText !== "string") throw new Error("Each plan edit needs newText.");
-    const occurrences = countOccurrences(markdown, edit.oldText);
-    if (occurrences !== 1) throw new Error(`Plan edit oldText must match exactly once; got ${occurrences} matches for ${JSON.stringify(edit.oldText)}.`);
-    const from = markdown.indexOf(edit.oldText);
-    ranges.push({ from, to: from + edit.oldText.length, oldText: edit.oldText, newText: edit.newText });
-  }
+    const operation = normalizePlanEditOperation(edit);
 
-  ranges.sort((a, b) => a.from - b.from);
+    if (operation === "append") {
+      ranges.push({ from: markdown.length, to: markdown.length, newText: requireEditText(edit.text ?? edit.newText, "text"), order });
+      return;
+    }
+    if (operation === "prepend") {
+      ranges.push({ from: 0, to: 0, newText: requireEditText(edit.text ?? edit.newText, "text"), order });
+      return;
+    }
+
+    const anchor = requireEditText(edit.anchorText ?? edit.oldText, operation === "replace" || operation === "delete" ? "oldText" : "anchorText");
+    const range = findUniqueAnchor(markdown, anchor, operation === "replace" || operation === "delete" ? "oldText" : "anchorText");
+    if (operation === "replace") ranges.push({ ...range, newText: requireEditText(edit.newText, "newText"), order });
+    else if (operation === "delete") ranges.push({ ...range, newText: "", order });
+    else if (operation === "insert_before") ranges.push({ from: range.from, to: range.from, newText: requireEditText(edit.text ?? edit.newText, "text"), order });
+    else ranges.push({ from: range.to, to: range.to, newText: requireEditText(edit.text ?? edit.newText, "text"), order });
+  });
+
+  ranges.sort((a, b) => a.from - b.from || a.order - b.order);
   for (let i = 1; i < ranges.length; i += 1) {
     if (ranges[i].from < ranges[i - 1].to) throw new Error("Plan edit blocks must not overlap.");
   }
@@ -351,9 +387,19 @@ const PlanToolSchema = Type.Object({
   }), { description: "The full current structured plan for action=update. At most one step may be in_progress." })),
   markdown: Type.Optional(Type.String({ description: "Complete Markdown checklist to save when action is write." })),
   edits: Type.Optional(Type.Array(Type.Object({
-    oldText: Type.String({ description: "Exact text to replace. Must occur exactly once in the current plan." }),
-    newText: Type.String({ description: "Replacement text." }),
-  }), { description: "Atomic exact replacements to apply when action is edit. Use whole checklist item lines for item-level updates." })),
+    operation: Type.Optional(Type.Union([
+      Type.Literal("replace"),
+      Type.Literal("delete"),
+      Type.Literal("insert_after"),
+      Type.Literal("insert_before"),
+      Type.Literal("append"),
+      Type.Literal("prepend"),
+    ], { description: "Edit operation. Defaults to replace when oldText and newText are provided." })),
+    oldText: Type.Optional(Type.String({ description: "Legacy/exact text to replace or delete. Must occur exactly once for replace/delete." })),
+    newText: Type.Optional(Type.String({ description: "Replacement text for replace, or alias for text on insert/append/prepend." })),
+    anchorText: Type.Optional(Type.String({ description: "Exact anchor text for insert_after or insert_before. Must occur exactly once." })),
+    text: Type.Optional(Type.String({ description: "Text to insert for insert_after, insert_before, append, or prepend." })),
+  }), { description: "Batch edits to apply when action is edit. Supports replace/delete/insert_after/insert_before/append/prepend; multiple checklist items and multi-line text are allowed in one call." })),
   chat_jid: Type.Optional(Type.String({ description: "Optional explicit chat/session JID. Defaults to the active session." })),
 });
 
@@ -365,7 +411,7 @@ export function buildPlanSystemPrompt(plan: SessionPlan): string {
     `The current session has a Plan sidebar checklist for ${plan.chat_jid}.`,
     "This checklist is editable shared state, not static context: you can modify it and must keep it current as work proceeds.",
     "Use the `plan` tool with `action=update` for structured full-plan updates: pass `plan: [{ step, status }]` with status `pending`, `in_progress`, or `completed`; at most one step may be `in_progress`.",
-    "Use `action=read` to inspect raw Markdown, `action=edit` for atomic exact item/text replacements, and `action=write` only when replacing the whole Markdown checklist.",
+    "Use `action=read` to inspect raw Markdown, `action=edit` for batch exact edits (replace/delete/insert_after/insert_before/append/prepend, including multi-line checklist blocks), and `action=write` only when replacing the whole Markdown checklist.",
     "All plan mutations are normalized into the same Markdown storage. Treat `[x]` items as completed, `[-]` items as in progress, unchecked items as pending, and update the plan after meaningful progress or plan changes.",
     "There may be at most one `[-]` / `in_progress` item.",
     "",
@@ -394,8 +440,8 @@ export default function planSidebarAddon(pi: ExtensionAPI): void {
   pi.registerTool({
     name: "plan",
     label: "plan",
-    description: "Read or update the current session's Plan sidebar. Use action=update for structured Codex-style plan updates; all writes/edits are normalized into one Markdown storage format with at most one in_progress item.",
-    promptSnippet: "plan: session checklist. Prefer action=update with plan: [{ step, status: pending|in_progress|completed }]. Use read/edit/write only when raw Markdown is needed. At most one item may be in_progress.",
+    description: "Read or update the current session's Plan sidebar. Use action=update for structured full-plan updates; use action=edit for batch replace/delete/insert/append operations. All writes/edits are normalized into Markdown with at most one in_progress item.",
+    promptSnippet: "plan: session checklist. Prefer action=update with plan: [{ step, status }]. Use action=edit for batch exact edits: replace/delete/insert_after/insert_before/append/prepend. At most one item may be in_progress.",
     parameters: PlanToolSchema,
     prepareArguments(args) {
       if (!args || typeof args !== "object") return args;

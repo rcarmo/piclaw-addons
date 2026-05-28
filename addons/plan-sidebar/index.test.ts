@@ -175,6 +175,30 @@ test("plan edit applies atomic exact replacements", async () => {
   expect(editResult.details.markdown).toBe("- [ ] first\n- [x] second");
 });
 
+test("plan edit supports batch insert, delete, append, and replace operations", async () => {
+  resetPlanSidebarAddonForTests();
+  let tool: any = null;
+  const pi: any = {
+    on() {},
+    registerTool(definition: any) { tool = definition; },
+  };
+  planSidebarAddon(pi);
+
+  const ctx: any = { sessionManager: { getSessionDir: () => "/tmp/web_default" } };
+  await tool.execute("1", { action: "write", markdown: "- [ ] first\n- [ ] second\n- [ ] remove me" }, undefined, undefined, ctx);
+  const editResult = await tool.execute("2", {
+    action: "edit",
+    edits: [
+      { operation: "replace", oldText: "- [ ] first", newText: "- [x] first" },
+      { operation: "insert_after", anchorText: "- [ ] second", text: "\n- [-] inserted active\n- [ ] inserted pending" },
+      { operation: "delete", oldText: "\n- [ ] remove me" },
+      { operation: "append", text: "\n- [ ] final appended" },
+    ],
+  }, undefined, undefined, ctx);
+
+  expect(editResult.details.markdown).toBe("- [x] first\n- [ ] second\n- [-] inserted active\n- [ ] inserted pending\n- [ ] final appended");
+});
+
 test("legacy get/set arguments are prepared as read/write", async () => {
   resetPlanSidebarAddonForTests();
   let tool: any = null;

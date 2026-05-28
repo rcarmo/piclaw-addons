@@ -53,6 +53,29 @@ Use raw Markdown actions only when you need to inspect or precisely edit the und
 }
 ```
 
+`action=edit` also supports batching multiple operations in one call so you can add, remove, and change several items without rewriting the whole plan:
+
+```json
+{
+  "action": "edit",
+  "edits": [
+    { "operation": "replace", "oldText": "- [ ] Inspect current state", "newText": "- [x] Inspect current state" },
+    { "operation": "insert_after", "anchorText": "- [x] Inspect current state", "text": "\n- [-] Patch the plan tool\n- [ ] Run focused tests" },
+    { "operation": "delete", "oldText": "\n- [ ] Obsolete placeholder" },
+    { "operation": "append", "text": "\n- [ ] Report the result" }
+  ]
+}
+```
+
+Supported edit operations:
+
+- `replace` — replace `oldText` with `newText` (legacy default when both fields are present)
+- `delete` — remove `oldText`
+- `insert_after` / `insert_before` — insert `text` around an exact `anchorText`
+- `append` / `prepend` — add `text` at the end or beginning
+
+Anchors and old text must match exactly once. Inserted text may contain multiple checklist lines.
+
 Tool/API details include both the stored Markdown and parsed structured items:
 
 ```json
