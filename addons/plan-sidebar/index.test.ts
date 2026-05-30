@@ -300,13 +300,18 @@ test("web sidebar renders progress bar and collapsed meter", () => {
 });
 
 
-test("web sidebar uses a real full-text Markdown textarea for human editing", () => {
+test("web sidebar uses a real wrapped Markdown editor with checklist decorations for human editing", () => {
   const source = readFileSync(resolve(addonDir, "web", "index.ts"), "utf8");
+  expect(source).toContain('await import("/editor-vendor/codemirror.js")');
+  expect(source).toContain("cm.EditorView.lineWrapping");
+  expect(source).toContain("buildPlanDecorationsExtension(cm)");
+  expect(source).toContain("plan-sidebar-cm-checkbox-current");
+  expect(source).toContain("plan-sidebar-cm-line-current");
   expect(source).toContain('const textarea = document.createElement("textarea")');
   expect(source).toContain('textarea.className = "plan-sidebar-textarea plan-sidebar-markdown-source"');
-  expect(source).toContain('textarea.wrap = "off"');
+  expect(source).toContain('textarea.wrap = "soft"');
   expect(source).toContain("state.fallbackTextarea?.focus()");
-  expect(source).toContain("white-space: pre;");
+  expect(source).toContain("white-space: pre-wrap;");
   expect(source).not.toContain('contentEditable = "plaintext-only"');
   expect(source).not.toContain('checkbox.type = "checkbox"');
   expect(source).not.toContain('preview.className = "plan-sidebar-live-preview"');

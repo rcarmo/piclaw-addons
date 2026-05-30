@@ -23,6 +23,7 @@ function installPlanSidebar() {
     loading: false,
     editorView: null,
     cm: null,
+    editorLoadPromise: null,
     editorThemeCompartment: null,
     themeObserver: null,
     fallbackTextarea: null,
@@ -170,11 +171,49 @@ function installPlanSidebar() {
   }
 
   async function ensureEditor() {
+    if (state.editorView || state.fallbackTextarea) return;
+    if (state.editorLoadPromise) return state.editorLoadPromise;
+    state.editorLoadPromise = createCodeMirrorEditor().catch((error) => {
+      console.warn("[plan-sidebar] Falling back to textarea editor", error);
+      createTextareaEditor();
+    }).finally(() => {
+      state.editorLoadPromise = null;
+    });
+    return state.editorLoadPromise;
+  }
+
+  async function createCodeMirrorEditor() {
+    const cm = await import("/editor-vendor/codemirror.js");
+    state.cm = cm;
+    state.editorThemeCompartment = new cm.Compartment();
+    editorHost.textContent = "";
+    const extensions = [
+      cm.minimalSetup,
+      cm.markdown?.() || [],
+      cm.EditorState.tabSize.of(2),
+      cm.EditorView.lineWrapping,
+      state.editorThemeCompartment.of(buildEditorThemeExtensions(cm)),
+      buildPlanDecorationsExtension(cm),
+      cm.EditorView.updateListener.of((update) => {
+        if (!update.docChanged) return;
+        state.markdown = update.state.doc.toString();
+        markDirty(true);
+      }),
+    ];
+    state.editorView = new cm.EditorView({
+      state: cm.EditorState.create({ doc: state.markdown || "", extensions }),
+      parent: editorHost,
+    });
+    ensureThemeObserver();
+  }
+
+  function createTextareaEditor() {
     if (state.fallbackTextarea) return;
+    editorHost.textContent = "";
     const textarea = document.createElement("textarea");
     textarea.className = "plan-sidebar-textarea plan-sidebar-markdown-source";
     textarea.spellcheck = false;
-    textarea.wrap = "off";
+    textarea.wrap = "soft";
     textarea.value = state.markdown || "";
     textarea.addEventListener("input", () => {
       state.markdown = textarea.value;
@@ -183,6 +222,38 @@ function installPlanSidebar() {
     editorHost.appendChild(textarea);
     state.fallbackTextarea = textarea;
     state.livePreviewHost = null;
+  }
+
+  function buildPlanDecorationsExtension(cm) {
+    const checklistRe = /^(\s*(?:[-*+]|\d+[.)])\s+)(\[([ xX-])\])(\s*)(.*)$/;
+    function buildDecorations(view) {
+      const builder = new cm.RangeSetBuilder();
+      const visible = view.visibleRanges?.length ? view.visibleRanges : [{ from: 0, to: view.state.doc.length }];
+      for (const range of visible) {
+        const fromLine = view.state.doc.lineAt(range.from);
+        const toLine = view.state.doc.lineAt(Math.max(range.from, range.to));
+        for (let lineNo = fromLine.number; lineNo <= toLine.number; lineNo += 1) {
+          const line = view.state.doc.line(lineNo);
+          const match = line.text.match(checklistRe);
+          if (!match) continue;
+          const marker = match[3];
+          const status = marker.toLowerCase() === "x" ? "completed" : marker === "-" ? "current" : "pending";
+          const markerFrom = line.from + match[1].length;
+          const markerTo = markerFrom + match[2].length;
+          const textFrom = markerTo + match[4].length;
+          builder.add(line.from, line.from, cm.Decoration.line({ class: `plan-sidebar-cm-line plan-sidebar-cm-line-${status}` }));
+          builder.add(markerFrom, markerTo, cm.Decoration.mark({ class: `plan-sidebar-cm-checkbox plan-sidebar-cm-checkbox-${status}` }));
+          if (textFrom < line.to) builder.add(textFrom, line.to, cm.Decoration.mark({ class: `plan-sidebar-cm-text plan-sidebar-cm-text-${status}` }));
+        }
+      }
+      return builder.finish();
+    }
+    return cm.ViewPlugin.fromClass(class {
+      constructor(view) { this.decorations = buildDecorations(view); }
+      update(update) {
+        if (update.docChanged || update.viewportChanged || update.selectionSet) this.decorations = buildDecorations(update.view);
+      }
+    }, { decorations: (value) => value.decorations });
   }
 
   function focusEditor() {
@@ -214,7 +285,15 @@ function installPlanSidebar() {
           caretColor: accent,
         },
         ".cm-gutters": { display: "none" },
-        ".cm-line": { color: "var(--text-primary,#e5e7eb)" },
+        ".cm-line": {
+          color: "var(--text-primary,#e5e7eb)",
+          padding: "1px 8px",
+          borderLeft: "3px solid transparent",
+          borderRadius: "6px",
+        },
+        ".cm-lineWrapping .cm-line": {
+          overflowWrap: "anywhere",
+        },
         ".cm-cursor, .cm-dropCursor": {
           borderLeftColor: accent,
           borderLeftWidth: "2px",
@@ -658,6 +737,38 @@ function injectStyles() {
       transition: width var(--ui-transition-fast, .18s);
     }
     .plan-sidebar-editor { flex: 1; min-height: 0; overflow: hidden; display: flex; }
+    .plan-sidebar-editor .cm-editor {
+      width: 100%;
+      height: 100%;
+      flex: 1 1 auto;
+      min-width: 0;
+      min-height: 0;
+    }
+    .plan-sidebar-editor .cm-scroller { overflow: auto; }
+    .plan-sidebar-editor .cm-line.plan-sidebar-cm-line-current {
+      background: color-mix(in srgb, var(--accent-color,#2563eb) 12%, transparent);
+      border-left-color: var(--accent-color,#2563eb);
+    }
+    .plan-sidebar-editor .cm-line.plan-sidebar-cm-line-completed { opacity: .76; }
+    .plan-sidebar-cm-checkbox {
+      display: inline-block;
+      min-width: 3ch;
+      text-align: center;
+      border-radius: 5px;
+      font-weight: 700;
+      color: var(--text-secondary,#94a3b8);
+      background: color-mix(in srgb, var(--border-color, rgba(148,163,184,.45)) 36%, transparent);
+    }
+    .plan-sidebar-cm-checkbox-completed {
+      color: var(--success-color,#22c55e);
+      background: color-mix(in srgb, var(--success-color,#22c55e) 15%, transparent);
+    }
+    .plan-sidebar-cm-checkbox-current {
+      color: var(--accent-color,#60a5fa);
+      background: color-mix(in srgb, var(--accent-color,#60a5fa) 18%, transparent);
+    }
+    .plan-sidebar-cm-text-completed { text-decoration: line-through; color: var(--text-secondary,#94a3b8); }
+    .plan-sidebar-cm-text-current { color: var(--text-primary,#f8fafc); font-weight: 650; }
     .plan-sidebar-markdown-source { display: block; }
     .plan-sidebar-textarea {
       width: 100%;
@@ -670,7 +781,8 @@ function injectStyles() {
       padding: 12px;
       box-sizing: border-box;
       overflow: auto;
-      white-space: pre;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
       tab-size: 2;
       background: var(--bg-primary,#0b1020);
       color: var(--text-primary,#e5e7eb);
