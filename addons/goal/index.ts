@@ -778,7 +778,6 @@ export default function goalAddon(pi: ExtensionAPI): void {
     }
     if (goal.status !== "active") return;
     if (!lastAssistantTurnSucceeded(chatJid)) return;
-    if (ctx.isIdle && !ctx.isIdle()) return;
     if (ctx.hasPendingMessages?.()) return;
     await dispatchGoalPrompt(goal, buildGoalContinuationPrompt(goal), "continuation");
   });

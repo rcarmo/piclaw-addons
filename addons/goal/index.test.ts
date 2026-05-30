@@ -286,7 +286,7 @@ describe("/goal command and runtime loop", () => {
     expect(sentUserMessages).toHaveLength(1);
   });
 
-  test("agent_end does not auto-continue while the runtime is not idle", async () => {
+  test("agent_end still queues continuation when runtime reports non-idle during compaction", async () => {
     const { commands, handlers, sentUserMessages, ctx } = createHarness({ idle: false });
     const messageEnd = handlers.find((entry) => entry.event === "message_end")?.handler;
     const agentEnd = handlers.find((entry) => entry.event === "agent_end")?.handler;
@@ -295,7 +295,8 @@ describe("/goal command and runtime loop", () => {
       await messageEnd({ message: { role: "assistant", stopReason: "stop", usage: { totalTokens: 12 } } }, ctx);
       await agentEnd({}, ctx);
     });
-    expect(sentUserMessages).toHaveLength(1);
+    expect(sentUserMessages).toHaveLength(2);
+    expect(String(sentUserMessages[1]?.content)).toBe("🎯 Continue goal: Finish docs");
   });
 
   test("budget exhaustion marks budget_limited and emits wrap-up prompt once", async () => {
