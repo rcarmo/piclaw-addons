@@ -16,6 +16,8 @@ const RENDERER_STORAGE_KEY = "piclaw:lite-term:renderer";
 const STYLE_ID = "piclaw-lite-term-style";
 const XTERM_CSS_ID = "piclaw-lite-term-xterm-css";
 const TERMINAL_FONT_FAMILY = 'FiraCode Nerd Font Mono, JetBrainsMono Nerd Font Mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace';
+const TERMINAL_HEARTBEAT_MS = 25_000;
+const TERMINAL_RECONNECT_DELAYS_MS = [500, 1_000, 2_000, 5_000, 10_000];
 
 const LIGHT_TERMINAL_PALETTE = {
   yellow: "#9a6700",
@@ -429,6 +431,13 @@ class LiteTermPaneInstance {
     this.mediaQueryListener = null;
     this.resizeListener = null;
     this.socket = null;
+    this.heartbeatTimer = null;
+    this.reconnectTimer = null;
+    this.reconnectAttempt = 0;
+    this.manualSocketClose = false;
+    this.terminalExited = false;
+    this.inputDisposable = null;
+    this.resizeDisposable = null;
     this.terminal = null;
     this.fitAddon = null;
     this.searchAddon = null;
@@ -716,9 +725,65 @@ class LiteTermPaneInstance {
     return token;
   }
 
-  async connectBackend() {
+  installTerminalSocketBridge() {
+    const terminal = this.terminal;
+    if (!terminal || this.inputDisposable || this.resizeDisposable) return;
+    this.inputDisposable = terminal.onData((data) => {
+      const socket = this.socket;
+      if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: "input", data }));
+    });
+    this.resizeDisposable = terminal.onResize(({ cols, rows }) => {
+      const socket = this.socket;
+      if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: "resize", cols, rows }));
+    });
+  }
+
+  clearHeartbeat() {
+    if (!this.heartbeatTimer) return;
+    this.ownerWindow.clearInterval(this.heartbeatTimer);
+    this.heartbeatTimer = null;
+  }
+
+  startHeartbeat() {
+    this.clearHeartbeat();
+    this.heartbeatTimer = this.ownerWindow.setInterval(() => {
+      if (this.disposed || this.terminalExited) return;
+      const socket = this.socket;
+      if (socket?.readyState !== WebSocket.OPEN) return;
+      try {
+        socket.send(JSON.stringify({ type: "ping", ts: Date.now() }));
+      } catch (error) {
+        console.debug("[lite-term] heartbeat send failed", error);
+      }
+    }, TERMINAL_HEARTBEAT_MS);
+  }
+
+  clearReconnectTimer() {
+    if (!this.reconnectTimer) return;
+    this.ownerWindow.clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = null;
+  }
+
+  scheduleReconnect(reason = "socket close") {
+    if (this.disposed || this.terminalExited) return;
+    this.clearHeartbeat();
+    this.clearReconnectTimer();
+    const index = Math.min(this.reconnectAttempt, TERMINAL_RECONNECT_DELAYS_MS.length - 1);
+    const delay = TERMINAL_RECONNECT_DELAYS_MS[index];
+    this.reconnectAttempt += 1;
+    this.setStatus(`Reconnecting…`);
+    this.reconnectTimer = this.ownerWindow.setTimeout(() => {
+      this.reconnectTimer = null;
+      if (this.disposed || this.terminalExited) return;
+      console.info("[lite-term] reconnecting terminal websocket", { reason, attempt: this.reconnectAttempt });
+      void this.connectBackend({ reconnect: true });
+    }, delay);
+  }
+
+  async connectBackend(options = {}) {
     const terminal = this.terminal;
     if (!terminal) return;
+    this.installTerminalSocketBridge();
     try {
       const clientToken = getOrCreateAnonymousTerminalClientToken(this.ownerWindow);
       const session = await fetchTerminalSession(clientToken);
@@ -732,17 +797,14 @@ class LiteTermPaneInstance {
       const handoffToken = this.pendingHandoffToken || null;
       const socket = new WebSocket(buildLiteTermWebSocketUrl(session.ws_path || "/terminal/ws", handoffToken, clientToken, this.ownerWindow));
       this.socket = socket;
-      this.setStatus(handoffToken ? "Transferring…" : "Connecting…");
-
-      terminal.onData((data) => {
-        if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: "input", data }));
-      });
-      terminal.onResize(({ cols, rows }) => {
-        if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: "resize", cols, rows }));
-      });
+      this.manualSocketClose = false;
+      this.setStatus(handoffToken ? "Transferring…" : options.reconnect ? "Reconnecting…" : "Connecting…");
 
       socket.addEventListener("open", () => {
         if (this.disposed) return;
+        this.reconnectAttempt = 0;
+        this.clearReconnectTimer();
+        this.startHeartbeat();
         if (handoffToken && this.pendingHandoffToken === handoffToken) this.pendingHandoffToken = null;
         void this.ensureStandbyHandoffToken(false);
         this.setStatus("Connected");
@@ -752,9 +814,24 @@ class LiteTermPaneInstance {
       });
 
       socket.addEventListener("message", (event) => this.handleSocketMessage(event));
-      socket.addEventListener("close", () => { if (!this.disposed) this.setStatus("Disconnected"); });
-      socket.addEventListener("error", () => { if (!this.disposed) this.setStatus("Connection error"); });
+      socket.addEventListener("close", (event) => {
+        if (this.socket !== socket) return;
+        this.socket = null;
+        this.clearHeartbeat();
+        if (this.disposed || this.manualSocketClose || this.terminalExited) return;
+        console.warn("[lite-term] terminal websocket closed; scheduling reconnect", { code: event.code, reason: event.reason });
+        this.scheduleReconnect(event.reason || `close ${event.code}`);
+      });
+      socket.addEventListener("error", () => {
+        if (this.disposed || this.terminalExited) return;
+        this.setStatus("Connection error");
+      });
     } catch (error) {
+      if (options.reconnect) {
+        console.warn("[lite-term] reconnect failed", error);
+        this.scheduleReconnect(error instanceof Error ? error.message : String(error));
+        return;
+      }
       terminal.write(`Terminal backend unavailable: ${error instanceof Error ? error.message : String(error)}\r\n`);
       this.setStatus("Unavailable");
     }
@@ -780,6 +857,9 @@ class LiteTermPaneInstance {
       return;
     }
     if (payload?.type === "exit") {
+      this.terminalExited = true;
+      this.clearHeartbeat();
+      this.clearReconnectTimer();
       this.terminal.write("\r\n[terminal exited]\r\n");
       this.setStatus("Exited");
     }
@@ -833,6 +913,11 @@ class LiteTermPaneInstance {
     if (this.disposed) return;
     this.disposed = true;
     if (this.resizeFrame) this.ownerWindow.cancelAnimationFrame(this.resizeFrame);
+    this.manualSocketClose = true;
+    this.clearHeartbeat();
+    this.clearReconnectTimer();
+    try { this.inputDisposable?.dispose?.(); } catch {}
+    try { this.resizeDisposable?.dispose?.(); } catch {}
     try { this.socket?.close?.(); } catch {}
     try { this.resizeObserver?.disconnect?.(); } catch {}
     try { this.themeObserver?.disconnect?.(); } catch {}

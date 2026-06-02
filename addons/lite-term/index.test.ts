@@ -83,6 +83,15 @@ test("vendored ligatures bundle remains safe after Piclaw asset transpilation", 
   expect(transpiled).not.toContain("return require.apply");
 });
 
+test("Lite Term runtime includes heartbeat and reconnect safeguards", async () => {
+  const source = await Bun.file(join(addonDir, "web", "index.ts")).text();
+  expect(source).toContain("TERMINAL_HEARTBEAT_MS");
+  expect(source).toContain('type: "ping"');
+  expect(source).toContain("scheduleReconnect");
+  expect(source).toContain("installTerminalSocketBridge");
+  expect(source).toContain("this.socket !== socket");
+});
+
 test("vendored xterm ESM modules expose expected addon classes", async () => {
   const vendorUrl = new URL("./web/vendor/", import.meta.url);
   const [xterm, attach, fit, ligatures, webgl, clipboard, image, search, serialize, unicode11, webLinks, progress, unicodeGraphemes] = await Promise.all([
