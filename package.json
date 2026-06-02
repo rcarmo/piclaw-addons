@@ -39,6 +39,7 @@
       "addons/kanban-board-widget/index.ts",
       "addons/kanban-editor/index.ts",
       "addons/late-night-regrets/index.ts",
+      "addons/lite-term/index.ts",
       "addons/mindmap/index.ts",
       "addons/observability/index.ts",
       "addons/office-tools/index.ts",

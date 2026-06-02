@@ -471,6 +471,27 @@
       "updatedAt": "2026-05-08"
     },
     {
+      "slug": "lite-term",
+      "name": "@rcarmo/piclaw-addon-lite-term",
+      "version": "0.1.0",
+      "type": "extension",
+      "description": "xterm.js-based lightweight terminal pane for Piclaw, intended for lower-spec machines that cannot run ghostty-web well",
+      "path": "addons/lite-term",
+      "homepage": "https://rcarmo.github.io/piclaw-addons/addons/lite-term/",
+      "tags": [
+        "lite",
+        "low-spec",
+        "nerd-font",
+        "terminal",
+        "xterm"
+      ],
+      "skills": [],
+      "install": {
+        "kind": "tarball",
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-lite-term-0.1.0.tgz"
+      }
+    },
+    {
       "slug": "mindmap",
       "name": "@rcarmo/piclaw-addon-mindmap",
       "version": "0.1.1",

@@ -75,6 +75,7 @@ See:
 | [`imap`](addons/imap/) | IMAP email management with drafts and STARTTLS |
 | [`kanban-board-widget`](addons/kanban-board-widget/) | Kanban board dashboard widget |
 | [`kanban-editor`](addons/kanban-editor/) | `.kanban.md` editor add-on with Obsidian-style `[[links]]` |
+| [`lite-term`](addons/lite-term/) | xterm.js terminal replacement for lower-spec machines that cannot run ghostty-web well |
 | [`portainer`](addons/portainer/) | Portainer container management |
 | [`proxmox`](addons/proxmox/) | Proxmox VE infrastructure management |
 | [`vent`](addons/vent/) | Adapted repackaging of pi-vent with a configurable output file |

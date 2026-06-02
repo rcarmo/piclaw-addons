@@ -1,0 +1,24 @@
+{
+  "name": "@rcarmo/piclaw-addon-lite-term",
+  "version": "0.1.0",
+  "description": "xterm.js-based lightweight terminal pane for Piclaw, intended for lower-spec machines that cannot run ghostty-web well",
+  "type": "module",
+  "main": "index.ts",
+  "piclaw": {
+    "type": "extension",
+    "compatibleVersions": ">=1.8.0",
+    "tags": ["terminal", "xterm", "lite", "low-spec", "nerd-font"]
+  },
+  "license": "MIT",
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "keywords": ["pi-package", "piclaw", "piclaw-addon", "terminal", "xterm"],
+  "pi": {
+    "extensions": ["index.ts"],
+    "web": {
+      "entries": ["web/index.ts"]
+    }
+  },
+  "homepage": "https://rcarmo.github.io/piclaw-addons/addons/lite-term/"
+}
