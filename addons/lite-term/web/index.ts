@@ -487,13 +487,14 @@ class LiteTermPaneInstance {
       });
 
       this.terminal = terminal;
-      this.installAddons(runtime);
+      this.installPreOpenAddons(runtime);
 
       this.body.innerHTML = "";
       this.host = this.ownerDocument.createElement("div");
       this.host.className = "lite-terminal-host";
       this.body.appendChild(this.host);
       terminal.open(this.host);
+      this.installPostOpenAddons(runtime);
       this.installClipboardAndSearchShortcuts();
       this.installResizeSync();
       this.installThemeSync();
@@ -522,7 +523,7 @@ class LiteTermPaneInstance {
     }
   }
 
-  installAddons(runtime) {
+  installPreOpenAddons(runtime) {
     const terminal = this.terminal;
     if (!terminal) return;
 
@@ -536,7 +537,6 @@ class LiteTermPaneInstance {
       try { terminal.unicode.activeVersion = "11"; } catch {}
     }
 
-    this.loadAddon(new runtime.ligatures.LigaturesAddon(), "ligatures");
     this.loadAddon(new runtime.webLinks.WebLinksAddon(), "web-links");
     this.searchAddon = this.loadAddon(new runtime.search.SearchAddon(), "search");
     this.serializeAddon = this.loadAddon(new runtime.serialize.SerializeAddon(), "serialize");
@@ -552,7 +552,7 @@ class LiteTermPaneInstance {
     }
 
     try {
-      this.loadAddon(new runtime.image.ImageAddon({ enableSizeReports: true, pixelLimit: 16_777_216, storageLimit: 134_217_728 }), "image");
+      this.loadAddon(new runtime.image.ImageAddon({ enableSizeReports: true, pixelLimit: 16_777_216, storageLimit: 10 }), "image");
     } catch (error) {
       console.warn("[lite-term] image addon unavailable", error);
     }
@@ -561,7 +561,12 @@ class LiteTermPaneInstance {
     // JSON control frames rather than a raw PTY byte stream. Keep it vendored and
     // import-validated with the rest of the xterm family.
     this.attachAddonModule = runtime.attach;
+  }
 
+  installPostOpenAddons(runtime) {
+    this.loadAddon(new runtime.ligatures.LigaturesAddon(), "ligatures");
+    // Renderer add-ons should be activated after ligatures so the renderer can
+    // pick up font-feature settings and the already-open terminal dimensions.
     this.installRendererAddon(runtime);
   }
 

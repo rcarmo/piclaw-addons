@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-lite-term",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "xterm.js-based lightweight terminal pane for Piclaw, intended for lower-spec machines that cannot run ghostty-web well",
   "type": "module",
   "main": "index.ts",

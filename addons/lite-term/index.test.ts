@@ -75,6 +75,14 @@ test("vendored xterm runtime and addon files are present", () => {
   }
 });
 
+test("vendored ligatures bundle remains safe after Piclaw asset transpilation", async () => {
+  const source = await Bun.file(join(addonDir, "web", "vendor", "addon-ligatures.mjs")).text();
+  const transpiled = new Bun.Transpiler({ loader: "js" }).transformSync(source);
+  expect(transpiled).toContain("globalThis.require");
+  expect(transpiled).not.toContain('"function" < "u" ? require');
+  expect(transpiled).not.toContain("return require.apply");
+});
+
 test("vendored xterm ESM modules expose expected addon classes", async () => {
   const vendorUrl = new URL("./web/vendor/", import.meta.url);
   const [xterm, attach, fit, ligatures, webgl, clipboard, image, search, serialize, unicode11, webLinks, progress, unicodeGraphemes] = await Promise.all([
