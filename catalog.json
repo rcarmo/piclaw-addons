@@ -295,7 +295,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-goal-0.1.29.tgz"
       },
-      "updatedAt": "2026-05-30"
+      "updatedAt": "2026-06-03"
     },
     {
       "slug": "image-processing",
@@ -538,7 +538,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-plan-sidebar-0.1.20.tgz"
       },
-      "updatedAt": "2026-05-30"
+      "updatedAt": "2026-06-03"
     },
     {
       "slug": "portainer",
