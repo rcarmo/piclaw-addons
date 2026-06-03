@@ -110,6 +110,21 @@ function injectStyles(ownerDocument = document) {
       .lite-terminal-pane .xterm-screen {
         background: transparent !important;
       }
+      .lite-terminal-pane .xterm-viewport {
+        scrollbar-width: thin;
+        scrollbar-color: color-mix(in srgb, var(--text-secondary, #8b949e) 45%, transparent) transparent;
+      }
+      .lite-terminal-pane .xterm-viewport::-webkit-scrollbar {
+        width: 2px;
+        height: 2px;
+      }
+      .lite-terminal-pane .xterm-viewport::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      .lite-terminal-pane .xterm-viewport::-webkit-scrollbar-thumb {
+        background: color-mix(in srgb, var(--text-secondary, #8b949e) 45%, transparent);
+        border-radius: 999px;
+      }
       .lite-terminal-pane .lite-terminal-status {
         position: absolute;
         top: 8px;
