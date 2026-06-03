@@ -274,7 +274,8 @@
       "install": {
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-ghostty-terminal-0.1.0.tgz"
-      }
+      },
+      "updatedAt": "2026-06-03"
     },
     {
       "slug": "git-query-tools",
