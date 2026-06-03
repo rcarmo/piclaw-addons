@@ -32,6 +32,7 @@
       "addons/drawio-editor/index.ts",
       "addons/editable-table/index.ts",
       "addons/eml-viewer/index.ts",
+      "addons/ghostty-terminal/index.ts",
       "addons/git-query-tools/index.ts",
       "addons/goal/index.ts",
       "addons/image-processing/index.ts",

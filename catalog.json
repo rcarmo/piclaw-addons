@@ -256,6 +256,27 @@
       "updatedAt": "2026-05-09"
     },
     {
+      "slug": "ghostty-terminal",
+      "name": "@rcarmo/piclaw-addon-ghostty-terminal",
+      "version": "0.1.0",
+      "type": "extension",
+      "description": "Optional Ghostty-web terminal pane renderer for Piclaw",
+      "path": "addons/ghostty-terminal",
+      "homepage": "https://rcarmo.github.io/piclaw-addons/addons/ghostty-terminal/",
+      "tags": [
+        "desktop",
+        "experimental",
+        "ghostty",
+        "terminal",
+        "wasm"
+      ],
+      "skills": [],
+      "install": {
+        "kind": "tarball",
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-ghostty-terminal-0.1.0.tgz"
+      }
+    },
+    {
       "slug": "git-query-tools",
       "name": "@rcarmo/piclaw-addon-git-query-tools",
       "version": "0.1.2",
@@ -295,7 +316,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-goal-0.1.29.tgz"
       },
-      "updatedAt": "2026-05-30"
+      "updatedAt": "2026-06-03"
     },
     {
       "slug": "image-processing",
@@ -538,7 +559,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-plan-sidebar-0.1.20.tgz"
       },
-      "updatedAt": "2026-05-30"
+      "updatedAt": "2026-06-03"
     },
     {
       "slug": "portainer",

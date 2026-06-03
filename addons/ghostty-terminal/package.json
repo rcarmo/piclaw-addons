@@ -1,0 +1,24 @@
+{
+  "name": "@rcarmo/piclaw-addon-ghostty-terminal",
+  "version": "0.1.0",
+  "description": "Optional Ghostty-web terminal pane renderer for Piclaw",
+  "type": "module",
+  "main": "index.ts",
+  "piclaw": {
+    "type": "extension",
+    "compatibleVersions": ">=2.5.5",
+    "tags": ["terminal", "ghostty", "wasm", "desktop", "experimental"]
+  },
+  "license": "MIT",
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "keywords": ["pi-package", "piclaw", "piclaw-addon", "terminal", "ghostty"],
+  "pi": {
+    "extensions": ["index.ts"],
+    "web": {
+      "entries": ["web/index.js"]
+    }
+  },
+  "homepage": "https://rcarmo.github.io/piclaw-addons/addons/ghostty-terminal/"
+}
