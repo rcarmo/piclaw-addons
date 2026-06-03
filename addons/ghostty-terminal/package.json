@@ -1,7 +1,7 @@
 {
   "name": "@rcarmo/piclaw-addon-ghostty-terminal",
   "version": "0.1.0",
-  "description": "Optional Ghostty-web terminal pane renderer for Piclaw",
+  "description": "Modern, more functional Ghostty-web terminal pane renderer for high-end Piclaw browsers",
   "type": "module",
   "main": "index.ts",
   "piclaw": {

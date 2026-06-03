@@ -1,8 +1,8 @@
 # Lite Term
 
-`@rcarmo/piclaw-addon-lite-term` replaces Piclaw's built-in Ghostty-powered terminal pane with a lighter xterm.js implementation.
+`@rcarmo/piclaw-addon-lite-term` is the add-on form of Piclaw's bundled default xterm.js terminal pane.
 
-It is intended as an option for lower-spec machines that cannot run `ghostty-web` well, or where the Ghostty WASM renderer is too heavy. Lite Term keeps Piclaw's existing terminal backend, authentication, session handoff, theme colors, and terminal font stack, but renders the terminal with vendored xterm.js assets.
+It is intentionally identical to the built-in default terminal renderer, keeping Piclaw's existing terminal backend, authentication, session handoff, theme colors, terminal font stack, and vendored xterm.js assets. Use it as a reference implementation and a good starting point for terminal customizations without changing Piclaw core.
 
 ## What it includes
 

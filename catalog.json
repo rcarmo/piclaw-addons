@@ -260,7 +260,7 @@
       "name": "@rcarmo/piclaw-addon-ghostty-terminal",
       "version": "0.1.0",
       "type": "extension",
-      "description": "Optional Ghostty-web terminal pane renderer for Piclaw",
+      "description": "Modern, more functional Ghostty-web terminal pane renderer for high-end Piclaw browsers",
       "path": "addons/ghostty-terminal",
       "homepage": "https://rcarmo.github.io/piclaw-addons/addons/ghostty-terminal/",
       "tags": [
@@ -432,7 +432,7 @@
       "name": "@rcarmo/piclaw-addon-lite-term",
       "version": "0.1.2",
       "type": "extension",
-      "description": "xterm.js-based lightweight terminal pane for Piclaw, intended for lower-spec machines that cannot run ghostty-web well",
+      "description": "xterm.js terminal pane identical to Piclaw's bundled default terminal and a good starting point for terminal customizations",
       "path": "addons/lite-term",
       "homepage": "https://rcarmo.github.io/piclaw-addons/addons/lite-term/",
       "tags": [

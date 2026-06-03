@@ -1,8 +1,8 @@
 # Ghostty Terminal
 
-`@rcarmo/piclaw-addon-ghostty-terminal` restores the former Ghostty-powered Piclaw terminal pane as an optional add-on.
+`@rcarmo/piclaw-addon-ghostty-terminal` provides the Ghostty-powered Piclaw terminal pane as an optional add-on.
 
-Piclaw core now defaults to the lighter xterm.js terminal renderer. This add-on is for users who explicitly want to try the Ghostty-web/WASM renderer on capable desktop browsers.
+Piclaw core defaults to the xterm.js terminal renderer. This add-on is for users who want a more modern and functional Ghostty-web/WASM terminal experience on capable, high-end desktop browsers.
 
 ## Behavior
 
@@ -19,4 +19,4 @@ Piclaw core now defaults to the lighter xterm.js terminal renderer. This add-on 
 
 ## Notes
 
-Ghostty-web can be heavier than xterm.js on mobile and low-end machines. Use the core/default terminal unless you specifically need Ghostty behavior.
+Ghostty-web can be heavier than xterm.js on mobile and low-end machines. Use the core/default terminal for broad compatibility; use this add-on when you want Ghostty's richer terminal behavior on a browser that can comfortably run it.
