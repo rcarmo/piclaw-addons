@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import planSidebarAddon, { applyPlanEdits, applyPlanPatches, loadSessionPlan, normalizeStoredPlanMarkdown, normalizeUpdatePlanArgs, parsePlanMarkdown, resetPlanSidebarAddonForTests, resetSessionPlan, saveSessionPlan, updatePlanArgsToMarkdown } from "./index";
+import planSidebarAddon, { applyPlanEdits, applyPlanPatches, getStructuredSessionPlan, loadSessionPlan, normalizeStoredPlanMarkdown, normalizeUpdatePlanArgs, parsePlanMarkdown, resetPlanSidebarAddonForTests, resetSessionPlan, saveSessionPlan, updatePlanArgsToMarkdown } from "./index";
 
 const addonDir = import.meta.dir;
 
@@ -15,6 +15,20 @@ test("plan storage is scoped by chat jid", () => {
   expect(second.markdown).toBe("- [ ] beta");
   expect(loadSessionPlan("web:alpha").markdown).toBe("- [ ] alpha");
   expect(loadSessionPlan("web:beta").markdown).toBe("- [ ] beta");
+});
+
+test("runtime API exposes structured session plans for sibling add-ons", () => {
+  resetPlanSidebarAddonForTests();
+  saveSessionPlan("web:goal", "> evidence\n\n- [x] done\n- [ ] next");
+  const direct = getStructuredSessionPlan("web:goal");
+  expect(direct.explanation).toBe("evidence");
+  expect(direct.plan).toEqual([
+    { step: "done", status: "completed" },
+    { step: "next", status: "pending" },
+  ]);
+  const api = (globalThis as any).__piclaw_planSidebarApi;
+  expect(typeof api?.getPlan).toBe("function");
+  expect(api.getPlan("web:goal").plan).toEqual(direct.plan);
 });
 
 test("plan tool gets and sets active session plan", async () => {

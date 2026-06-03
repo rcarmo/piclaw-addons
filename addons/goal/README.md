@@ -14,6 +14,8 @@ Open **Settings → Add-Ons** and install **goal** from the catalog.
 - exposes Codex-style tools:
   - `get_goal`
   - `create_goal`
+  - `goal_complete`
+  - `goal_stop`
   - `update_goal`
 - adds `/goal` user controls for summary, create/replace, pause, resume, clear, and status
 - tracks goal status, objective, token budget, tokens used, elapsed wall-clock time, created/updated timestamps, and goal id
@@ -21,6 +23,9 @@ Open **Settings → Add-Ons** and install **goal** from the catalog.
 - marks goals `budget_limited` when the configured token budget is exhausted and emits a Codex-style wrap-up prompt
 - uses Codex's strict completion and blocked-audit prompt language
 - integrates with Plan Sidebar's `plan action=update` when available, so multi-step goal turns can keep a live plan current
+- detects all-completed Plan Sidebar checklists and switches from normal continuation to a final completion audit
+- auto-stops repeated completed-plan loops when completion is not verified
+- auto-stops repeated unchanged incomplete-plan loops as `no_progress`
 - provides a **Goal** settings pane for inspecting and editing the current thread goal
 
 ## `/goal` command
@@ -73,9 +78,36 @@ Create a new active goal only when explicitly requested. It fails if a goal alre
 }
 ```
 
+### `goal_complete`
+
+Preferred completion tool. Use only as the final action when the full objective is verified complete:
+
+```json
+{
+  "summary": "Feature shipped and verified.",
+  "evidence": ["bun test passed", "commit abc123 pushed", "microVM UI check passed"]
+}
+```
+
+`goal_complete` records evidence, marks the goal `complete`, and terminates the current turn.
+
+### `goal_stop`
+
+Stop the autonomous loop without marking the goal complete:
+
+```json
+{
+  "reason": "plan_complete_unverified",
+  "summary": "Plan is checked off but completion evidence is insufficient.",
+  "evidence": ["all plan items completed", "missing deployment verification"]
+}
+```
+
+Use this when completion is unverified, progress is stuck, user input is required, or external state blocks progress. It marks the goal `stopped` and terminates the current turn.
+
 ### `update_goal`
 
-Only the model can use this to mark the existing goal terminal:
+Compatibility tool for terminal state updates:
 
 ```json
 { "status": "complete", "summary": "Verified against tests and PR state." }
@@ -85,7 +117,7 @@ Only the model can use this to mark the existing goal terminal:
 { "status": "blocked", "summary": "The same external service outage blocked three consecutive goal turns." }
 ```
 
-`update_goal` intentionally cannot pause, resume, clear, budget-limit, or usage-limit a goal. Those status transitions are controlled by the user or runtime.
+Prefer `goal_complete` for verified completion because it requires evidence and terminates the turn. `update_goal` intentionally cannot pause, resume, clear, budget-limit, stop, or usage-limit a goal. Those status transitions are controlled by the user, runtime, or `goal_stop`.
 
 ## Status model
 
@@ -99,6 +131,7 @@ The add-on uses Codex's status vocabulary:
 | `usage_limited` | reserved for runtime usage-limit integration |
 | `budget_limited` | token budget was exhausted |
 | `complete` | model verified the objective is achieved |
+| `stopped` | autonomous loop was stopped without verified completion |
 
 ## Settings pane
 
@@ -124,3 +157,5 @@ The prompt templates are intentionally no longer editable. The add-on embeds Cod
 - Token accounting uses assistant message usage from Piclaw events, then applies Codex-style budget-limit behavior.
 - The continuation prompt treats the objective as untrusted user-provided task context and XML-escapes it before embedding.
 - Plan storage is not bundled in this add-on; it is supplied by the Plan Sidebar add-on. The goal prompt is written to use `plan action=update` when available.
+- When Plan Sidebar is installed, Goal reads its runtime API at `agent_end`. If every structured plan item is `completed`, Goal queues a finalization prompt instead of ordinary continuation. If the same completed plan remains unresolved after two probes, Goal marks the loop `stopped` with reason `plan_complete_unverified`.
+- If Plan Sidebar is installed and an incomplete plan remains unchanged across three autonomous continuations, Goal marks the loop `stopped` with reason `no_progress` instead of continuing forever.

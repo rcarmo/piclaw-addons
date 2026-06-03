@@ -86,6 +86,7 @@ function statusLabel(status) {
     usage_limited: "usage limited",
     budget_limited: "budget limited",
     complete: "complete",
+    stopped: "stopped",
   })[status] || "none";
 }
 
@@ -229,7 +230,7 @@ function GoalSettingsPane() {
 
       <h4 style=${H}>Model tools</h4>
       <div style=${{ fontSize: "0.78rem", color: "var(--text-secondary)", lineHeight: 1.45 }}>
-        The add-on exposes Codex-style <code>get_goal</code>, <code>create_goal</code>, and <code>update_goal</code>. <code>update_goal</code> can only mark <code>complete</code> or <code>blocked</code>; pause, resume, clear, budget-limit, and usage-limit are user/runtime controlled.
+        The add-on exposes Codex-style <code>get_goal</code>, <code>create_goal</code>, <code>goal_complete</code>, <code>goal_stop</code>, and <code>update_goal</code>. Prefer <code>goal_complete</code> for verified completion because it records evidence and terminates the turn. Use <code>goal_stop</code> to stop the loop without marking complete.
       </div>
 
       ${message ? html`<div style=${{ marginTop: "0.75rem", fontSize: "0.8rem", color: /failed|error/i.test(message) ? "var(--danger-color,#dc2626)" : "var(--accent-color,#2563eb)" }}>${message}</div>` : null}

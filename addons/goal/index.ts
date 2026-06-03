@@ -10,8 +10,11 @@ const UI_GOAL_UPDATED_KEY = "goal.thread-goal-updated";
 const GOAL_VISIBLE_CONTINUE_PREFIX = "🎯 Continue goal:";
 const GOAL_VISIBLE_UPDATED_PREFIX = "🎯 Goal updated:";
 const GOAL_VISIBLE_BUDGET_PREFIX = "🎯 Goal budget reached:";
+const GOAL_VISIBLE_FINALIZE_PREFIX = "🎯 Finalize goal:";
+const MAX_COMPLETION_PROBES = 2;
+const MAX_NO_PROGRESS_TURNS = 3;
 
-export type ThreadGoalStatus = "active" | "paused" | "blocked" | "usage_limited" | "budget_limited" | "complete";
+export type ThreadGoalStatus = "active" | "paused" | "blocked" | "usage_limited" | "budget_limited" | "complete" | "stopped";
 
 export interface ThreadGoal {
   goal_id: string;
@@ -27,6 +30,18 @@ export interface ThreadGoal {
   budget_limit_reported: boolean;
   blocked_turns: number;
   last_blocker: string;
+  completion_summary: string;
+  completion_evidence: string[];
+  completed_at: string | null;
+  stop_reason: string;
+  stop_summary: string;
+  stop_evidence: string[];
+  stopped_at: string | null;
+  completion_candidate_at: string | null;
+  completion_plan_fingerprint: string;
+  completion_probe_count: number;
+  last_auto_continue_fingerprint: string;
+  no_progress_turns: number;
 }
 
 export interface GoalToolResponse {
@@ -40,6 +55,15 @@ export interface GoalToolResponse {
     timeUsedSeconds: number;
     createdAt: string;
     updatedAt: string;
+    completionSummary: string;
+    completionEvidence: string[];
+    completedAt: string | null;
+    stopReason: string;
+    stopSummary: string;
+    stopEvidence: string[];
+    stoppedAt: string | null;
+    completionProbeCount: number;
+    noProgressTurns: number;
   };
   remainingTokens: number | null;
   completionBudgetReport: string | null;
@@ -49,8 +73,13 @@ type GoalRuntimeContext = Pick<ExtensionContext, "sessionManager"> | Pick<Extens
 type PiclawBroadcastEvent = (type: string, payload: Record<string, unknown>) => void;
 
 type GoalMutationSource = "api" | "command" | "tool" | "runtime";
-type GoalMutationAction = "create" | "update" | "clear" | "pause" | "resume" | "complete" | "blocked" | "budget_limited";
-type GoalPromptReason = "start" | "resume" | "objective_updated" | "continuation" | "budget_limited";
+type GoalMutationAction = "create" | "update" | "clear" | "pause" | "resume" | "complete" | "blocked" | "budget_limited" | "stopped";
+type GoalPromptReason = "start" | "resume" | "objective_updated" | "continuation" | "budget_limited" | "finalize";
+
+type PlanItemStatus = "pending" | "in_progress" | "completed";
+interface PlanRuntimeItem { step: string; status: PlanItemStatus }
+interface PlanRuntimeDetails { markdown: string; explanation: string | null; plan: PlanRuntimeItem[] }
+interface PlanSidebarRuntimeApi { getPlan(chatJidInput?: unknown): PlanRuntimeDetails }
 
 let kvStore: ExtensionStorage | null = null;
 let goalPromptSenderForTests: ((goal: ThreadGoal, content: string) => Promise<void>) | null = null;
@@ -137,8 +166,12 @@ function validateGoalObjective(value: unknown): string {
 }
 
 function normalizeStatus(value: unknown, fallback: ThreadGoalStatus = "active"): ThreadGoalStatus {
-  if (value === "active" || value === "paused" || value === "blocked" || value === "usage_limited" || value === "budget_limited" || value === "complete") return value;
+  if (value === "active" || value === "paused" || value === "blocked" || value === "usage_limited" || value === "budget_limited" || value === "complete" || value === "stopped") return value;
   return fallback;
+}
+
+function normalizeStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.map((item) => normalizeText(item)).filter(Boolean) : [];
 }
 
 export function resetGoalAddonForTests(): void {
@@ -168,6 +201,18 @@ export function loadThreadGoal(chatJidInput?: unknown): ThreadGoal | null {
     budget_limit_reported: normalizeBoolean(saved?.budget_limit_reported),
     blocked_turns: normalizeNonNegativeInt(saved?.blocked_turns),
     last_blocker: normalizeText(saved?.last_blocker),
+    completion_summary: normalizeText(saved?.completion_summary),
+    completion_evidence: normalizeStringArray(saved?.completion_evidence),
+    completed_at: normalizeIso(saved?.completed_at),
+    stop_reason: normalizeText(saved?.stop_reason),
+    stop_summary: normalizeText(saved?.stop_summary),
+    stop_evidence: normalizeStringArray(saved?.stop_evidence),
+    stopped_at: normalizeIso(saved?.stopped_at),
+    completion_candidate_at: normalizeIso(saved?.completion_candidate_at),
+    completion_plan_fingerprint: normalizeText(saved?.completion_plan_fingerprint),
+    completion_probe_count: normalizeNonNegativeInt(saved?.completion_probe_count),
+    last_auto_continue_fingerprint: normalizeText(saved?.last_auto_continue_fingerprint),
+    no_progress_turns: normalizeNonNegativeInt(saved?.no_progress_turns),
   };
 }
 
@@ -202,6 +247,18 @@ export function createThreadGoal(chatJidInput: unknown, objectiveInput: unknown,
     budget_limit_reported: false,
     blocked_turns: 0,
     last_blocker: "",
+    completion_summary: "",
+    completion_evidence: [],
+    completed_at: null,
+    stop_reason: "",
+    stop_summary: "",
+    stop_evidence: [],
+    stopped_at: null,
+    completion_candidate_at: null,
+    completion_plan_fingerprint: "",
+    completion_probe_count: 0,
+    last_auto_continue_fingerprint: "",
+    no_progress_turns: 0,
   });
 }
 
@@ -239,6 +296,15 @@ export function protocolGoal(goal: ThreadGoal | null): GoalToolResponse["goal"] 
     timeUsedSeconds: goal.time_used_seconds,
     createdAt: goal.created_at,
     updatedAt: goal.updated_at,
+    completionSummary: goal.completion_summary,
+    completionEvidence: goal.completion_evidence,
+    completedAt: goal.completed_at,
+    stopReason: goal.stop_reason,
+    stopSummary: goal.stop_summary,
+    stopEvidence: goal.stop_evidence,
+    stoppedAt: goal.stopped_at,
+    completionProbeCount: goal.completion_probe_count,
+    noProgressTurns: goal.no_progress_turns,
   };
 }
 
@@ -298,6 +364,10 @@ function parseGoalPrompt(text: unknown): { reason: GoalPromptReason; escapedObje
     const escapedObjective = extractBetween(text, "<objective>", "</objective>");
     return escapedObjective ? { reason: "continuation", escapedObjective } : null;
   }
+  if (text.startsWith("The current Plan Sidebar checklist has no pending or in-progress items.")) {
+    const escapedObjective = extractBetween(text, "<objective>", "</objective>");
+    return escapedObjective ? { reason: "finalize", escapedObjective } : null;
+  }
   return null;
 }
 
@@ -311,6 +381,59 @@ function shouldRunGoalPrompt(chatJid: string, parsed: { reason: GoalPromptReason
 function cancelIfGoalStopped(goal: ThreadGoal): boolean {
   const latest = loadThreadGoal(goal.chat_jid);
   return !latest || latest.goal_id !== goal.goal_id || latest.status !== "active";
+}
+
+function getPlanSidebarRuntimeApi(): PlanSidebarRuntimeApi | null {
+  const candidate = (globalThis as Record<string, unknown>).__piclaw_planSidebarApi;
+  return candidate && typeof candidate === "object" && typeof (candidate as PlanSidebarRuntimeApi).getPlan === "function"
+    ? candidate as PlanSidebarRuntimeApi
+    : null;
+}
+
+function planFingerprint(plan: PlanRuntimeItem[]): string {
+  return JSON.stringify(plan.map((item) => [item.step, item.status]));
+}
+
+function getPlanCompletionState(chatJid: string): { available: boolean; total: number; allCompleted: boolean; fingerprint: string; plan: PlanRuntimeItem[] } {
+  try {
+    const details = getPlanSidebarRuntimeApi()?.getPlan(chatJid);
+    const plan = Array.isArray(details?.plan) ? details.plan.filter((item): item is PlanRuntimeItem => (
+      item && typeof item.step === "string" && (item.status === "pending" || item.status === "in_progress" || item.status === "completed")
+    )) : [];
+    const total = plan.length;
+    return {
+      available: Boolean(details),
+      total,
+      allCompleted: total > 0 && plan.every((item) => item.status === "completed"),
+      fingerprint: planFingerprint(plan),
+      plan,
+    };
+  } catch {
+    return { available: false, total: 0, allCompleted: false, fingerprint: "", plan: [] };
+  }
+}
+
+function clearCompletionCandidate(goal: ThreadGoal): ThreadGoal {
+  if (!goal.completion_candidate_at && !goal.completion_plan_fingerprint && goal.completion_probe_count === 0) return goal;
+  return saveThreadGoal({ ...goal, completion_candidate_at: null, completion_plan_fingerprint: "", completion_probe_count: 0 });
+}
+
+function clearPlanLoopGuards(goal: ThreadGoal): ThreadGoal {
+  if (
+    !goal.completion_candidate_at
+    && !goal.completion_plan_fingerprint
+    && goal.completion_probe_count === 0
+    && !goal.last_auto_continue_fingerprint
+    && goal.no_progress_turns === 0
+  ) return goal;
+  return saveThreadGoal({
+    ...goal,
+    completion_candidate_at: null,
+    completion_plan_fingerprint: "",
+    completion_probe_count: 0,
+    last_auto_continue_fingerprint: "",
+    no_progress_turns: 0,
+  });
 }
 
 export function buildGoalContinuationPrompt(goal: ThreadGoal): string {
@@ -358,7 +481,7 @@ export function buildGoalContinuationPrompt(goal: ThreadGoal): string {
     "- Treat uncertain or indirect evidence as not achieved; gather stronger evidence or continue the work.",
     "- The audit must prove completion, not merely fail to find obvious remaining work.",
     "",
-    "Do not rely on intent, partial progress, memory of earlier work, or a plausible final answer as proof of completion. Marking the goal complete is a claim that the full objective has been finished and can withstand requirement-by-requirement scrutiny. Only mark the goal achieved when current evidence proves every requirement has been satisfied and no required work remains. If the evidence is incomplete, weak, indirect, merely consistent with completion, or leaves any requirement missing, incomplete, or unverified, keep working instead of marking the goal complete. If the objective is achieved, call update_goal with status \"complete\" so usage accounting is preserved. If the achieved goal has a token budget, report the final consumed token budget to the user after update_goal succeeds.",
+    "Do not rely on intent, partial progress, memory of earlier work, or a plausible final answer as proof of completion. Marking the goal complete is a claim that the full objective has been finished and can withstand requirement-by-requirement scrutiny. Only mark the goal achieved when current evidence proves every requirement has been satisfied and no required work remains. If the evidence is incomplete, weak, indirect, merely consistent with completion, or leaves any requirement missing, incomplete, or unverified, keep working instead of marking the goal complete. If the objective is achieved, call goal_complete with a concise summary and concrete evidence as your final action so usage accounting is preserved and the goal loop terminates. If the achieved goal has a token budget, report the final consumed token budget to the user after goal_complete succeeds.",
     "",
     "Blocked audit:",
     "- Do not call update_goal with status \"blocked\" the first time a blocker appears.",
@@ -368,7 +491,38 @@ export function buildGoalContinuationPrompt(goal: ThreadGoal): string {
     "- Once the blocked threshold is satisfied, do not keep reporting that you are still blocked while leaving the goal active; call update_goal with status \"blocked\".",
     "- Never use status \"blocked\" merely because the work is hard, slow, uncertain, incomplete, or would benefit from clarification.",
     "",
-    "Do not call update_goal unless the goal is complete or the strict blocked audit above is satisfied. Do not mark a goal complete merely because the budget is nearly exhausted or because you are stopping work.",
+    "Do not call goal_complete unless the goal is complete. Do not call update_goal unless the goal is complete or the strict blocked audit above is satisfied. Use goal_stop when the loop must stop without verified completion. Do not mark a goal complete merely because the budget is nearly exhausted, the plan is checked off, or because you are stopping work.",
+  ].join("\n");
+}
+
+export function buildGoalFinalizationPrompt(goal: ThreadGoal, probeCount: number, plan: PlanRuntimeItem[]): string {
+  const objective = escapeXmlText(goal.objective);
+  const planLines = plan.length
+    ? plan.map((item, index) => `${index + 1}. [${item.status}] ${escapeXmlText(item.step)}`)
+    : ["No structured plan items were available."];
+  const isFinalProbe = probeCount >= MAX_COMPLETION_PROBES;
+  return [
+    "The current Plan Sidebar checklist has no pending or in-progress items.",
+    "Normal goal continuation is paused until this completed-plan state is resolved.",
+    "",
+    "Objective:",
+    "<objective>",
+    objective,
+    "</objective>",
+    "",
+    "Completed plan snapshot:",
+    ...planLines,
+    "",
+    isFinalProbe
+      ? "This is the final completion probe before the goal loop is stopped automatically."
+      : "Run a final completion audit before deciding what to do next.",
+    "",
+    "Choose exactly one outcome:",
+    "1. If the full objective is actually achieved, call goal_complete with a concise summary and concrete evidence.",
+    "2. If required work remains, use the plan tool to add pending or in-progress work that covers the missing requirements, then continue that work.",
+    "3. If you cannot proceed without user input or external state, call goal_stop with a reason, summary, and evidence.",
+    "",
+    "Do not simply answer that the work is done. Use goal_complete to finish, add remaining plan work to continue, or use goal_stop to stop the loop.",
   ].join("\n");
 }
 
@@ -391,7 +545,7 @@ export function buildGoalBudgetLimitPrompt(goal: ThreadGoal): string {
     "",
     "The system has marked the goal as budget_limited, so do not start new substantive work for this goal. Wrap up this turn soon: summarize useful progress, identify remaining work or blockers, and leave the user with a clear next step.",
     "",
-    "Do not call update_goal unless the goal is actually complete.",
+    "Do not call goal_complete or update_goal unless the goal is actually complete. Use goal_stop if autonomous work must stop without verified completion.",
   ].join("\n");
 }
 
@@ -415,7 +569,7 @@ function objectiveUpdatedPrompt(goal: ThreadGoal): string {
     "",
     "Adjust the current turn to pursue the updated objective. Avoid continuing work that only served the previous objective unless it also helps the updated objective.",
     "",
-    "Do not call update_goal unless the updated goal is actually complete.",
+    "Do not call goal_complete or update_goal unless the updated goal is actually complete. Use goal_stop if autonomous work must stop without verified completion.",
   ].join("\n");
 }
 
@@ -514,12 +668,17 @@ async function sendGoalPromptViaLocalAgent(goal: ThreadGoal, content: string): P
 function buildVisibleGoalPrompt(goal: ThreadGoal, reason: GoalPromptReason): string {
   if (reason === "budget_limited") return `${GOAL_VISIBLE_BUDGET_PREFIX} ${goal.objective}`;
   if (reason === "objective_updated") return `${GOAL_VISIBLE_UPDATED_PREFIX} ${goal.objective}`;
+  if (reason === "finalize") return `${GOAL_VISIBLE_FINALIZE_PREFIX} ${goal.objective}`;
   return `${GOAL_VISIBLE_CONTINUE_PREFIX} ${goal.objective}`;
 }
 
 function expandedPromptForReason(goal: ThreadGoal, reason: GoalPromptReason): string {
   if (reason === "budget_limited") return buildGoalBudgetLimitPrompt(goal);
   if (reason === "objective_updated") return objectiveUpdatedPrompt(goal);
+  if (reason === "finalize") {
+    const planState = getPlanCompletionState(goal.chat_jid);
+    return buildGoalFinalizationPrompt(goal, Math.max(1, goal.completion_probe_count), planState.plan);
+  }
   return buildGoalContinuationPrompt(goal);
 }
 
@@ -557,6 +716,83 @@ async function enqueueGoalPrompt(goal: ThreadGoal, prompt: string, reason: GoalP
 
 export async function flushGoalPromptDispatchesForTests(): Promise<void> {
   // Kept for compatibility with older tests; continuations are now enqueued synchronously.
+}
+
+async function handlePlanAtAgentEnd(goal: ThreadGoal): Promise<boolean> {
+  const planState = getPlanCompletionState(goal.chat_jid);
+  if (!planState.available || planState.total === 0) {
+    clearPlanLoopGuards(goal);
+    return false;
+  }
+
+  if (!planState.allCompleted) {
+    const samePlan = goal.last_auto_continue_fingerprint === planState.fingerprint;
+    const noProgressTurns = samePlan ? goal.no_progress_turns + 1 : 1;
+    if (samePlan && noProgressTurns >= MAX_NO_PROGRESS_TURNS) {
+      const stopped = saveThreadGoal({
+        ...goal,
+        status: "stopped",
+        last_accounted_at: null,
+        last_blocker: "Plan did not change across repeated autonomous continuations.",
+        stop_reason: "no_progress",
+        stop_summary: "Plan did not change across repeated autonomous continuations.",
+        stop_evidence: planState.plan.map((item) => `${item.status} plan item: ${item.step}`),
+        stopped_at: nowIso(),
+        completion_candidate_at: null,
+        completion_plan_fingerprint: "",
+        completion_probe_count: 0,
+        last_auto_continue_fingerprint: "",
+        no_progress_turns: 0,
+      });
+      broadcastGoalUpdated(stopped, stopped.chat_jid, "runtime", "stopped");
+      return true;
+    }
+    const tracked = saveThreadGoal({
+      ...goal,
+      completion_candidate_at: null,
+      completion_plan_fingerprint: "",
+      completion_probe_count: 0,
+      last_auto_continue_fingerprint: planState.fingerprint,
+      no_progress_turns: noProgressTurns,
+    });
+    broadcastGoalUpdated(tracked, tracked.chat_jid, "runtime", "update");
+    return false;
+  }
+
+  const sameCompletedPlan = goal.completion_plan_fingerprint === planState.fingerprint;
+  const nextProbeCount = sameCompletedPlan ? goal.completion_probe_count + 1 : 1;
+
+  if (sameCompletedPlan && goal.completion_probe_count >= MAX_COMPLETION_PROBES) {
+    const stopped = saveThreadGoal({
+      ...goal,
+      status: "stopped",
+      last_accounted_at: null,
+      last_blocker: "Plan completed but goal completion was not verified after repeated finalization prompts.",
+      stop_reason: "plan_complete_unverified",
+      stop_summary: "Plan completed but goal completion was not verified after repeated finalization prompts.",
+      stop_evidence: planState.plan.map((item) => `completed plan item: ${item.step}`),
+      stopped_at: nowIso(),
+      completion_candidate_at: null,
+      completion_plan_fingerprint: "",
+      completion_probe_count: 0,
+      last_auto_continue_fingerprint: "",
+      no_progress_turns: 0,
+    });
+    broadcastGoalUpdated(stopped, stopped.chat_jid, "runtime", "stopped");
+    return true;
+  }
+
+  const candidate = saveThreadGoal({
+    ...goal,
+    completion_candidate_at: goal.completion_candidate_at || nowIso(),
+    completion_plan_fingerprint: planState.fingerprint,
+    completion_probe_count: nextProbeCount,
+    last_auto_continue_fingerprint: "",
+    no_progress_turns: 0,
+  });
+  broadcastGoalUpdated(candidate, candidate.chat_jid, "runtime", "update");
+  await dispatchGoalPrompt(candidate, buildGoalFinalizationPrompt(candidate, nextProbeCount, planState.plan), "finalize");
+  return true;
 }
 
 function parseGoalCommandInput(input: string): { mode: "summary" | "clear" | "pause" | "resume" | "edit" | "start"; objective?: string } {
@@ -634,6 +870,21 @@ const UpdateGoalSchema = Type.Object({
   ], { description: "Set to complete only when achieved; set to blocked only after the strict repeated-blocker audit is satisfied." }),
   summary: Type.Optional(Type.String({ description: "Optional short evidence-backed completion or blocker summary." })),
 });
+const GoalCompleteSchema = Type.Object({
+  summary: Type.String({ description: "Concise statement of what is complete." }),
+  evidence: Type.Array(Type.String(), { minItems: 1, description: "Concrete evidence such as passing checks, commits, deployed versions, rendered behavior, or verified commands." }),
+});
+const GoalStopSchema = Type.Object({
+  reason: Type.Union([
+    Type.Literal("plan_complete_unverified"),
+    Type.Literal("no_progress"),
+    Type.Literal("user_needed"),
+    Type.Literal("external_blocked"),
+    Type.Literal("other"),
+  ], { description: "Why the autonomous goal loop should stop without marking complete." }),
+  summary: Type.String({ description: "Concise explanation for stopping the goal loop." }),
+  evidence: Type.Optional(Type.Array(Type.String(), { description: "Optional supporting evidence for the stop decision." })),
+});
 
 export default function goalAddon(pi: ExtensionAPI): void {
   pi.on("input", (event, ctx) => {
@@ -645,9 +896,11 @@ export default function goalAddon(pi: ExtensionAPI): void {
         ? "budget_limited"
         : text.startsWith(GOAL_VISIBLE_UPDATED_PREFIX)
           ? "objective_updated"
-          : text.startsWith(GOAL_VISIBLE_CONTINUE_PREFIX)
-            ? "continuation"
-            : null;
+          : text.startsWith(GOAL_VISIBLE_FINALIZE_PREFIX)
+            ? "finalize"
+            : text.startsWith(GOAL_VISIBLE_CONTINUE_PREFIX)
+              ? "continuation"
+              : null;
       if (visibleReason) {
         if (!goal || (visibleReason === "budget_limited" ? goal.status !== "budget_limited" : goal.status !== "active")) {
           sendGoalSkippedActivity(pi, chatJid, visibleReason, goal?.status || "stopped");
@@ -693,10 +946,91 @@ export default function goalAddon(pi: ExtensionAPI): void {
   });
 
   pi.registerTool({
+    name: "goal_complete",
+    label: "goal_complete",
+    description: "Mark the active goal complete and terminate the current turn. Use only when the entire objective is actually done and concrete evidence proves completion.",
+    promptSnippet: "goal_complete: final action when the entire active goal is complete; requires summary and evidence; terminates the turn.",
+    promptGuidelines: [
+      "Use goal_complete only as the final action when the entire goal is actually complete.",
+      "Do not use goal_complete for intermediate milestones or merely because the plan currently has all items checked.",
+      "If plan items are all complete but the objective is not proven complete, add remaining plan work or call goal_stop.",
+    ],
+    parameters: GoalCompleteSchema,
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      const chatJid = resolveActiveChatJid(ctx);
+      accountGoalProgress(chatJid, 0);
+      const summary = validateGoalObjective(params.summary);
+      const evidence = normalizeStringArray(params.evidence);
+      if (evidence.length === 0) throw new Error("goal_complete requires at least one concrete evidence item");
+      const completedAt = nowIso();
+      const goal = patchThreadGoal(chatJid, {
+        status: "complete",
+        last_accounted_at: null,
+        blocked_turns: 0,
+        last_blocker: "",
+        completion_summary: summary,
+        completion_evidence: evidence,
+        completed_at: completedAt,
+        stop_reason: "",
+        stop_summary: "",
+        stop_evidence: [],
+        stopped_at: null,
+        completion_candidate_at: null,
+        completion_plan_fingerprint: "",
+        completion_probe_count: 0,
+        last_auto_continue_fingerprint: "",
+        no_progress_turns: 0,
+      });
+      broadcastGoalUpdated(goal, chatJid, "tool", "complete");
+      return {
+        content: [{ type: "text", text: `Goal marked complete for ${chatJid}: ${summary}` }],
+        details: goalResponse(goal, true),
+        terminate: true,
+      };
+    },
+  });
+
+  pi.registerTool({
+    name: "goal_stop",
+    label: "goal_stop",
+    description: "Stop the active autonomous goal loop without marking it complete. Use when completion is unverified, progress is stuck, user input is required, or external state blocks the goal.",
+    promptSnippet: "goal_stop: stop the active goal loop without completion when no safe autonomous continuation remains; terminates the turn.",
+    parameters: GoalStopSchema,
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      const chatJid = resolveActiveChatJid(ctx);
+      accountGoalProgress(chatJid, 0);
+      const summary = validateGoalObjective(params.summary);
+      const evidence = normalizeStringArray(params.evidence);
+      const stoppedAt = nowIso();
+      const goal = patchThreadGoal(chatJid, {
+        status: "stopped",
+        last_accounted_at: null,
+        blocked_turns: 0,
+        last_blocker: summary,
+        stop_reason: normalizeText(params.reason, "other"),
+        stop_summary: summary,
+        stop_evidence: evidence,
+        stopped_at: stoppedAt,
+        completion_candidate_at: null,
+        completion_plan_fingerprint: "",
+        completion_probe_count: 0,
+        last_auto_continue_fingerprint: "",
+        no_progress_turns: 0,
+      });
+      broadcastGoalUpdated(goal, chatJid, "tool", "stopped");
+      return {
+        content: [{ type: "text", text: `Goal stopped for ${chatJid}: ${summary}` }],
+        details: goalResponse(goal),
+        terminate: true,
+      };
+    },
+  });
+
+  pi.registerTool({
     name: "update_goal",
     label: "update_goal",
     description: "Update the existing goal. Use this tool only to mark the goal achieved or blocked. Set status to complete only when the objective has actually been achieved and no required work remains. Set status to blocked only when the strict repeated-blocker audit is satisfied. Do not mark a goal complete merely because its budget is nearly exhausted or because you are stopping work.",
-    promptSnippet: "update_goal: mark the existing goal complete or blocked only after Codex-style verification.",
+    promptSnippet: "update_goal: compatibility tool for marking complete or blocked. Prefer goal_complete for verified completion because it records evidence and terminates the turn.",
     parameters: UpdateGoalSchema,
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const chatJid = resolveActiveChatJid(ctx);
@@ -779,6 +1113,7 @@ export default function goalAddon(pi: ExtensionAPI): void {
     if (goal.status !== "active") return;
     if (!lastAssistantTurnSucceeded(chatJid)) return;
     if (ctx.hasPendingMessages?.()) return;
+    if (await handlePlanAtAgentEnd(goal)) return;
     await dispatchGoalPrompt(goal, buildGoalContinuationPrompt(goal), "continuation");
   });
 }

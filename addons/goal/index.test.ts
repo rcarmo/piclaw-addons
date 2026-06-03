@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import goalAddon, {
   buildGoalBudgetLimitPrompt,
   buildGoalContinuationPrompt,
+  buildGoalFinalizationPrompt,
   createThreadGoal,
   flushGoalPromptDispatchesForTests,
   goalResponse,
@@ -22,6 +23,7 @@ afterEach(async () => {
   resetGoalAddonForTests();
   delete (globalThis as { __piclawRuntimeInterop?: unknown }).__piclawRuntimeInterop;
   delete (globalThis as { __PICLAW_BROADCAST_EVENT__?: unknown }).__PICLAW_BROADCAST_EVENT__;
+  delete (globalThis as { __piclaw_planSidebarApi?: unknown }).__piclaw_planSidebarApi;
 });
 
 function createHarness(options: { confirm?: boolean; pending?: boolean; idle?: boolean } = {}) {
@@ -135,15 +137,20 @@ test("goal prompts port Codex fidelity, escaping, plan action=update, and blocke
   expect(continuation).toContain("Completion audit:");
   expect(continuation).toContain("Blocked audit:");
   expect(continuation).toContain("at least three consecutive goal turns");
+  expect(continuation).toContain("goal_complete");
+  const finalization = buildGoalFinalizationPrompt(goal, 1, [{ step: "Verify release", status: "completed" }]);
+  expect(finalization).toContain("no pending or in-progress items");
+  expect(finalization).toContain("call goal_complete");
+  expect(finalization).toContain("call goal_stop");
   const budget = buildGoalBudgetLimitPrompt(goal);
   expect(budget).toContain("has reached its token budget");
-  expect(budget).toContain("Do not call update_goal unless the goal is actually complete");
+  expect(budget).toContain("Do not call goal_complete or update_goal unless the goal is actually complete");
 });
 
 describe("Codex-style goal tools", () => {
   test("registers get_goal, create_goal, and update_goal", () => {
     const { tools } = createHarness();
-    expect([...tools.keys()].sort()).toEqual(["create_goal", "get_goal", "update_goal"]);
+    expect([...tools.keys()].sort()).toEqual(["create_goal", "get_goal", "goal_complete", "goal_stop", "update_goal"]);
   });
 
   test("create_goal and get_goal share persisted thread goal state", async () => {
@@ -157,6 +164,28 @@ describe("Codex-style goal tools", () => {
 
     const read = await getGoal.execute("call-2", {}, undefined, undefined, ctx);
     expect(read.details.goal.objective).toBe("Ship goal port");
+  });
+
+  test("goal_complete records evidence and terminates the current turn", async () => {
+    const { tools, ctx } = createHarness();
+    await tools.get("create_goal").execute("call-1", { objective: "Close checklist", token_budget: 500 }, undefined, undefined, ctx);
+    const result = await tools.get("goal_complete").execute("call-2", { summary: "Checklist closed.", evidence: ["bun test passed", "commit abc123 pushed"] }, undefined, undefined, ctx);
+    expect(result.details.goal.status).toBe("complete");
+    expect(result.details.goal.completionSummary).toBe("Checklist closed.");
+    expect(result.details.goal.completionEvidence).toEqual(["bun test passed", "commit abc123 pushed"]);
+    expect(result.details.completionBudgetReport).toContain("Goal achieved");
+    expect(result.terminate).toBe(true);
+    expect(loadThreadGoal("web:default")?.status).toBe("complete");
+  });
+
+  test("goal_stop records the stop reason and terminates the current turn", async () => {
+    const { tools, ctx } = createHarness();
+    await tools.get("create_goal").execute("call-1", { objective: "Wait for external service" }, undefined, undefined, ctx);
+    const result = await tools.get("goal_stop").execute("call-2", { reason: "user_needed", summary: "Need credentials.", evidence: ["401 from service"] }, undefined, undefined, ctx);
+    expect(result.details.goal.status).toBe("stopped");
+    expect(result.details.goal.stopReason).toBe("user_needed");
+    expect(result.details.goal.stopEvidence).toEqual(["401 from service"]);
+    expect(result.terminate).toBe(true);
   });
 
   test("update_goal can complete with final usage report", async () => {
@@ -260,6 +289,101 @@ describe("/goal command and runtime loop", () => {
     expect(loadThreadGoal("web:goal")?.tokens_used).toBe(123);
     expect(sentUserMessages).toHaveLength(2);
     expect(String(sentUserMessages[1]?.content)).toBe("🎯 Continue goal: Finish docs");
+  });
+
+  test("agent_end treats an all-completed plan as a finalization candidate instead of normal continuation", async () => {
+    const { commands, handlers, sentUserMessages, ctx } = createHarness();
+    const messageEnd = handlers.find((entry) => entry.event === "message_end")?.handler;
+    const agentEnd = handlers.find((entry) => entry.event === "agent_end")?.handler;
+    (globalThis as any).__piclaw_planSidebarApi = {
+      getPlan: () => ({
+        markdown: "- [x] Inspect\n- [x] Test",
+        explanation: null,
+        plan: [
+          { step: "Inspect", status: "completed" },
+          { step: "Test", status: "completed" },
+        ],
+      }),
+    };
+    await withChatContext("web:goal", "web", async () => {
+      await commands.get("goal").handler("Finish docs", ctx);
+      await messageEnd({ message: { role: "assistant", stopReason: "stop", usage: { totalTokens: 12 } } }, ctx);
+      await agentEnd({}, ctx);
+    });
+    expect(sentUserMessages).toHaveLength(2);
+    expect(String(sentUserMessages[1]?.content)).toBe("🎯 Finalize goal: Finish docs");
+    expect(loadThreadGoal("web:goal")?.completion_probe_count).toBe(1);
+  });
+
+  test("queued finalization prompts expand to completion-or-stop instructions", async () => {
+    const { commands, handlers, sentUserMessages, ctx } = createHarness();
+    const input = handlers.find((entry) => entry.event === "input")?.handler;
+    (globalThis as any).__piclaw_planSidebarApi = {
+      getPlan: () => ({ markdown: "- [x] done", explanation: null, plan: [{ step: "done", status: "completed" }] }),
+    };
+    await withChatContext("web:goal", "web", async () => {
+      await commands.get("goal").handler("Finish docs", ctx);
+      const goal = loadThreadGoal("web:goal")!;
+      const candidate = { ...goal, completion_probe_count: 1 };
+      const result = await input({ type: "input", text: `🎯 Finalize goal: ${goal.objective}`, source: "extension" }, ctx);
+      expect(result.action).toBe("transform");
+      expect(result.text).toContain("The current Plan Sidebar checklist has no pending or in-progress items");
+      expect(result.text).toContain("call goal_complete");
+      expect(result.text).toContain("call goal_stop");
+      expect(candidate.completion_probe_count).toBe(1);
+    });
+    expect(sentUserMessages[0]?.content).toBe("🎯 Continue goal: Finish docs");
+  });
+
+  test("repeated unresolved all-completed plan auto-stops the goal loop", async () => {
+    const { commands, handlers, sentUserMessages, ctx } = createHarness();
+    const messageEnd = handlers.find((entry) => entry.event === "message_end")?.handler;
+    const agentEnd = handlers.find((entry) => entry.event === "agent_end")?.handler;
+    (globalThis as any).__piclaw_planSidebarApi = {
+      getPlan: () => ({ markdown: "- [x] Inspect", explanation: null, plan: [{ step: "Inspect", status: "completed" }] }),
+    };
+    await withChatContext("web:goal", "web", async () => {
+      await commands.get("goal").handler("Finish docs", ctx);
+      for (let index = 0; index < 3; index += 1) {
+        await messageEnd({ message: { role: "assistant", stopReason: "stop", usage: { totalTokens: 1 } } }, ctx);
+        await agentEnd({}, ctx);
+      }
+    });
+    const goal = loadThreadGoal("web:goal");
+    expect(goal?.status).toBe("stopped");
+    expect(goal?.stop_reason).toBe("plan_complete_unverified");
+    expect(sentUserMessages.map((msg) => String(msg.content))).toEqual([
+      "🎯 Continue goal: Finish docs",
+      "🎯 Finalize goal: Finish docs",
+      "🎯 Finalize goal: Finish docs",
+    ]);
+  });
+
+  test("repeated unchanged incomplete plans auto-stop as no progress", async () => {
+    const { commands, handlers, sentUserMessages, ctx } = createHarness();
+    const messageEnd = handlers.find((entry) => entry.event === "message_end")?.handler;
+    const agentEnd = handlers.find((entry) => entry.event === "agent_end")?.handler;
+    (globalThis as any).__piclaw_planSidebarApi = {
+      getPlan: () => ({ markdown: "- [-] Implement\n- [ ] Test", explanation: null, plan: [
+        { step: "Implement", status: "in_progress" },
+        { step: "Test", status: "pending" },
+      ] }),
+    };
+    await withChatContext("web:goal", "web", async () => {
+      await commands.get("goal").handler("Finish docs", ctx);
+      for (let index = 0; index < 3; index += 1) {
+        await messageEnd({ message: { role: "assistant", stopReason: "stop", usage: { totalTokens: 1 } } }, ctx);
+        await agentEnd({}, ctx);
+      }
+    });
+    const goal = loadThreadGoal("web:goal");
+    expect(goal?.status).toBe("stopped");
+    expect(goal?.stop_reason).toBe("no_progress");
+    expect(sentUserMessages.map((msg) => String(msg.content))).toEqual([
+      "🎯 Continue goal: Finish docs",
+      "🎯 Continue goal: Finish docs",
+      "🎯 Continue goal: Finish docs",
+    ]);
   });
 
   test("agent_end does not auto-continue when pending user input exists", async () => {

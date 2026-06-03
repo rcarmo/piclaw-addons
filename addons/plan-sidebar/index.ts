@@ -190,6 +190,20 @@ function structuredPlanDetails(plan: SessionPlan): StructuredSessionPlan {
   return { ...plan, explanation: parsed.explanation, plan: parsed.plan };
 }
 
+export interface PlanSidebarRuntimeApi {
+  getPlan(chatJidInput?: unknown): StructuredSessionPlan;
+}
+
+export function getStructuredSessionPlan(chatJidInput?: unknown): StructuredSessionPlan {
+  return structuredPlanDetails(loadSessionPlan(chatJidInput));
+}
+
+const planSidebarRuntimeApi: PlanSidebarRuntimeApi = {
+  getPlan: getStructuredSessionPlan,
+};
+
+(globalThis as Record<string, unknown>).__piclaw_planSidebarApi = planSidebarRuntimeApi;
+
 export function loadSessionPlan(chatJidInput?: unknown): SessionPlan {
   const chat_jid = normalizeChatJid(chatJidInput);
   const saved = kv().get<Partial<SessionPlan>>(PLAN_KEY, "chat", chat_jid);
@@ -442,7 +456,7 @@ if (typeof registerAddonConfigApi === "function") {
   registerAddonConfigApi("plan-sidebar", "plan", {
     get: async (payload, req) => {
       const body = payload && typeof payload === "object" ? payload as Record<string, unknown> : undefined;
-      return structuredPlanDetails(loadSessionPlan(readChatJidFromRequest(req, body)));
+      return getStructuredSessionPlan(readChatJidFromRequest(req, body));
     },
     set: async (payload, req) => {
       const body = payload && typeof payload === "object" ? payload as Record<string, unknown> : {};

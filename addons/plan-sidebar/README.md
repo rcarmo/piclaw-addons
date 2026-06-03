@@ -6,7 +6,7 @@ Adds a right-side slide-out sidebar for the current chat/session plan.
 - Persists the plan per `chat_jid` in Piclaw's extension KV store.
 - Survives browser refreshes and follows the active web chat/session.
 - Provides one canonical model-facing `plan` tool for structured updates and raw Markdown reads/edits.
-- Stores plans as Markdown while exposing consistent structured plan data in tool/API responses.
+- Stores plans as Markdown while exposing consistent structured plan data in tool/API responses and a runtime API for sibling add-ons.
 - Auto-refreshes the visible/sidebar meter on `plan.changes` events from tool or API mutations without clobbering dirty local edits.
 - Includes **Refresh**, **Reset**, **Save**, and **Submit to model** controls; Reset restores the canonical default checklist through the same storage API.
 
@@ -109,3 +109,13 @@ Tool/API details include both the stored Markdown and parsed structured items:
 ```
 
 By default the tool uses the active chat/session. Pass `chat_jid` only when intentionally reading or writing another session.
+
+## Runtime API
+
+Plan Sidebar exposes a best-effort runtime API for other installed add-ons:
+
+```ts
+globalThis.__piclaw_planSidebarApi?.getPlan(chatJid)
+```
+
+The return value matches the structured tool/API details: stored Markdown, optional explanation, and parsed plan items with `pending`, `in_progress`, or `completed` status. Goal uses this API to detect all-completed plans without importing Plan Sidebar internals.
