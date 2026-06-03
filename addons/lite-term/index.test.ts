@@ -92,15 +92,12 @@ test("Lite Term runtime includes heartbeat and reconnect safeguards", async () =
   expect(source).toContain("this.socket !== socket");
 });
 
-test("Lite Term uses a 2px overlay scrollbar instead of the native xterm scrollbar gutter", async () => {
+test("Lite Term uses xterm overviewRuler width to size the native scrollbar", async () => {
   const source = await Bun.file(join(addonDir, "web", "index.ts")).text();
-  expect(source).toContain("scrollbar-width: none;");
-  expect(source).toContain("width: 0;");
-  expect(source).toContain('className = "lite-terminal-scrollbar-thumb"');
-  expect(source).toContain(".xterm-scrollable-element > .scrollbar.vertical");
-  expect(source).toContain("width: 2px !important;");
-  expect(source).toContain("width: 2px;");
-  expect(source).toContain("syncOverlayScrollbar()");
+  expect(source).toContain("overviewRuler: { width: 2 },");
+  expect(source).not.toContain("lite-terminal-scrollbar-thumb");
+  expect(source).not.toContain("syncOverlayScrollbar");
+  expect(source).not.toContain(".xterm-scrollable-element > .scrollbar.vertical");
 });
 
 test("vendored xterm ESM modules expose expected addon classes", async () => {
