@@ -97,6 +97,8 @@ test("Lite Term uses a 2px overlay scrollbar instead of the native xterm scrollb
   expect(source).toContain("scrollbar-width: none;");
   expect(source).toContain("width: 0;");
   expect(source).toContain('className = "lite-terminal-scrollbar-thumb"');
+  expect(source).toContain(".xterm-scrollable-element > .scrollbar.vertical");
+  expect(source).toContain("width: 2px !important;");
   expect(source).toContain("width: 2px;");
   expect(source).toContain("syncOverlayScrollbar()");
 });
