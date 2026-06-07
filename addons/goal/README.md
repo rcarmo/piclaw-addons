@@ -22,6 +22,8 @@ Open **Settings → Add-Ons** and install **goal** from the catalog.
 - auto-continues active goals when the agent is idle and no user input is pending
 - marks goals `budget_limited` when the configured token budget is exhausted and emits a Codex-style wrap-up prompt
 - uses Codex's strict completion and blocked-audit prompt language
+- injects a compact active-goal context block into ordinary user turns so agents know the current goal and terminal actions, not only during auto-continuation turns
+- keeps Codex-compatible `update_goal({ status: "complete" })` as a first-class completion path while also offering evidence-rich `goal_complete`
 - integrates with Plan Sidebar's `plan action=update` when available, so multi-step goal turns can keep a live plan current
 - detects all-completed Plan Sidebar checklists and switches from normal continuation to a final completion audit
 - auto-stops repeated completed-plan loops when completion is not verified
@@ -63,7 +65,11 @@ Returns:
     "updatedAt": "2026-05-27T...Z"
   },
   "remainingTokens": 98766,
-  "completionBudgetReport": null
+  "completionBudgetReport": null,
+  "terminalGuidance": [
+    "If the full objective is verified complete, finish the goal by calling goal_complete({ summary, evidence }) when available.",
+    "Codex-compatible completion path: update_goal({ status: \"complete\", summary, evidence }) also marks the goal complete and should be used if goal_complete is unavailable or not selected."
+  ]
 }
 ```
 
@@ -107,17 +113,21 @@ Use this when completion is unverified, progress is stuck, user input is require
 
 ### `update_goal`
 
-Compatibility tool for terminal state updates:
+Codex-compatible terminal tool. Use this when following upstream Codex goal policy or when `goal_complete` is unavailable/not selected:
 
 ```json
-{ "status": "complete", "summary": "Verified against tests and PR state." }
+{
+  "status": "complete",
+  "summary": "Verified against tests and PR state.",
+  "evidence": ["bun test passed", "commit abc123 pushed"]
+}
 ```
 
 ```json
 { "status": "blocked", "summary": "The same external service outage blocked three consecutive goal turns." }
 ```
 
-Prefer `goal_complete` for verified completion because it requires evidence and terminates the turn. `update_goal` intentionally cannot pause, resume, clear, budget-limit, stop, or usage-limit a goal. Those status transitions are controlled by the user, runtime, or `goal_stop`.
+Prefer `goal_complete` for verified completion when it is available because it requires evidence explicitly, but `update_goal({ "status": "complete" })` is intentionally kept as the Codex-compatible completion fallback. Both completion paths record terminal metadata and terminate the current turn. `update_goal` intentionally cannot pause, resume, clear, budget-limit, stop, or usage-limit a goal. Those status transitions are controlled by the user, runtime, or `goal_stop`.
 
 ## Status model
 
@@ -155,7 +165,8 @@ The prompt templates are intentionally no longer editable. The add-on embeds Cod
 
 - Goal state is scoped to the current Piclaw chat/session (`chat_jid`).
 - Token accounting uses assistant message usage from Piclaw events, then applies Codex-style budget-limit behavior.
-- The continuation prompt treats the objective as untrusted user-provided task context and XML-escapes it before embedding.
+- The continuation prompt and active-goal system prompt treat the objective as untrusted user-provided task context and XML-escape it before embedding.
+- Ordinary user turns receive a compact `## Active Goal` system-prompt block with current status/budget and explicit terminal action guidance. This closes the gap where an agent could achieve a goal on a user-triggered turn but lack the goal context or completion instructions needed to stop.
 - Plan storage is not bundled in this add-on; it is supplied by the Plan Sidebar add-on. The goal prompt is written to use `plan action=update` when available.
 - When Plan Sidebar is installed, Goal reads its runtime API at `agent_end`. If every structured plan item is `completed`, Goal queues a finalization prompt instead of ordinary continuation. If the same completed plan remains unresolved after two probes, Goal marks the loop `stopped` with reason `plan_complete_unverified`.
 - If Plan Sidebar is installed and an incomplete plan remains unchanged across three autonomous continuations, Goal marks the loop `stopped` with reason `no_progress` instead of continuing forever.

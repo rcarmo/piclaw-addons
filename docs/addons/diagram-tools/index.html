@@ -112,6 +112,8 @@ html,body{min-height:100%;background:var(--bg);color:var(--ink);font-family:var(
 .detail-tags .badge{background:rgba(255,255,255,.16);color:#fff}
 .detail-meta{display:flex;align-items:center;gap:.8rem;flex-wrap:wrap;margin-top:.55rem}
 .detail-version{font-family:var(--font-mono);font-size:.78rem;opacity:.6}
+.download-pill{display:inline-flex;align-items:center;justify-content:center;gap:.35rem;min-height:1.85rem;padding:.32rem .7rem;border-radius:999px;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.14);color:#fff;text-decoration:none;font-size:.76rem;font-weight:800;line-height:1;white-space:nowrap}
+.download-pill:hover,.download-pill:focus-visible{background:rgba(255,255,255,.23);border-color:rgba(255,255,255,.42);outline:none}
 .detail-type-row,.detail-title-row{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.6rem}
 .type-badge{display:inline-block;padding:.2rem .6rem;border-radius:6px;font-size:.72rem;
   font-weight:800;letter-spacing:.05em;text-transform:uppercase;
@@ -212,19 +214,20 @@ footer a{color:var(--accent);text-decoration:none}
 
 <div class="detail-hero">
   <div class="detail-hero-inner">
-    <img class="detail-icon" src="/piclaw-addons/assets/icons/default-02.png" alt="">
+    <img class="detail-icon" src="/piclaw-addons/assets/icons/default-04.png" alt="">
     <div>
       <div class="detail-title-row">
         <div class="detail-title">diagram-tools</div>
         <span class="type-badge">skill</span>
-        
+
       </div>
       <div class="detail-sub">Architecture diagram workflow — JSON graph definitions, SVG renderer, colour picker widget</div>
       <div class="detail-tags"><span class="badge">architecture</span><span class="badge">diagrams</span><span class="badge">portfolio</span><span class="badge">svg</span></div>
       <div class="detail-meta">
         <span class="detail-version">v0.1.0</span>
-        
-        
+        <a class="download-pill" href="https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-diagram-tools-0.1.0.tgz" download aria-label="Download diagram-tools 0.1.0 tarball">↓ Download .tgz</a>
+
+
       </div>
     </div>
   </div>
@@ -239,7 +242,7 @@ footer a{color:var(--accent);text-decoration:none}
     <svg class="install-icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
     <span class="install-text"><strong>Source:</strong> <a href="https://github.com/rcarmo/piclaw-addons/tree/main/addons/diagram-tools" target="_blank" rel="noopener">addons/diagram-tools</a></span>
   </div>
-  
+
   <p>Architecture diagram workflow for the portfolio site — JSON graph definitions → SVG rendering → colour palette management.</p>
 <h2>How it works</h2><figure class="md-figure"><img src="assets/workflow.svg" alt="diagram-tools workflow" loading="lazy"></figure>
 <p>Define a graph in JSON (nodes, edges, semantic tags), render it to SVG with automatic left-to-right layout and orthogonal arrow routing, inject it into project markdown, and rebuild the site. An interactive colour picker widget lets you adjust the 11-tag palette visually.</p>

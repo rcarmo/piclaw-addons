@@ -4,9 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>goal — piclaw-addons</title>
-<meta name="description" content="Session-scoped goal seeking loop with editable prompts, a settings pane, and /goal command support">
+<meta name="description" content="Codex-style persisted thread goals with active-goal guidance, completion evidence, and stop guards">
 <meta property="og:title" content="goal — piclaw-addons">
-<meta property="og:description" content="Session-scoped goal seeking loop with editable prompts, a settings pane, and /goal command support">
+<meta property="og:description" content="Codex-style persisted thread goals with active-goal guidance, completion evidence, and stop guards">
 <meta property="og:url" content="https://rcarmo.github.io/piclaw-addons/addons/goal/">
 <meta property="og:image" content="https://rcarmo.github.io/piclaw-addons/assets/og/goal.png">
 <meta property="og:image:width" content="1280">
@@ -14,7 +14,7 @@
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="goal — piclaw-addons">
-<meta name="twitter:description" content="Session-scoped goal seeking loop with editable prompts, a settings pane, and /goal command support">
+<meta name="twitter:description" content="Codex-style persisted thread goals with active-goal guidance, completion evidence, and stop guards">
 <meta name="twitter:image" content="https://rcarmo.github.io/piclaw-addons/assets/og/goal.png">
 <link rel="canonical" href="https://rcarmo.github.io/piclaw-addons/addons/goal/">
 <script type="text/javascript">
@@ -112,6 +112,8 @@ html,body{min-height:100%;background:var(--bg);color:var(--ink);font-family:var(
 .detail-tags .badge{background:rgba(255,255,255,.16);color:#fff}
 .detail-meta{display:flex;align-items:center;gap:.8rem;flex-wrap:wrap;margin-top:.55rem}
 .detail-version{font-family:var(--font-mono);font-size:.78rem;opacity:.6}
+.download-pill{display:inline-flex;align-items:center;justify-content:center;gap:.35rem;min-height:1.85rem;padding:.32rem .7rem;border-radius:999px;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.14);color:#fff;text-decoration:none;font-size:.76rem;font-weight:800;line-height:1;white-space:nowrap}
+.download-pill:hover,.download-pill:focus-visible{background:rgba(255,255,255,.23);border-color:rgba(255,255,255,.42);outline:none}
 .detail-type-row,.detail-title-row{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.6rem}
 .type-badge{display:inline-block;padding:.2rem .6rem;border-radius:6px;font-size:.72rem;
   font-weight:800;letter-spacing:.05em;text-transform:uppercase;
@@ -212,19 +214,20 @@ footer a{color:var(--accent);text-decoration:none}
 
 <div class="detail-hero">
   <div class="detail-hero-inner">
-    <img class="detail-icon" src="/piclaw-addons/assets/icons/default-00.png" alt="">
+    <img class="detail-icon" src="/piclaw-addons/assets/icons/default-01.png" alt="">
     <div>
       <div class="detail-title-row">
         <div class="detail-title">goal</div>
         <span class="type-badge">extension</span>
-        
+
       </div>
-      <div class="detail-sub">Session-scoped goal seeking loop with editable prompts, a settings pane, and /goal command support</div>
+      <div class="detail-sub">Codex-style persisted thread goals with active-goal guidance, completion evidence, and stop guards</div>
       <div class="detail-tags"><span class="badge">automation</span><span class="badge">goal-seeking</span><span class="badge">loop</span><span class="badge">productivity</span><span class="badge">session</span></div>
       <div class="detail-meta">
-        <span class="detail-version">v0.1.17</span>
-        
-        
+        <span class="detail-version">v0.1.30</span>
+        <a class="download-pill" href="https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-goal-0.1.30.tgz" download aria-label="Download goal 0.1.30 tarball">↓ Download .tgz</a>
+
+
       </div>
     </div>
   </div>
@@ -239,45 +242,127 @@ footer a{color:var(--accent);text-decoration:none}
     <svg class="install-icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
     <span class="install-text"><strong>Source:</strong> <a href="https://github.com/rcarmo/piclaw-addons/tree/main/addons/goal" target="_blank" rel="noopener">addons/goal</a></span>
   </div>
-  
-  <p>Session-scoped goal seeking for piclaw.</p>
-<p>Inspired by the <code>/goal</code> loop described in Simon Willison’s write-up of Codex CLI 0.128.0, this add-on lets a chat keep working toward a saved objective until it is completed, paused, or the configured token budget is exhausted.</p>
+
+  <p>Codex-style persisted thread goals for Piclaw.</p>
+<p>This add-on replaces the older prompt-template goal loop with a high-fidelity port of Codex CLI&#39;s goal model: a per-chat/thread goal record, Codex-compatible model tools, <code>/goal</code> user controls, budget accounting, and continuation/budget-limit prompts derived from Codex&#39;s upstream logic.</p>
 <h2>Install</h2><p>Open <strong>Settings → Add-Ons</strong> and install <strong>goal</strong> from the catalog.</p>
 <h2>What it does</h2><ul>
-<li>adds a <strong>Goal</strong> settings pane</li>
-<li>stores editable goal prompt templates in extension KV</li>
-<li>stores a per-chat goal state (objective, enabled flag, token budget, usage, latest progress phase)</li>
-<li>adds <code>/goal</code> commands for starting, resuming, pausing, clearing, and inspecting a goal run</li>
-<li>auto-continues the active goal after each turn while goal seeking is enabled</li>
-<li>updates the standard Pi progress UI live with phase labels and a Braille glyph bar showing remaining tokens for the run</li>
-<li>provides an internal <code>update_goal</code> tool so the model can mark a goal complete after verification</li>
+<li>stores one persisted thread goal per <code>chat_jid</code></li>
+<li>exposes Codex-style tools:<ul>
+<li><code>get_goal</code></li>
+<li><code>create_goal</code></li>
+<li><code>goal_complete</code></li>
+<li><code>goal_stop</code></li>
+<li><code>update_goal</code></li>
+</ul>
+</li>
+<li>adds <code>/goal</code> user controls for summary, create/replace, pause, resume, clear, and status</li>
+<li>tracks goal status, objective, token budget, tokens used, elapsed wall-clock time, created/updated timestamps, and goal id</li>
+<li>auto-continues active goals when the agent is idle and no user input is pending</li>
+<li>marks goals <code>budget_limited</code> when the configured token budget is exhausted and emits a Codex-style wrap-up prompt</li>
+<li>uses Codex&#39;s strict completion and blocked-audit prompt language</li>
+<li>injects a compact active-goal context block into ordinary user turns so agents know the current goal and terminal actions, not only during auto-continuation turns</li>
+<li>keeps Codex-compatible <code>update_goal({ status: &quot;complete&quot; })</code> as a first-class completion path while also offering evidence-rich <code>goal_complete</code></li>
+<li>integrates with Plan Sidebar&#39;s <code>plan action=update</code> when available, so multi-step goal turns can keep a live plan current</li>
+<li>detects all-completed Plan Sidebar checklists and switches from normal continuation to a final completion audit</li>
+<li>auto-stops repeated completed-plan loops when completion is not verified</li>
+<li>auto-stops repeated unchanged incomplete-plan loops as <code>no_progress</code></li>
+<li>provides a <strong>Goal</strong> settings pane for inspecting and editing the current thread goal</li>
 </ul>
 <h2><code>/goal</code> command</h2><ul>
-<li><code>/goal</code> — post help text and current goal state to the timeline</li>
-<li><code>/goal &lt;objective&gt;</code> — start or replace the active goal run in the current chat</li>
-<li><code>/goal status</code> — show the current goal state</li>
-<li><code>/goal on</code> or <code>/goal resume</code> — resume the saved objective</li>
-<li><code>/goal off</code> — pause goal seeking in this chat</li>
-<li><code>/goal clear</code> or <code>/goal reset</code> — clear the saved goal state</li>
+<li><code>/goal</code> or <code>/goal status</code> — show the current goal state</li>
+<li><code>/goal &lt;objective&gt;</code> — create a new active goal, or replace the current one after confirmation</li>
+<li><code>/goal pause</code> or <code>/goal off</code> — pause the current goal</li>
+<li><code>/goal resume</code> or <code>/goal on</code> — resume a paused/blocked/usage-limited/budget-limited goal as active and queue continuation</li>
+<li><code>/goal clear</code> or <code>/goal reset</code> — clear the saved thread goal</li>
+<li><code>/goal edit</code> — points to the Settings pane or replacement flow</li>
 </ul>
+<h2>Tool contract</h2><h3><code>get_goal</code></h3><p>Read the current thread goal and usage state.</p>
+<div class="addon-code-block"><div class="addon-code-block-header"><span class="addon-code-lang">json</span><button type="button" class="addon-code-copy-btn" aria-label="Copy code" title="Copy code" data-copy-state="idle"><span class="addon-code-copy-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg></span><span class="addon-code-copy-label">Copy</span></button></div><pre><code class="language-json">{}</code></pre></div><p>Returns:</p>
+<div class="addon-code-block"><div class="addon-code-block-header"><span class="addon-code-lang">json</span><button type="button" class="addon-code-copy-btn" aria-label="Copy code" title="Copy code" data-copy-state="idle"><span class="addon-code-copy-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg></span><span class="addon-code-copy-label">Copy</span></button></div><pre><code class="language-json">{
+  &quot;goal&quot;: {
+    &quot;threadId&quot;: &quot;web:default&quot;,
+    &quot;goalId&quot;: &quot;...&quot;,
+    &quot;objective&quot;: &quot;Ship the feature&quot;,
+    &quot;status&quot;: &quot;active&quot;,
+    &quot;tokenBudget&quot;: 100000,
+    &quot;tokensUsed&quot;: 1234,
+    &quot;timeUsedSeconds&quot;: 42,
+    &quot;createdAt&quot;: &quot;2026-05-27T...Z&quot;,
+    &quot;updatedAt&quot;: &quot;2026-05-27T...Z&quot;
+  },
+  &quot;remainingTokens&quot;: 98766,
+  &quot;completionBudgetReport&quot;: null,
+  &quot;terminalGuidance&quot;: [
+    &quot;If the full objective is verified complete, finish the goal by calling goal_complete({ summary, evidence }) when available.&quot;,
+    &quot;Codex-compatible completion path: update_goal({ status: \&quot;complete\&quot;, summary, evidence }) also marks the goal complete and should be used if goal_complete is unavailable or not selected.&quot;
+  ]
+}</code></pre></div><h3><code>create_goal</code></h3><p>Create a new active goal only when explicitly requested. It fails if a goal already exists.</p>
+<div class="addon-code-block"><div class="addon-code-block-header"><span class="addon-code-lang">json</span><button type="button" class="addon-code-copy-btn" aria-label="Copy code" title="Copy code" data-copy-state="idle"><span class="addon-code-copy-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg></span><span class="addon-code-copy-label">Copy</span></button></div><pre><code class="language-json">{
+  &quot;objective&quot;: &quot;Ship the feature&quot;,
+  &quot;token_budget&quot;: 100000
+}</code></pre></div><h3><code>goal_complete</code></h3><p>Preferred completion tool. Use only as the final action when the full objective is verified complete:</p>
+<div class="addon-code-block"><div class="addon-code-block-header"><span class="addon-code-lang">json</span><button type="button" class="addon-code-copy-btn" aria-label="Copy code" title="Copy code" data-copy-state="idle"><span class="addon-code-copy-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg></span><span class="addon-code-copy-label">Copy</span></button></div><pre><code class="language-json">{
+  &quot;summary&quot;: &quot;Feature shipped and verified.&quot;,
+  &quot;evidence&quot;: [&quot;bun test passed&quot;, &quot;commit abc123 pushed&quot;, &quot;microVM UI check passed&quot;]
+}</code></pre></div><p><code>goal_complete</code> records evidence, marks the goal <code>complete</code>, and terminates the current turn.</p>
+<h3><code>goal_stop</code></h3><p>Stop the autonomous loop without marking the goal complete:</p>
+<div class="addon-code-block"><div class="addon-code-block-header"><span class="addon-code-lang">json</span><button type="button" class="addon-code-copy-btn" aria-label="Copy code" title="Copy code" data-copy-state="idle"><span class="addon-code-copy-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg></span><span class="addon-code-copy-label">Copy</span></button></div><pre><code class="language-json">{
+  &quot;reason&quot;: &quot;plan_complete_unverified&quot;,
+  &quot;summary&quot;: &quot;Plan is checked off but completion evidence is insufficient.&quot;,
+  &quot;evidence&quot;: [&quot;all plan items completed&quot;, &quot;missing deployment verification&quot;]
+}</code></pre></div><p>Use this when completion is unverified, progress is stuck, user input is required, or external state blocks progress. It marks the goal <code>stopped</code> and terminates the current turn.</p>
+<h3><code>update_goal</code></h3><p>Codex-compatible terminal tool. Use this when following upstream Codex goal policy or when <code>goal_complete</code> is unavailable/not selected:</p>
+<div class="addon-code-block"><div class="addon-code-block-header"><span class="addon-code-lang">json</span><button type="button" class="addon-code-copy-btn" aria-label="Copy code" title="Copy code" data-copy-state="idle"><span class="addon-code-copy-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg></span><span class="addon-code-copy-label">Copy</span></button></div><pre><code class="language-json">{
+  &quot;status&quot;: &quot;complete&quot;,
+  &quot;summary&quot;: &quot;Verified against tests and PR state.&quot;,
+  &quot;evidence&quot;: [&quot;bun test passed&quot;, &quot;commit abc123 pushed&quot;]
+}</code></pre></div><div class="addon-code-block"><div class="addon-code-block-header"><span class="addon-code-lang">json</span><button type="button" class="addon-code-copy-btn" aria-label="Copy code" title="Copy code" data-copy-state="idle"><span class="addon-code-copy-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg></span><span class="addon-code-copy-label">Copy</span></button></div><pre><code class="language-json">{ &quot;status&quot;: &quot;blocked&quot;, &quot;summary&quot;: &quot;The same external service outage blocked three consecutive goal turns.&quot; }</code></pre></div><p>Prefer <code>goal_complete</code> for verified completion when it is available because it requires evidence explicitly, but <code>update_goal({ &quot;status&quot;: &quot;complete&quot; })</code> is intentionally kept as the Codex-compatible completion fallback. Both completion paths record terminal metadata and terminate the current turn. <code>update_goal</code> intentionally cannot pause, resume, clear, budget-limit, stop, or usage-limit a goal. Those status transitions are controlled by the user, runtime, or <code>goal_stop</code>.</p>
+<h2>Status model</h2><p>The add-on uses Codex&#39;s status vocabulary:</p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>active</code></td>
+<td>goal is live and auto-continuation can proceed</td>
+</tr>
+<tr>
+<td><code>paused</code></td>
+<td>user paused the goal</td>
+</tr>
+<tr>
+<td><code>blocked</code></td>
+<td>model verified the strict repeated-blocker audit</td>
+</tr>
+<tr>
+<td><code>usage_limited</code></td>
+<td>reserved for runtime usage-limit integration</td>
+</tr>
+<tr>
+<td><code>budget_limited</code></td>
+<td>token budget was exhausted</td>
+</tr>
+<tr>
+<td><code>complete</code></td>
+<td>model verified the objective is achieved</td>
+</tr>
+<tr>
+<td><code>stopped</code></td>
+<td>autonomous loop was stopped without verified completion</td>
+</tr>
+</tbody></table>
 <h2>Settings pane</h2><p>Open <strong>Settings → Goal</strong> to:</p>
 <ul>
-<li>turn goal seeking on or off for the current chat session</li>
-<li>edit the saved objective and token budget for the current chat</li>
-<li>edit the global prompt templates used for goal seeking</li>
-<li>review current token usage and remaining budget</li>
+<li>inspect the current chat&#39;s thread goal</li>
+<li>edit/replace the objective</li>
+<li>set or clear the token budget</li>
+<li>pause, resume, mark blocked, mark complete, clear, or refresh the goal</li>
 </ul>
-<h3>Prompt placeholders</h3><p>The editable prompt templates support these placeholders:</p>
-<ul>
-<li><code>{{ objective }}</code></li>
-<li><code>{{ time_used_seconds }}</code></li>
-<li><code>{{ tokens_used }}</code></li>
-<li><code>{{ token_budget }}</code></li>
-<li><code>{{ remaining_tokens }}</code></li>
-<li><code>{{ status }}</code></li>
-<li><code>{{ chat_jid }}</code></li>
-<li><code>{{ completion_summary }}</code></li>
-</ul>
+<p>The prompt templates are intentionally no longer editable. The add-on embeds Codex&#39;s goal prompt policy so behavior stays faithful to the upstream goal logic.</p>
 <h2>Storage model</h2><table>
 <thead>
 <tr>
@@ -286,27 +371,22 @@ footer a{color:var(--accent);text-decoration:none}
 </tr>
 </thead>
 <tbody><tr>
-<td>Global prompt templates</td>
-<td>Extension KV (<code>goal</code>, global scope)</td>
+<td>Current thread goal</td>
+<td>Extension KV (<code>goal</code>, chat scope, key <code>thread-goal</code>)</td>
 </tr>
 <tr>
-<td>Default token budget</td>
-<td>Extension KV (<code>goal</code>, global scope)</td>
-</tr>
-<tr>
-<td>Per-chat goal state and latest progress phase</td>
-<td>Extension KV (<code>goal</code>, chat scope)</td>
+<td>Settings pane state</td>
+<td>Browser state only</td>
 </tr>
 </tbody></table>
 <h2>Notes</h2><ul>
-<li>Goal seeking is scoped to the current chat/session, not globally across all chats.</li>
-<li>The add-on uses a token-budget heuristic based on assistant message usage.</li>
-<li>Goal execution keeps detailed phase/token progress in native/web streaming progress UI rather than emitting extra timeline status messages.</li>
-<li>The default token budget is <code>400k</code> tokens.</li>
-<li>The native Pi progress indicator uses a Braille token-availability bar, e.g. <code>[⣿⣿⣦⣀]</code>, where filled cells are remaining budget; visible token counts use friendly units such as <code>20k</code> or <code>1.25m</code>.</li>
-<li>Live progress phases include starting, waiting for model, working, receiving response, tool use, usage updated, continuing, budget-limited, and complete.</li>
-<li>Goal progress uses only the core Pi progress indicator (no extra goal overlay strip in the web UI).</li>
-<li>When the objective is truly done, the model should call <code>update_goal</code> with status <code>complete</code>.</li>
+<li>Goal state is scoped to the current Piclaw chat/session (<code>chat_jid</code>).</li>
+<li>Token accounting uses assistant message usage from Piclaw events, then applies Codex-style budget-limit behavior.</li>
+<li>The continuation prompt and active-goal system prompt treat the objective as untrusted user-provided task context and XML-escape it before embedding.</li>
+<li>Ordinary user turns receive a compact <code>## Active Goal</code> system-prompt block with current status/budget and explicit terminal action guidance. This closes the gap where an agent could achieve a goal on a user-triggered turn but lack the goal context or completion instructions needed to stop.</li>
+<li>Plan storage is not bundled in this add-on; it is supplied by the Plan Sidebar add-on. The goal prompt is written to use <code>plan action=update</code> when available.</li>
+<li>When Plan Sidebar is installed, Goal reads its runtime API at <code>agent_end</code>. If every structured plan item is <code>completed</code>, Goal queues a finalization prompt instead of ordinary continuation. If the same completed plan remains unresolved after two probes, Goal marks the loop <code>stopped</code> with reason <code>plan_complete_unverified</code>.</li>
+<li>If Plan Sidebar is installed and an incomplete plan remains unchanged across three autonomous continuations, Goal marks the loop <code>stopped</code> with reason <code>no_progress</code> instead of continuing forever.</li>
 </ul>
 
 </div>

@@ -6,6 +6,7 @@ import goalAddon, {
   buildGoalBudgetLimitPrompt,
   buildGoalContinuationPrompt,
   buildGoalFinalizationPrompt,
+  buildGoalSystemPrompt,
   createThreadGoal,
   flushGoalPromptDispatchesForTests,
   goalResponse,
@@ -138,17 +139,23 @@ test("goal prompts port Codex fidelity, escaping, plan action=update, and blocke
   expect(continuation).toContain("Blocked audit:");
   expect(continuation).toContain("at least three consecutive goal turns");
   expect(continuation).toContain("goal_complete");
+  expect(continuation).toContain("update_goal with status \"complete\"");
+  const systemPrompt = buildGoalSystemPrompt(goal);
+  expect(systemPrompt).toContain("## Active Goal");
+  expect(systemPrompt).toContain("Codex-compatible fallback");
+  expect(systemPrompt).toContain("update_goal({ status: \"complete\"");
   const finalization = buildGoalFinalizationPrompt(goal, 1, [{ step: "Verify release", status: "completed" }]);
   expect(finalization).toContain("no pending or in-progress items");
   expect(finalization).toContain("call goal_complete");
+  expect(finalization).toContain("call update_goal with status \"complete\"");
   expect(finalization).toContain("call goal_stop");
   const budget = buildGoalBudgetLimitPrompt(goal);
   expect(budget).toContain("has reached its token budget");
-  expect(budget).toContain("Do not call goal_complete or update_goal unless the goal is actually complete");
+  expect(budget).toContain("Do not call goal_complete or update_goal(status=\"complete\") unless the goal is actually complete");
 });
 
 describe("Codex-style goal tools", () => {
-  test("registers get_goal, create_goal, and update_goal", () => {
+  test("registers get_goal, create_goal, goal_complete, goal_stop, and update_goal", () => {
     const { tools } = createHarness();
     expect([...tools.keys()].sort()).toEqual(["create_goal", "get_goal", "goal_complete", "goal_stop", "update_goal"]);
   });
@@ -164,6 +171,8 @@ describe("Codex-style goal tools", () => {
 
     const read = await getGoal.execute("call-2", {}, undefined, undefined, ctx);
     expect(read.details.goal.objective).toBe("Ship goal port");
+    expect(read.details.terminalGuidance.join("\n")).toContain("update_goal({ status: \"complete\"");
+    expect(read.details.terminalGuidance.join("\n")).toContain("goal_stop");
   });
 
   test("goal_complete records evidence and terminates the current turn", async () => {
@@ -191,10 +200,20 @@ describe("Codex-style goal tools", () => {
   test("update_goal can complete with final usage report", async () => {
     const { tools, ctx } = createHarness();
     await tools.get("create_goal").execute("call-1", { objective: "Close checklist", token_budget: 500 }, undefined, undefined, ctx);
-    const result = await tools.get("update_goal").execute("call-2", { status: "complete", summary: "Verified." }, undefined, undefined, ctx);
+    const result = await tools.get("update_goal").execute("call-2", { status: "complete", summary: "Verified.", evidence: ["release check passed"] }, undefined, undefined, ctx);
     expect(result.details.goal.status).toBe("complete");
+    expect(result.details.goal.completionSummary).toBe("Verified.");
+    expect(result.details.goal.completionEvidence).toEqual(["release check passed"]);
     expect(result.details.completionBudgetReport).toContain("Goal achieved");
+    expect(result.terminate).toBe(true);
     expect(loadThreadGoal("web:default")?.status).toBe("complete");
+  });
+
+  test("update_goal complete requires evidence", async () => {
+    const { tools, ctx } = createHarness();
+    await tools.get("create_goal").execute("call-1", { objective: "Close checklist" }, undefined, undefined, ctx);
+    await expect(tools.get("update_goal").execute("call-2", { status: "complete", summary: "Verified." }, undefined, undefined, ctx)).rejects.toThrow("requires at least one concrete evidence item");
+    expect(loadThreadGoal("web:default")?.status).toBe("active");
   });
 
   test("update_goal can mark blocked", async () => {
@@ -202,11 +221,23 @@ describe("Codex-style goal tools", () => {
     await tools.get("create_goal").execute("call-1", { objective: "Wait for external service" }, undefined, undefined, ctx);
     const result = await tools.get("update_goal").execute("call-2", { status: "blocked", summary: "Service unavailable three turns." }, undefined, undefined, ctx);
     expect(result.details.goal.status).toBe("blocked");
+    expect(result.terminate).toBe(true);
     expect(loadThreadGoal("web:default")?.last_blocker).toContain("Service unavailable");
   });
 });
 
 describe("/goal command and runtime loop", () => {
+  test("before_agent_start injects compact active-goal terminal guidance", async () => {
+    const { handlers, ctx } = createHarness();
+    const beforeAgentStart = handlers.find((entry) => entry.event === "before_agent_start")?.handler;
+    createThreadGoal("web:default", "Ship docs", 100);
+    const result = await beforeAgentStart({ systemPrompt: "base" }, ctx);
+    expect(result.systemPrompt).toContain("## Active Goal");
+    expect(result.systemPrompt).toContain("Ship docs");
+    expect(result.systemPrompt).toContain("goal_complete({ summary, evidence })");
+    expect(result.systemPrompt).toContain("update_goal({ status: \"complete\"");
+  });
+
   test("/goal starts a thread goal and asynchronously queues the Codex continuation prompt", async () => {
     const { commands, sentUserMessages, sentMessages, notifications, ctx } = createHarness();
     await withChatContext("web:goal", "web", async () => {

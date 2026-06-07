@@ -1,7 +1,7 @@
 {
   "name": "@rcarmo/piclaw-addon-goal",
-  "version": "0.1.29",
-  "description": "Codex-style persisted thread goals with completion evidence, plan-finalization detection, stop guards, and settings UI",
+  "version": "0.1.30",
+  "description": "Codex-style persisted thread goals with active-goal guidance, completion evidence, and stop guards",
   "type": "module",
   "main": "index.ts",
   "piclaw": {

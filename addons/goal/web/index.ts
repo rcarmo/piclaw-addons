@@ -230,7 +230,7 @@ function GoalSettingsPane() {
 
       <h4 style=${H}>Model tools</h4>
       <div style=${{ fontSize: "0.78rem", color: "var(--text-secondary)", lineHeight: 1.45 }}>
-        The add-on exposes Codex-style <code>get_goal</code>, <code>create_goal</code>, <code>goal_complete</code>, <code>goal_stop</code>, and <code>update_goal</code>. Prefer <code>goal_complete</code> for verified completion because it records evidence and terminates the turn. Use <code>goal_stop</code> to stop the loop without marking complete.
+        The add-on exposes Codex-style <code>get_goal</code>, <code>create_goal</code>, <code>goal_complete</code>, <code>goal_stop</code>, and <code>update_goal</code>. Prefer <code>goal_complete</code> for verified completion when available, but <code>update_goal(status=&quot;complete&quot;)</code> remains the Codex-compatible completion path and also terminates the turn. Use <code>goal_stop</code> to stop the loop without marking complete.
       </div>
 
       ${message ? html`<div style=${{ marginTop: "0.75rem", fontSize: "0.8rem", color: /failed|error/i.test(message) ? "var(--danger-color,#dc2626)" : "var(--accent-color,#2563eb)" }}>${message}</div>` : null}

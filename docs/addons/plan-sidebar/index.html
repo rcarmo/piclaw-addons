@@ -4,9 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>plan-sidebar — piclaw-addons</title>
-<meta name="description" content="Right-side session plan sidebar with a Markdown checklist editor and plan get/set tool">
+<meta name="description" content="Right-side session plan sidebar with canonical plan action=update and Markdown storage">
 <meta property="og:title" content="plan-sidebar — piclaw-addons">
-<meta property="og:description" content="Right-side session plan sidebar with a Markdown checklist editor and plan get/set tool">
+<meta property="og:description" content="Right-side session plan sidebar with canonical plan action=update and Markdown storage">
 <meta property="og:url" content="https://rcarmo.github.io/piclaw-addons/addons/plan-sidebar/">
 <meta property="og:image" content="https://rcarmo.github.io/piclaw-addons/assets/og/plan-sidebar.png">
 <meta property="og:image:width" content="1280">
@@ -14,7 +14,7 @@
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="plan-sidebar — piclaw-addons">
-<meta name="twitter:description" content="Right-side session plan sidebar with a Markdown checklist editor and plan get/set tool">
+<meta name="twitter:description" content="Right-side session plan sidebar with canonical plan action=update and Markdown storage">
 <meta name="twitter:image" content="https://rcarmo.github.io/piclaw-addons/assets/og/plan-sidebar.png">
 <link rel="canonical" href="https://rcarmo.github.io/piclaw-addons/addons/plan-sidebar/">
 <script type="text/javascript">
@@ -112,6 +112,8 @@ html,body{min-height:100%;background:var(--bg);color:var(--ink);font-family:var(
 .detail-tags .badge{background:rgba(255,255,255,.16);color:#fff}
 .detail-meta{display:flex;align-items:center;gap:.8rem;flex-wrap:wrap;margin-top:.55rem}
 .detail-version{font-family:var(--font-mono);font-size:.78rem;opacity:.6}
+.download-pill{display:inline-flex;align-items:center;justify-content:center;gap:.35rem;min-height:1.85rem;padding:.32rem .7rem;border-radius:999px;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.14);color:#fff;text-decoration:none;font-size:.76rem;font-weight:800;line-height:1;white-space:nowrap}
+.download-pill:hover,.download-pill:focus-visible{background:rgba(255,255,255,.23);border-color:rgba(255,255,255,.42);outline:none}
 .detail-type-row,.detail-title-row{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.6rem}
 .type-badge{display:inline-block;padding:.2rem .6rem;border-radius:6px;font-size:.72rem;
   font-weight:800;letter-spacing:.05em;text-transform:uppercase;
@@ -212,19 +214,20 @@ footer a{color:var(--accent);text-decoration:none}
 
 <div class="detail-hero">
   <div class="detail-hero-inner">
-    <img class="detail-icon" src="/piclaw-addons/assets/icons/default-00.png" alt="">
+    <img class="detail-icon" src="/piclaw-addons/assets/icons/default-01.png" alt="">
     <div>
       <div class="detail-title-row">
         <div class="detail-title">plan-sidebar</div>
         <span class="type-badge">extension</span>
-        
+
       </div>
-      <div class="detail-sub">Right-side session plan sidebar with a Markdown checklist editor and plan get/set tool</div>
+      <div class="detail-sub">Right-side session plan sidebar with canonical plan action=update and Markdown storage</div>
       <div class="detail-tags"><span class="badge">markdown</span><span class="badge">planning</span><span class="badge">session</span><span class="badge">ui</span></div>
       <div class="detail-meta">
-        <span class="detail-version">v0.1.12</span>
-        
-        
+        <span class="detail-version">v0.1.20</span>
+        <a class="download-pill" href="https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-plan-sidebar-0.1.20.tgz" download aria-label="Download plan-sidebar 0.1.20 tarball">↓ Download .tgz</a>
+
+
       </div>
     </div>
   </div>
@@ -239,16 +242,80 @@ footer a{color:var(--accent);text-decoration:none}
     <svg class="install-icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
     <span class="install-text"><strong>Source:</strong> <a href="https://github.com/rcarmo/piclaw-addons/tree/main/addons/plan-sidebar" target="_blank" rel="noopener">addons/plan-sidebar</a></span>
   </div>
-  
+
   <p>Adds a right-side slide-out sidebar for the current chat/session plan.</p>
 <ul>
-<li>Markdown checklist editor powered by a minimal CodeMirror instance.</li>
+<li>Full-text Markdown checklist editor for normal human selection, paste, deletion, and multi-line edits.</li>
 <li>Persists the plan per <code>chat_jid</code> in Piclaw&#39;s extension KV store.</li>
 <li>Survives browser refreshes and follows the active web chat/session.</li>
-<li>Provides a <code>plan</code> tool with <code>get</code> and <code>set</code> actions so the model can inspect or update the same session plan.</li>
-<li>Includes a <strong>Submit to model</strong> button that saves the sidebar content and sends it back into the current session as an agent message.</li>
+<li>Provides one canonical model-facing <code>plan</code> tool for structured updates and raw Markdown reads/edits.</li>
+<li>Stores plans as Markdown while exposing consistent structured plan data in tool/API responses and a runtime API for sibling add-ons.</li>
+<li>Auto-refreshes the visible/sidebar meter on <code>plan.changes</code> events from tool or API mutations without clobbering dirty local edits.</li>
+<li>Includes <strong>Refresh</strong>, <strong>Reset</strong>, <strong>Save</strong>, and <strong>Submit to model</strong> controls; Reset restores the canonical default checklist through the same storage API.</li>
 </ul>
-<h2>Tool</h2><div class="addon-code-block"><div class="addon-code-block-header"><span class="addon-code-lang">json</span><button type="button" class="addon-code-copy-btn" aria-label="Copy code" title="Copy code" data-copy-state="idle"><span class="addon-code-copy-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg></span><span class="addon-code-copy-label">Copy</span></button></div><pre><code class="language-json">{ &quot;action&quot;: &quot;get&quot; }</code></pre></div><div class="addon-code-block"><div class="addon-code-block-header"><span class="addon-code-lang">json</span><button type="button" class="addon-code-copy-btn" aria-label="Copy code" title="Copy code" data-copy-state="idle"><span class="addon-code-copy-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg></span><span class="addon-code-copy-label">Copy</span></button></div><pre><code class="language-json">{ &quot;action&quot;: &quot;set&quot;, &quot;markdown&quot;: &quot;- [ ] Verify build\n- [ ] Report back&quot; }</code></pre></div><p>By default the tool uses the active chat/session. Pass <code>chat_jid</code> only when intentionally reading or writing another session.</p>
+<h2><code>plan</code> tool</h2><p>Use <code>plan action=patch</code> for the common case: add, edit, or remove multiple checklist items without exact Markdown line replacements or rewriting the entire plan.</p>
+<div class="addon-code-block"><div class="addon-code-block-header"><span class="addon-code-lang">json</span><button type="button" class="addon-code-copy-btn" aria-label="Copy code" title="Copy code" data-copy-state="idle"><span class="addon-code-copy-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg></span><span class="addon-code-copy-label">Copy</span></button></div><pre><code class="language-json">{
+  &quot;action&quot;: &quot;patch&quot;,
+  &quot;patches&quot;: [
+    { &quot;operation&quot;: &quot;update&quot;, &quot;match&quot;: &quot;Inspect current code&quot;, &quot;status&quot;: &quot;completed&quot; },
+    { &quot;operation&quot;: &quot;update&quot;, &quot;match&quot;: &quot;Patch plan tool&quot;, &quot;step&quot;: &quot;Patch plan tool batch edits&quot;, &quot;status&quot;: &quot;in_progress&quot; },
+    { &quot;operation&quot;: &quot;add&quot;, &quot;after&quot;: &quot;Patch plan tool batch edits&quot;, &quot;step&quot;: &quot;Run targeted tests&quot;, &quot;status&quot;: &quot;pending&quot; },
+    { &quot;operation&quot;: &quot;remove&quot;, &quot;match&quot;: &quot;Obsolete placeholder&quot; }
+  ]
+}</code></pre></div><p>Patch operations run in order. <code>update</code> and <code>remove</code> can target an existing item with a 1-based <code>index</code> or a unique <code>match</code> against the step text. <code>add</code> accepts <code>position: &quot;start&quot; | &quot;end&quot;</code>, <code>before</code>, or <code>after</code>; it defaults to appending.</p>
+<p>Use <code>plan action=update</code> for Codex-style structured full-plan replacement when you already know the whole desired checklist. The stored format remains Markdown, but every mutation path is normalized through the same parser/formatter.</p>
+<div class="addon-code-block"><div class="addon-code-block-header"><span class="addon-code-lang">json</span><button type="button" class="addon-code-copy-btn" aria-label="Copy code" title="Copy code" data-copy-state="idle"><span class="addon-code-copy-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg></span><span class="addon-code-copy-label">Copy</span></button></div><pre><code class="language-json">{
+  &quot;action&quot;: &quot;update&quot;,
+  &quot;explanation&quot;: &quot;Reordered after inspecting the code&quot;,
+  &quot;plan&quot;: [
+    { &quot;step&quot;: &quot;Inspect current code&quot;, &quot;status&quot;: &quot;completed&quot; },
+    { &quot;step&quot;: &quot;Port plan action=update contract&quot;, &quot;status&quot;: &quot;in_progress&quot; },
+    { &quot;step&quot;: &quot;Run targeted tests&quot;, &quot;status&quot;: &quot;pending&quot; }
+  ]
+}</code></pre></div><p>Statuses map to canonical Markdown markers:</p>
+<ul>
+<li><code>pending</code> → <code>- [ ] step</code></li>
+<li><code>in_progress</code> → <code>- [-] step</code></li>
+<li><code>completed</code> → <code>- [x] step</code></li>
+</ul>
+<p>At most one step may be <code>in_progress</code> / <code>[-]</code> at a time, regardless of whether the plan is patched, updated structurally, written as Markdown, edited atomically, reset, or saved through the sidebar API.</p>
+<p>Use raw Markdown actions only when you need to inspect or precisely edit the underlying document:</p>
+<div class="addon-code-block"><div class="addon-code-block-header"><span class="addon-code-lang">json</span><button type="button" class="addon-code-copy-btn" aria-label="Copy code" title="Copy code" data-copy-state="idle"><span class="addon-code-copy-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg></span><span class="addon-code-copy-label">Copy</span></button></div><pre><code class="language-json">{ &quot;action&quot;: &quot;read&quot; }</code></pre></div><div class="addon-code-block"><div class="addon-code-block-header"><span class="addon-code-lang">json</span><button type="button" class="addon-code-copy-btn" aria-label="Copy code" title="Copy code" data-copy-state="idle"><span class="addon-code-copy-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg></span><span class="addon-code-copy-label">Copy</span></button></div><pre><code class="language-json">{ &quot;action&quot;: &quot;write&quot;, &quot;markdown&quot;: &quot;- [ ] Verify build\n- [ ] Report back&quot; }</code></pre></div><div class="addon-code-block"><div class="addon-code-block-header"><span class="addon-code-lang">json</span><button type="button" class="addon-code-copy-btn" aria-label="Copy code" title="Copy code" data-copy-state="idle"><span class="addon-code-copy-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg></span><span class="addon-code-copy-label">Copy</span></button></div><pre><code class="language-json">{
+  &quot;action&quot;: &quot;edit&quot;,
+  &quot;edits&quot;: [
+    { &quot;oldText&quot;: &quot;- [ ] Verify build&quot;, &quot;newText&quot;: &quot;- [x] Verify build&quot; }
+  ]
+}</code></pre></div><p><code>action=edit</code> also supports batching multiple exact Markdown operations in one call. Prefer <code>action=patch</code> unless you specifically need raw Markdown anchors:</p>
+<div class="addon-code-block"><div class="addon-code-block-header"><span class="addon-code-lang">json</span><button type="button" class="addon-code-copy-btn" aria-label="Copy code" title="Copy code" data-copy-state="idle"><span class="addon-code-copy-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg></span><span class="addon-code-copy-label">Copy</span></button></div><pre><code class="language-json">{
+  &quot;action&quot;: &quot;edit&quot;,
+  &quot;edits&quot;: [
+    { &quot;operation&quot;: &quot;replace&quot;, &quot;oldText&quot;: &quot;- [ ] Inspect current state&quot;, &quot;newText&quot;: &quot;- [x] Inspect current state&quot; },
+    { &quot;operation&quot;: &quot;insert_after&quot;, &quot;anchorText&quot;: &quot;- [x] Inspect current state&quot;, &quot;text&quot;: &quot;\n- [-] Patch the plan tool\n- [ ] Run focused tests&quot; },
+    { &quot;operation&quot;: &quot;delete&quot;, &quot;oldText&quot;: &quot;\n- [ ] Obsolete placeholder&quot; },
+    { &quot;operation&quot;: &quot;append&quot;, &quot;text&quot;: &quot;\n- [ ] Report the result&quot; }
+  ]
+}</code></pre></div><p>Supported edit operations:</p>
+<ul>
+<li><code>replace</code> — replace <code>oldText</code> with <code>newText</code> (legacy default when both fields are present)</li>
+<li><code>delete</code> — remove <code>oldText</code></li>
+<li><code>insert_after</code> / <code>insert_before</code> — insert <code>text</code> around an exact <code>anchorText</code></li>
+<li><code>append</code> / <code>prepend</code> — add <code>text</code> at the end or beginning</li>
+</ul>
+<p>Anchors and old text must match exactly once. Inserted text may contain multiple checklist lines.</p>
+<p>Tool/API details include both the stored Markdown and parsed structured items:</p>
+<div class="addon-code-block"><div class="addon-code-block-header"><span class="addon-code-lang">json</span><button type="button" class="addon-code-copy-btn" aria-label="Copy code" title="Copy code" data-copy-state="idle"><span class="addon-code-copy-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg></span><span class="addon-code-copy-label">Copy</span></button></div><pre><code class="language-json">{
+  &quot;chat_jid&quot;: &quot;web:addons&quot;,
+  &quot;markdown&quot;: &quot;- [x] Inspect\n- [-] Patch\n- [ ] Test&quot;,
+  &quot;updated_at&quot;: &quot;2026-05-27T16:30:00.000Z&quot;,
+  &quot;explanation&quot;: null,
+  &quot;plan&quot;: [
+    { &quot;step&quot;: &quot;Inspect&quot;, &quot;status&quot;: &quot;completed&quot; },
+    { &quot;step&quot;: &quot;Patch&quot;, &quot;status&quot;: &quot;in_progress&quot; },
+    { &quot;step&quot;: &quot;Test&quot;, &quot;status&quot;: &quot;pending&quot; }
+  ]
+}</code></pre></div><p>By default the tool uses the active chat/session. Pass <code>chat_jid</code> only when intentionally reading or writing another session.</p>
+<h2>Runtime API</h2><p>Plan Sidebar exposes a best-effort runtime API for other installed add-ons:</p>
+<div class="addon-code-block"><div class="addon-code-block-header"><span class="addon-code-lang">ts</span><button type="button" class="addon-code-copy-btn" aria-label="Copy code" title="Copy code" data-copy-state="idle"><span class="addon-code-copy-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg></span><span class="addon-code-copy-label">Copy</span></button></div><pre><code class="language-ts">globalThis.__piclaw_planSidebarApi?.getPlan(chatJid)</code></pre></div><p>The return value matches the structured tool/API details: stored Markdown, optional explanation, and parsed plan items with <code>pending</code>, <code>in_progress</code>, or <code>completed</code> status. Goal uses this API to detect all-completed plans without importing Plan Sidebar internals.</p>
 
 </div>
 
