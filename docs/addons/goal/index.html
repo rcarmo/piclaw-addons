@@ -4,9 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>goal — piclaw-addons</title>
-<meta name="description" content="Codex-style persisted thread goals with active-goal guidance, completion evidence, and stop guards">
+<meta name="description" content="Codex-style persisted thread goals with visible completion/stop summaries and evidence">
 <meta property="og:title" content="goal — piclaw-addons">
-<meta property="og:description" content="Codex-style persisted thread goals with active-goal guidance, completion evidence, and stop guards">
+<meta property="og:description" content="Codex-style persisted thread goals with visible completion/stop summaries and evidence">
 <meta property="og:url" content="https://rcarmo.github.io/piclaw-addons/addons/goal/">
 <meta property="og:image" content="https://rcarmo.github.io/piclaw-addons/assets/og/goal.png">
 <meta property="og:image:width" content="1280">
@@ -14,7 +14,7 @@
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="goal — piclaw-addons">
-<meta name="twitter:description" content="Codex-style persisted thread goals with active-goal guidance, completion evidence, and stop guards">
+<meta name="twitter:description" content="Codex-style persisted thread goals with visible completion/stop summaries and evidence">
 <meta name="twitter:image" content="https://rcarmo.github.io/piclaw-addons/assets/og/goal.png">
 <link rel="canonical" href="https://rcarmo.github.io/piclaw-addons/addons/goal/">
 <script type="text/javascript">
@@ -214,18 +214,18 @@ footer a{color:var(--accent);text-decoration:none}
 
 <div class="detail-hero">
   <div class="detail-hero-inner">
-    <img class="detail-icon" src="/piclaw-addons/assets/icons/default-01.png" alt="">
+    <img class="detail-icon" src="/piclaw-addons/assets/icons/default-00.png" alt="">
     <div>
       <div class="detail-title-row">
         <div class="detail-title">goal</div>
         <span class="type-badge">extension</span>
 
       </div>
-      <div class="detail-sub">Codex-style persisted thread goals with active-goal guidance, completion evidence, and stop guards</div>
+      <div class="detail-sub">Codex-style persisted thread goals with visible completion/stop summaries and evidence</div>
       <div class="detail-tags"><span class="badge">automation</span><span class="badge">goal-seeking</span><span class="badge">loop</span><span class="badge">productivity</span><span class="badge">session</span></div>
       <div class="detail-meta">
-        <span class="detail-version">v0.1.30</span>
-        <a class="download-pill" href="https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-goal-0.1.30.tgz" download aria-label="Download goal 0.1.30 tarball">↓ Download .tgz</a>
+        <span class="detail-version">v0.1.31</span>
+        <a class="download-pill" href="https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-goal-0.1.31.tgz" download aria-label="Download goal 0.1.31 tarball">↓ Download .tgz</a>
 
 
       </div>
@@ -305,19 +305,19 @@ footer a{color:var(--accent);text-decoration:none}
 <div class="addon-code-block"><div class="addon-code-block-header"><span class="addon-code-lang">json</span><button type="button" class="addon-code-copy-btn" aria-label="Copy code" title="Copy code" data-copy-state="idle"><span class="addon-code-copy-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg></span><span class="addon-code-copy-label">Copy</span></button></div><pre><code class="language-json">{
   &quot;summary&quot;: &quot;Feature shipped and verified.&quot;,
   &quot;evidence&quot;: [&quot;bun test passed&quot;, &quot;commit abc123 pushed&quot;, &quot;microVM UI check passed&quot;]
-}</code></pre></div><p><code>goal_complete</code> records evidence, marks the goal <code>complete</code>, and terminates the current turn.</p>
+}</code></pre></div><p><code>goal_complete</code> records evidence and marks the goal <code>complete</code>. After it succeeds, the agent should send a concise final answer to the user instead of ending the turn with only the tool call.</p>
 <h3><code>goal_stop</code></h3><p>Stop the autonomous loop without marking the goal complete:</p>
 <div class="addon-code-block"><div class="addon-code-block-header"><span class="addon-code-lang">json</span><button type="button" class="addon-code-copy-btn" aria-label="Copy code" title="Copy code" data-copy-state="idle"><span class="addon-code-copy-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg></span><span class="addon-code-copy-label">Copy</span></button></div><pre><code class="language-json">{
   &quot;reason&quot;: &quot;plan_complete_unverified&quot;,
   &quot;summary&quot;: &quot;Plan is checked off but completion evidence is insufficient.&quot;,
   &quot;evidence&quot;: [&quot;all plan items completed&quot;, &quot;missing deployment verification&quot;]
-}</code></pre></div><p>Use this when completion is unverified, progress is stuck, user input is required, or external state blocks progress. It marks the goal <code>stopped</code> and terminates the current turn.</p>
+}</code></pre></div><p>Use this when completion is unverified, progress is stuck, user input is required, or external state blocks progress. It marks the goal <code>stopped</code>; after it succeeds, the agent should explain the stop to the user instead of ending the turn with only the tool call.</p>
 <h3><code>update_goal</code></h3><p>Codex-compatible terminal tool. Use this when following upstream Codex goal policy or when <code>goal_complete</code> is unavailable/not selected:</p>
 <div class="addon-code-block"><div class="addon-code-block-header"><span class="addon-code-lang">json</span><button type="button" class="addon-code-copy-btn" aria-label="Copy code" title="Copy code" data-copy-state="idle"><span class="addon-code-copy-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg></span><span class="addon-code-copy-label">Copy</span></button></div><pre><code class="language-json">{
   &quot;status&quot;: &quot;complete&quot;,
   &quot;summary&quot;: &quot;Verified against tests and PR state.&quot;,
   &quot;evidence&quot;: [&quot;bun test passed&quot;, &quot;commit abc123 pushed&quot;]
-}</code></pre></div><div class="addon-code-block"><div class="addon-code-block-header"><span class="addon-code-lang">json</span><button type="button" class="addon-code-copy-btn" aria-label="Copy code" title="Copy code" data-copy-state="idle"><span class="addon-code-copy-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg></span><span class="addon-code-copy-label">Copy</span></button></div><pre><code class="language-json">{ &quot;status&quot;: &quot;blocked&quot;, &quot;summary&quot;: &quot;The same external service outage blocked three consecutive goal turns.&quot; }</code></pre></div><p>Prefer <code>goal_complete</code> for verified completion when it is available because it requires evidence explicitly, but <code>update_goal({ &quot;status&quot;: &quot;complete&quot; })</code> is intentionally kept as the Codex-compatible completion fallback. Both completion paths record terminal metadata and terminate the current turn. <code>update_goal</code> intentionally cannot pause, resume, clear, budget-limit, stop, or usage-limit a goal. Those status transitions are controlled by the user, runtime, or <code>goal_stop</code>.</p>
+}</code></pre></div><div class="addon-code-block"><div class="addon-code-block-header"><span class="addon-code-lang">json</span><button type="button" class="addon-code-copy-btn" aria-label="Copy code" title="Copy code" data-copy-state="idle"><span class="addon-code-copy-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"></rect><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg></span><span class="addon-code-copy-label">Copy</span></button></div><pre><code class="language-json">{ &quot;status&quot;: &quot;blocked&quot;, &quot;summary&quot;: &quot;The same external service outage blocked three consecutive goal turns.&quot; }</code></pre></div><p>Prefer <code>goal_complete</code> for verified completion when it is available because it requires evidence explicitly, but <code>update_goal({ &quot;status&quot;: &quot;complete&quot; })</code> is intentionally kept as the Codex-compatible completion fallback. Both completion paths record terminal metadata and end the autonomous goal loop, but they deliberately do <strong>not</strong> early-terminate the Piclaw turn; the agent still needs to produce a user-facing final answer. <code>update_goal</code> intentionally cannot pause, resume, clear, budget-limit, stop, or usage-limit a goal. Those status transitions are controlled by the user, runtime, or <code>goal_stop</code>.</p>
 <h2>Status model</h2><p>The add-on uses Codex&#39;s status vocabulary:</p>
 <table>
 <thead>
@@ -384,6 +384,7 @@ footer a{color:var(--accent);text-decoration:none}
 <li>Token accounting uses assistant message usage from Piclaw events, then applies Codex-style budget-limit behavior.</li>
 <li>The continuation prompt and active-goal system prompt treat the objective as untrusted user-provided task context and XML-escape it before embedding.</li>
 <li>Ordinary user turns receive a compact <code>## Active Goal</code> system-prompt block with current status/budget and explicit terminal action guidance. This closes the gap where an agent could achieve a goal on a user-triggered turn but lack the goal context or completion instructions needed to stop.</li>
+<li>Goal completion/stop tools update persisted goal state but do not set Piclaw&#39;s early <code>terminate</code> hint. This prevents tool-only turns from completing without user-visible assistant output.</li>
 <li>Plan storage is not bundled in this add-on; it is supplied by the Plan Sidebar add-on. The goal prompt is written to use <code>plan action=update</code> when available.</li>
 <li>When Plan Sidebar is installed, Goal reads its runtime API at <code>agent_end</code>. If every structured plan item is <code>completed</code>, Goal queues a finalization prompt instead of ordinary continuation. If the same completed plan remains unresolved after two probes, Goal marks the loop <code>stopped</code> with reason <code>plan_complete_unverified</code>.</li>
 <li>If Plan Sidebar is installed and an incomplete plan remains unchanged across three autonomous continuations, Goal marks the loop <code>stopped</code> with reason <code>no_progress</code> instead of continuing forever.</li>

@@ -95,7 +95,7 @@ Preferred completion tool. Use only as the final action when the full objective 
 }
 ```
 
-`goal_complete` records evidence, marks the goal `complete`, and terminates the current turn.
+`goal_complete` records evidence and marks the goal `complete`. After it succeeds, the agent should send a concise final answer to the user instead of ending the turn with only the tool call.
 
 ### `goal_stop`
 
@@ -109,7 +109,7 @@ Stop the autonomous loop without marking the goal complete:
 }
 ```
 
-Use this when completion is unverified, progress is stuck, user input is required, or external state blocks progress. It marks the goal `stopped` and terminates the current turn.
+Use this when completion is unverified, progress is stuck, user input is required, or external state blocks progress. It marks the goal `stopped`; after it succeeds, the agent should explain the stop to the user instead of ending the turn with only the tool call.
 
 ### `update_goal`
 
@@ -127,7 +127,7 @@ Codex-compatible terminal tool. Use this when following upstream Codex goal poli
 { "status": "blocked", "summary": "The same external service outage blocked three consecutive goal turns." }
 ```
 
-Prefer `goal_complete` for verified completion when it is available because it requires evidence explicitly, but `update_goal({ "status": "complete" })` is intentionally kept as the Codex-compatible completion fallback. Both completion paths record terminal metadata and terminate the current turn. `update_goal` intentionally cannot pause, resume, clear, budget-limit, stop, or usage-limit a goal. Those status transitions are controlled by the user, runtime, or `goal_stop`.
+Prefer `goal_complete` for verified completion when it is available because it requires evidence explicitly, but `update_goal({ "status": "complete" })` is intentionally kept as the Codex-compatible completion fallback. Both completion paths record terminal metadata and end the autonomous goal loop, but they deliberately do **not** early-terminate the Piclaw turn; the agent still needs to produce a user-facing final answer. `update_goal` intentionally cannot pause, resume, clear, budget-limit, stop, or usage-limit a goal. Those status transitions are controlled by the user, runtime, or `goal_stop`.
 
 ## Status model
 
@@ -167,6 +167,7 @@ The prompt templates are intentionally no longer editable. The add-on embeds Cod
 - Token accounting uses assistant message usage from Piclaw events, then applies Codex-style budget-limit behavior.
 - The continuation prompt and active-goal system prompt treat the objective as untrusted user-provided task context and XML-escape it before embedding.
 - Ordinary user turns receive a compact `## Active Goal` system-prompt block with current status/budget and explicit terminal action guidance. This closes the gap where an agent could achieve a goal on a user-triggered turn but lack the goal context or completion instructions needed to stop.
+- Goal completion/stop tools update persisted goal state but do not set Piclaw's early `terminate` hint. This prevents tool-only turns from completing without user-visible assistant output.
 - Plan storage is not bundled in this add-on; it is supplied by the Plan Sidebar add-on. The goal prompt is written to use `plan action=update` when available.
 - When Plan Sidebar is installed, Goal reads its runtime API at `agent_end`. If every structured plan item is `completed`, Goal queues a finalization prompt instead of ordinary continuation. If the same completed plan remains unresolved after two probes, Goal marks the loop `stopped` with reason `plan_complete_unverified`.
 - If Plan Sidebar is installed and an incomplete plan remains unchanged across three autonomous continuations, Goal marks the loop `stopped` with reason `no_progress` instead of continuing forever.

@@ -313,10 +313,10 @@ function terminalGuidance(goal: ThreadGoal | null): string[] {
   if (!goal) return ["No active goal is set. Do not create one unless the user or system explicitly asks for a persisted goal."];
   if (goal.status !== "active" && goal.status !== "budget_limited") return [`Goal is ${goal.status}; do not continue autonomous goal work unless the user resumes or replaces it.`];
   return [
-    "If the full objective is verified complete, finish the goal by calling goal_complete({ summary, evidence }) when available.",
-    "Codex-compatible completion path: update_goal({ status: \"complete\", summary, evidence }) also marks the goal complete and should be used if goal_complete is unavailable or not selected.",
-    "If autonomous work must stop without verified completion, call goal_stop({ reason, summary, evidence }) when available; do not mark complete just to stop.",
-    "Do not leave a verified-complete goal active after reporting success to the user.",
+    "If the full objective is verified complete, record completion by calling goal_complete({ summary, evidence }) when available, then reply to the user with a concise final summary.",
+    "Codex-compatible completion path: update_goal({ status: \"complete\", summary, evidence }) also marks the goal complete and should be used if goal_complete is unavailable or not selected; after it succeeds, reply to the user.",
+    "If autonomous work must stop without verified completion, call goal_stop({ reason, summary, evidence }) when available, then explain the stop to the user; do not mark complete just to stop.",
+    "Do not leave a verified-complete goal active after reporting success to the user, and do not end the turn with only a goal tool call.",
   ];
 }
 
@@ -469,9 +469,10 @@ export function buildGoalSystemPrompt(goal: ThreadGoal): string {
     "",
     "Terminal action guidance:",
     "- When the full objective is verified complete, do not just report success while leaving the goal active.",
-    "- Prefer goal_complete({ summary, evidence }) when available; it records evidence, marks complete, and terminates the turn.",
+    "- Prefer goal_complete({ summary, evidence }) when available; it records evidence and marks the goal complete.",
     "- Codex-compatible fallback: update_goal({ status: \"complete\", summary, evidence }) also marks complete and should be used if goal_complete is unavailable or not selected.",
     "- If the autonomous loop must stop without verified completion, use goal_stop({ reason, summary, evidence }) when available; do not use completion tools merely to stop.",
+    "- After a completion or stop tool succeeds, send a concise user-facing final reply; do not end the turn with only the tool call.",
     "- Use get_goal if you need the current persisted goal status, budgets, or terminal-action guidance.",
   ].join("\n");
 }
@@ -521,7 +522,7 @@ export function buildGoalContinuationPrompt(goal: ThreadGoal): string {
     "- Treat uncertain or indirect evidence as not achieved; gather stronger evidence or continue the work.",
     "- The audit must prove completion, not merely fail to find obvious remaining work.",
     "",
-    "Do not rely on intent, partial progress, memory of earlier work, or a plausible final answer as proof of completion. Marking the goal complete is a claim that the full objective has been finished and can withstand requirement-by-requirement scrutiny. Only mark the goal achieved when current evidence proves every requirement has been satisfied and no required work remains. If the evidence is incomplete, weak, indirect, merely consistent with completion, or leaves any requirement missing, incomplete, or unverified, keep working instead of marking the goal complete. If the objective is achieved, call goal_complete with a concise summary and concrete evidence when available. Codex-compatible fallback: call update_goal with status \"complete\" plus summary/evidence when goal_complete is unavailable or not selected. Both paths preserve usage accounting and end the goal loop. If the achieved goal has a token budget, report the final consumed token budget to the user after the terminal tool succeeds.",
+    "Do not rely on intent, partial progress, memory of earlier work, or a plausible final answer as proof of completion. Marking the goal complete is a claim that the full objective has been finished and can withstand requirement-by-requirement scrutiny. Only mark the goal achieved when current evidence proves every requirement has been satisfied and no required work remains. If the evidence is incomplete, weak, indirect, merely consistent with completion, or leaves any requirement missing, incomplete, or unverified, keep working instead of marking the goal complete. If the objective is achieved, call goal_complete with a concise summary and concrete evidence when available. Codex-compatible fallback: call update_goal with status \"complete\" plus summary/evidence when goal_complete is unavailable or not selected. Both paths preserve usage accounting and end the goal loop. After the goal tool succeeds, provide a concise user-facing final reply; do not end the turn with only the tool call. If the achieved goal has a token budget, report the final consumed token budget to the user after the terminal tool succeeds.",
     "",
     "Blocked audit:",
     "- Do not call update_goal with status \"blocked\" the first time a blocker appears.",
@@ -562,7 +563,7 @@ export function buildGoalFinalizationPrompt(goal: ThreadGoal, probeCount: number
     "2. If required work remains, use the plan tool to add pending or in-progress work that covers the missing requirements, then continue that work.",
     "3. If you cannot proceed without user input or external state, call goal_stop with a reason, summary, and evidence.",
     "",
-    "Do not simply answer that the work is done. Use goal_complete or update_goal(status=\"complete\") to finish, add remaining plan work to continue, or use goal_stop to stop the loop.",
+    "Do not simply answer that the work is done while the goal remains active. Use goal_complete or update_goal(status=\"complete\") to record verified completion, add remaining plan work to continue, or use goal_stop to stop the loop. After a completion/stop tool succeeds, send a concise user-facing final reply.",
   ].join("\n");
 }
 
@@ -996,10 +997,10 @@ export default function goalAddon(pi: ExtensionAPI): void {
   pi.registerTool({
     name: "goal_complete",
     label: "goal_complete",
-    description: "Mark the active goal complete and terminate the current turn. Use only when the entire objective is actually done and concrete evidence proves completion.",
-    promptSnippet: "goal_complete: final action when the entire active goal is complete; requires summary and evidence; terminates the turn.",
+    description: "Mark the active goal complete. Use only when the entire objective is actually done and concrete evidence proves completion, then provide a concise final reply to the user.",
+    promptSnippet: "goal_complete: record verified completion when the entire active goal is complete; requires summary and evidence; after it succeeds, reply to the user.",
     promptGuidelines: [
-      "Use goal_complete only as the final action when the entire goal is actually complete.",
+      "Use goal_complete only when the entire goal is actually complete, then provide a concise user-facing final reply.",
       "Do not use goal_complete for intermediate milestones or merely because the plan currently has all items checked.",
       "If plan items are all complete but the objective is not proven complete, add remaining plan work or call goal_stop.",
     ],
@@ -1031,9 +1032,8 @@ export default function goalAddon(pi: ExtensionAPI): void {
       });
       broadcastGoalUpdated(goal, chatJid, "tool", "complete");
       return {
-        content: [{ type: "text", text: `Goal marked complete for ${chatJid}: ${summary}` }],
+        content: [{ type: "text", text: `Goal marked complete for ${chatJid}: ${summary}\n\nNow provide a concise final answer to the user with the completion summary and evidence. Do not call more tools unless the user asked for additional work.` }],
         details: goalResponse(goal, true),
-        terminate: true,
       };
     },
   });
@@ -1042,7 +1042,7 @@ export default function goalAddon(pi: ExtensionAPI): void {
     name: "goal_stop",
     label: "goal_stop",
     description: "Stop the active autonomous goal loop without marking it complete. Use when completion is unverified, progress is stuck, user input is required, or external state blocks the goal.",
-    promptSnippet: "goal_stop: stop the active goal loop without completion when no safe autonomous continuation remains; terminates the turn.",
+    promptSnippet: "goal_stop: stop the active goal loop without completion when no safe autonomous continuation remains; after it succeeds, explain the stop to the user.",
     parameters: GoalStopSchema,
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const chatJid = resolveActiveChatJid(ctx);
@@ -1067,9 +1067,8 @@ export default function goalAddon(pi: ExtensionAPI): void {
       });
       broadcastGoalUpdated(goal, chatJid, "tool", "stopped");
       return {
-        content: [{ type: "text", text: `Goal stopped for ${chatJid}: ${summary}` }],
+        content: [{ type: "text", text: `Goal stopped for ${chatJid}: ${summary}\n\nNow provide a concise final answer to the user explaining why the autonomous goal loop stopped. Do not call more tools unless the user asked for additional work.` }],
         details: goalResponse(goal),
-        terminate: true,
       };
     },
   });
@@ -1078,7 +1077,7 @@ export default function goalAddon(pi: ExtensionAPI): void {
     name: "update_goal",
     label: "update_goal",
     description: "Update the existing goal. Codex-compatible terminal path: use status complete when the objective has actually been achieved and no required work remains; include summary/evidence. Use status blocked only when the strict repeated-blocker audit is satisfied. Do not mark a goal complete merely because its budget is nearly exhausted or because you are stopping work.",
-    promptSnippet: "update_goal: Codex-compatible terminal tool for marking complete or blocked. Use status=complete for verified completion if goal_complete is unavailable or not selected; include summary/evidence.",
+    promptSnippet: "update_goal: Codex-compatible terminal goal-state tool for marking complete or blocked. Use status=complete for verified completion if goal_complete is unavailable or not selected; include summary/evidence, then reply to the user.",
     parameters: UpdateGoalSchema,
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const chatJid = resolveActiveChatJid(ctx);
@@ -1122,9 +1121,8 @@ export default function goalAddon(pi: ExtensionAPI): void {
       const goal = patchThreadGoal(chatJid, patch);
       broadcastGoalUpdated(goal, chatJid, "tool", status === "blocked" ? "blocked" : "complete");
       return {
-        content: [{ type: "text", text: `Marked goal ${status} for ${chatJid}.` }],
+        content: [{ type: "text", text: `Marked goal ${status} for ${chatJid}.\n\nNow provide a concise final answer to the user describing the goal ${status} state. Do not call more tools unless the user asked for additional work.` }],
         details: goalResponse(goal, status === "complete"),
-        terminate: true,
       };
     },
   });

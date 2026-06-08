@@ -144,6 +144,7 @@ test("goal prompts port Codex fidelity, escaping, plan action=update, and blocke
   expect(systemPrompt).toContain("## Active Goal");
   expect(systemPrompt).toContain("Codex-compatible fallback");
   expect(systemPrompt).toContain("update_goal({ status: \"complete\"");
+  expect(systemPrompt).toContain("do not end the turn with only the tool call");
   const finalization = buildGoalFinalizationPrompt(goal, 1, [{ step: "Verify release", status: "completed" }]);
   expect(finalization).toContain("no pending or in-progress items");
   expect(finalization).toContain("call goal_complete");
@@ -175,7 +176,7 @@ describe("Codex-style goal tools", () => {
     expect(read.details.terminalGuidance.join("\n")).toContain("goal_stop");
   });
 
-  test("goal_complete records evidence and terminates the current turn", async () => {
+  test("goal_complete records evidence without early-terminating the user-visible turn", async () => {
     const { tools, ctx } = createHarness();
     await tools.get("create_goal").execute("call-1", { objective: "Close checklist", token_budget: 500 }, undefined, undefined, ctx);
     const result = await tools.get("goal_complete").execute("call-2", { summary: "Checklist closed.", evidence: ["bun test passed", "commit abc123 pushed"] }, undefined, undefined, ctx);
@@ -183,21 +184,23 @@ describe("Codex-style goal tools", () => {
     expect(result.details.goal.completionSummary).toBe("Checklist closed.");
     expect(result.details.goal.completionEvidence).toEqual(["bun test passed", "commit abc123 pushed"]);
     expect(result.details.completionBudgetReport).toContain("Goal achieved");
-    expect(result.terminate).toBe(true);
+    expect(result.content[0].text).toContain("Now provide a concise final answer to the user");
+    expect(result.terminate).toBeUndefined();
     expect(loadThreadGoal("web:default")?.status).toBe("complete");
   });
 
-  test("goal_stop records the stop reason and terminates the current turn", async () => {
+  test("goal_stop records the stop reason without early-terminating the user-visible turn", async () => {
     const { tools, ctx } = createHarness();
     await tools.get("create_goal").execute("call-1", { objective: "Wait for external service" }, undefined, undefined, ctx);
     const result = await tools.get("goal_stop").execute("call-2", { reason: "user_needed", summary: "Need credentials.", evidence: ["401 from service"] }, undefined, undefined, ctx);
     expect(result.details.goal.status).toBe("stopped");
     expect(result.details.goal.stopReason).toBe("user_needed");
     expect(result.details.goal.stopEvidence).toEqual(["401 from service"]);
-    expect(result.terminate).toBe(true);
+    expect(result.content[0].text).toContain("Now provide a concise final answer to the user");
+    expect(result.terminate).toBeUndefined();
   });
 
-  test("update_goal can complete with final usage report", async () => {
+  test("update_goal can complete with final usage report without early termination", async () => {
     const { tools, ctx } = createHarness();
     await tools.get("create_goal").execute("call-1", { objective: "Close checklist", token_budget: 500 }, undefined, undefined, ctx);
     const result = await tools.get("update_goal").execute("call-2", { status: "complete", summary: "Verified.", evidence: ["release check passed"] }, undefined, undefined, ctx);
@@ -205,7 +208,8 @@ describe("Codex-style goal tools", () => {
     expect(result.details.goal.completionSummary).toBe("Verified.");
     expect(result.details.goal.completionEvidence).toEqual(["release check passed"]);
     expect(result.details.completionBudgetReport).toContain("Goal achieved");
-    expect(result.terminate).toBe(true);
+    expect(result.content[0].text).toContain("Now provide a concise final answer to the user");
+    expect(result.terminate).toBeUndefined();
     expect(loadThreadGoal("web:default")?.status).toBe("complete");
   });
 
@@ -221,7 +225,8 @@ describe("Codex-style goal tools", () => {
     await tools.get("create_goal").execute("call-1", { objective: "Wait for external service" }, undefined, undefined, ctx);
     const result = await tools.get("update_goal").execute("call-2", { status: "blocked", summary: "Service unavailable three turns." }, undefined, undefined, ctx);
     expect(result.details.goal.status).toBe("blocked");
-    expect(result.terminate).toBe(true);
+    expect(result.content[0].text).toContain("Now provide a concise final answer to the user");
+    expect(result.terminate).toBeUndefined();
     expect(loadThreadGoal("web:default")?.last_blocker).toContain("Service unavailable");
   });
 });
