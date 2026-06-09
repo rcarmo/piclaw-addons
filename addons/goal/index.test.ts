@@ -271,6 +271,23 @@ describe("/goal command and runtime loop", () => {
     expect(String(sentUserMessages[1]?.content)).toBe("🎯 Goal updated: Second goal");
   });
 
+  test("/goal and /goal help post a visible command table with current status", async () => {
+    const { commands, sentMessages, ctx } = createHarness();
+    await withChatContext("web:goal", "web", async () => {
+      await commands.get("goal").handler("", ctx);
+      await commands.get("goal").handler("help", ctx);
+    });
+    const helpMessages = sentMessages.filter((entry) => (entry.message as any)?.customType === "goal_help");
+    expect(helpMessages).toHaveLength(2);
+    const body = String((helpMessages[0]?.message as any)?.content);
+    expect((helpMessages[0]?.message as any)?.display).toBe(true);
+    expect(body).toContain("/goal commands");
+    expect(body).toContain("| Command | Action |");
+    expect(body).toContain("`/goal pause`");
+    expect(body).toContain("`/goal clear`");
+    expect(body).toContain("No goal is currently set for web:goal.");
+  });
+
   test("/goal pause, resume, and clear are user-controlled", async () => {
     const { commands, sentUserMessages, ctx } = createHarness();
     await withChatContext("web:goal", "web", async () => {

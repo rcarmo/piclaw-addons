@@ -650,6 +650,25 @@ function goalStatusSummary(goal: ThreadGoal | null, chatJidInput: unknown): stri
   ].join("\n");
 }
 
+function goalHelpMessage(goal: ThreadGoal | null, chatJidInput: unknown): string {
+  const chat_jid = goal?.chat_jid || normalizeChatJid(chatJidInput);
+  return [
+    "**🎯 /goal commands**",
+    "",
+    "| Command | Action |",
+    "| --- | --- |",
+    "| `/goal` or `/goal help` | Show this command list |",
+    "| `/goal status` | Show the current goal (objective, status, budget, time used) |",
+    "| `/goal <objective>` | Start a goal (or replace the existing one) and begin the autonomous loop |",
+    "| `/goal pause` (`off`, `stop`) | Pause the goal — halts auto-continuation, keeps state |",
+    "| `/goal resume` (`on`) | Resume a paused goal and queue a continuation |",
+    "| `/goal clear` (`reset`) | Delete the goal entirely |",
+    "| `/goal edit` | How to change the objective (use `/goal <objective>` or Settings → Goal) |",
+    "",
+    goalStatusSummary(goal, chat_jid),
+  ].join("\n");
+}
+
 function recordAssistantOutcome(chatJidInput: unknown, message: unknown): void {
   const chatJid = normalizeChatJid(chatJidInput);
   const stopReason = normalizeText(message && typeof message === "object" ? (message as { stopReason?: unknown }).stopReason : undefined);
@@ -868,10 +887,11 @@ async function handlePlanAtAgentEnd(goal: ThreadGoal): Promise<boolean> {
   return true;
 }
 
-function parseGoalCommandInput(input: string): { mode: "summary" | "clear" | "pause" | "resume" | "edit" | "start"; objective?: string } {
+function parseGoalCommandInput(input: string): { mode: "summary" | "clear" | "pause" | "resume" | "edit" | "start" | "help"; objective?: string } {
   const trimmed = input.trim();
-  if (!trimmed || trimmed === "status") return { mode: "summary" };
   const lower = trimmed.toLowerCase();
+  if (!trimmed || lower === "help" || lower === "?" || lower === "commands") return { mode: "help" };
+  if (lower === "status") return { mode: "summary" };
   if (lower === "clear" || lower === "reset") return { mode: "clear" };
   if (lower === "pause" || lower === "off" || lower === "stop") return { mode: "pause" };
   if (lower === "resume" || lower === "on") return { mode: "resume" };
@@ -1167,12 +1187,16 @@ export default function goalAddon(pi: ExtensionAPI): void {
   });
 
   pi.registerCommand("goal", {
-    description: "Set, inspect, pause, resume, edit, or clear a Codex-style thread goal.",
+    description: "Set, inspect, pause, resume, edit, or clear a Codex-style thread goal. Use /goal or /goal help for the command list.",
     handler: async (args, ctx) => {
       const chatJid = resolveActiveChatJid(ctx);
       const parsed = parseGoalCommandInput(args || "");
       const current = loadThreadGoal(chatJid);
 
+      if (parsed.mode === "help") {
+        pi.sendMessage({ customType: "goal_help", content: goalHelpMessage(current, chatJid), display: true });
+        return current;
+      }
       if (parsed.mode === "summary") {
         ctx.ui.notify(goalStatusSummary(current, chatJid), "info");
         return current;

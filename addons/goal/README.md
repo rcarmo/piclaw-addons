@@ -32,7 +32,8 @@ Open **Settings → Add-Ons** and install **goal** from the catalog.
 
 ## `/goal` command
 
-- `/goal` or `/goal status` — show the current goal state
+- `/goal` or `/goal help` — print the command list as a visible table plus the current goal status (also `?`, `commands`)
+- `/goal status` — show the current goal state
 - `/goal <objective>` — create a new active goal, or replace the current one after confirmation
 - `/goal pause` or `/goal off` — pause the current goal
 - `/goal resume` or `/goal on` — resume a paused/blocked/usage-limited/budget-limited goal as active and queue continuation
