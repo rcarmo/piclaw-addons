@@ -31,8 +31,8 @@
     <text x="468" y="200" font-family="Inter,system-ui,sans-serif" font-size="24" font-weight="700" letter-spacing="1.5" fill="#2563eb">AUTOMATION</text>
     <text x="468" y="275" font-family="Inter,system-ui,sans-serif" font-size="60" font-weight="700" fill="#0f172a">goal</text>
     <text x="468" y="342" font-family="Inter,system-ui,sans-serif" font-size="34" fill="#334155">Codex-style persisted thread</text>
-    <text x="468" y="390" font-family="Inter,system-ui,sans-serif" font-size="34" fill="#334155">goals with visible</text>
-    <text x="468" y="438" font-family="Inter,system-ui,sans-serif" font-size="34" fill="#334155">completion/stop</text>
+    <text x="468" y="390" font-family="Inter,system-ui,sans-serif" font-size="34" fill="#334155">goals with a hardened</text>
+    <text x="468" y="438" font-family="Inter,system-ui,sans-serif" font-size="34" fill="#334155">autonomous</text>
     <text x="1176" y="532" text-anchor="end" font-family="Inter,system-ui,sans-serif" font-size="22" font-weight="600" fill="#64748b">rcarmo.github.io/piclaw-addons</text>
   </g>
 </svg>

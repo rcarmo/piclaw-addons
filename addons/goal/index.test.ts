@@ -422,6 +422,81 @@ describe("/goal command and runtime loop", () => {
     ]);
   });
 
+  test("agent_end auto-continues even when the last assistant message ended on a tool call", async () => {
+    const { commands, handlers, sentUserMessages, ctx } = createHarness();
+    const messageEnd = handlers.find((entry) => entry.event === "message_end")?.handler;
+    const agentEnd = handlers.find((entry) => entry.event === "agent_end")?.handler;
+    await withChatContext("web:goal", "web", async () => {
+      await commands.get("goal").handler("Finish docs", ctx);
+      await messageEnd({ message: { role: "assistant", stopReason: "toolUse", usage: { totalTokens: 5 } } }, ctx);
+      await agentEnd({}, ctx);
+    });
+    expect(sentUserMessages).toHaveLength(2);
+    expect(String(sentUserMessages[1]?.content)).toBe("🎯 Continue goal: Finish docs");
+  });
+
+  test("a failing continuation dispatch does not throw out of agent_end", async () => {
+    const { commands, handlers, ctx } = createHarness();
+    const messageEnd = handlers.find((entry) => entry.event === "message_end")?.handler;
+    const agentEnd = handlers.find((entry) => entry.event === "agent_end")?.handler;
+    setGoalPromptSenderForTests(async () => { throw new Error("continuation endpoint down"); });
+    await withChatContext("web:goal", "web", async () => {
+      await commands.get("goal").handler("Finish docs", ctx);
+      await messageEnd({ message: { role: "assistant", stopReason: "stop", usage: { totalTokens: 5 } } }, ctx);
+      await expect(agentEnd({}, ctx)).resolves.toBeUndefined();
+    });
+    expect(loadThreadGoal("web:goal")?.status).toBe("active");
+  });
+
+  test("real tool activity prevents the no-progress auto-stop when the plan is unchanged", async () => {
+    const { commands, handlers, ctx } = createHarness();
+    const beforeAgentStart = handlers.find((entry) => entry.event === "before_agent_start")?.handler;
+    const toolEnd = handlers.find((entry) => entry.event === "tool_execution_end")?.handler;
+    const messageEnd = handlers.find((entry) => entry.event === "message_end")?.handler;
+    const agentEnd = handlers.find((entry) => entry.event === "agent_end")?.handler;
+    (globalThis as any).__piclaw_planSidebarApi = {
+      getPlan: () => ({ markdown: "- [-] Implement\n- [ ] Test", explanation: null, plan: [
+        { step: "Implement", status: "in_progress" },
+        { step: "Test", status: "pending" },
+      ] }),
+    };
+    await withChatContext("web:goal", "web", async () => {
+      await commands.get("goal").handler("Finish docs", ctx);
+      for (let index = 0; index < 4; index += 1) {
+        await beforeAgentStart({ systemPrompt: "base" }, ctx);
+        toolEnd({ toolName: "bash" }, ctx);
+        await messageEnd({ message: { role: "assistant", stopReason: "stop", usage: { totalTokens: 1 } } }, ctx);
+        await agentEnd({}, ctx);
+      }
+    });
+    const goal = loadThreadGoal("web:goal");
+    expect(goal?.status).toBe("active");
+    expect(goal?.no_progress_turns).toBe(1);
+  });
+
+  test("goal-internal tool calls do not count as progress for the no-progress auto-stop", async () => {
+    const { commands, handlers, ctx } = createHarness();
+    const beforeAgentStart = handlers.find((entry) => entry.event === "before_agent_start")?.handler;
+    const toolEnd = handlers.find((entry) => entry.event === "tool_execution_end")?.handler;
+    const messageEnd = handlers.find((entry) => entry.event === "message_end")?.handler;
+    const agentEnd = handlers.find((entry) => entry.event === "agent_end")?.handler;
+    (globalThis as any).__piclaw_planSidebarApi = {
+      getPlan: () => ({ markdown: "- [-] Implement", explanation: null, plan: [{ step: "Implement", status: "in_progress" }] }),
+    };
+    await withChatContext("web:goal", "web", async () => {
+      await commands.get("goal").handler("Finish docs", ctx);
+      for (let index = 0; index < 3; index += 1) {
+        await beforeAgentStart({ systemPrompt: "base" }, ctx);
+        toolEnd({ toolName: "get_goal" }, ctx);
+        await messageEnd({ message: { role: "assistant", stopReason: "stop", usage: { totalTokens: 1 } } }, ctx);
+        await agentEnd({}, ctx);
+      }
+    });
+    const goal = loadThreadGoal("web:goal");
+    expect(goal?.status).toBe("stopped");
+    expect(goal?.stop_reason).toBe("no_progress");
+  });
+
   test("agent_end does not auto-continue when pending user input exists", async () => {
     const { commands, handlers, sentUserMessages, ctx } = createHarness({ pending: true });
     const messageEnd = handlers.find((entry) => entry.event === "message_end")?.handler;

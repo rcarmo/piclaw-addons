@@ -82,9 +82,17 @@ interface PlanRuntimeItem { step: string; status: PlanItemStatus }
 interface PlanRuntimeDetails { markdown: string; explanation: string | null; plan: PlanRuntimeItem[] }
 interface PlanSidebarRuntimeApi { getPlan(chatJidInput?: unknown): PlanRuntimeDetails }
 
+// Goal-internal bookkeeping tools must not count as real progress for the
+// no-progress auto-stop guard; only substantive work (edits, bash, web, etc.)
+// counts as movement when the Plan Sidebar text is unchanged.
+const GOAL_INTERNAL_TOOLS = new Set(["get_goal", "create_goal", "goal_complete", "goal_stop", "update_goal"]);
+
 let kvStore: ExtensionStorage | null = null;
 let goalPromptSenderForTests: ((goal: ThreadGoal, content: string) => Promise<void>) | null = null;
 const lastAssistantOutcomeByChat = new Map<string, { ok: boolean; stopReason: string; recordedAt: number }>();
+// Real tool-call activity observed within the current agent turn, keyed by chat.
+// Reset at before_agent_start, accumulated via tool_execution_end, read at agent_end.
+const turnToolActivityByChat = new Map<string, number>();
 
 function kv(): ExtensionStorage {
   if (!kvStore) kvStore = createExtensionStorage(EXTENSION_ID);
@@ -180,6 +188,22 @@ export function resetGoalAddonForTests(): void {
   kvStore = null;
   goalPromptSenderForTests = null;
   lastAssistantOutcomeByChat.clear();
+  turnToolActivityByChat.clear();
+}
+
+function recordTurnToolActivity(chatJidInput: unknown, toolName: unknown): void {
+  const name = normalizeText(toolName);
+  if (!name || GOAL_INTERNAL_TOOLS.has(name)) return;
+  const chatJid = normalizeChatJid(chatJidInput);
+  turnToolActivityByChat.set(chatJid, (turnToolActivityByChat.get(chatJid) ?? 0) + 1);
+}
+
+function turnHadToolActivity(chatJidInput: unknown): boolean {
+  return (turnToolActivityByChat.get(normalizeChatJid(chatJidInput)) ?? 0) > 0;
+}
+
+function resetTurnToolActivity(chatJidInput: unknown): void {
+  turnToolActivityByChat.delete(normalizeChatJid(chatJidInput));
 }
 
 export function loadThreadGoal(chatJidInput?: unknown): ThreadGoal | null {
@@ -630,7 +654,10 @@ function recordAssistantOutcome(chatJidInput: unknown, message: unknown): void {
   const chatJid = normalizeChatJid(chatJidInput);
   const stopReason = normalizeText(message && typeof message === "object" ? (message as { stopReason?: unknown }).stopReason : undefined);
   const errorMessage = normalizeText(message && typeof message === "object" ? (message as { errorMessage?: unknown }).errorMessage : undefined);
-  const ok = !errorMessage && stopReason !== "error" && stopReason !== "aborted" && stopReason !== "toolUse";
+  // A turn that ends on a tool call (stopReason "toolUse") is not a failure: the
+  // assistant simply finished with a tool action and no trailing prose. Only real
+  // failures (error/aborted) should suppress autonomous goal continuation.
+  const ok = !errorMessage && stopReason !== "error" && stopReason !== "aborted";
   lastAssistantOutcomeByChat.set(chatJid, { ok, stopReason, recordedAt: Date.now() });
 }
 
@@ -768,8 +795,13 @@ async function handlePlanAtAgentEnd(goal: ThreadGoal): Promise<boolean> {
 
   if (!planState.allCompleted) {
     const samePlan = goal.last_auto_continue_fingerprint === planState.fingerprint;
-    const noProgressTurns = samePlan ? goal.no_progress_turns + 1 : 1;
-    if (samePlan && noProgressTurns >= MAX_NO_PROGRESS_TURNS) {
+    // Real tool work this turn counts as progress even if the Plan Sidebar text is
+    // unchanged, so a model doing edits/bash/commits without touching the plan tool
+    // is not force-stopped as "no progress".
+    const hadToolActivity = turnHadToolActivity(goal.chat_jid);
+    const stalled = samePlan && !hadToolActivity;
+    const noProgressTurns = stalled ? goal.no_progress_turns + 1 : 1;
+    if (stalled && noProgressTurns >= MAX_NO_PROGRESS_TURNS) {
       const stopped = saveThreadGoal({
         ...goal,
         status: "stopped",
@@ -832,7 +864,7 @@ async function handlePlanAtAgentEnd(goal: ThreadGoal): Promise<boolean> {
     no_progress_turns: 0,
   });
   broadcastGoalUpdated(candidate, candidate.chat_jid, "runtime", "update");
-  await dispatchGoalPrompt(candidate, buildGoalFinalizationPrompt(candidate, nextProbeCount, planState.plan), "finalize");
+  await enqueueGoalPrompt(candidate, buildGoalFinalizationPrompt(candidate, nextProbeCount, planState.plan), "finalize");
   return true;
 }
 
@@ -930,10 +962,17 @@ const GoalStopSchema = Type.Object({
 
 export default function goalAddon(pi: ExtensionAPI): void {
   pi.on("before_agent_start", async (event, ctx) => {
-    const goal = loadThreadGoal(resolveActiveChatJid(ctx));
+    const chatJid = resolveActiveChatJid(ctx);
+    resetTurnToolActivity(chatJid);
+    const goal = loadThreadGoal(chatJid);
     if (!goal || (goal.status !== "active" && goal.status !== "budget_limited")) return {};
     const prompt = buildGoalSystemPrompt(goal);
     return { systemPrompt: `${event.systemPrompt}\n\n${prompt}` };
+  });
+
+  pi.on("tool_execution_end", (event, ctx) => {
+    recordTurnToolActivity(resolveActiveChatJid(ctx), (event as { toolName?: unknown }).toolName);
+    return undefined;
   });
 
   pi.on("input", (event, ctx) => {
@@ -1189,13 +1228,13 @@ export default function goalAddon(pi: ExtensionAPI): void {
     if (goal.status === "budget_limited" && !goal.budget_limit_reported) {
       const reported = saveThreadGoal({ ...goal, budget_limit_reported: true, last_accounted_at: null });
       broadcastGoalUpdated(reported, chatJid, "runtime", "budget_limited");
-      await dispatchGoalPrompt(reported, buildGoalBudgetLimitPrompt(reported), "budget_limited");
+      await enqueueGoalPrompt(reported, buildGoalBudgetLimitPrompt(reported), "budget_limited");
       return;
     }
     if (goal.status !== "active") return;
     if (!lastAssistantTurnSucceeded(chatJid)) return;
     if (ctx.hasPendingMessages?.()) return;
     if (await handlePlanAtAgentEnd(goal)) return;
-    await dispatchGoalPrompt(goal, buildGoalContinuationPrompt(goal), "continuation");
+    await enqueueGoalPrompt(goal, buildGoalContinuationPrompt(goal), "continuation");
   });
 }
