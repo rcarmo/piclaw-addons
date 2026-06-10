@@ -2,9 +2,7 @@
 const ADDON_ID = "yolo-vibe";
 const STYLE_ID = "piclaw-yolo-vibe-style";
 const TOOLBAR_CLASS = "piclaw-yolo-vibe-toolbar";
-const HOST_CLASS = "piclaw-yolo-vibe-host";
 const DEFAULT_CHAT_JID = "web:default";
-const FLOATING_RIGHT_GUTTER_PX = 96;
 
 export const YOLO_VIBE_BUTTONS = [
   { id: "continue", label: "Continue", prompt: "continue, according to plan" },
@@ -45,14 +43,17 @@ function ensureStyles() {
   if (typeof document === "undefined" || document.getElementById(STYLE_ID)) return;
   const style = document.createElement("style");
   style.id = STYLE_ID;
+  // Mounted inside the compose action bar (bottom row), so the toolbar is bottom-aligned
+  // with the existing send/search icons via the row's align-items:center. The buttons stay
+  // partially transparent until the compose box or the toolbar itself is hovered/focused.
   style.textContent = `
-.${HOST_CLASS}{position:relative}
-.${TOOLBAR_CLASS}{position:fixed;display:inline-flex;align-items:center;justify-content:flex-end;gap:4px;margin:0;z-index:12;pointer-events:auto;white-space:nowrap}
-.${TOOLBAR_CLASS} button{appearance:none;border:1px solid var(--border-color);background:var(--bg-primary);color:var(--text-secondary);border-radius:var(--radius-full,999px);padding:3px 8px;font-size:11px;font-weight:700;line-height:1.25;cursor:pointer;transition:background-color var(--ui-transition-fast,.12s),color var(--ui-transition-fast,.12s),border-color var(--ui-transition-fast,.12s),opacity var(--ui-transition-fast,.12s)}
+.${TOOLBAR_CLASS}{display:inline-flex;align-items:center;gap:4px;margin:0 4px 0 0;opacity:.34;transition:opacity var(--ui-transition-fast,.14s) ease;white-space:nowrap;pointer-events:auto}
+.compose-input-wrapper:hover .${TOOLBAR_CLASS},.compose-input-wrapper:focus-within .${TOOLBAR_CLASS},.${TOOLBAR_CLASS}:hover,.${TOOLBAR_CLASS}:focus-within{opacity:1}
+.${TOOLBAR_CLASS} button{appearance:none;border:1px solid var(--border-color);background:var(--bg-primary);color:var(--text-secondary);border-radius:var(--radius-full,999px);padding:2px 8px;font-size:11px;font-weight:700;line-height:1.25;cursor:pointer;transition:background-color var(--ui-transition-fast,.12s),color var(--ui-transition-fast,.12s),border-color var(--ui-transition-fast,.12s),opacity var(--ui-transition-fast,.12s)}
 .${TOOLBAR_CLASS} button:hover,.${TOOLBAR_CLASS} button:focus-visible{background:var(--bg-hover);color:var(--text-primary);border-color:var(--accent-color);outline:none}
 .${TOOLBAR_CLASS} button:disabled{opacity:.58;cursor:progress}
-.${TOOLBAR_CLASS}[data-busy="true"] button:not([data-sending="true"]){opacity:.45}
-@media (max-width: 640px){.${TOOLBAR_CLASS}{gap:3px}.${TOOLBAR_CLASS} button{font-size:10.5px;padding:3px 6px}}
+.${TOOLBAR_CLASS}[data-busy="true"] button:not([data-sending="true"]){opacity:.6}
+@media (max-width: 640px){.${TOOLBAR_CLASS}{gap:3px;margin-right:2px}.${TOOLBAR_CLASS} button{font-size:10px;padding:2px 6px}}
 `;
   document.head.appendChild(style);
 }
@@ -86,11 +87,11 @@ async function submitPrompt(prompt, button, toolbar) {
 export function findComposeInsertionPoint(root = typeof document !== "undefined" ? document : null) {
   const wrapper = root?.querySelector?.(".compose-input-wrapper");
   if (!wrapper) return null;
-  const sessionGroup = wrapper.querySelector?.(".compose-session-trigger-group.compose-session-trigger-top");
-  if (!sessionGroup) return null;
+  const actions = wrapper.querySelector?.(".compose-actions");
+  if (!actions) return null;
   const composeBox = wrapper.closest?.(".compose-box") || wrapper.parentElement;
   if (!composeBox) return null;
-  return { composeBox, wrapper, sessionGroup };
+  return { composeBox, wrapper, actions };
 }
 
 function buildToolbar() {
@@ -115,38 +116,20 @@ function buildToolbar() {
   return toolbar;
 }
 
-function positionToolbar(point, toolbar) {
-  const win = toolbar.ownerDocument?.defaultView || globalThis;
-  const wrapperRect = point.wrapper.getBoundingClientRect?.();
-  const composeRect = point.composeBox.getBoundingClientRect?.();
-  const toolbarRect = toolbar.getBoundingClientRect?.();
-  if (!wrapperRect || !composeRect || !toolbarRect) return;
-  const viewportWidth = win.innerWidth || toolbar.ownerDocument?.documentElement?.clientWidth || wrapperRect.right;
-  const toolbarWidth = Math.ceil(toolbarRect.width || 0);
-  const toolbarHeight = Math.ceil(toolbarRect.height || 0);
-  const targetRight = Math.min(wrapperRect.right - FLOATING_RIGHT_GUTTER_PX, viewportWidth - 8);
-  const left = Math.max(8, Math.min(Math.round(targetRight - toolbarWidth), viewportWidth - toolbarWidth - 8));
-  const top = Math.max(8, Math.round(composeRect.top - toolbarHeight - 6));
-  toolbar.style.left = `${left}px`;
-  toolbar.style.top = `${top}px`;
-  toolbar.style.right = "auto";
-  toolbar.style.bottom = "auto";
-}
-
 export function installYoloVibe(root = typeof document !== "undefined" ? document : null) {
   if (typeof document === "undefined" || !root) return false;
   ensureStyles();
   const point = findComposeInsertionPoint(root);
   if (!point) return false;
   const owner = point.wrapper.ownerDocument || document;
-  const target = owner.body || owner.documentElement;
-  const existing = owner.querySelector(`.${TOOLBAR_CLASS}[data-addon="${ADDON_ID}"]`) || point.composeBox.querySelector(`.${TOOLBAR_CLASS}`) || point.sessionGroup.querySelector(`.${TOOLBAR_CLASS}`);
+  const existing = point.composeBox.querySelector(`.${TOOLBAR_CLASS}[data-addon="${ADDON_ID}"]`)
+    || owner.querySelector(`.${TOOLBAR_CLASS}[data-addon="${ADDON_ID}"]`);
   const toolbar = existing || buildToolbar();
-  point.sessionGroup.classList.remove(HOST_CLASS);
-  point.composeBox.classList.remove(HOST_CLASS);
-  if (toolbar.parentElement !== target) target.appendChild(toolbar);
-  positionToolbar(point, toolbar);
-  try { requestAnimationFrame?.(() => positionToolbar(point, toolbar)); } catch {}
+  // Keep the toolbar as the first item of the bottom action row so it sits inside the
+  // compose box, aligned with the bottom send/search controls.
+  if (toolbar.parentElement !== point.actions || point.actions.firstChild !== toolbar) {
+    point.actions.insertBefore(toolbar, point.actions.firstChild);
+  }
   return true;
 }
 
@@ -158,10 +141,6 @@ function scheduleInstall() {
   try { setTimeout(attempt, 0); } catch {}
   try { setTimeout(attempt, 250); } catch {}
   try { setTimeout(attempt, 1000); } catch {}
-  if (typeof window !== "undefined") {
-    try { window.addEventListener("resize", attempt, { passive: true }); } catch {}
-    try { window.addEventListener("scroll", attempt, { passive: true, capture: true }); } catch {}
-  }
   if (typeof MutationObserver !== "undefined" && typeof document !== "undefined") {
     const observer = new MutationObserver(() => attempt());
     observer.observe(document.body || document.documentElement, { childList: true, subtree: true });

@@ -863,9 +863,9 @@
     {
       "slug": "yolo-vibe",
       "name": "@rcarmo/piclaw-addon-yolo-vibe",
-      "version": "0.1.6",
+      "version": "0.1.7",
       "type": "extension",
-      "description": "Quick compose-box YOLO buttons for Continue, Audit, and Docs prompts",
+      "description": "Compose-box YOLO buttons (Continue, Audit, Docs) mounted in the bottom action bar, subtle until hover",
       "path": "addons/yolo-vibe",
       "homepage": "https://rcarmo.github.io/piclaw-addons/addons/yolo-vibe/",
       "tags": [
@@ -877,9 +877,9 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-yolo-vibe-0.1.6.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-yolo-vibe-0.1.7.tgz"
       },
-      "updatedAt": "2026-05-10"
+      "updatedAt": "2026-06-10"
     },
     {
       "slug": "yolochat",

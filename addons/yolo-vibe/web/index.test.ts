@@ -21,19 +21,24 @@ test("normalizeChatJid falls back to web:default", () => {
   expect(normalizeChatJid(" ")).toBe("web:default");
 });
 
-test("web entry floats the toolbar over the timeline without taking compose space", () => {
+test("web entry mounts the quick buttons inside the compose action bar, bottom-aligned", () => {
   const source = readFileSync(join(import.meta.dir, "index.ts"), "utf8");
-  expect(source).toContain(`.${"${TOOLBAR_CLASS}"}{position:fixed`);
-  expect(source).toContain("target.appendChild(toolbar)");
-  expect(source).toContain("FLOATING_RIGHT_GUTTER_PX = 96");
-  expect(source).toContain("wrapperRect.right - FLOATING_RIGHT_GUTTER_PX");
-  expect(source).toContain("composeRect.top - toolbarHeight - 6");
-  expect(source).toContain("point.composeBox.classList.remove(HOST_CLASS)");
-  expect(source).not.toContain("point.composeBox.insertBefore(toolbar, point.wrapper)");
-  expect(source).not.toContain("point.sessionGroup.appendChild(toolbar)");
-  expect(source).not.toContain("position:absolute;top:0;right:calc(100% + 6px)");
-  expect(source).not.toContain("max-width:none");
-  expect(source).not.toContain("insertBefore(toolbar, point.inputMain)");
+  // Anchored to the real compose DOM, inserted into the bottom action row.
+  expect(source).toContain(`querySelector?.(".compose-input-wrapper")`);
+  expect(source).toContain(`querySelector?.(".compose-actions")`);
+  expect(source).toContain("point.actions.insertBefore(toolbar, point.actions.firstChild)");
+  // No longer floated as a fixed element over the timeline.
+  expect(source).not.toContain("position:fixed");
+  expect(source).not.toContain("FLOATING_RIGHT_GUTTER_PX");
+  expect(source).not.toContain("positionToolbar");
+  expect(source).not.toContain("target.appendChild(toolbar)");
+});
+
+test("web entry keeps the buttons partially transparent until hover/focus", () => {
+  const source = readFileSync(join(import.meta.dir, "index.ts"), "utf8");
+  expect(source).toContain("opacity:.34");
+  expect(source).toContain(".compose-input-wrapper:hover .${TOOLBAR_CLASS}");
+  expect(source).toContain(".${TOOLBAR_CLASS}:focus-within{opacity:1}");
 });
 
 test("web entry uses flat host styling without shadows or gradients", () => {

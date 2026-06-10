@@ -2,7 +2,7 @@
 
 Quick compose-box YOLO buttons for the PiClaw web UI.
 
-This add-on floats three compact buttons over the bottom timeline area, shifted left from the right edge to avoid UI affordances, without taking layout space from the editor:
+This add-on mounts three compact buttons **inside the compose box**, on the bottom action row next to the send/search controls. They stay partially transparent until you hover or focus the compose box (or the buttons themselves), then become fully opaque:
 
 | Button | Submitted prompt |
 |---|---|
@@ -17,6 +17,8 @@ Open **Settings → Add-Ons** and install **yolo-vibe** from the catalog.
 ## Behavior
 
 - Adds browser-side UI only; no runtime tools are registered.
+- Buttons are inserted into the compose action bar (`.compose-actions`), so they are bottom-aligned with the existing controls and scroll/move with the compose box.
+- Partially transparent by default; full opacity on compose-box hover/focus or button hover.
 - Sends the prompt to the current chat via the normal `/agent/default/message` backend endpoint.
 - Uses `mode: "auto"`, so Piclaw decides whether to send immediately or queue behind an active run.
 - Does not modify the current compose draft.

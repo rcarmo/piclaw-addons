@@ -1,7 +1,7 @@
 {
   "name": "@rcarmo/piclaw-addon-yolo-vibe",
-  "version": "0.1.6",
-  "description": "Quick compose-box YOLO buttons for Continue, Audit, and Docs prompts",
+  "version": "0.1.7",
+  "description": "Compose-box YOLO buttons (Continue, Audit, Docs) mounted in the bottom action bar, subtle until hover",
   "type": "module",
   "main": "index.ts",
   "piclaw": {
