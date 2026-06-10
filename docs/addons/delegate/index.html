@@ -214,7 +214,7 @@ footer a{color:var(--accent);text-decoration:none}
 
 <div class="detail-hero">
   <div class="detail-hero-inner">
-    <img class="detail-icon" src="/piclaw-addons/assets/icons/default-03.png" alt="">
+    <img class="detail-icon" src="/piclaw-addons/assets/icons/default-00.png" alt="">
     <div>
       <div class="detail-title-row">
         <div class="detail-title">delegate</div>
@@ -224,8 +224,8 @@ footer a{color:var(--accent);text-decoration:none}
       <div class="detail-sub">Delegate tasks to cheaper/faster models with auto model selection, tool access, and MCP support</div>
       <div class="detail-tags"><span class="badge">cost-optimization</span><span class="badge">delegation</span><span class="badge">multi-model</span></div>
       <div class="detail-meta">
-        <span class="detail-version">v0.1.8</span>
-        <a class="download-pill" href="https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-delegate-0.1.8.tgz" download aria-label="Download delegate 0.1.8 tarball">↓ Download .tgz</a>
+        <span class="detail-version">v0.1.9</span>
+        <a class="download-pill" href="https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-delegate-0.1.9.tgz" download aria-label="Download delegate 0.1.9 tarball">↓ Download .tgz</a>
 
 
       </div>
@@ -246,7 +246,7 @@ footer a{color:var(--accent);text-decoration:none}
   <p>Send tasks to a cheaper/faster model in a fresh context with auto model selection, tool access, and MCP support.</p>
 <h2>Features</h2><ul>
 <li><strong>Auto model selection</strong> — picks the best close model match for the task category, never exceeding the current model&#39;s tier</li>
-<li><strong>Provider-aware matching</strong> — searches configured providers for equivalents to the Copilot reference model list while excluding <code>azure-</code> providers</li>
+<li><strong>Provider-aware matching</strong> — searches configured providers for equivalents to the Copilot reference model list while excluding <code>azure-</code> providers. Equal-scoring matches prefer the reference&#39;s <code>github-copilot</code> provider, and auto-selection falls back across providers if a chosen model has no usable credentials (e.g. a stale <code>openai-codex</code> OAuth entry), so one unauthenticated provider cannot keep breaking delegation.</li>
 <li><strong>Settings pane</strong> — searchable provider checkboxes, configurable provider/model exclusions, plus a model-list refresh action</li>
 <li><strong>6 task categories</strong> — quick, summarize, code, analyze, reason, judge</li>
 <li><strong>Tool access</strong> — delegate has read, grep, find, ls, bash, MCP tools by default</li>

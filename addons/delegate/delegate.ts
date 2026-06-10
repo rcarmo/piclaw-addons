@@ -127,7 +127,7 @@ type DelegateCliResolveOptions = {
 const requireFromHere = createRequire(import.meta.url);
 const PI_CODING_AGENT_PACKAGE = `@earendil-works/${"pi-coding-agent"}`;
 
-function isExecutableFile(path: string, platform = process.platform): boolean {
+function isExecutableFile(path: string, platform: string = process.platform): boolean {
   try {
     const stat = statSync(path);
     if (!stat.isFile()) return false;
@@ -155,7 +155,7 @@ function pathExecutableExtensions(env: Record<string, string | undefined>, platf
 function findExecutableOnPath(
   name: string,
   env: Record<string, string | undefined> = process.env,
-  platform = process.platform,
+  platform: string = process.platform,
   isExecutable: (path: string, platform: string) => boolean = isExecutableFile,
 ): string | null {
   const hasExtension = /\.[^/\\]+$/.test(name);
@@ -265,6 +265,7 @@ const MODEL_TIERS: ModelTier[] = [
   { id: "github-copilot/gpt-5-mini",            tier: 2, family: "gpt" },
   { id: "github-copilot/gemini-3-flash-preview", tier: 2, family: "gemini" },
   // Tier 3: strong general-purpose
+  { id: "github-copilot/claude-fable-5",        tier: 3, family: "claude" },
   { id: "github-copilot/claude-sonnet-4.6",     tier: 3, family: "claude" },
   { id: "github-copilot/claude-sonnet-4.5",     tier: 3, family: "claude" },
   { id: "github-copilot/claude-sonnet-4",       tier: 3, family: "claude" },
@@ -431,6 +432,13 @@ export function buildModelCandidates(models: AvailableModel[], config: DelegateC
       .sort((a, b) => {
         const byScore = b.score - a.score;
         if (byScore !== 0) return byScore;
+        // Prefer a candidate from the SAME provider as the tier reference. The tier
+        // table is github-copilot-based, so an equal-scoring github-copilot model
+        // beats a same-id model from another provider (e.g. openai-codex) that may
+        // not be authenticated in this environment.
+        const aSameProvider = a.model.provider === referenceProvider ? 0 : 1;
+        const bSameProvider = b.model.provider === referenceProvider ? 0 : 1;
+        if (aSameProvider !== bSameProvider) return aSameProvider - bSameProvider;
         const byProvider = providerPreference(a.model.provider, normalizedConfig.searchable_providers) - providerPreference(b.model.provider, normalizedConfig.searchable_providers);
         if (byProvider !== 0) return byProvider;
         return a.model.fullId.localeCompare(b.model.fullId);
@@ -534,6 +542,53 @@ function selectModel(category: TaskCategory, maxTier: number, currentModelId?: s
 
   // Last resort: best available
   return candidates[candidates.length - 1].id;
+}
+
+/** Detect provider authentication/credential errors so delegate can fall back to another model. */
+export function isProviderAuthError(text: unknown): boolean {
+  const value = String(text || "").toLowerCase();
+  if (!value) return false;
+  return value.includes("no api key for provider")
+    || value.includes("missing api key")
+    || value.includes("no credentials")
+    || value.includes("not authenticated")
+    || value.includes("authentication failed")
+    || value.includes("unauthorized");
+}
+
+/**
+ * Ordered list of distinct models to attempt for a delegation. The primary model is
+ * the normal auto-selection; the remaining entries are tier-budget fallbacks ordered
+ * by proximity to the target tier, so a provider with no usable credentials cannot
+ * permanently break delegation.
+ */
+export function buildDelegateModelChain(
+  category: TaskCategory,
+  maxTier: number,
+  currentModelId: string | undefined,
+  discoveredCandidates: ModelCandidate[] = [],
+  limit = 3,
+): string[] {
+  const sourceCandidates = discoveredCandidates.length > 0 ? discoveredCandidates : MODEL_TIERS.map((model) => ({
+    ...model,
+    sourceId: model.id,
+    provider: model.id.split("/", 1)[0] || "",
+    modelId: model.id.split("/").slice(1).join("/"),
+    matchScore: 100,
+  }));
+  const chain: string[] = [];
+  const primary = selectModel(category, maxTier, currentModelId, discoveredCandidates);
+  if (primary) chain.push(primary);
+  const targetTier = Math.min(CATEGORY_TARGET_TIER[category] ?? 2, maxTier);
+  const fallbacks = sourceCandidates
+    .filter((candidate) => candidate.tier <= maxTier)
+    .map((candidate, index) => ({ candidate, index }))
+    .sort((a, b) => (Math.abs(a.candidate.tier - targetTier) - Math.abs(b.candidate.tier - targetTier)) || (a.index - b.index));
+  for (const { candidate } of fallbacks) {
+    if (chain.length >= limit) break;
+    if (!chain.includes(candidate.id)) chain.push(candidate.id);
+  }
+  return chain;
 }
 
 // ── Model discovery ────────────────────────────────────────────
@@ -812,7 +867,7 @@ export default function (pi: any) {
     "When the user asks to 'double check', 'verify', or 'review' your answer, use delegate with task_category='judge' to get a second opinion from a different model family.",
   ].join("\n");
 
-  pi.on("before_agent_start", async (event) => {
+  pi.on("before_agent_start", async (event: { systemPrompt: string }) => {
     // Auto-activate delegate tool so it's available without manual activate_tools
     const active = pi.getActiveTools();
     if (!active.includes("delegate")) {
@@ -880,7 +935,7 @@ export default function (pi: any) {
       },
     },
 
-    async execute(_toolCallId, params, signal, onUpdate, ctx) {
+    async execute(_toolCallId: string, params: any, signal: AbortSignal | undefined, onUpdate: any, ctx: any) {
       // #13: Validate category
       const rawCategory = (params.task_category as TaskCategory) || "summarize";
       const category: TaskCategory = VALID_CATEGORIES.has(rawCategory) ? rawCategory : "summarize";
@@ -944,80 +999,83 @@ export default function (pi: any) {
 
       // Modality-aware tier bumping: if visual input detected and target tier < 3, bump to 3
       let effectiveModel = model;
+      let effectiveCategory: TaskCategory = category;
       if (hasVisualInput && !params.model) {
         const modelTier = inferModelTier(model, discoveredCandidates);
         if (modelTier && modelTier.tier < 3) {
           // Override category to 'analyze' for visual input — forces tier 3 selection
+          effectiveCategory = "analyze";
           effectiveModel = selectModel("analyze", maxTier, currentModelId, discoveredCandidates);
         }
       }
 
-      setDelegateProgress(ctx, { model: effectiveModel, category, prompt: params.prompt });
-      onUpdate?.(result(buildDelegateStatusUpdate(effectiveModel, params.prompt)));
-
-      // Build pi args (direct spawn, no shell wrapper)
-      const piArgs: string[] = [
-        "--print",
-        "--no-extensions",
-        "--model", effectiveModel,
-        "--tools", toolsArg,
-      ];
-
-      // Load MCP adapter + safe workspace extensions
+      // Build static pi args shared across model attempts (the model is set per attempt).
+      const staticArgs: string[] = [];
       const mcpPath = findMcpAdapter();
-      if (mcpPath) {
-        piArgs.push("-e", mcpPath);
-      }
-      for (const ext of findSafeWorkspaceExtensions()) {
-        piArgs.push("-e", ext);
-      }
-
-      // Append capability hints so cheap models know what tools are available
+      if (mcpPath) staticArgs.push("-e", mcpPath);
+      for (const ext of findSafeWorkspaceExtensions()) staticArgs.push("-e", ext);
       const capabilityHints = [
         "Web search: run 'bun /workspace/.pi/skills/web-search/web-search.ts --query \"QUERY\" --fetch true --fetch-limit 3' to search the web.",
         "Web search summary: run 'bun /workspace/.pi/skills/web-search-summary/web-search-summary.ts --query \"QUERY\"' for summarized results.",
         "MCP: use the mcp tool with action 'call_tool' to call MCP server tools.",
       ].join("\n");
-      piArgs.push("--append-system-prompt", capabilityHints);
+      staticArgs.push("--append-system-prompt", capabilityHints);
+      if (params.system_prompt) staticArgs.push("--system-prompt", params.system_prompt);
+      for (const att of attachmentArgs) staticArgs.push(att);
 
-      if (params.system_prompt) {
-        piArgs.push("--system-prompt", params.system_prompt);
-      }
+      // Ordered models to attempt. An explicit override is used verbatim (no fallback);
+      // auto-selection falls back across providers if a model has no usable credentials,
+      // so a single keyless provider (e.g. openai-codex) cannot keep breaking delegation.
+      const modelChain = params.model
+        ? [effectiveModel]
+        : buildDelegateModelChain(effectiveCategory, maxTier, currentModelId, discoveredCandidates);
+      if (!modelChain.includes(effectiveModel)) modelChain.unshift(effectiveModel);
 
-      // Add @file args for binary/image attachments
-      for (const att of attachmentArgs) {
-        piArgs.push(att);
-      }
-
-      // Execute delegate subprocess (async with abort signal support)
+      // Execute delegate subprocess (async with abort signal support), retrying across
+      // candidate models when a provider reports an authentication/credential error.
       try {
-        const { stdout, stderr, exitCode } = await runDelegateProcess(piArgs, fullPrompt, timeout, signal);
+        let lastAuthError = "";
+        for (let attempt = 0; attempt < modelChain.length; attempt += 1) {
+          const attemptModel = modelChain[attempt];
+          setDelegateProgress(ctx, { model: attemptModel, category, prompt: params.prompt });
+          onUpdate?.(result(buildDelegateStatusUpdate(attemptModel, params.prompt)));
+          const piArgs = ["--print", "--no-extensions", "--model", attemptModel, "--tools", toolsArg, ...staticArgs];
+          const { stdout, stderr, exitCode } = await runDelegateProcess(piArgs, fullPrompt, timeout, signal);
 
-        if (exitCode !== 0 && !stdout.trim()) {
-          const errMsg = stderr.trim() || `Process exited with code ${exitCode}`;
-          return result(`❌ Delegate failed (model: ${effectiveModel}): ${errMsg}`);
+          if (exitCode !== 0 && !stdout.trim()) {
+            const errMsg = stderr.trim() || `Process exited with code ${exitCode}`;
+            if (isProviderAuthError(errMsg) && attempt < modelChain.length - 1) {
+              lastAuthError = errMsg;
+              continue; // provider is unusable in this environment — try the next candidate
+            }
+            return result(`❌ Delegate failed (model: ${attemptModel}): ${errMsg}`);
+          }
+
+          const trimmed = stdout.trim();
+          if (!trimmed) {
+            return result(`⚠️ Delegate returned empty response (model: ${attemptModel}).`);
+          }
+
+          const truncated =
+            trimmed.length > MAX_OUTPUT_CHARS
+              ? trimmed.slice(0, MAX_OUTPUT_CHARS) + `\n\n[truncated at ${MAX_OUTPUT_CHARS} chars]`
+              : trimmed;
+          const fallbackNote = attempt > 0
+            ? `\n\n_(auto-fell back to \`${attemptModel}\` after ${attempt} unusable provider${attempt > 1 ? "s" : ""})_`
+            : "";
+          return result(`**Delegated to \`${attemptModel}\` [${category}]:**\n\n${truncated}${fallbackNote}`);
         }
-
-        const trimmed = stdout.trim();
-        if (!trimmed) {
-          return result(`⚠️ Delegate returned empty response (model: ${effectiveModel}).`);
-        }
-
-        const truncated =
-          trimmed.length > MAX_OUTPUT_CHARS
-            ? trimmed.slice(0, MAX_OUTPUT_CHARS) + `\n\n[truncated at ${MAX_OUTPUT_CHARS} chars]`
-            : trimmed;
-
-        return result(`**Delegated to \`${effectiveModel}\` [${category}]:**\n\n${truncated}`);
+        return result(`❌ Delegate failed: no usable model/provider among ${modelChain.length} candidate(s). Last error: ${lastAuthError || "unknown"}. Configure provider credentials or exclude the unusable providers in Delegate settings.`);
       } catch (err: any) {
+        const lastModel = modelChain[modelChain.length - 1] || effectiveModel;
         if (err.name === "AbortError" || signal?.aborted) {
-          return result(`❌ Delegate aborted (model: ${effectiveModel}).`);
+          return result(`❌ Delegate aborted (model: ${lastModel}).`);
         }
         if (err.message?.includes("timed out")) {
-          return result(`❌ Delegate timed out after ${timeout}s (model: ${effectiveModel}).`);
+          return result(`❌ Delegate timed out after ${timeout}s (model: ${lastModel}).`);
         }
 
-        return result(`❌ Delegate failed (model: ${effectiveModel}): ${err.message || String(err)}`);
+        return result(`❌ Delegate failed (model: ${lastModel}): ${err.message || String(err)}`);
       } finally {
         clearDelegateProgress(ctx);
       }

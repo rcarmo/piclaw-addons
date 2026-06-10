@@ -5,7 +5,7 @@ Send tasks to a cheaper/faster model in a fresh context with auto model selectio
 ## Features
 
 - **Auto model selection** — picks the best close model match for the task category, never exceeding the current model's tier
-- **Provider-aware matching** — searches configured providers for equivalents to the Copilot reference model list while excluding `azure-` providers
+- **Provider-aware matching** — searches configured providers for equivalents to the Copilot reference model list while excluding `azure-` providers. Equal-scoring matches prefer the reference's `github-copilot` provider, and auto-selection falls back across providers if a chosen model has no usable credentials (e.g. a stale `openai-codex` OAuth entry), so one unauthenticated provider cannot keep breaking delegation.
 - **Settings pane** — searchable provider checkboxes, configurable provider/model exclusions, plus a model-list refresh action
 - **6 task categories** — quick, summarize, code, analyze, reason, judge
 - **Tool access** — delegate has read, grep, find, ls, bash, MCP tools by default

@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import delegateAddon, { buildDelegateStatusUpdate, buildModelCandidates, delegateStatusModelHint, delegateTaskPreview, modelSimilarityScore, parsePiListModelsOutput, resolveDelegateCliCommand } from "./delegate.ts";
+import delegateAddon, { buildDelegateModelChain, buildDelegateStatusUpdate, buildModelCandidates, delegateStatusModelHint, delegateTaskPreview, isProviderAuthError, modelSimilarityScore, parsePiListModelsOutput, resolveDelegateCliCommand } from "./delegate.ts";
 
 const addonDir = import.meta.dir;
 
@@ -49,11 +49,13 @@ anthropic       claude-sonnet-4.6  200K     32K      yes       yes
     const models = [
       { provider: "github-copilot", id: "gpt-5.4-mini", fullId: "github-copilot/gpt-5.4-mini" },
       { provider: "openai", id: "gpt-5.4-mini", fullId: "openai/gpt-5.4-mini" },
+      { provider: "anthropic", id: "claude-fable-5", fullId: "anthropic/claude-fable-5" },
       { provider: "anthropic", id: "claude-sonnet-4.6", fullId: "anthropic/claude-sonnet-4.6" },
       { provider: "azure-openai", id: "gpt-5.4-mini", fullId: "azure-openai/gpt-5.4-mini" },
     ];
     const candidates = buildModelCandidates(models, { searchable_providers: null, excluded_providers: null, excluded_models: [] });
     expect(candidates.some((candidate) => candidate.id === "openai/gpt-5.4-mini" && candidate.tier === 2)).toBe(true);
+    expect(candidates.some((candidate) => candidate.id === "anthropic/claude-fable-5" && candidate.tier === 3)).toBe(true);
     expect(candidates.some((candidate) => candidate.id === "anthropic/claude-sonnet-4.6" && candidate.tier === 3)).toBe(true);
     expect(candidates.some((candidate) => candidate.provider.startsWith("azure-"))).toBe(false);
   });
@@ -142,6 +144,48 @@ anthropic       claude-sonnet-4.6  200K     32K      yes       yes
     expect(source).toContain("Save exclusions");
     expect(source).toContain("Refresh");
     expect(source).toContain("models");
+  });
+
+  test("equal-id matches prefer the github-copilot reference provider over other providers", () => {
+    // Regression: the @github session (github-copilot/gpt-5.5) delegated to
+    // openai-codex/gpt-5.4 which has no usable key. The github-copilot equivalent
+    // must rank first when scores tie.
+    const models = [
+      { provider: "openai-codex", id: "gpt-5.4", fullId: "openai-codex/gpt-5.4" },
+      { provider: "github-copilot", id: "gpt-5.4", fullId: "github-copilot/gpt-5.4" },
+    ];
+    const candidates = buildModelCandidates(models, { searchable_providers: null, excluded_providers: null, excluded_models: [] });
+    const tier3 = candidates.filter((candidate) => candidate.tier === 3 && candidate.modelId === "gpt-5.4");
+    expect(tier3[0]?.id).toBe("github-copilot/gpt-5.4");
+  });
+
+  test("model chain puts the github-copilot pick first and keeps other providers as fallbacks", () => {
+    const models = [
+      { provider: "openai-codex", id: "gpt-5.4", fullId: "openai-codex/gpt-5.4" },
+      { provider: "github-copilot", id: "gpt-5.4", fullId: "github-copilot/gpt-5.4" },
+      { provider: "github-copilot", id: "gpt-5.4-mini", fullId: "github-copilot/gpt-5.4-mini" },
+    ];
+    const candidates = buildModelCandidates(models, { searchable_providers: null, excluded_providers: null, excluded_models: [] });
+    const chain = buildDelegateModelChain("code", 3, "github-copilot/gpt-5.5", candidates);
+    expect(chain[0]).toBe("github-copilot/gpt-5.4");
+    expect(chain).toContain("openai-codex/gpt-5.4");
+    expect(new Set(chain).size).toBe(chain.length); // distinct entries
+  });
+
+  test("isProviderAuthError matches credential failures", () => {
+    expect(isProviderAuthError("No API key for provider: openai-codex")).toBe(true);
+    expect(isProviderAuthError("Provider not authenticated")).toBe(true);
+    expect(isProviderAuthError("unauthorized")).toBe(true);
+    expect(isProviderAuthError("Process exited with code 1")).toBe(false);
+    expect(isProviderAuthError("")).toBe(false);
+  });
+
+  test("delegate retries across providers on auth errors and surfaces the fallback note", () => {
+    const source = readFileSync(resolve(addonDir, "delegate.ts"), "utf8");
+    expect(source).toContain("buildDelegateModelChain(effectiveCategory");
+    expect(source).toContain("isProviderAuthError(errMsg) && attempt < modelChain.length - 1");
+    expect(source).toContain("auto-fell back to");
+    expect(source).toContain("no usable model/provider among");
   });
 
   test("delegate package stays dependency-light for add-on installs", () => {
