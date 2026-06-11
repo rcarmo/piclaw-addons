@@ -687,16 +687,27 @@ function recordAssistantOutcome(chatJidInput: unknown, message: unknown): void {
 }
 
 // Decide whether the autonomous goal loop should continue after this turn. A
-// successful turn always continues. A turn aborted *purely* to trigger compaction
-// (mid-turn tool ceiling or context-pressure auto-compaction) is a continuation
-// boundary, not a failure: without this the loop halts and the user must run
-// /goal resume after every compaction. Real errors and user stops (no accompanying
-// compaction) still suppress continuation.
+// successful turn always continues. A turn aborted to trigger compaction is a
+// continuation boundary, not a failure: without this the loop halts and the user
+// must run /goal resume after every compaction.
+//
+// Piclaw's mid-turn tool-execution hard ceiling and context-pressure guards call
+// session.abort() to force compaction; the assistant turn ends with
+// stopReason "aborted". Crucially, the compaction is usually DEFERRED to the next
+// prompt (pre-prompt compaction), so no session_compact event fires during this
+// turn — meaning compactionSeenByChat alone misses the most common case. These
+// aborts are always preceded by real tool activity (they trigger off accumulated
+// tool-result bytes / tool-execution count), so a non-errored "aborted" turn that
+// did substantive tool work is treated as a compaction boundary and continued.
+//
+// Hard errors (stopReason "error" or an errorMessage) still suppress continuation.
+// A user stop with no tool activity in the turn also stays suppressed.
 function shouldContinueAfterTurn(chatJidInput: unknown): boolean {
   const chatJid = normalizeChatJid(chatJidInput);
   const outcome = lastAssistantOutcomeByChat.get(chatJid);
   if (outcome?.ok) return true;
-  if (outcome && !outcome.errored && outcome.stopReason === "aborted" && compactionSeenByChat.has(chatJid)) {
+  if (outcome && !outcome.errored && outcome.stopReason === "aborted"
+      && (compactionSeenByChat.has(chatJid) || turnHadToolActivity(chatJid))) {
     return true;
   }
   return false;

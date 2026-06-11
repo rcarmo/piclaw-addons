@@ -567,7 +567,29 @@ describe("/goal command and runtime loop", () => {
     expect(String(sentUserMessages[1]?.content)).toBe("🎯 Continue goal: Finish docs");
   });
 
-  test("agent_end does not auto-continue after a user abort with no compaction", async () => {
+  test("agent_end auto-continues after a mid-turn-ceiling abort even when no session_compact fires", async () => {
+    // Real mid-turn tool-execution ceiling: the attempt aborts (stopReason
+    // "aborted") but the compaction is deferred to the next prompt, so no
+    // session_compact event fires this turn. The tool-activity signature must
+    // still be recognized as a continuation boundary.
+    const { commands, handlers, sentUserMessages, ctx } = createHarness();
+    const beforeAgentStart = handlers.find((entry) => entry.event === "before_agent_start")?.handler;
+    const toolEnd = handlers.find((entry) => entry.event === "tool_execution_end")?.handler;
+    const messageEnd = handlers.find((entry) => entry.event === "message_end")?.handler;
+    const agentEnd = handlers.find((entry) => entry.event === "agent_end")?.handler;
+    await withChatContext("web:goal", "web", async () => {
+      await commands.get("goal").handler("Finish docs", ctx);
+      await beforeAgentStart({ systemPrompt: "base" }, ctx);
+      toolEnd({ toolName: "bash" }, ctx);
+      toolEnd({ toolName: "bash" }, ctx);
+      await messageEnd({ message: { role: "assistant", stopReason: "aborted", usage: { totalTokens: 9 } } }, ctx);
+      await agentEnd({}, ctx);
+    });
+    expect(sentUserMessages).toHaveLength(2);
+    expect(String(sentUserMessages[1]?.content)).toBe("🎯 Continue goal: Finish docs");
+  });
+
+  test("agent_end does not auto-continue after a user abort with no tool activity", async () => {
     const { commands, handlers, sentUserMessages, ctx } = createHarness();
     const beforeAgentStart = handlers.find((entry) => entry.event === "before_agent_start")?.handler;
     const messageEnd = handlers.find((entry) => entry.event === "message_end")?.handler;
