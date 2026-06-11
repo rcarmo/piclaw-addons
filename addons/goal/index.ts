@@ -89,10 +89,14 @@ const GOAL_INTERNAL_TOOLS = new Set(["get_goal", "create_goal", "goal_complete",
 
 let kvStore: ExtensionStorage | null = null;
 let goalPromptSenderForTests: ((goal: ThreadGoal, content: string) => Promise<void>) | null = null;
-const lastAssistantOutcomeByChat = new Map<string, { ok: boolean; stopReason: string; recordedAt: number }>();
+const lastAssistantOutcomeByChat = new Map<string, { ok: boolean; stopReason: string; errored: boolean; recordedAt: number }>();
 // Real tool-call activity observed within the current agent turn, keyed by chat.
 // Reset at before_agent_start, accumulated via tool_execution_end, read at agent_end.
 const turnToolActivityByChat = new Map<string, number>();
+// Chats whose current agent turn triggered a compaction (mid-turn or pre-prompt),
+// keyed by chat. Set on session_compact, reset at before_agent_start, read at
+// agent_end to distinguish a compaction-boundary abort from a real failure/user stop.
+const compactionSeenByChat = new Set<string>();
 
 function kv(): ExtensionStorage {
   if (!kvStore) kvStore = createExtensionStorage(EXTENSION_ID);
@@ -189,6 +193,7 @@ export function resetGoalAddonForTests(): void {
   goalPromptSenderForTests = null;
   lastAssistantOutcomeByChat.clear();
   turnToolActivityByChat.clear();
+  compactionSeenByChat.clear();
 }
 
 function recordTurnToolActivity(chatJidInput: unknown, toolName: unknown): void {
@@ -676,13 +681,25 @@ function recordAssistantOutcome(chatJidInput: unknown, message: unknown): void {
   // A turn that ends on a tool call (stopReason "toolUse") is not a failure: the
   // assistant simply finished with a tool action and no trailing prose. Only real
   // failures (error/aborted) should suppress autonomous goal continuation.
-  const ok = !errorMessage && stopReason !== "error" && stopReason !== "aborted";
-  lastAssistantOutcomeByChat.set(chatJid, { ok, stopReason, recordedAt: Date.now() });
+  const errored = Boolean(errorMessage) || stopReason === "error";
+  const ok = !errored && stopReason !== "aborted";
+  lastAssistantOutcomeByChat.set(chatJid, { ok, stopReason, errored, recordedAt: Date.now() });
 }
 
-function lastAssistantTurnSucceeded(chatJidInput: unknown): boolean {
-  const outcome = lastAssistantOutcomeByChat.get(normalizeChatJid(chatJidInput));
-  return Boolean(outcome?.ok);
+// Decide whether the autonomous goal loop should continue after this turn. A
+// successful turn always continues. A turn aborted *purely* to trigger compaction
+// (mid-turn tool ceiling or context-pressure auto-compaction) is a continuation
+// boundary, not a failure: without this the loop halts and the user must run
+// /goal resume after every compaction. Real errors and user stops (no accompanying
+// compaction) still suppress continuation.
+function shouldContinueAfterTurn(chatJidInput: unknown): boolean {
+  const chatJid = normalizeChatJid(chatJidInput);
+  const outcome = lastAssistantOutcomeByChat.get(chatJid);
+  if (outcome?.ok) return true;
+  if (outcome && !outcome.errored && outcome.stopReason === "aborted" && compactionSeenByChat.has(chatJid)) {
+    return true;
+  }
+  return false;
 }
 
 function extractUsageTokens(message: unknown): number {
@@ -717,8 +734,8 @@ function sendGoalSkippedActivity(pi: ExtensionAPI, chatJid: string, reason: Goal
   try {
     pi.sendMessage({
       customType: "goal_activity",
-      content: { chatJid, reason, status, skipped: true },
-      display: `🎯 Goal ${status}: skipped queued ${reason.replace(/_/g, " ")} continuation for ${chatJid}`,
+      content: [{ type: "text", text: `🎯 Goal ${status}: skipped queued ${reason.replace(/_/g, " ")} continuation for ${chatJid}` }],
+      display: true,
       details: { chatJid, reason, status, goal: protocolGoal(loadThreadGoal(chatJid)) },
     });
   } catch {
@@ -984,6 +1001,7 @@ export default function goalAddon(pi: ExtensionAPI): void {
   pi.on("before_agent_start", async (event, ctx) => {
     const chatJid = resolveActiveChatJid(ctx);
     resetTurnToolActivity(chatJid);
+    compactionSeenByChat.delete(chatJid);
     const goal = loadThreadGoal(chatJid);
     if (!goal || (goal.status !== "active" && goal.status !== "budget_limited")) return {};
     const prompt = buildGoalSystemPrompt(goal);
@@ -992,6 +1010,11 @@ export default function goalAddon(pi: ExtensionAPI): void {
 
   pi.on("tool_execution_end", (event, ctx) => {
     recordTurnToolActivity(resolveActiveChatJid(ctx), (event as { toolName?: unknown }).toolName);
+    return undefined;
+  });
+
+  pi.on("session_compact", (_event, ctx) => {
+    compactionSeenByChat.add(resolveActiveChatJid(ctx));
     return undefined;
   });
 
@@ -1194,35 +1217,35 @@ export default function goalAddon(pi: ExtensionAPI): void {
       const current = loadThreadGoal(chatJid);
 
       if (parsed.mode === "help") {
-        pi.sendMessage({ customType: "goal_help", content: goalHelpMessage(current, chatJid), display: true });
-        return current;
+        pi.sendMessage({ customType: "goal_help", content: [{ type: "text", text: goalHelpMessage(current, chatJid) }], display: true });
+        return;
       }
       if (parsed.mode === "summary") {
         ctx.ui.notify(goalStatusSummary(current, chatJid), "info");
-        return current;
+        return;
       }
       if (parsed.mode === "clear") {
         const cleared = clearThreadGoal(chatJid);
         broadcastGoalUpdated(null, chatJid, "command", "clear");
         ctx.ui.notify(cleared ? "Goal cleared" : "No goal to clear", "info");
-        return { cleared };
+        return;
       }
       if (parsed.mode === "pause") {
         const goal = patchThreadGoal(chatJid, { status: "paused", last_accounted_at: null });
         broadcastGoalUpdated(goal, chatJid, "command", "pause");
         ctx.ui.notify("Goal paused", "info");
-        return goal;
+        return;
       }
       if (parsed.mode === "resume") {
         const goal = patchThreadGoal(chatJid, { status: "active", last_accounted_at: nowIso(), blocked_turns: 0, last_blocker: "" });
         broadcastGoalUpdated(goal, chatJid, "command", "resume");
         const queued = await enqueueGoalPrompt(goal, buildGoalContinuationPrompt(goal), "resume");
         ctx.ui.notify(queued ? "Goal resumed — server-side continuation queued" : "Goal resumed — continuation enqueue failed", queued ? "info" : "warning");
-        return goal;
+        return;
       }
       if (parsed.mode === "edit") {
         ctx.ui.notify("Use /goal <objective> to replace the current objective, or edit it in Settings → Goal.", "info");
-        return current;
+        return;
       }
 
       const objective = validateGoalObjective(parsed.objective);
@@ -1230,7 +1253,7 @@ export default function goalAddon(pi: ExtensionAPI): void {
       broadcastGoalUpdated(goal, chatJid, "command", current ? "update" : "create");
       const queued = await enqueueGoalPrompt(goal, current ? objectiveUpdatedPrompt(goal) : buildGoalContinuationPrompt(goal), current ? "objective_updated" : "start");
       ctx.ui.notify(queued ? "Goal active — server-side continuation queued" : "Goal active — continuation enqueue failed", queued ? "info" : "warning");
-      return goal;
+      return;
     },
   });
 
@@ -1256,7 +1279,7 @@ export default function goalAddon(pi: ExtensionAPI): void {
       return;
     }
     if (goal.status !== "active") return;
-    if (!lastAssistantTurnSucceeded(chatJid)) return;
+    if (!shouldContinueAfterTurn(chatJid)) return;
     if (ctx.hasPendingMessages?.()) return;
     if (await handlePlanAtAgentEnd(goal)) return;
     await enqueueGoalPrompt(goal, buildGoalContinuationPrompt(goal), "continuation");

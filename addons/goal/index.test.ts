@@ -62,6 +62,17 @@ function createHarness(options: { confirm?: boolean; pending?: boolean; idle?: b
   return { api, commands, tools, handlers, sentUserMessages, sentMessages, notifications, confirmations, ctx };
 }
 
+function customMessageText(message: unknown): string {
+  const content = (message as any)?.content;
+  if (Array.isArray(content)) {
+    return content
+      .map((part) => part?.type === "text" && typeof part.text === "string" ? part.text : "")
+      .filter(Boolean)
+      .join("\n");
+  }
+  return String(content ?? "");
+}
+
 test("goal addon exports an extension entrypoint", () => {
   expect(typeof goalAddon).toBe("function");
 });
@@ -279,7 +290,7 @@ describe("/goal command and runtime loop", () => {
     });
     const helpMessages = sentMessages.filter((entry) => (entry.message as any)?.customType === "goal_help");
     expect(helpMessages).toHaveLength(2);
-    const body = String((helpMessages[0]?.message as any)?.content);
+    const body = customMessageText(helpMessages[0]?.message);
     expect((helpMessages[0]?.message as any)?.display).toBe(true);
     expect(body).toContain("/goal commands");
     expect(body).toContain("| Command | Action |");
@@ -314,7 +325,7 @@ describe("/goal command and runtime loop", () => {
       const result = await input({ type: "input", text: sentUserMessages[0]?.content, source: "extension" }, ctx);
       expect(result).toEqual({ action: "handled" });
     });
-    expect(String((sentMessages.at(-1)?.message as any)?.display)).toContain("skipped queued continuation continuation");
+    expect(customMessageText(sentMessages.at(-1)?.message)).toContain("skipped queued continuation continuation");
   });
 
   test("active goal prompts continue without timeline metadata", async () => {
@@ -533,6 +544,38 @@ describe("/goal command and runtime loop", () => {
     await withChatContext("web:goal", "web", async () => {
       await commands.get("goal").handler("Finish docs", ctx);
       await messageEnd({ message: { role: "assistant", stopReason: "error", errorMessage: "400 No tool call found" } }, ctx);
+      await agentEnd({}, ctx);
+    });
+    expect(sentUserMessages).toHaveLength(1);
+  });
+
+  test("agent_end auto-continues after a turn aborted purely for compaction", async () => {
+    const { commands, handlers, sentUserMessages, ctx } = createHarness();
+    const beforeAgentStart = handlers.find((entry) => entry.event === "before_agent_start")?.handler;
+    const sessionCompact = handlers.find((entry) => entry.event === "session_compact")?.handler;
+    const messageEnd = handlers.find((entry) => entry.event === "message_end")?.handler;
+    const agentEnd = handlers.find((entry) => entry.event === "agent_end")?.handler;
+    await withChatContext("web:goal", "web", async () => {
+      await commands.get("goal").handler("Finish docs", ctx);
+      await beforeAgentStart({ systemPrompt: "base" }, ctx);
+      // Mid-turn tool ceiling aborts the turn to force compaction.
+      sessionCompact({ compactionEntry: { firstKeptEntryId: "x" } }, ctx);
+      await messageEnd({ message: { role: "assistant", stopReason: "aborted", usage: { totalTokens: 7 } } }, ctx);
+      await agentEnd({}, ctx);
+    });
+    expect(sentUserMessages).toHaveLength(2);
+    expect(String(sentUserMessages[1]?.content)).toBe("🎯 Continue goal: Finish docs");
+  });
+
+  test("agent_end does not auto-continue after a user abort with no compaction", async () => {
+    const { commands, handlers, sentUserMessages, ctx } = createHarness();
+    const beforeAgentStart = handlers.find((entry) => entry.event === "before_agent_start")?.handler;
+    const messageEnd = handlers.find((entry) => entry.event === "message_end")?.handler;
+    const agentEnd = handlers.find((entry) => entry.event === "agent_end")?.handler;
+    await withChatContext("web:goal", "web", async () => {
+      await commands.get("goal").handler("Finish docs", ctx);
+      await beforeAgentStart({ systemPrompt: "base" }, ctx);
+      await messageEnd({ message: { role: "assistant", stopReason: "aborted", usage: { totalTokens: 7 } } }, ctx);
       await agentEnd({}, ctx);
     });
     expect(sentUserMessages).toHaveLength(1);
