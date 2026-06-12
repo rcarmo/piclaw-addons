@@ -689,10 +689,19 @@ function recordAssistantOutcome(chatJidInput: unknown, message: unknown): void {
   const stopReason = normalizeText(message && typeof message === "object" ? (message as { stopReason?: unknown }).stopReason : undefined);
   const errorMessage = normalizeText(message && typeof message === "object" ? (message as { errorMessage?: unknown }).errorMessage : undefined);
   // A turn that ends on a tool call (stopReason "toolUse") is not a failure: the
-  // assistant simply finished with a tool action and no trailing prose. Only real
-  // failures (error/aborted) should suppress autonomous goal continuation.
-  const errored = Boolean(errorMessage) || stopReason === "error";
-  const ok = !errored && stopReason !== "aborted";
+  // assistant simply finished with a tool action and no trailing prose.
+  //
+  // CRITICAL: a turn aborted to force compaction (mid-turn tool-execution ceiling or
+  // context-pressure guard) ends with stopReason "aborted" AND carries an
+  // errorMessage like "Request was aborted" / "The operation was aborted." — that is
+  // NOT a hard error, it is a continuation boundary. Treating the abort's errorMessage
+  // as a failure is exactly why 0.1.34/0.1.35/0.1.36 still stalled (verified on
+  // orangepi6plus: [goal-debug] logged errored:true on stopReason:"aborted"). So an
+  // aborted turn is never "errored" regardless of its errorMessage; only a genuine
+  // model/tool error (stopReason "error", or an errorMessage WITHOUT an abort) counts.
+  const aborted = stopReason === "aborted";
+  const errored = !aborted && (stopReason === "error" || Boolean(errorMessage));
+  const ok = !errored && !aborted;
   lastAssistantOutcomeByChat.set(chatJid, { ok, stopReason, errored, recordedAt: Date.now() });
 }
 

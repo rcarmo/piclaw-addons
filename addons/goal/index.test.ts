@@ -608,6 +608,25 @@ describe("/goal command and runtime loop", () => {
     expect(String(sentUserMessages[1]?.content)).toBe("🎯 Continue goal: Finish docs");
   });
 
+  test("agent_end auto-continues after a compaction abort carrying errorMessage 'Request was aborted'", async () => {
+    // Exact production signature on orangepi6plus: the mid-turn ceiling / context-
+    // pressure abort ends the turn with stopReason "aborted" AND errorMessage
+    // "Request was aborted". This must NOT be treated as a hard error — it is a
+    // continuation boundary. (Regression for the 0.1.34/35/36 stall.)
+    const { commands, handlers, sentUserMessages, ctx } = createHarness();
+    const beforeAgentStart = handlers.find((entry) => entry.event === "before_agent_start")?.handler;
+    const messageEnd = handlers.find((entry) => entry.event === "message_end")?.handler;
+    const agentEnd = handlers.find((entry) => entry.event === "agent_end")?.handler;
+    await withChatContext("web:goal", "web", async () => {
+      await commands.get("goal").handler("Finish docs", ctx);
+      await beforeAgentStart({ systemPrompt: "base" }, ctx);
+      await messageEnd({ message: { role: "assistant", stopReason: "aborted", errorMessage: "Request was aborted", usage: { totalTokens: 7 } } }, ctx);
+      await agentEnd({}, ctx);
+    });
+    expect(sentUserMessages).toHaveLength(2);
+    expect(String(sentUserMessages[1]?.content)).toBe("🎯 Continue goal: Finish docs");
+  });
+
   test("agent_end does not auto-continue after a hard-errored turn", async () => {
     const { commands, handlers, sentUserMessages, ctx } = createHarness();
     const beforeAgentStart = handlers.find((entry) => entry.event === "before_agent_start")?.handler;
@@ -621,7 +640,6 @@ describe("/goal command and runtime loop", () => {
     });
     expect(sentUserMessages).toHaveLength(1);
   });
-
   test("agent_end still queues continuation when runtime reports non-idle during compaction", async () => {
     const { commands, handlers, sentUserMessages, ctx } = createHarness({ idle: false });
     const messageEnd = handlers.find((entry) => entry.event === "message_end")?.handler;
