@@ -589,7 +589,11 @@ describe("/goal command and runtime loop", () => {
     expect(String(sentUserMessages[1]?.content)).toBe("🎯 Continue goal: Finish docs");
   });
 
-  test("agent_end does not auto-continue after a user abort with no tool activity", async () => {
+  test("agent_end auto-continues after a bare aborted turn (no tool activity, no session_compact)", async () => {
+    // Robust behavior: any non-errored outcome — including a bare `aborted` with no
+    // tool activity and no session_compact — is a continuation boundary. The
+    // ceiling/context-pressure abort does not reliably surface tool-activity or
+    // session_compact signals to the addon, so only a hard error suppresses the loop.
     const { commands, handlers, sentUserMessages, ctx } = createHarness();
     const beforeAgentStart = handlers.find((entry) => entry.event === "before_agent_start")?.handler;
     const messageEnd = handlers.find((entry) => entry.event === "message_end")?.handler;
@@ -598,6 +602,21 @@ describe("/goal command and runtime loop", () => {
       await commands.get("goal").handler("Finish docs", ctx);
       await beforeAgentStart({ systemPrompt: "base" }, ctx);
       await messageEnd({ message: { role: "assistant", stopReason: "aborted", usage: { totalTokens: 7 } } }, ctx);
+      await agentEnd({}, ctx);
+    });
+    expect(sentUserMessages).toHaveLength(2);
+    expect(String(sentUserMessages[1]?.content)).toBe("🎯 Continue goal: Finish docs");
+  });
+
+  test("agent_end does not auto-continue after a hard-errored turn", async () => {
+    const { commands, handlers, sentUserMessages, ctx } = createHarness();
+    const beforeAgentStart = handlers.find((entry) => entry.event === "before_agent_start")?.handler;
+    const messageEnd = handlers.find((entry) => entry.event === "message_end")?.handler;
+    const agentEnd = handlers.find((entry) => entry.event === "agent_end")?.handler;
+    await withChatContext("web:goal", "web", async () => {
+      await commands.get("goal").handler("Finish docs", ctx);
+      await beforeAgentStart({ systemPrompt: "base" }, ctx);
+      await messageEnd({ message: { role: "assistant", stopReason: "error", errorMessage: "model exploded", usage: { totalTokens: 7 } } }, ctx);
       await agentEnd({}, ctx);
     });
     expect(sentUserMessages).toHaveLength(1);

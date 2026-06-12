@@ -149,6 +149,16 @@ export function normalizeChatJid(value: unknown): string {
   return trimmed || getChatJid("web:default");
 }
 
+// Lightweight diagnostic logger -> stderr (piclaw.stderr.log). Greppable via the
+// "[goal-debug]" tag. Used to surface agent_end continuation-gate decisions.
+function logGoalDebug(message: string, fields: Record<string, unknown>): void {
+  try {
+    console.error(`[goal-debug] ${message} ${JSON.stringify(fields)}`);
+  } catch {
+    // never let diagnostics break the turn
+  }
+}
+
 function unsanitizeWebChatJidFromSessionDir(sessionDir: unknown): string | null {
   const leaf = typeof sessionDir === "string" ? basename(sessionDir).trim() : "";
   if (!leaf || leaf.includes("__")) return null;
@@ -696,21 +706,29 @@ function recordAssistantOutcome(chatJidInput: unknown, message: unknown): void {
 // stopReason "aborted". Crucially, the compaction is usually DEFERRED to the next
 // prompt (pre-prompt compaction), so no session_compact event fires during this
 // turn — meaning compactionSeenByChat alone misses the most common case. These
-// aborts are always preceded by real tool activity (they trigger off accumulated
-// tool-result bytes / tool-execution count), so a non-errored "aborted" turn that
-// did substantive tool work is treated as a compaction boundary and continued.
+// aborts are continuation boundaries, not failures.
 //
-// Hard errors (stopReason "error" or an errorMessage) still suppress continuation.
-// A user stop with no tool activity in the turn also stays suppressed.
+// Only a hard error (model error / errorMessage) suppresses the autonomous loop.
+// Any non-errored outcome — a clean finish (ok), a tool-use finish, or a bare
+// `aborted` (Piclaw forcing compaction via the mid-turn tool-execution ceiling or
+// the context-pressure guard) — is treated as a continuation boundary.
+//
+// History: 0.1.34 keyed continuation on the `session_compact` event and 0.1.35
+// added a tool-activity signal, but BOTH proved unreliable in production on
+// orangepi6plus: the ceiling/context-pressure abort ends the turn with
+// stopReason `aborted`, defers the actual compaction to the next prompt (so
+// `session_compact` never fires that turn), and the per-turn tool-activity signal
+// was not reflected at the agent_end gate — so tool-heavy goal turns still died on
+// the bare `aborted`. The only signal that reliably distinguishes a real failure
+// is `errored`. A user stop is rare for an autonomous goal and `/goal pause` is
+// the intended stop control; a spurious continuation is also bounded by the
+// no-progress guard, so erring toward continuation is correct here.
 function shouldContinueAfterTurn(chatJidInput: unknown): boolean {
   const chatJid = normalizeChatJid(chatJidInput);
   const outcome = lastAssistantOutcomeByChat.get(chatJid);
-  if (outcome?.ok) return true;
-  if (outcome && !outcome.errored && outcome.stopReason === "aborted"
-      && (compactionSeenByChat.has(chatJid) || turnHadToolActivity(chatJid))) {
-    return true;
-  }
-  return false;
+  if (!outcome) return false;
+  if (outcome.errored) return false;
+  return true;
 }
 
 function extractUsageTokens(message: unknown): number {
@@ -1290,8 +1308,24 @@ export default function goalAddon(pi: ExtensionAPI): void {
       return;
     }
     if (goal.status !== "active") return;
-    if (!shouldContinueAfterTurn(chatJid)) return;
-    if (ctx.hasPendingMessages?.()) return;
+    // Diagnostic: log the gate decision so a residual stall (e.g. a runtime-side
+    // deferred-followup drain that does not fire after an aborted finalize) can be
+    // diagnosed from the next occurrence without another blind investigation round.
+    const outcome = lastAssistantOutcomeByChat.get(normalizeChatJid(chatJid));
+    const willContinue = shouldContinueAfterTurn(chatJid);
+    const pending = Boolean(ctx.hasPendingMessages?.());
+    if (!willContinue || pending) {
+      logGoalDebug("agent_end skipped continuation", {
+        chatJid,
+        stopReason: outcome?.stopReason ?? null,
+        errored: outcome?.errored ?? null,
+        ok: outcome?.ok ?? null,
+        willContinue,
+        hasPendingMessages: pending,
+      });
+    }
+    if (!willContinue) return;
+    if (pending) return;
     if (await handlePlanAtAgentEnd(goal)) return;
     await enqueueGoalPrompt(goal, buildGoalContinuationPrompt(goal), "continuation");
   });
