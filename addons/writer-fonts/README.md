@@ -22,8 +22,8 @@ Bundled faces are served from the add-on's own asset route and registered with
 
 ## How it works
 
-- A `Font` `<select>` is injected into the document editor footer
-  (`.editor-frame`). Selecting a font:
+- A `Font` `<select>` is injected into the document editor footer. Selecting a
+  font:
   - applies a live `font-family` override to the CodeMirror content
     (`.cm-editor / .cm-scroller / .cm-content`), and
   - persists the choice in `localStorage` under `piclaw_writer_font` **and** the
@@ -31,6 +31,9 @@ Bundled faces are served from the add-on's own asset route and registered with
     file tabs keep the same font.
 - Scope is limited to the in-app document editor; other CodeMirror instances
   (e.g. the plan sidebar) are left untouched.
+- Both frontends are supported: the **classic** UI places the picker in the
+  editor status bar (next to Whitespace / Vim / Save); the **visual** UI appends
+  a footer row to the editor frame.
 
 ## Notes / limitations
 

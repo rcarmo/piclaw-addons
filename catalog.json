@@ -863,7 +863,7 @@
     {
       "slug": "writer-fonts",
       "name": "@rcarmo/piclaw-addon-writer-fonts",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "type": "extension",
       "description": "Switch the document editor font from a dropdown in the editor footer — bundles Literata, Inter, Noto Sans, Noto Sans TC, New Tegomin and IBM Plex Sans, plus Georgia and the shipped System stack",
       "path": "addons/writer-fonts",
@@ -878,7 +878,7 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-writer-fonts-0.1.0.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-writer-fonts-0.1.1.tgz"
       },
       "updatedAt": "2026-06-13"
     },

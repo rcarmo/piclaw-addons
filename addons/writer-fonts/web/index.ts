@@ -1,17 +1,18 @@
 /**
  * writer-fonts — web entry
  *
- * Adds a font-picker dropdown to the document editor footer and live-switches
- * the CodeMirror editor font between a curated set of writing faces. Fonts are
+ * Adds a font picker to the document editor footer and live-switches the
+ * CodeMirror editor font between a curated set of writing faces. Fonts are
  * bundled with the add-on (served from /agent/addons/assets/<pkg>/fonts) and
  * registered via @font-face. "System" and "Georgia" use OS fonts (not bundled).
  *
- * The choice persists in localStorage under both our own key and the editor's
- * native `piclaw_editor_font_family` key, so a reload / freshly opened file tab
- * keeps the same font even before this script re-applies the live override.
+ * Supports both editor frontends:
+ *   - classic UI: control is injected into the status bar (`.editor-status-actions`)
+ *   - visual  UI: a footer row is appended to `.editor-frame`
  *
- * Scope: the in-app document editor only (`.editor-frame` → CodeMirror). Other
- * CodeMirror instances (e.g. the plan sidebar) are intentionally untouched.
+ * The choice persists in localStorage under our own key and the editor's native
+ * `piclaw_editor_font_family` key, so a reload / freshly opened file tab keeps
+ * the same font even before this script re-applies the live override.
  */
 
 const PKG = "@rcarmo/piclaw-addon-writer-fonts";
@@ -132,13 +133,33 @@ function ensureFontFaces(): void {
   document.head.appendChild(style);
 }
 
-/** Inject the footer / dropdown chrome styling exactly once. */
+/** Inject the picker / footer chrome styling exactly once. */
 function ensureChromeStyle(): void {
   if (document.getElementById("writer-fonts-chrome")) return;
   const style = document.createElement("style");
   style.id = "writer-fonts-chrome";
   style.textContent = `
-.writer-fonts-footer {
+/* classic UI: a select styled to match .editor-status-button in the status bar */
+.editor-status-actions .writer-fonts-control {
+  display: inline-flex;
+  align-items: center;
+}
+.writer-fonts-select {
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 1px 5px;
+  font: inherit;
+  font-size: 10px;
+  max-width: 160px;
+}
+.writer-fonts-select:hover { color: var(--text-primary, inherit); }
+.writer-fonts-select:focus { outline: 1px solid var(--accent-color, #6ea8fe); }
+
+/* visual UI: a footer row appended to .editor-frame */
+.editor-frame .writer-fonts-footer {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
@@ -149,25 +170,16 @@ function ensureChromeStyle(): void {
   font-family: var(--font-family, ${SYSTEM_STACK});
   font-size: 12px;
 }
-.writer-fonts-footer .writer-fonts-label {
+.editor-frame .writer-fonts-footer .writer-fonts-label {
   opacity: 0.7;
   letter-spacing: 0.02em;
   text-transform: uppercase;
   font-size: 10px;
 }
-.writer-fonts-footer .writer-fonts-select {
-  flex: 0 1 auto;
+.editor-frame .writer-fonts-footer .writer-fonts-select {
   max-width: 240px;
   padding: 2px 6px;
-  border-radius: 5px;
-  border: 1px solid var(--border-color, rgba(127,127,127,0.3));
-  background: var(--input-bg, var(--bg-primary, transparent));
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-}
-.writer-fonts-footer .writer-fonts-select:focus {
-  outline: 1px solid var(--accent-color, #6ea8fe);
+  font-size: 12px;
 }
 `;
   document.head.appendChild(style);
@@ -182,6 +194,9 @@ function applyFont(opt: FontOption): void {
     document.head.appendChild(style);
   }
   style.textContent = `
+.editor-pane .cm-editor,
+.editor-pane .cm-scroller,
+.editor-pane .cm-content,
 .editor-frame .cm-editor,
 .editor-frame .cm-scroller,
 .editor-frame .cm-content {
@@ -190,20 +205,12 @@ function applyFont(opt: FontOption): void {
 `;
 }
 
-/** Build the <select> footer control inside one editor frame. */
-function injectFooter(frame: HTMLElement): void {
-  if (frame.querySelector(":scope > .writer-fonts-footer")) return;
+/** Build a <select> reflecting the current choice; on change apply + persist. */
+function buildSelect(): HTMLSelectElement {
   const current = readChoice();
-
-  const footer = document.createElement("div");
-  footer.className = "writer-fonts-footer";
-
-  const label = document.createElement("label");
-  label.className = "writer-fonts-label";
-  label.textContent = "Font";
-
   const select = document.createElement("select");
   select.className = "writer-fonts-select";
+  select.title = "Editor font";
   select.setAttribute("aria-label", "Editor font");
   for (const f of FONTS) {
     const o = document.createElement("option");
@@ -218,41 +225,65 @@ function injectFooter(frame: HTMLElement): void {
     applyFont(opt);
     syncAllSelects(opt.id);
   });
+  return select;
+}
 
+/** classic UI: inject the picker into a status bar's actions group. */
+function injectClassic(actions: HTMLElement): void {
+  if (actions.querySelector(":scope > .writer-fonts-control")) return;
+  const wrap = document.createElement("span");
+  wrap.className = "writer-fonts-control";
+  wrap.appendChild(buildSelect());
+  actions.insertBefore(wrap, actions.firstChild);
+}
+
+/** visual UI: append a footer row with the picker to an editor frame. */
+function injectVisual(frame: HTMLElement): void {
+  if (frame.querySelector(":scope > .writer-fonts-footer")) return;
+  const footer = document.createElement("div");
+  footer.className = "writer-fonts-footer";
+  const label = document.createElement("label");
+  label.className = "writer-fonts-label";
+  label.textContent = "Font";
+  const select = buildSelect();
   const id = `wf-${Math.random().toString(36).slice(2, 8)}`;
   label.setAttribute("for", id);
   select.id = id;
-
   footer.appendChild(label);
   footer.appendChild(select);
   frame.appendChild(footer);
 }
 
-/** Keep every editor footer's dropdown in sync when one changes. */
+/** Keep every editor picker in sync when one changes. */
 function syncAllSelects(id: string): void {
-  document.querySelectorAll<HTMLSelectElement>(".writer-fonts-footer .writer-fonts-select").forEach((sel) => {
+  document.querySelectorAll<HTMLSelectElement>(".writer-fonts-select").forEach((sel) => {
     if (sel.value !== id) sel.value = id;
   });
 }
 
 function scanAndInject(): void {
-  document.querySelectorAll<HTMLElement>(".editor-frame").forEach((frame) => injectFooter(frame));
+  document.querySelectorAll<HTMLElement>(".editor-status-actions").forEach((el) => injectClassic(el));
+  document.querySelectorAll<HTMLElement>(".editor-frame").forEach((el) => injectVisual(el));
 }
 
-function init(): void {
+function reapply(): void {
   ensureFontFaces();
   ensureChromeStyle();
   applyFont(readChoice());
   scanAndInject();
+}
 
-  // Editor frames mount/unmount as files open and close; watch for them.
+function init(): void {
+  reapply();
+  // Editor panes mount/unmount as files open and close; watch for them.
   const observer = new MutationObserver((mutations) => {
     for (const m of mutations) {
       for (const node of Array.from(m.addedNodes)) {
         if (!(node instanceof HTMLElement)) continue;
-        if (node.classList?.contains("editor-frame")) {
-          injectFooter(node);
-        } else if (node.querySelector?.(".editor-frame")) {
+        if (
+          node.matches?.(".editor-status-actions, .editor-frame") ||
+          node.querySelector?.(".editor-status-actions, .editor-frame")
+        ) {
           scanAndInject();
         }
       }
@@ -269,10 +300,7 @@ if (document.readyState === "loading") {
 // Re-run after the add-on layer announces itself, in case we loaded early.
 window.addEventListener("piclaw:addons-loaded", () => {
   try {
-    ensureFontFaces();
-    ensureChromeStyle();
-    applyFont(readChoice());
-    scanAndInject();
+    reapply();
   } catch {
     /* ignore */
   }
