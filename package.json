@@ -59,6 +59,7 @@
       "addons/web-viewer/index.ts",
       "addons/whatsapp/index.ts",
       "addons/win-ui/index.ts",
+      "addons/writer-fonts/index.ts",
       "addons/yolo-vibe/index.ts"
     ],
     "runtime": {
