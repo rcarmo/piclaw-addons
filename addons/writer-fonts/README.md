@@ -22,18 +22,17 @@ Bundled faces are served from the add-on's own asset route and registered with
 
 ## How it works
 
-- A `Font` `<select>` is injected into the document editor footer. Selecting a
-  font:
-  - applies a live `font-family` override to the CodeMirror content
-    (`.cm-editor / .cm-scroller / .cm-content`), and
-  - persists the choice in `localStorage` under `piclaw_writer_font` **and** the
-    editor's native `piclaw_editor_font_family` key, so reloaded or newly opened
-    file tabs keep the same font.
+- A `Font` `<select>` is injected into the document editor status bar.
+- The chosen font is applied **only in Markdown live-preview mode** (the reading
+  surface, tables and frontmatter). In plain/raw view the editor keeps its
+  default monospace font and the dropdown is **disabled**.
+- Live-preview state is read from the editor's own "Live Preview" toggle button
+  (`.active`), mirrored onto a `wf-live` class on `.editor-pane` that scopes the
+  override.
+- The choice persists in `localStorage` under `piclaw_writer_font`.
 - Scope is limited to the in-app document editor; other CodeMirror instances
   (e.g. the plan sidebar) are left untouched.
-- In live-preview (Obsidian-style) mode the picker also restyles the reading
-  surface, tables and frontmatter (which otherwise hard-code the system font);
-  code blocks and inline code intentionally stay monospace.
+- Code blocks and inline code intentionally stay monospace, even in preview.
 - Both frontends are supported: the **classic** UI places the picker in the
   editor status bar (next to Whitespace / Vim / Save); the **visual** UI appends
   a footer row to the editor frame.

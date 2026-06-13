@@ -1,18 +1,23 @@
 /**
  * writer-fonts — web entry
  *
- * Adds a font picker to the document editor footer and live-switches the
- * CodeMirror editor font between a curated set of writing faces. Fonts are
+ * Adds a font picker to the document editor status-bar footer and switches the
+ * CodeMirror reading font — but ONLY in Markdown live-preview mode. Fonts are
  * bundled with the add-on (served from /agent/addons/assets/<pkg>/fonts) and
  * registered via @font-face. "System" and "Georgia" use OS fonts (not bundled).
  *
- * Supports both editor frontends:
- *   - classic UI: control is injected into the status bar (`.editor-status-actions`)
- *   - visual  UI: a footer row is appended to `.editor-frame`
+ * Behavior:
+ *   - The chosen font is applied only while live preview is active (the reading
+ *     surface, tables and frontmatter — code/mono surfaces stay monospace).
+ *   - In plain/raw view the editor keeps its default monospace font, and the
+ *     dropdown is disabled.
  *
- * The choice persists in localStorage under our own key and the editor's native
- * `piclaw_editor_font_family` key, so a reload / freshly opened file tab keeps
- * the same font even before this script re-applies the live override.
+ * Live-preview state is read from the editor's own status bar: the "Live
+ * Preview" toggle button carries an `active` class when preview is on. We mirror
+ * that onto a `wf-live` class on the `.editor-pane` and scope the override to it.
+ *
+ * Works in both frontends — the classic and visual UIs both mount the shared
+ * editor bundle, which builds `.editor-pane` + the status bar.
  */
 
 const PKG = "@rcarmo/piclaw-addon-writer-fonts";
@@ -83,6 +88,7 @@ const FONTS: FontOption[] = [
 const STORAGE_KEY = "piclaw_writer_font";
 const NATIVE_KEY = "piclaw_editor_font_family";
 const DEFAULT_ID = "system";
+const observedButtons = new WeakSet<Element>();
 
 function optionById(id: string | null): FontOption {
   return FONTS.find((f) => f.id === id) ?? FONTS[0];
@@ -101,9 +107,19 @@ function readChoice(): FontOption {
 function persistChoice(opt: FontOption): void {
   try {
     localStorage.setItem(STORAGE_KEY, opt.id);
-    // Keep the editor's native setting in sync so reloaded/new file tabs match
-    // even before this script re-applies the live override.
-    localStorage.setItem(NATIVE_KEY, opt.id === "system" ? "" : opt.stack);
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Plain/raw view must always be the editor's default monospace font. Earlier
+ * versions wrote the chosen font into the editor's native font key; clear it so
+ * non-preview editing reverts to the default monospace face everywhere.
+ */
+function clearNativeFontKey(): void {
+  try {
+    if (localStorage.getItem(NATIVE_KEY)) localStorage.removeItem(NATIVE_KEY);
   } catch {
     /* ignore */
   }
@@ -133,17 +149,13 @@ function ensureFontFaces(): void {
   document.head.appendChild(style);
 }
 
-/** Inject the picker / footer chrome styling exactly once. */
+/** Inject the picker chrome styling exactly once. */
 function ensureChromeStyle(): void {
   if (document.getElementById("writer-fonts-chrome")) return;
   const style = document.createElement("style");
   style.id = "writer-fonts-chrome";
   style.textContent = `
-/* classic UI: a select styled to match .editor-status-button in the status bar */
-.editor-status-actions .writer-fonts-control {
-  display: inline-flex;
-  align-items: center;
-}
+.editor-status-actions .writer-fonts-control { display: inline-flex; align-items: center; }
 .writer-fonts-select {
   border: 1px solid var(--border-color);
   background: var(--bg-secondary);
@@ -157,35 +169,19 @@ function ensureChromeStyle(): void {
 }
 .writer-fonts-select:hover { color: var(--text-primary, inherit); }
 .writer-fonts-select:focus { outline: 1px solid var(--accent-color, #6ea8fe); }
-
-/* visual UI: a footer row appended to .editor-frame */
-.editor-frame .writer-fonts-footer {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 10px;
-  border-top: 1px solid var(--border-color, rgba(127,127,127,0.25));
-  background: var(--panel-bg, var(--bg-secondary, transparent));
-  font-family: var(--font-family, ${SYSTEM_STACK});
-  font-size: 12px;
-}
-.editor-frame .writer-fonts-footer .writer-fonts-label {
-  opacity: 0.7;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  font-size: 10px;
-}
-.editor-frame .writer-fonts-footer .writer-fonts-select {
-  max-width: 240px;
-  padding: 2px 6px;
-  font-size: 12px;
-}
+.writer-fonts-select:disabled { opacity: 0.45; cursor: not-allowed; }
 `;
   document.head.appendChild(style);
 }
 
-/** Apply (or update) the live font override on the document editor. */
+/**
+ * Apply (or update) the live font override. Scoped to `.editor-pane.wf-live`
+ * so it ONLY affects editors currently in live-preview mode. Specificity (the
+ * extra `.wf-live` class) beats the live-preview markdown theme, which
+ * hard-codes the system font with !important on `& .cm-scroller`,
+ * `.cm-md-table-line`, `.cm-md-editable-table` and `.cm-md-frontmatter-value`.
+ * Code/mono surfaces (.cm-md-*code*, table code cells) are left untouched.
+ */
 function applyFont(opt: FontOption): void {
   let style = document.getElementById("writer-fonts-active") as HTMLStyleElement | null;
   if (!style) {
@@ -194,27 +190,13 @@ function applyFont(opt: FontOption): void {
     document.head.appendChild(style);
   }
   const ff = `${opt.stack} !important`;
-  // Specificity must beat the live-preview markdown theme, which hard-codes the
-  // system font with !important on `& .cm-scroller` (0,2,0), `.cm-md-table-line`,
-  // `.cm-md-editable-table` and `.cm-md-frontmatter-value`. We deliberately do
-  // NOT touch code/mono surfaces (.cm-md-*code*, code fences, table code cells).
   style.textContent = `
-.editor-pane .cm-editor,
-.editor-frame .cm-editor {
-  font-family: ${ff};
-}
-.editor-pane .cm-editor .cm-scroller,
-.editor-pane .cm-editor .cm-content,
-.editor-frame .cm-editor .cm-scroller,
-.editor-frame .cm-editor .cm-content {
-  font-family: ${ff};
-}
-.editor-pane .cm-md-table-line,
-.editor-pane .cm-md-editable-table,
-.editor-pane .cm-md-frontmatter-value,
-.editor-frame .cm-md-table-line,
-.editor-frame .cm-md-editable-table,
-.editor-frame .cm-md-frontmatter-value {
+.editor-pane.wf-live .cm-editor,
+.editor-pane.wf-live .cm-editor .cm-scroller,
+.editor-pane.wf-live .cm-editor .cm-content,
+.editor-pane.wf-live .cm-md-table-line,
+.editor-pane.wf-live .cm-md-editable-table,
+.editor-pane.wf-live .cm-md-frontmatter-value {
   font-family: ${ff};
 }
 `;
@@ -225,8 +207,7 @@ function buildSelect(): HTMLSelectElement {
   const current = readChoice();
   const select = document.createElement("select");
   select.className = "writer-fonts-select";
-  select.title = "Editor font";
-  select.setAttribute("aria-label", "Editor font");
+  select.setAttribute("aria-label", "Editor font (live preview only)");
   for (const f of FONTS) {
     const o = document.createElement("option");
     o.value = f.id;
@@ -243,30 +224,55 @@ function buildSelect(): HTMLSelectElement {
   return select;
 }
 
-/** classic UI: inject the picker into a status bar's actions group. */
-function injectClassic(actions: HTMLElement): void {
-  if (actions.querySelector(":scope > .writer-fonts-control")) return;
-  const wrap = document.createElement("span");
-  wrap.className = "writer-fonts-control";
-  wrap.appendChild(buildSelect());
-  actions.insertBefore(wrap, actions.firstChild);
+/** The "Live Preview" toggle button within a status-actions group, if present. */
+function findLivePreviewButton(actions: Element): Element | null {
+  return (
+    Array.from(actions.querySelectorAll(".editor-status-button")).find(
+      (b) => (b.textContent || "").trim() === "Live Preview",
+    ) ?? null
+  );
 }
 
-/** visual UI: append a footer row with the picker to an editor frame. */
-function injectVisual(frame: HTMLElement): void {
-  if (frame.querySelector(":scope > .writer-fonts-footer")) return;
-  const footer = document.createElement("div");
-  footer.className = "writer-fonts-footer";
-  const label = document.createElement("label");
-  label.className = "writer-fonts-label";
-  label.textContent = "Font";
-  const select = buildSelect();
-  const id = `wf-${Math.random().toString(36).slice(2, 8)}`;
-  label.setAttribute("for", id);
-  select.id = id;
-  footer.appendChild(label);
-  footer.appendChild(select);
-  frame.appendChild(footer);
+/** Is live preview currently active for the pane owning this status bar? */
+function isLiveActive(actions: Element): boolean {
+  const btn = findLivePreviewButton(actions);
+  return !!btn && btn.classList.contains("active");
+}
+
+/**
+ * Mirror live-preview state onto the pane (`wf-live`) and enable/disable the
+ * picker accordingly.
+ */
+function refreshState(actions: HTMLElement): void {
+  const pane = actions.closest(".editor-pane");
+  const live = isLiveActive(actions);
+  if (pane) pane.classList.toggle("wf-live", live);
+  const select = actions.querySelector<HTMLSelectElement>(".writer-fonts-control .writer-fonts-select");
+  if (select) {
+    select.disabled = !live;
+    select.title = live
+      ? "Editor font (live preview)"
+      : "Editor font — available in Live Preview only";
+  }
+}
+
+/** Inject the picker into a status bar's actions group + wire live-preview state. */
+function injectClassic(actions: HTMLElement): void {
+  if (!actions.querySelector(":scope > .writer-fonts-control")) {
+    const wrap = document.createElement("span");
+    wrap.className = "writer-fonts-control";
+    wrap.appendChild(buildSelect());
+    actions.insertBefore(wrap, actions.firstChild);
+  }
+  // Observe the Live Preview button so toggles (click / Alt+P / context menu)
+  // immediately update the picker + override gating.
+  const lpBtn = findLivePreviewButton(actions);
+  if (lpBtn && !observedButtons.has(lpBtn)) {
+    observedButtons.add(lpBtn);
+    const mo = new MutationObserver(() => refreshState(actions));
+    mo.observe(lpBtn, { attributes: true, attributeFilter: ["class"] });
+  }
+  refreshState(actions);
 }
 
 /** Keep every editor picker in sync when one changes. */
@@ -278,27 +284,23 @@ function syncAllSelects(id: string): void {
 
 function scanAndInject(): void {
   document.querySelectorAll<HTMLElement>(".editor-status-actions").forEach((el) => injectClassic(el));
-  document.querySelectorAll<HTMLElement>(".editor-frame").forEach((el) => injectVisual(el));
 }
 
 function reapply(): void {
   ensureFontFaces();
   ensureChromeStyle();
+  clearNativeFontKey();
   applyFont(readChoice());
   scanAndInject();
 }
 
 function init(): void {
   reapply();
-  // Editor panes mount/unmount as files open and close; watch for them.
   const observer = new MutationObserver((mutations) => {
     for (const m of mutations) {
       for (const node of Array.from(m.addedNodes)) {
         if (!(node instanceof HTMLElement)) continue;
-        if (
-          node.matches?.(".editor-status-actions, .editor-frame") ||
-          node.querySelector?.(".editor-status-actions, .editor-frame")
-        ) {
+        if (node.matches?.(".editor-status-actions") || node.querySelector?.(".editor-status-actions")) {
           scanAndInject();
         }
       }
@@ -312,7 +314,6 @@ if (document.readyState === "loading") {
 } else {
   init();
 }
-// Re-run after the add-on layer announces itself, in case we loaded early.
 window.addEventListener("piclaw:addons-loaded", () => {
   try {
     reapply();
