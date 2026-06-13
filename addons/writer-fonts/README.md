@@ -31,6 +31,9 @@ Bundled faces are served from the add-on's own asset route and registered with
     file tabs keep the same font.
 - Scope is limited to the in-app document editor; other CodeMirror instances
   (e.g. the plan sidebar) are left untouched.
+- In live-preview (Obsidian-style) mode the picker also restyles the reading
+  surface, tables and frontmatter (which otherwise hard-code the system font);
+  code blocks and inline code intentionally stay monospace.
 - Both frontends are supported: the **classic** UI places the picker in the
   editor status bar (next to Whitespace / Vim / Save); the **visual** UI appends
   a footer row to the editor frame.

@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-writer-fonts",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Switch the document editor font from a dropdown in the editor footer \u2014 bundles Literata, Inter, Noto Sans, Noto Sans TC, New Tegomin and IBM Plex Sans, plus Georgia and the shipped System stack",
   "type": "module",
   "main": "index.ts",

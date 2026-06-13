@@ -193,14 +193,29 @@ function applyFont(opt: FontOption): void {
     style.id = "writer-fonts-active";
     document.head.appendChild(style);
   }
+  const ff = `${opt.stack} !important`;
+  // Specificity must beat the live-preview markdown theme, which hard-codes the
+  // system font with !important on `& .cm-scroller` (0,2,0), `.cm-md-table-line`,
+  // `.cm-md-editable-table` and `.cm-md-frontmatter-value`. We deliberately do
+  // NOT touch code/mono surfaces (.cm-md-*code*, code fences, table code cells).
   style.textContent = `
 .editor-pane .cm-editor,
-.editor-pane .cm-scroller,
-.editor-pane .cm-content,
-.editor-frame .cm-editor,
-.editor-frame .cm-scroller,
-.editor-frame .cm-content {
-  font-family: ${opt.stack} !important;
+.editor-frame .cm-editor {
+  font-family: ${ff};
+}
+.editor-pane .cm-editor .cm-scroller,
+.editor-pane .cm-editor .cm-content,
+.editor-frame .cm-editor .cm-scroller,
+.editor-frame .cm-editor .cm-content {
+  font-family: ${ff};
+}
+.editor-pane .cm-md-table-line,
+.editor-pane .cm-md-editable-table,
+.editor-pane .cm-md-frontmatter-value,
+.editor-frame .cm-md-table-line,
+.editor-frame .cm-md-editable-table,
+.editor-frame .cm-md-frontmatter-value {
+  font-family: ${ff};
 }
 `;
 }
