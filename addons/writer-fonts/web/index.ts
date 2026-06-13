@@ -62,7 +62,7 @@ const FONTS: FontOption[] = [
   },
   {
     id: "notosanstc",
-    label: "Noto Sans Traditional Chinese",
+    label: "Noto Sans TC",
     stack: '"Noto Sans TC", "Noto Sans", system-ui, sans-serif',
     bundled: { family: "Noto Sans TC", file: "NotoSansTC-var.woff2", variable: true },
   },
