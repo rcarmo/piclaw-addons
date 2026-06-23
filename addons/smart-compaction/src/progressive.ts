@@ -5,8 +5,8 @@
  * ../smart-compaction.ts.
  */
 
-import { completeSimple } from "@earendil-works/pi-ai";
 import type { Message } from "@earendil-works/pi-ai";
+import { completeSimple } from "@earendil-works/pi-ai/compat";
 import type { FileOperations } from "./types.js";
 import {
   BUDGET_SAFETY_MARGIN,

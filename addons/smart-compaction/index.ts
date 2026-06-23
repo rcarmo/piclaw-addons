@@ -9,8 +9,8 @@
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { completeSimple } from "@earendil-works/pi-ai";
 import type { Message } from "@earendil-works/pi-ai";
+import { completeSimple } from "@earendil-works/pi-ai/compat";
 
 import { MIN_SUMMARY_CHARS, PROGRESSIVE_FALLBACK_CONTEXT_WINDOW, SELECTIVE_THRESHOLD } from "./src/config.js";
 import { estimateCompactionPromptTokens, getContextWindowEstimate, publishContextEstimate } from "./src/context.js";
