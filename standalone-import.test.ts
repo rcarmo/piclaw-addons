@@ -13,7 +13,7 @@ afterEach(() => {
   }
 });
 
-async function importStandaloneAddon(slug: "autoresearch" | "cheapskate" | "delegate" | "editable-table" | "goal" | "image-processing" | "imap" | "kanban-editor" | "lite-term" | "mindmap" | "office-viewer" | "plan-sidebar" | "portainer" | "proxmox" | "session-tree" | "skill-model-effort" | "smart-compaction" | "vent" | "win-ui" | "yolo-vibe") {
+async function importStandaloneAddon(slug: "autoresearch" | "cheapskate" | "delegate" | "editable-table" | "goal" | "image-processing" | "imap" | "kanban-editor" | "lite-term" | "mindmap" | "office-viewer" | "plan-sidebar" | "portainer" | "proxmox" | "session-tree" | "skill-model-effort" | "smart-compaction" | "vent" | "voice-pipeline" | "win-ui" | "yolo-vibe") {
   const tempRoot = mkdtempSync(join(tmpdir(), `piclaw-addon-${slug}-`));
   tempDirs.push(tempRoot);
 
@@ -112,6 +112,11 @@ test("standalone piclaw-addon-smart-compaction imports outside the monorepo root
 
 test("standalone piclaw-addon-vent imports outside the monorepo root", async () => {
   const mod = await importStandaloneAddon("vent");
+  expect(typeof mod.default).toBe("function");
+});
+
+test("standalone piclaw-addon-voice-pipeline imports outside the monorepo root", async () => {
+  const mod = await importStandaloneAddon("voice-pipeline");
   expect(typeof mod.default).toBe("function");
 });
 

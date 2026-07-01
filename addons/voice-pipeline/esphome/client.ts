@@ -26,20 +26,68 @@ import { FrameReader, encodeFrame, MSG, ENTITY_MSG, VA_EVENT, VA_FEATURE } from 
 import { transcribe as defaultTranscribe } from "../azure/stt.ts";
 import { synthesize as defaultSynthesize } from "../azure/tts.ts";
 import { storeUserTurn, storeAgentTurn } from "../store/messages.ts";
+import { addWavHeader } from "../audio.ts";
 import type { VoiceConfig } from "../config.ts";
 
-// ── TTS audio HTTP cache (exported so index.ts can add entries for ava tool) ───
-export const ttsCache = new Map<string, Uint8Array>();
+// Re-export so index.ts keeps a single import site for the WAV helper.
+export { addWavHeader };
 
-function startTtsHttpServer(port: number): Bun.Server {
+// ── TTS audio HTTP cache ───────────────────────────────────────────────────
+// Served over a tiny HTTP server the device fetches by URL. Hardened (#4):
+// GET-only, per-process bearer token (?k=), TTL eviction and a hard size cap so
+// unfetched clips can't leak memory or be discovered by scanning UUIDs alone.
+interface TtsEntry { audio: Uint8Array; expires: number }
+const ttsStore = new Map<string, TtsEntry>();
+
+/** Per-process secret required as a `?k=` query param to fetch TTS audio. */
+export const TTS_TOKEN = crypto.randomUUID().replace(/-/g, "");
+
+/** Store a clip and return its id, evicting expired + oldest entries first. */
+export function putTts(audio: Uint8Array, ttlMs = 60_000, maxEntries = 32): string {
+  const now = Date.now();
+  for (const [k, v] of ttsStore) if (v.expires <= now) ttsStore.delete(k);
+  while (ttsStore.size >= Math.max(1, maxEntries)) {
+    const oldest = ttsStore.keys().next().value;
+    if (oldest === undefined) break;
+    ttsStore.delete(oldest);
+  }
+  const id = `${crypto.randomUUID()}.wav`;
+  ttsStore.set(id, { audio, expires: now + ttlMs });
+  return id;
+}
+
+/** Build the tokenised playback URL for a stored clip. */
+export function ttsUrl(serverHost: string, port: number, id: string): string {
+  return `http://${serverHost}:${port}/${id}?k=${TTS_TOKEN}`;
+}
+
+/** Current number of cached clips (for tests/status). */
+export function ttsCacheSize(): number {
+  return ttsStore.size;
+}
+
+/** Result shape returned by device control methods (#11). */
+export interface ControlResult {
+  ok: boolean;
+  message: string;
+}
+
+function startTtsHttpServer(port: number, host?: string): Bun.Server<unknown> {
   return Bun.serve({
     port,
+    ...(host && host !== "127.0.0.1" ? { hostname: host } : {}),
     fetch(req) {
-      const id = new URL(req.url).pathname.slice(1); // strip leading /
-      const audio = ttsCache.get(id);
-      if (!audio) return new Response("not found", { status: 404 });
-      ttsCache.delete(id); // one-shot
-      return new Response(audio, {
+      if (req.method !== "GET") return new Response("method not allowed", { status: 405 });
+      const url = new URL(req.url);
+      if (url.searchParams.get("k") !== TTS_TOKEN) return new Response("forbidden", { status: 403 });
+      const id = url.pathname.slice(1); // strip leading /
+      const entry = ttsStore.get(id);
+      if (!entry || entry.expires <= Date.now()) {
+        ttsStore.delete(id);
+        return new Response("not found", { status: 404 });
+      }
+      ttsStore.delete(id); // one-shot
+      return new Response(entry.audio as unknown as BodyInit, {
         headers: { "Content-Type": "audio/wav" },
       });
     },
@@ -110,32 +158,6 @@ export function withTimeout<T>(
   });
 }
 
-export function addWavHeader(pcm: Uint8Array, rate: number, channels: number, bits: number): Uint8Array {
-  const dataLen = pcm.length;
-  const byteRate = rate * channels * bits / 8;
-  const blockAlign = channels * bits / 8;
-  const header = new ArrayBuffer(44);
-  const view = new DataView(header);
-
-  view.setUint32(0, 0x52494646, false); // "RIFF"
-  view.setUint32(4, 36 + dataLen, true);
-  view.setUint32(8, 0x57415645, false); // "WAVE"
-  view.setUint32(12, 0x666d7420, false); // "fmt "
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);          // PCM
-  view.setUint16(22, channels, true);
-  view.setUint32(24, rate, true);
-  view.setUint32(28, byteRate, true);
-  view.setUint16(32, blockAlign, true);
-  view.setUint16(34, bits, true);
-  view.setUint32(36, 0x64617461, false); // "data"
-  view.setUint32(40, dataLen, true);
-
-  const out = new Uint8Array(44 + dataLen);
-  out.set(new Uint8Array(header));
-  out.set(pcm, 44);
-  return out;
-}
 
 // ── ESPHome client ───────────────────────────────────────────────────────────
 
@@ -145,6 +167,8 @@ export interface EspHomeClientConfig {
   password?: string;
   serverHost: string;   // IP/hostname that the Pi can reach us on (for TTS URLs)
   ttsHttpPort: number;  // Port for TTS HTTP server
+  ttsTtlMs: number;     // evict cached TTS audio after this long if unfetched
+  ttsMaxEntries: number; // hard cap on cached TTS clips
 }
 
 type PipelineState = "idle" | "listening" | "processing";
@@ -184,13 +208,19 @@ export class EspHomeClient {
   private reader = new FrameReader();
   private state: PipelineState = "idle";
   private audioChunks: Uint8Array[] = [];
-  private ttsServer: Bun.Server | null = null;
+  private ttsServer: Bun.Server<unknown> | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private turnWatchdog: ReturnType<typeof setTimeout> | null = null;
   private shuttingDown = false;
 
+  // Monotonic turn id + abort controller so a watchdog/timeout cancels the
+  // in-flight STT/LLM/TTS chain and late results are dropped (#2).
+  private turnId = 0;
+  private turnAbort: AbortController | null = null;
+
   private readonly llmTimeoutMs: number;
   private readonly turnTimeoutMs: number;
+  private readonly debug: boolean;
 
   // Entity registry
   readonly entities = new Map<number, AvaEntity>(); // key → entity
@@ -205,13 +235,24 @@ export class EspHomeClient {
     private deps: EspHomeClientDeps = {},
     private opts: EspHomeClientOptions = {},
   ) {
-    this.llmTimeoutMs = opts.llmTimeoutMs ?? 120_000;
-    this.turnTimeoutMs = opts.turnTimeoutMs ?? 20_000;
+    this.llmTimeoutMs = opts.llmTimeoutMs ?? voiceCfg.llmTimeoutMs ?? 120_000;
+    // Turn watchdog must exceed the sum of phase timeouts so it only fires on a
+    // genuinely stuck turn, not a normal long LLM request (#2).
+    this.turnTimeoutMs = opts.turnTimeoutMs ?? voiceCfg.turnTimeoutMs ?? 180_000;
+    this.debug = voiceCfg.debug ?? false;
+  }
+
+  /** Verbose, content-bearing logs are gated behind VOICE_DEBUG (#13). */
+  private dbg(...args: unknown[]): void {
+    if (this.debug) console.log(...args);
   }
 
   async start() {
-    this.ttsServer = startTtsHttpServer(this.cfg.ttsHttpPort);
-    console.log(`[voice:esphome] TTS HTTP server on :${this.cfg.ttsHttpPort}`);
+    this.ttsServer = startTtsHttpServer(this.cfg.ttsHttpPort, this.cfg.serverHost);
+    console.log(`[voice:esphome] TTS HTTP server on ${this.cfg.serverHost}:${this.cfg.ttsHttpPort}`);
+    if (!this.cfg.password) {
+      console.warn("[voice:esphome] no password set \u2014 using the plaintext ESPHome API (no Noise encryption). Keep the device on a trusted LAN.");
+    }
     await this.connect();
   }
 
@@ -279,11 +320,13 @@ export class EspHomeClient {
 
   private startTurnWatchdog() {
     this.clearTurnWatchdog();
+    const watchedTurn = this.turnId;
     this.turnWatchdog = setTimeout(() => {
       this.turnWatchdog = null;
-      if (this.state === "processing") {
-        console.error("[voice:esphome] pipeline watchdog fired — forcing RUN_END");
-        this.state = "idle";
+      if (this.state === "processing" && this.turnId === watchedTurn) {
+        console.error("[voice:esphome] pipeline watchdog fired, aborting turn + forcing RUN_END");
+        this.turnAbort?.abort(new Error("pipeline watchdog timeout"));
+        this.resetTurn();
         this.send(MSG.VOICE_ASSISTANT_EVENT_RESPONSE, eventResponse(VA_EVENT.ERROR, { message: "pipeline timeout" }));
         this.send(MSG.VOICE_ASSISTANT_EVENT_RESPONSE, eventResponse(VA_EVENT.RUN_END));
       }
@@ -300,6 +343,9 @@ export class EspHomeClient {
   private resetTurn() {
     this.audioChunks = [];
     this.state = "idle";
+    // Invalidate the current turn so any late STT/LLM/TTS result is dropped.
+    this.turnId++;
+    this.turnAbort = null;
     this.clearTurnWatchdog();
   }
 
@@ -359,7 +405,7 @@ export class EspHomeClient {
           kind: entityKinds[msgType],
         };
         this.entities.set(ent.key, ent);
-        console.log(`[voice:esphome] entity: ${ent.kind} "${ent.name}" (${ent.objectId}) key=${ent.key}`);
+        this.dbg(`[voice:esphome] entity: ${ent.kind} "${ent.name}" (${ent.objectId}) key=${ent.key}`);
         break;
       }
 
@@ -437,7 +483,7 @@ export class EspHomeClient {
         }
 
         if (start && this.state === "idle") {
-          console.log(`[voice:esphome] wake word: "${phrase}" — listening`);
+          this.dbg(`[voice:esphome] wake word: "${phrase}" — listening`);
           this.state = "listening";
           this.audioChunks = [];
           this.send(MSG.VOICE_ASSISTANT_EVENT_RESPONSE, eventResponse(VA_EVENT.WAKE_WORD_START));
@@ -473,18 +519,27 @@ export class EspHomeClient {
   }
 
   private async runPipeline() {
+    const myTurn = this.turnId;
+    this.turnAbort = new AbortController();
+    const signal = this.turnAbort.signal;
     this.startTurnWatchdog();
+
+    const superseded = () => this.turnId !== myTurn;
 
     const sttCfg = {
       region: this.voiceCfg.azure.region,
       key: this.voiceCfg.azure.key,
       language: this.voiceCfg.azure.sttLang,
+      timeoutMs: this.voiceCfg.azure.sttTimeoutMs,
+      signal,
     };
     const ttsCfg = {
       region: this.voiceCfg.azure.region,
       key: this.voiceCfg.azure.key,
       voice: this.voiceCfg.azure.ttsVoice,
       language: this.voiceCfg.azure.ttsLang,
+      timeoutMs: this.voiceCfg.azure.ttsTimeoutMs,
+      signal,
     };
 
     const stt = this.deps.transcribe ?? defaultTranscribe;
@@ -497,38 +552,59 @@ export class EspHomeClient {
       for (const c of this.audioChunks) { pcm.set(c, off); off += c.length; }
       this.audioChunks = [];
 
+      // STT (the stt module frames raw PCM as WAV internally, #1)
       const transcript = await stt(pcm, sttCfg);
-      console.log(`[voice:esphome] STT: "${transcript}"`);
+      if (superseded()) return;
+      this.dbg(`[voice:esphome] STT: "${transcript}"`);
       if (!transcript.trim()) {
         this.resetTurn();
         this.send(MSG.VOICE_ASSISTANT_EVENT_RESPONSE, eventResponse(VA_EVENT.RUN_END));
         return;
       }
 
-      storeUserTurn(this.voiceCfg.dbPath, this.voiceCfg.chatJid, transcript, "🎤 Voice (ESPHome)");
-      this.setTextEntity("conversation_subtitles", `🗣️ ${transcript}`);
+      storeUserTurn(this.voiceCfg.dbPath, this.voiceCfg.chatJid, transcript, "\uD83C\uDFA4 Voice (ESPHome)");
+      this.setTextEntity("conversation_subtitles", `\uD83D\uDDE3\uFE0F ${transcript}`);
 
       this.send(MSG.VOICE_ASSISTANT_EVENT_RESPONSE, eventResponse(VA_EVENT.INTENT_START));
-      const response = await withTimeout(this.rpcChat(transcript), this.llmTimeoutMs, "LLM request");
-      console.log(`[voice:esphome] LLM: "${response.slice(0, 60)}…"`);
+
+      // LLM turn via the shared queue. A concurrent request rejects with a
+      // BusyError we surface to the device rather than deadlocking (#15).
+      let response: string;
+      try {
+        response = await withTimeout(this.rpcChat(transcript), this.llmTimeoutMs, "LLM request");
+      } catch (err) {
+        if ((err as { busy?: boolean }).busy) {
+          this.setTextEntity("conversation_subtitles", "\u23F3 Busy, try again");
+          this.resetTurn();
+          this.send(MSG.VOICE_ASSISTANT_EVENT_RESPONSE, eventResponse(VA_EVENT.ERROR, { message: "assistant busy" }));
+          this.send(MSG.VOICE_ASSISTANT_EVENT_RESPONSE, eventResponse(VA_EVENT.RUN_END));
+          return;
+        }
+        throw err;
+      }
+      if (superseded()) return;
+      this.dbg(`[voice:esphome] LLM: "${response.slice(0, 200)}"`);
+      console.log(`[voice:esphome] turn complete (transcript ${transcript.length} chars, response ${response.length} chars)`);
 
       storeAgentTurn(this.voiceCfg.dbPath, this.voiceCfg.chatJid, response, "Flint");
-      this.setTextEntity("conversation_subtitles", `💬 ${response.slice(0, 200)}`);
+      this.setTextEntity("conversation_subtitles", `\uD83D\uDCAC ${response.slice(0, 200)}`);
 
       this.send(MSG.VOICE_ASSISTANT_EVENT_RESPONSE, eventResponse(VA_EVENT.INTENT_END));
       this.send(MSG.VOICE_ASSISTANT_EVENT_RESPONSE, eventResponse(VA_EVENT.TTS_START));
 
       const pcmOut = await tts(response, ttsCfg);
+      if (superseded()) return;
       const wavOut = addWavHeader(pcmOut, 16000, 1, 16);
-      const ttsId = `${crypto.randomUUID()}.wav`;
-      ttsCache.set(ttsId, wavOut);
-
-      const mediaUrl = `http://${this.cfg.serverHost}:${this.cfg.ttsHttpPort}/${ttsId}`;
-      console.log(`[voice:esphome] TTS URL: ${mediaUrl}`);
+      const ttsId = putTts(wavOut, this.cfg.ttsTtlMs, this.cfg.ttsMaxEntries);
+      const mediaUrl = ttsUrl(this.cfg.serverHost, this.cfg.ttsHttpPort, ttsId);
+      this.dbg(`[voice:esphome] TTS URL: ${mediaUrl}`);
 
       this.send(MSG.VOICE_ASSISTANT_EVENT_RESPONSE, eventResponse(VA_EVENT.TTS_END, { url: mediaUrl }));
       this.send(MSG.VOICE_ASSISTANT_ANNOUNCE_REQUEST, announceRequest(mediaUrl, response));
+      this.send(MSG.VOICE_ASSISTANT_EVENT_RESPONSE, eventResponse(VA_EVENT.RUN_END));
+      this.resetTurn();
     } catch (err) {
+      if (superseded()) return; // watchdog or newer turn already handled cleanup
       console.error("[voice:esphome] pipeline error:", (err as Error).message);
       this.resetTurn();
       this.send(MSG.VOICE_ASSISTANT_EVENT_RESPONSE, eventResponse(VA_EVENT.ERROR, {
@@ -540,63 +616,69 @@ export class EspHomeClient {
 
   // ── Public control API ───────────────────────────────────────────────
 
-  wake() {
-    if (this.state !== "idle") return;
+  wake(): ControlResult {
+    if (this.state !== "idle") return { ok: false, message: `cannot wake while ${this.state}` };
     this.state = "listening";
     this.audioChunks = [];
     this.send(MSG.VOICE_ASSISTANT_REQUEST, concat(
       encodeBool(1, true), encodeString(5, "manual")
     ));
+    return { ok: true, message: "listening" };
   }
 
-  triggerScene(sceneName: string) {
+  triggerScene(sceneName: string): ControlResult {
     const ent = [...this.entities.values()].find(e => e.kind === "select" && e.objectId.includes("scene"));
-    if (!ent) { console.warn("[voice:esphome] no scene select entity found"); return; }
+    if (!ent) return { ok: false, message: "no scene select entity found" };
     this.send(ENTITY_MSG.SELECT_COMMAND, concat(
       encodeFixed32(1, ent.key),
       encodeString(2, sceneName),
     ));
-    console.log(`[voice:esphome] scene: ${sceneName}`);
+    return { ok: true, message: `scene set to ${sceneName}` };
   }
 
-  setMute(muted: boolean) {
+  setMute(muted: boolean): ControlResult {
     const ent = [...this.entities.values()].find(e => e.kind === "switch" && e.objectId.includes("mute"));
-    if (!ent) { console.warn("[voice:esphome] no mute switch entity found"); return; }
+    if (!ent) return { ok: false, message: "no mute switch entity found" };
     this.send(ENTITY_MSG.SWITCH_COMMAND, concat(
       encodeFixed32(1, ent.key),
       encodeBool(2, muted),
     ));
+    return { ok: true, message: muted ? "muted" : "unmuted" };
   }
 
-  mediaPlay(url: string) {
+  mediaPlay(url: string): ControlResult {
     const ent = [...this.entities.values()].find(e => e.kind === "media_player");
-    if (!ent) return;
+    if (!ent) return { ok: false, message: "no media_player entity found" };
     this.send(ENTITY_MSG.MEDIA_PLAYER_COMMAND, concat(
       encodeFixed32(1, ent.key),
       encodeBool(2, true),
       encodeString(3, url),
     ));
+    return { ok: true, message: "playing media" };
   }
 
-  mediaCommand(cmd: "play" | "pause" | "stop" | "mute" | "unmute") {
+  mediaCommand(cmd: "play" | "pause" | "stop" | "mute" | "unmute"): ControlResult {
     const ent = [...this.entities.values()].find(e => e.kind === "media_player");
-    if (!ent) return;
+    if (!ent) return { ok: false, message: "no media_player entity found" };
     const cmdMap = { play: 0, pause: 1, stop: 2, mute: 3, unmute: 4 };
     this.send(ENTITY_MSG.MEDIA_PLAYER_COMMAND, concat(
       encodeFixed32(1, ent.key),
       encodeBool(8, true), // has_command
       encodeUint32(9, cmdMap[cmd]),
     ));
+    return { ok: true, message: `media ${cmd}` };
   }
 
-  setVolume(level: number) {
+  setVolume(level: number): ControlResult {
     const ent = [...this.entities.values()].find(e => e.kind === "media_player");
-    if (!ent) return;
+    if (!ent) return { ok: false, message: "no media_player entity found" };
+    const clamped = Math.max(0, Math.min(1, level));
     this.send(ENTITY_MSG.MEDIA_PLAYER_COMMAND, concat(
       encodeFixed32(1, ent.key),
       encodeBool(6, true), // has_volume
-      encodeFloat(7, Math.max(0, Math.min(1, level))),
+      encodeFloat(7, clamped),
     ));
+    return { ok: true, message: `volume ${Math.round(clamped * 100)}%` };
   }
 
   requestSnapshot(): Promise<Uint8Array | null> {
@@ -619,20 +701,19 @@ export class EspHomeClient {
 
   getState(): AvaState { return JSON.parse(JSON.stringify(this.liveState)); }
 
-  announce(mediaUrl: string, text: string) {
+  announce(mediaUrl: string, text: string): ControlResult {
     this.send(MSG.VOICE_ASSISTANT_ANNOUNCE_REQUEST, announceRequest(mediaUrl, text));
+    return { ok: true, message: "announced" };
   }
 
-  setTextEntity(objectId: string, value: string) {
+  setTextEntity(objectId: string, value: string): ControlResult {
     const ent = [...this.entities.values()].find(e => e.kind === "text" && e.objectId === objectId);
-    if (!ent) {
-      console.warn(`[voice:esphome] text entity not found: ${objectId}`);
-      return;
-    }
+    if (!ent) return { ok: false, message: `text entity not found: ${objectId}` };
     this.send(ENTITY_MSG.TEXT_COMMAND, concat(
       encodeFixed32(1, ent.key),
       encodeString(2, value),
     ));
+    return { ok: true, message: `set ${objectId}` };
   }
 
   listEntities(): Partial<Record<EntityKind, string[]>> {

@@ -6,39 +6,112 @@
  *
  * The ESPHome client starts eagerly on extension load (not waiting for a
  * session_start) so the connection is always live, even between user turns.
+ *
+ * Configuration is via environment variables. In the piclaw container these
+ * map to keychain entries (e.g. keychain `azure/speech-key` → $AZURE_SPEECH_KEY),
+ * so secrets can be kept in the keychain rather than plaintext env files.
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { Type } from "@sinclair/typebox";
-import { StringEnum } from "@earendil-works/pi-ai";
-import { loadConfig } from "./config.ts";
+import { Type, type Static } from "@sinclair/typebox";
+import { loadConfig, type VoiceConfig } from "./config.ts";
 import { ensureTtsChat, closeDb } from "./store/messages.ts";
-import { addWavHeader, EspHomeClient } from "./esphome/client.ts";
+import { addWavHeader, EspHomeClient, putTts, ttsUrl } from "./esphome/client.ts";
 import { VoiceQueue } from "./voice-queue.ts";
+
+const AvaToolSchema = Type.Object({
+  command: Type.Union([
+    Type.Literal("announce"),
+    Type.Literal("play"),
+    Type.Literal("pause"),
+    Type.Literal("stop"),
+    Type.Literal("mute"),
+    Type.Literal("unmute"),
+    Type.Literal("volume"),
+    Type.Literal("scene"),
+    Type.Literal("wake"),
+    Type.Literal("sensors"),
+    Type.Literal("entities"),
+    Type.Literal("snapshot"),
+    Type.Literal("subtitle"),
+  ]),
+  text: Type.Optional(Type.String({ description: "Text to announce or set as subtitle" })),
+  url: Type.Optional(Type.String({ description: "Media URL to play" })),
+  scene: Type.Optional(Type.String({ description: "Notification scene name" })),
+  level: Type.Optional(Type.Number({ description: "Volume 0.0–1.0" })),
+});
+
+type AvaToolParams = Static<typeof AvaToolSchema>;
+
+function avaTextResult(text: string) {
+  return { content: [{ type: "text" as const, text }], details: null };
+}
+
+function avaContentResult(content: Array<{ type: "text"; text: string } | { type: "image"; data: string; mimeType: string }>) {
+  return { content, details: null };
+}
+
+/** Human-readable configuration diagnostics for /voice-status and /voice-setup. */
+function diagnostics(cfg: VoiceConfig | null): string {
+  if (!cfg) return "Voice pipeline not configured — set AZURE_SPEECH_KEY (keychain: azure/speech-key).";
+  const lines = [
+    `Azure region: ${cfg.azure.region}`,
+    `STT: ${cfg.azure.sttLang} (${cfg.azure.sttTimeoutMs}ms)  TTS: ${cfg.azure.ttsVoice} (${cfg.azure.ttsTimeoutMs}ms)`,
+    cfg.esphome
+      ? `ESPHome: ${cfg.esphome.host}:${cfg.esphome.port} | serverHost ${cfg.esphome.serverHost}:${cfg.esphome.ttsHttpPort} | password ${cfg.esphome.password ? "set" : "NONE (plaintext)"}`
+      : "ESPHome: not configured — set ESPHOME_HOST",
+    `debug: ${cfg.debug ? "on" : "off"}  storeTurns: ${cfg.storeTurns ? "on" : "off"}`,
+  ];
+  if (cfg.warnings.length) lines.push("", "Warnings:", ...cfg.warnings.map((w) => `  • ${w}`));
+  return lines.join("\n");
+}
 
 export default function (pi: ExtensionAPI) {
   const cfg = loadConfig();
 
+  // /voice-setup and /voice-status are ALWAYS registered so they can report
+  // diagnostics regardless of configuration state (#14).
+  pi.registerCommand("voice-setup", {
+    description: "Show voice pipeline setup instructions and current config diagnostics",
+    handler: async (_args, ctx) => {
+      const help = [
+        "Voice pipeline configuration (env vars; keychain entries inject as env):",
+        "  AZURE_SPEECH_KEY (keychain azure/speech-key)  — required",
+        "  AZURE_SPEECH_REGION, AZURE_SPEECH_STT_LANG, AZURE_SPEECH_TTS_VOICE",
+        "  ESPHOME_HOST — required for device control",
+        "  ESPHOME_PASSWORD (keychain esphome/password), ESPHOME_SERVER_HOST, ESPHOME_TTS_PORT",
+        "  VOICE_DEBUG=1 for verbose transcript/response logging",
+        "",
+        diagnostics(cfg),
+      ].join("\n");
+      ctx.ui.notify(help, cfg ? "info" : "warning");
+    },
+  });
+
   if (!cfg) {
-    pi.registerCommand("voice-setup", {
-      description: "Show voice pipeline setup instructions",
-      handler: async (_args, ctx) => {
-        ctx.ui.notify(
-          "Voice pipeline not configured — set AZURE_SPEECH_KEY",
-          "warning",
-        );
-      },
+    pi.registerCommand("voice-status", {
+      description: "Voice pipeline status",
+      handler: async (_args, ctx) => ctx.ui.notify(diagnostics(cfg), "warning"),
     });
     return;
   }
 
+  // Surface config warnings at startup (#3/#7).
+  for (const w of cfg.warnings) console.warn(`[voice] ${w}`);
+
   if (!cfg.esphome) {
     console.log("[voice] ESPHome not configured — set ESPHOME_HOST");
+    pi.registerCommand("voice-status", {
+      description: "Voice pipeline status",
+      handler: async (_args, ctx) => ctx.ui.notify(diagnostics(cfg), "warning"),
+    });
     return;
   }
 
+  const esphome = cfg.esphome;
+
   // ── State ──────────────────────────────────────────────────────────────────
-  const queue = new VoiceQueue();
+  const queue = new VoiceQueue({ timeoutMs: cfg.llmTimeoutMs });
 
   // rpcChat: send text to Flint via pi.sendUserMessage, wait for agent_end
   const rpcChat = (text: string): Promise<string> =>
@@ -54,9 +127,9 @@ export default function (pi: ExtensionAPI) {
 
   // ── Start ESPHome client eagerly ───────────────────────────────────────────
   ensureTtsChat(cfg.dbPath, cfg.chatJid);
-  const client = new EspHomeClient(cfg.esphome, cfg, rpcChat);
+  const client = new EspHomeClient(esphome, cfg, rpcChat);
   client.start().then(() => {
-    console.log(`[voice] ESPHome → ${cfg.esphome!.host}:${cfg.esphome!.port}`);
+    console.log(`[voice] ESPHome → ${esphome.host}:${esphome.port}`);
   }).catch((err: unknown) => {
     console.error("[voice] ESPHome start failed:", (err as Error).message);
   });
@@ -70,59 +143,61 @@ export default function (pi: ExtensionAPI) {
     promptGuidelines: [
       "Use ava to play music, announce something, show a notification scene, mute/unmute the mic, check room sensors, or control the ThinkSmart View.",
     ],
-    parameters: Type.Object({
-      command: StringEnum(["announce", "play", "pause", "stop", "mute", "unmute", "volume", "scene", "wake", "sensors", "entities", "snapshot", "subtitle"] as const),
-      text:  Type.Optional(Type.String({ description: "Text to announce or set as subtitle" })),
-      url:   Type.Optional(Type.String({ description: "Media URL to play" })),
-      scene: Type.Optional(Type.String({ description: "Notification scene name" })),
-      level: Type.Optional(Type.Number({ description: "Volume 0.0–1.0" })),
-    }),
-    async execute(_id, params, _signal, _onUpdate, _ctx) {
-      switch (params.command) {
-        case "announce": {
-          if (!params.text) return { content: [{ type: "text", text: "text required" }] };
-          const { synthesize } = await import("./azure/tts.ts");
-          const pcm = await synthesize(params.text, {
-            region: cfg.azure.region, key: cfg.azure.key,
-            voice: cfg.azure.ttsVoice, language: cfg.azure.ttsLang,
-          });
-          const pcmWav = addWavHeader(pcm, 16000, 1, 16);
-          const id = `${crypto.randomUUID()}.wav`;
-          const { ttsCache } = await import("./esphome/client.ts");
-          ttsCache.set(id, pcmWav);
-          const url = `http://${cfg.esphome!.serverHost}:${cfg.esphome!.ttsHttpPort}/${id}`;
-          client.announce(url, params.text);
-          return { content: [{ type: "text", text: `Announcing: "${params.text}"` }] };
+    parameters: AvaToolSchema,
+    async execute(_id, params: AvaToolParams, _signal, _onUpdate, _ctx) {
+      // Top-level guard so a device/network error never crashes the tool call (#12).
+      try {
+        switch (params.command) {
+          case "announce": {
+            if (!params.text) return avaTextResult("text required");
+            const { synthesize } = await import("./azure/tts.ts");
+            const pcm = await synthesize(params.text, {
+              region: cfg.azure.region, key: cfg.azure.key,
+              voice: cfg.azure.ttsVoice, language: cfg.azure.ttsLang,
+              timeoutMs: cfg.azure.ttsTimeoutMs,
+            });
+            const pcmWav = addWavHeader(pcm, 16000, 1, 16);
+            const id = putTts(pcmWav, esphome.ttsTtlMs, esphome.ttsMaxEntries);
+            const url = ttsUrl(esphome.serverHost, esphome.ttsHttpPort, id);
+            const r = client.announce(url, params.text);
+            return avaTextResult(r.ok ? `Announcing: "${params.text}"` : `Failed: ${r.message}`);
+          }
+          case "subtitle": {
+            const r = client.setTextEntity("conversation_subtitles", params.text ?? "");
+            return avaTextResult(r.ok ? "Subtitle set" : `Failed: ${r.message}`);
+          }
+          case "play": {
+            const r = params.url ? client.mediaPlay(params.url) : client.mediaCommand("play");
+            return avaTextResult(r.ok ? "Playing" : `Failed: ${r.message}`);
+          }
+          case "pause": { const r = client.mediaCommand("pause"); return avaTextResult(r.ok ? "Paused" : `Failed: ${r.message}`); }
+          case "stop":  { const r = client.mediaCommand("stop");  return avaTextResult(r.ok ? "Stopped" : `Failed: ${r.message}`); }
+          case "mute":  { const r = client.setMute(true);  return avaTextResult(r.ok ? "Muted" : `Failed: ${r.message}`); }
+          case "unmute":{ const r = client.setMute(false); return avaTextResult(r.ok ? "Unmuted" : `Failed: ${r.message}`); }
+          case "wake":  { const r = client.wake(); return avaTextResult(r.ok ? "Wake triggered" : `Failed: ${r.message}`); }
+          case "volume":{ const r = client.setVolume(params.level ?? 0.5); return avaTextResult(r.ok ? r.message : `Failed: ${r.message}`); }
+          case "scene": { const r = client.triggerScene(params.scene ?? ""); return avaTextResult(r.ok ? r.message : `Failed: ${r.message}`); }
+          case "sensors": return avaTextResult(JSON.stringify(client.getSensors(), null, 2));
+          case "entities":return avaTextResult(JSON.stringify(client.listEntities(), null, 2));
+          case "snapshot": {
+            const img = await client.requestSnapshot();
+            if (!img) return avaTextResult("snapshot timeout");
+            return avaContentResult([
+              { type: "text", text: `${img.length} byte JPEG` },
+              { type: "image", data: Buffer.from(img).toString("base64"), mimeType: "image/jpeg" },
+            ]);
+          }
+          default: return avaTextResult(`unknown command: ${params.command}`);
         }
-        case "subtitle":
-          client.setTextEntity("conversation_subtitles", params.text ?? "");
-          return { content: [{ type: "text", text: "Subtitle set" }] };
-        case "play":    params.url ? client.mediaPlay(params.url) : client.mediaCommand("play"); return { content: [{ type: "text", text: "Playing" }] };
-        case "pause":   client.mediaCommand("pause");  return { content: [{ type: "text", text: "Paused" }] };
-        case "stop":    client.mediaCommand("stop");   return { content: [{ type: "text", text: "Stopped" }] };
-        case "mute":    client.setMute(true);          return { content: [{ type: "text", text: "Muted" }] };
-        case "unmute":  client.setMute(false);         return { content: [{ type: "text", text: "Unmuted" }] };
-        case "wake":    client.wake();                 return { content: [{ type: "text", text: "Wake triggered" }] };
-        case "volume":  client.setVolume(params.level ?? 0.5); return { content: [{ type: "text", text: `Volume → ${Math.round((params.level ?? 0.5) * 100)}%` }] };
-        case "scene":   client.triggerScene(params.scene ?? ""); return { content: [{ type: "text", text: `Scene: ${params.scene}` }] };
-        case "sensors": return { content: [{ type: "text", text: JSON.stringify(client.getSensors(), null, 2) }] };
-        case "entities":return { content: [{ type: "text", text: JSON.stringify(client.listEntities(), null, 2) }] };
-        case "snapshot": {
-          const img = await client.requestSnapshot();
-          if (!img) return { content: [{ type: "text", text: "snapshot timeout" }] };
-          return { content: [
-            { type: "text", text: `${img.length} byte JPEG` },
-            { type: "image", source: { type: "base64", mediaType: "image/jpeg", data: Buffer.from(img).toString("base64") } },
-          ]};
-        }
-        default: return { content: [{ type: "text", text: `unknown command: ${params.command}` }] };
+      } catch (err) {
+        return avaTextResult(`ava error: ${(err as Error).message}`);
       }
     },
   });
 
   // ── Lifecycle ───────────────────────────────────────────────────────────────
   pi.on("session_start", async (_event, ctx) => {
-    ctx.ui.setStatus("voice", `🎤 Ava → ${cfg.esphome!.host} | ${client.entities.size} entities`);
+    ctx.ui.setStatus("voice", `🎤 Ava → ${esphome.host} | ${client.entities.size} entities`);
   });
 
   pi.on("session_shutdown", async () => {
@@ -134,7 +209,7 @@ export default function (pi: ExtensionAPI) {
     description: "Voice pipeline status",
     handler: async (_args, ctx) => {
       ctx.ui.notify(
-        `🎤 ESPHome → ${cfg.esphome?.host}:${cfg.esphome?.port} | ${client.entities.size} entities`,
+        `🎤 ESPHome → ${esphome.host}:${esphome.port} | ${client.entities.size} entities\n\n${diagnostics(cfg)}`,
         "info",
       );
     },
