@@ -2,6 +2,13 @@ name: Actions cleanup
 
 on:
   workflow_run:
+    workflows:
+      - "Build & deploy docs + tarballs"
+      - "Publish archive packages to GitHub Packages"
+      - "sync-catalog"
+      - "Triage issue → tag addon owner"
+      - "validate-metadata"
+      - "pages-build-deployment"
     types: [completed]
   workflow_dispatch:
 
@@ -13,8 +20,7 @@ jobs:
   cleanup:
     name: Prune old Actions artifacts and runs
     if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.name != 'Actions cleanup')
+      github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Delete artifacts and completed runs older than 7 days
