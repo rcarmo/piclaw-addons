@@ -1,6 +1,14 @@
 name: Actions cleanup
 
 on:
+  workflow_run:
+    workflows:
+      - "Build & deploy docs + tarballs"
+      - "Publish archive packages to GitHub Packages"
+      - "sync-catalog"
+      - "validate-metadata"
+      - "pages-build-deployment"
+    types: [completed]
   workflow_dispatch:
 
 permissions:
@@ -10,6 +18,8 @@ permissions:
 jobs:
   cleanup:
     name: Prune old Actions artifacts, caches, and runs
+    if: >-
+      github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Delete stale artifacts, branch-scoped caches, and old completed runs
