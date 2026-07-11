@@ -20,6 +20,26 @@ async function apiJson(path, options) {
   return payload;
 }
 
+function formatTimestamp(value) {
+  if (!value) return "never";
+  try { return new Date(value).toLocaleString(); } catch { return "unknown"; }
+}
+
+function formatAge(value) {
+  if (!value) return "never";
+  const seconds = Math.max(0, Math.round((Date.now() - Number(value)) / 1000));
+  if (seconds < 60) return `${seconds}s ago`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  return `${Math.floor(seconds / 3600)}h ago`;
+}
+
+function compactTokens(value) {
+  if (!Number.isFinite(value) || value <= 0) return "?";
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(value >= 10_000_000 ? 0 : 1)}M`;
+  if (value >= 1_000) return `${Math.round(value / 1_000)}K`;
+  return String(value);
+}
+
 function DelegateSettings() {
   if (!HAS_RUNTIME) return null;
   const [config, setConfig] = useState(null);
@@ -29,6 +49,13 @@ function DelegateSettings() {
   const [excludedModelsText, setExcludedModelsText] = useState("");
   const [cli, setCli] = useState("");
   const [discoveryError, setDiscoveryError] = useState("");
+  const [cache, setCache] = useState({});
+  const [runtimeCatalog, setRuntimeCatalog] = useState({});
+  const [executableCatalog, setExecutableCatalog] = useState({});
+  const [runtimeOnlyModels, setRuntimeOnlyModels] = useState([]);
+  const [unclassifiedModels, setUnclassifiedModels] = useState([]);
+  const [rejectedModels, setRejectedModels] = useState([]);
+  const [effectiveExclusions, setEffectiveExclusions] = useState({ providers: [], models: [] });
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -46,6 +73,13 @@ function DelegateSettings() {
       setCandidates(payload.candidates || []);
       setCli(payload.cli || "");
       setDiscoveryError(payload.discovery_error || "");
+      setCache(payload.cache || {});
+      setRuntimeCatalog(payload.runtime_catalog || {});
+      setExecutableCatalog(payload.executable_catalog || {});
+      setRuntimeOnlyModels(payload.runtime_only_models || []);
+      setUnclassifiedModels(payload.unclassified_models || []);
+      setRejectedModels(payload.rejected_models || []);
+      setEffectiveExclusions(payload.effective_exclusions || { providers: [], models: [] });
       setMessage(refresh ? "Model list refreshed." : "");
       if (refresh) setTimeout(() => setMessage(""), 2500);
     } catch (error) {
@@ -101,14 +135,28 @@ function DelegateSettings() {
   const I = { width: "100%", padding: "6px 10px", background: "var(--bg-secondary)", color: "var(--text-primary)", border: "1px solid var(--border-color)", borderRadius: "6px", fontSize: "0.84rem" };
   const H = { margin: "1.2rem 0 0.45rem", fontSize: "0.9rem", color: "var(--text-primary)", borderBottom: "1px solid var(--border-color)", paddingBottom: "0.3rem" };
   const buttonStyle = "padding:4px 10px;border:1px solid var(--border-color);border-radius:6px;background:var(--bg-secondary);color:var(--text-primary);cursor:pointer;font-size:0.82rem";
+  const cardStyle = { padding: "0.55rem 0.65rem", border: "1px solid var(--border-color)", borderRadius: "7px", background: "var(--bg-secondary)" };
 
   return html`
     <div style="padding:0.5rem 0;">
+      <h4 style=${H}>Catalog status</h4>
+      <div style=${{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "0.45rem", marginBottom: "0.6rem" }}>
+        <div style=${cardStyle}><div style="font-size:1.05rem;font-weight:600">${runtimeCatalog.model_count || 0}</div><div style="font-size:0.72rem;color:var(--text-secondary)">Runtime models</div></div>
+        <div style=${cardStyle}><div style="font-size:1.05rem;font-weight:600">${executableCatalog.model_count || 0}</div><div style="font-size:0.72rem;color:var(--text-secondary)">Child CLI models</div></div>
+        <div style=${cardStyle}><div style="font-size:1.05rem;font-weight:600">${executableCatalog.candidate_count || 0}</div><div style="font-size:0.72rem;color:var(--text-secondary)">Eligible candidates</div></div>
+        <div style=${cardStyle}><div style="font-size:1.05rem;font-weight:600">${runtimeOnlyModels.length}</div><div style="font-size:0.72rem;color:var(--text-secondary)">Runtime-only</div></div>
+        <div style=${cardStyle}><div style="font-size:1.05rem;font-weight:600">${unclassifiedModels.length}</div><div style="font-size:0.72rem;color:var(--text-secondary)">Unclassified CLI</div></div>
+      </div>
+      <div style=${{ fontSize: "0.76rem", color: "var(--text-secondary)", lineHeight: 1.5 }}>
+        <div>Current: <code>${runtimeCatalog.current_model || "not captured"}</code>${runtimeCatalog.current_classification?.tier ? ` · T${runtimeCatalog.current_classification.tier} · ${runtimeCatalog.current_classification.rule}` : " · unclassified"}</div>
+        <div>Executable cache: ${formatAge(cache.refreshed_at)} · refreshed ${formatTimestamp(cache.refreshed_at)} · ${cache.stale ? "stale/retrying" : "fresh"}</div>
+        ${cli && html`<div>CLI: <code>${cli}</code></div>`}
+        ${discoveryError && html`<div style=${{ color: "var(--danger-color)" }}>Last refresh error: ${discoveryError} (last known-good catalog retained)</div>`}
+      </div>
+
       <h4 style=${H}>Searchable providers</h4>
       <div style=${{ fontSize: "0.78rem", color: "var(--text-secondary)", lineHeight: 1.45, marginBottom: "0.7rem" }}>
-        Delegate searches for close matches to its Copilot reference model list across checked providers. Providers on the configurable exclusion list are ignored; by default discovered <code>azure-*</code> providers are excluded.
-        ${cli && html`<div style=${{ marginTop: "0.35rem" }}>CLI: <code>${cli}</code></div>`}
-        ${discoveryError && html`<div style=${{ marginTop: "0.35rem", color: "var(--danger-color)" }}>Model discovery failed: ${discoveryError}</div>`}
+        Delegate deterministically classifies exact child-CLI models from checked providers. Runtime-only Piclaw models are diagnostic only and cannot be selected. By default discovered <code>azure-*</code> providers are excluded.
       </div>
       <div style=${{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "0.65rem" }}>
         <input style=${I} type="search" value=${filter} placeholder="Filter providers…" onInput=${(e) => setFilter(e.target.value)} />
@@ -126,7 +174,7 @@ function DelegateSettings() {
                     const next = new Set(enabledSet);
                     if (e.target.checked) next.add(provider.provider);
                     else next.delete(provider.provider);
-                    saveProviders([...next].sort());
+                    saveProviders([...next]);
                   }} />
                 <span>Search</span>
               </label>
@@ -136,7 +184,7 @@ function DelegateSettings() {
                     const next = new Set(excludedSet);
                     if (e.target.checked) next.add(provider.provider);
                     else next.delete(provider.provider);
-                    saveExcludedProviders([...next].sort());
+                    saveExcludedProviders([...next]);
                   }} />
                 <span>Exclude</span>
               </label>
@@ -148,22 +196,42 @@ function DelegateSettings() {
 
       <h4 style=${H}>Excluded model patterns</h4>
       <div style=${{ fontSize: "0.78rem", color: "var(--text-secondary)", marginBottom: "0.45rem" }}>
-        Optional model exclusions, one per line or comma-separated. Supports exact ids, substrings, or <code>*</code> wildcards, e.g. <code>gpt-4o</code> or <code>azure-*/*</code>.
+        Optional automatic-selection exclusions, one per line or comma-separated. Supports exact ids, substrings, or <code>*</code> wildcards. Exact explicit overrides bypass these policy exclusions but must be executable. Effective provider exclusions: ${effectiveExclusions.providers?.join(", ") || "none"}.
       </div>
       <textarea style=${{ ...I, minHeight: "74px", resize: "vertical", fontFamily: "var(--font-mono, monospace)" }} value=${excludedModelsText} disabled=${saving} placeholder="gpt-4o\n*/experimental-*" onInput=${(e) => setExcludedModelsText(e.target.value)} />
       <div style=${{ display: "flex", justifyContent: "flex-end", marginTop: "0.4rem" }}>
         <button type="button" style=${buttonStyle} disabled=${saving} onClick=${saveExcludedModels}>Save exclusions</button>
       </div>
 
-      <h4 style=${H}>Matched delegate candidates</h4>
+      <h4 style=${H}>Executable delegate candidates</h4>
       <div style=${{ fontSize: "0.78rem", color: "var(--text-secondary)", marginBottom: "0.45rem" }}>
-        ${candidates.length} close model matches found across selected providers.
+        ${candidates.length} uniquely classified child-CLI models remain after provider and model policy filters.
       </div>
       <div style=${{ maxHeight: "180px", overflow: "auto", border: "1px solid var(--border-color)", borderRadius: "6px" }}>
         ${candidates.slice(0, 80).map((candidate) => html`
-          <div key=${`${candidate.id}:${candidate.sourceId}`} style=${{ display: "grid", gridTemplateColumns: "3rem 1fr", gap: "0.5rem", padding: "0.35rem 0.5rem", borderBottom: "1px solid var(--border-color)", fontSize: "0.76rem" }}>
+          <div key=${candidate.id} title=${candidate.classificationReason} style=${{ display: "grid", gridTemplateColumns: "3rem 1fr", gap: "0.5rem", padding: "0.4rem 0.5rem", borderBottom: "1px solid var(--border-color)", fontSize: "0.76rem" }}>
             <span style="color:var(--text-secondary)">T${candidate.tier}</span>
-            <span><code>${candidate.id}</code> <span style="color:var(--text-secondary)">← ${candidate.sourceId} (${candidate.matchScore})</span></span>
+            <span>
+              <code>${candidate.id}</code>
+              <span style="color:var(--text-secondary)"> · ${candidate.family} · ${candidate.classificationRule}</span>
+              <div style="color:var(--text-secondary);font-size:0.7rem;margin-top:0.15rem">images=${candidate.supportsImages === true ? "yes" : candidate.supportsImages === false ? "no" : "?"} · reasoning=${candidate.reasoning === true ? "yes" : candidate.reasoning === false ? "no" : "?"} · context=${compactTokens(candidate.contextWindow)} · output=${compactTokens(candidate.maxOutputTokens)}</div>
+            </span>
+          </div>`)}
+      </div>
+
+      <h4 style=${H}>Catalog differences and rejections</h4>
+      <div style=${{ fontSize: "0.78rem", color: "var(--text-secondary)", marginBottom: "0.45rem" }}>
+        Runtime-only models are known to Piclaw but not executable by the child CLI. Rejected CLI models remain executable but are excluded or unclassified.
+      </div>
+      <div style=${{ maxHeight: "190px", overflow: "auto", border: "1px solid var(--border-color)", borderRadius: "6px" }}>
+        ${runtimeOnlyModels.length === 0 && rejectedModels.length === 0 && html`<div style="padding:0.5rem;font-size:0.76rem;color:var(--text-secondary)">No catalog differences or rejected models.</div>`}
+        ${runtimeOnlyModels.slice(0, 50).map((model) => html`
+          <div key=${`runtime:${model.fullId}`} style="padding:0.35rem 0.5rem;border-bottom:1px solid var(--border-color);font-size:0.74rem">
+            <code>${model.fullId}</code> <span style="color:var(--text-secondary)">runtime-only · ${model.classification?.status === "classified" ? `T${model.classification.tier} ${model.classification.rule}` : model.classification?.reason}</span>
+          </div>`)}
+        ${rejectedModels.slice(0, 80).map((model) => html`
+          <div key=${`rejected:${model.fullId}`} style="padding:0.35rem 0.5rem;border-bottom:1px solid var(--border-color);font-size:0.74rem">
+            <code>${model.fullId}</code> <span style="color:var(--text-secondary)">rejected · ${model.rejection_reason}</span>
           </div>`)}
       </div>
       ${message && html`<div style=${{ marginTop: "0.75rem", fontSize: "0.8rem", color: /failed|error/i.test(message) ? "var(--danger-color)" : "var(--accent-color)" }}>${message}</div>`}

@@ -1,0 +1,350 @@
+{
+  "captured_at": "2026-07-11T18:58:11Z",
+  "source": "Delegate 0.1.9 buildModelCandidates over cli-models-29.txt",
+  "executable_model_count": 29,
+  "candidate_assignment_count": 26,
+  "unique_candidate_model_count": 21,
+  "ignored_executable_models": [
+    "cerebras/gemma-4-31b",
+    "cerebras/gpt-oss-120b",
+    "cerebras/zai-glm-4.7",
+    "github-copilot/claude-opus-4.8",
+    "github-copilot/gemini-3.5-flash",
+    "github-copilot/mai-code-1-flash-picker",
+    "ollama/lfm2:latest",
+    "ollama/qwen3.5:35b"
+  ],
+  "multi_tier_collisions": [
+    {
+      "id": "github-copilot/gpt-5.4-mini",
+      "assignments": [
+        {
+          "tier": 2,
+          "sourceId": "github-copilot/gpt-5.4-mini",
+          "matchScore": 100
+        },
+        {
+          "tier": 3,
+          "sourceId": "github-copilot/gpt-5.4",
+          "matchScore": 90
+        }
+      ],
+      "tiers": [
+        2,
+        3
+      ]
+    },
+    {
+      "id": "openai-codex/gpt-5.4-mini",
+      "assignments": [
+        {
+          "tier": 2,
+          "sourceId": "github-copilot/gpt-5.4-mini",
+          "matchScore": 100
+        },
+        {
+          "tier": 3,
+          "sourceId": "github-copilot/gpt-5.4",
+          "matchScore": 90
+        }
+      ],
+      "tiers": [
+        2,
+        3
+      ]
+    },
+    {
+      "id": "github-copilot/gpt-5-mini",
+      "assignments": [
+        {
+          "tier": 2,
+          "sourceId": "github-copilot/gpt-5.4-mini",
+          "matchScore": 80
+        },
+        {
+          "tier": 3,
+          "sourceId": "github-copilot/gpt-5",
+          "matchScore": 90
+        }
+      ],
+      "tiers": [
+        2,
+        3
+      ]
+    },
+    {
+      "id": "github-copilot/gpt-5.3-codex",
+      "assignments": [
+        {
+          "tier": 3,
+          "sourceId": "github-copilot/gpt-5",
+          "matchScore": 90
+        },
+        {
+          "tier": 4,
+          "sourceId": "github-copilot/gpt-5.3-codex",
+          "matchScore": 100
+        }
+      ],
+      "tiers": [
+        3,
+        4
+      ]
+    },
+    {
+      "id": "openai-codex/gpt-5.3-codex-spark",
+      "assignments": [
+        {
+          "tier": 3,
+          "sourceId": "github-copilot/gpt-5",
+          "matchScore": 90
+        },
+        {
+          "tier": 4,
+          "sourceId": "github-copilot/gpt-5.3-codex",
+          "matchScore": 90
+        }
+      ],
+      "tiers": [
+        3,
+        4
+      ]
+    }
+  ],
+  "candidates": [
+    {
+      "id": "github-copilot/claude-haiku-4.5",
+      "tier": 1,
+      "family": "claude",
+      "sourceId": "github-copilot/claude-haiku-4.5",
+      "provider": "github-copilot",
+      "modelId": "claude-haiku-4.5",
+      "matchScore": 100
+    },
+    {
+      "id": "github-copilot/gpt-5.4-mini",
+      "tier": 2,
+      "family": "gpt",
+      "sourceId": "github-copilot/gpt-5.4-mini",
+      "provider": "github-copilot",
+      "modelId": "gpt-5.4-mini",
+      "matchScore": 100
+    },
+    {
+      "id": "openai-codex/gpt-5.4-mini",
+      "tier": 2,
+      "family": "gpt",
+      "sourceId": "github-copilot/gpt-5.4-mini",
+      "provider": "openai-codex",
+      "modelId": "gpt-5.4-mini",
+      "matchScore": 100
+    },
+    {
+      "id": "github-copilot/gpt-5-mini",
+      "tier": 2,
+      "family": "gpt",
+      "sourceId": "github-copilot/gpt-5.4-mini",
+      "provider": "github-copilot",
+      "modelId": "gpt-5-mini",
+      "matchScore": 80
+    },
+    {
+      "id": "github-copilot/gemini-3-flash-preview",
+      "tier": 2,
+      "family": "gemini",
+      "sourceId": "github-copilot/gemini-3-flash-preview",
+      "provider": "github-copilot",
+      "modelId": "gemini-3-flash-preview",
+      "matchScore": 100
+    },
+    {
+      "id": "github-copilot/claude-sonnet-4.6",
+      "tier": 3,
+      "family": "claude",
+      "sourceId": "github-copilot/claude-sonnet-4.6",
+      "provider": "github-copilot",
+      "modelId": "claude-sonnet-4.6",
+      "matchScore": 100
+    },
+    {
+      "id": "github-copilot/claude-sonnet-4.5",
+      "tier": 3,
+      "family": "claude",
+      "sourceId": "github-copilot/claude-sonnet-4.5",
+      "provider": "github-copilot",
+      "modelId": "claude-sonnet-4.5",
+      "matchScore": 100
+    },
+    {
+      "id": "github-copilot/claude-sonnet-5",
+      "tier": 3,
+      "family": "claude",
+      "sourceId": "github-copilot/claude-sonnet-4.5",
+      "provider": "github-copilot",
+      "modelId": "claude-sonnet-5",
+      "matchScore": 80
+    },
+    {
+      "id": "github-copilot/gpt-5.4",
+      "tier": 3,
+      "family": "gpt",
+      "sourceId": "github-copilot/gpt-5.4",
+      "provider": "github-copilot",
+      "modelId": "gpt-5.4",
+      "matchScore": 100
+    },
+    {
+      "id": "openai-codex/gpt-5.4",
+      "tier": 3,
+      "family": "gpt",
+      "sourceId": "github-copilot/gpt-5.4",
+      "provider": "openai-codex",
+      "modelId": "gpt-5.4",
+      "matchScore": 100
+    },
+    {
+      "id": "github-copilot/gpt-5.4-mini",
+      "tier": 3,
+      "family": "gpt",
+      "sourceId": "github-copilot/gpt-5.4",
+      "provider": "github-copilot",
+      "modelId": "gpt-5.4-mini",
+      "matchScore": 90
+    },
+    {
+      "id": "openai-codex/gpt-5.4-mini",
+      "tier": 3,
+      "family": "gpt",
+      "sourceId": "github-copilot/gpt-5.4",
+      "provider": "openai-codex",
+      "modelId": "gpt-5.4-mini",
+      "matchScore": 90
+    },
+    {
+      "id": "github-copilot/gpt-5-mini",
+      "tier": 3,
+      "family": "gpt",
+      "sourceId": "github-copilot/gpt-5",
+      "provider": "github-copilot",
+      "modelId": "gpt-5-mini",
+      "matchScore": 90
+    },
+    {
+      "id": "github-copilot/gpt-5.3-codex",
+      "tier": 3,
+      "family": "gpt",
+      "sourceId": "github-copilot/gpt-5",
+      "provider": "github-copilot",
+      "modelId": "gpt-5.3-codex",
+      "matchScore": 90
+    },
+    {
+      "id": "github-copilot/gpt-5.5",
+      "tier": 3,
+      "family": "gpt",
+      "sourceId": "github-copilot/gpt-5",
+      "provider": "github-copilot",
+      "modelId": "gpt-5.5",
+      "matchScore": 90
+    },
+    {
+      "id": "openai-codex/gpt-5.3-codex-spark",
+      "tier": 3,
+      "family": "gpt",
+      "sourceId": "github-copilot/gpt-5",
+      "provider": "openai-codex",
+      "modelId": "gpt-5.3-codex-spark",
+      "matchScore": 90
+    },
+    {
+      "id": "openai-codex/gpt-5.5",
+      "tier": 3,
+      "family": "gpt",
+      "sourceId": "github-copilot/gpt-5",
+      "provider": "openai-codex",
+      "modelId": "gpt-5.5",
+      "matchScore": 90
+    },
+    {
+      "id": "openai-codex/gpt-5.6-luna",
+      "tier": 3,
+      "family": "gpt",
+      "sourceId": "github-copilot/gpt-5",
+      "provider": "openai-codex",
+      "modelId": "gpt-5.6-luna",
+      "matchScore": 90
+    },
+    {
+      "id": "openai-codex/gpt-5.6-sol",
+      "tier": 3,
+      "family": "gpt",
+      "sourceId": "github-copilot/gpt-5",
+      "provider": "openai-codex",
+      "modelId": "gpt-5.6-sol",
+      "matchScore": 90
+    },
+    {
+      "id": "openai-codex/gpt-5.6-terra",
+      "tier": 3,
+      "family": "gpt",
+      "sourceId": "github-copilot/gpt-5",
+      "provider": "openai-codex",
+      "modelId": "gpt-5.6-terra",
+      "matchScore": 90
+    },
+    {
+      "id": "github-copilot/gemini-3.1-pro-preview",
+      "tier": 3,
+      "family": "gemini",
+      "sourceId": "github-copilot/gemini-3.1-pro-preview",
+      "provider": "github-copilot",
+      "modelId": "gemini-3.1-pro-preview",
+      "matchScore": 100
+    },
+    {
+      "id": "github-copilot/gemini-2.5-pro",
+      "tier": 3,
+      "family": "gemini",
+      "sourceId": "github-copilot/gemini-2.5-pro",
+      "provider": "github-copilot",
+      "modelId": "gemini-2.5-pro",
+      "matchScore": 100
+    },
+    {
+      "id": "github-copilot/gpt-5.3-codex",
+      "tier": 4,
+      "family": "gpt",
+      "sourceId": "github-copilot/gpt-5.3-codex",
+      "provider": "github-copilot",
+      "modelId": "gpt-5.3-codex",
+      "matchScore": 100
+    },
+    {
+      "id": "openai-codex/gpt-5.3-codex-spark",
+      "tier": 4,
+      "family": "gpt",
+      "sourceId": "github-copilot/gpt-5.3-codex",
+      "provider": "openai-codex",
+      "modelId": "gpt-5.3-codex-spark",
+      "matchScore": 90
+    },
+    {
+      "id": "github-copilot/claude-opus-4.7",
+      "tier": 5,
+      "family": "claude",
+      "sourceId": "github-copilot/claude-opus-4.7",
+      "provider": "github-copilot",
+      "modelId": "claude-opus-4.7",
+      "matchScore": 100
+    },
+    {
+      "id": "github-copilot/claude-opus-4.6",
+      "tier": 5,
+      "family": "claude",
+      "sourceId": "github-copilot/claude-opus-4.6",
+      "provider": "github-copilot",
+      "modelId": "claude-opus-4.6",
+      "matchScore": 100
+    }
+  ]
+}

@@ -1,86 +1,88 @@
 ---
 name: delegate
-description: Delegate tasks to a cheaper/faster model to save tokens. Use when a task doesn't need the full conversation context.
+description: Delegate a self-contained task to a verified cheaper/faster child-Pi model in a fresh ephemeral context.
 distribution: public
 ---
 
 # Delegate
 
-Use the `delegate` tool to offload work to a cheaper/faster model in a fresh context. The delegate has its own tools (read, grep, bash, MCP) but no conversation history — saving tokens.
+Use the `delegate` tool for self-contained work that does not need the conversation history. The child runs with a verified executable model, a bounded tool profile, and no persistent Pi session.
 
-## When to delegate
+## Good delegation candidates
 
-- **File summaries** — "summarize this 500-line file" costs the full file in YOUR context; delegate reads it in ITS context instead
-- **Quick lookups** — factual questions, counting, listing, formatting
-- **Web search** — delegate has MCP + web-search skill access
-- **Code generation** — mechanical/boilerplate code that doesn't need conversation context
-- **Data extraction** — pull specific info from files without loading them into your context
-- **Exploration** — "find all files matching X" or "what does this module do"
+- File, note, or code summaries
+- Formatting, translation, extraction, and factual questions
+- Mechanical code generation or refactoring
+- Focused repository exploration and debugging
+- A second-opinion review using `judge`
 
-## When NOT to delegate
+Do not delegate when the task depends on conversation history, needs user interaction, requires frontier capability, or is simpler than describing a complete standalone prompt.
 
-- Task needs conversation history or prior context
-- Task requires multiple back-and-forth turns
-- Task needs the user to see intermediate steps
-- Task is already simple enough to do directly (one grep, one read)
+## Call shape
 
-## Key principle
-
-Delegate when the task is **self-contained** — describable in a single prompt without needing "you remember when we discussed X."
-
-## Usage
-
-```
+```ts
 delegate({
-  prompt: "Summarize the key concepts in this file",
-  files: ["notes/piclaw-sessions.md"],
-  task_category: "summarize"
+  prompt: "Read src/client.ts. Summarize its public API in five bullets and identify compatibility risks.",
+  files: ["src/client.ts"],
+  task_category: "summarize",
+  tools: "read_only"
 })
 ```
 
-### Task categories
+### Categories
 
-| Category | When | Model tier |
-|---|---|---|
-| `quick` | Formatting, factual Q&A, translation | Tier 2 (gpt-5.4-mini) |
-| `summarize` | File/note/code summaries | Tier 2 (gpt-5.4-mini) |
-| `code` | Code gen, refactoring, boilerplate | Tier 3 (sonnet-4.6) |
-| `analyze` | Code review, architecture, debugging | Tier 3 (sonnet-4.6) |
-| `reason` | Complex logic, multi-step | Tier 3 (sonnet-4.6) — if you need frontier, don't delegate |
-| `judge` | Review/critique agent's last response | Tier 3, **different model family** than current |
+| Category | Target | Use for |
+|---|---:|---|
+| `quick` | Tier 2 | Formatting, extraction, translation, factual Q&A |
+| `summarize` | Tier 2 | File, note, and code summaries |
+| `code` | Tier 3 | Code generation and refactoring |
+| `analyze` | Tier 3 | Review, architecture, and debugging |
+| `reason` | Tier 3 | Complex planning and multi-step logic |
+| `judge` | Tier 3 | Critical review from another family when available |
+
+Automatic selection is capped at the verified tier of the current model. If the current model is unknown to Delegate policy, automatic selection fails closed.
+
+## Explicit overrides
+
+Use `model: "provider/model"` only when an exact executable child-CLI model is required. Overrides bypass automatic tier and configured provider/model exclusions, but they do not bypass executability or image-capability checks. A model visible only to Piclaw runtime is not enough.
+
+## Tool profiles
+
+| Profile | Child tools |
+|---|---|
+| `read_only` | `read,grep,find,ls,mcp` |
+| `standard` (default) | `read,grep,find,ls,bash,mcp` |
+| `full` | `read,grep,find,ls,bash,edit,write,mcp` |
+
+A custom comma-separated list of Pi child built-ins is accepted. Do not assume Piclaw add-on tools are present: the child loads only the discovered MCP adapter in addition to core tools.
+
+## Files
+
+- Text files are inlined up to 100 KiB each.
+- Only content-sniffed JPEG, PNG, GIF, WebP, and BMP files are attached natively.
+- PDF, SVG, TIFF/ICO, archives, audio, video, and unknown binary data are rejected.
+- Extract document text or convert unsupported images before delegation.
+- Canonical file paths must stay under `/workspace`; symlink escapes and non-regular files are rejected.
 
 ## Judge mode
 
-When the user says "double check", "verify", "review your answer", "second opinion", or similar:
+When the user asks to double-check, verify, review, or obtain a second opinion:
 
-1. Capture your last response text
-2. Delegate with `task_category: "judge"` and include your response in the prompt
-3. The judge model is automatically chosen from a **different family** (if you're Claude, judge will be GPT, and vice versa)
-
-Example:
-```
+```ts
 delegate({
-  prompt: "Review this response for accuracy, completeness, and potential issues:\n\n<response>\n[paste last response here]\n</response>\n\nBe critical. Flag anything wrong, missing, or misleading.",
-  task_category: "judge"
+  prompt: "Review the response below for correctness, omissions, and unsupported claims. Be critical.\n\n<response>\n...\n</response>",
+  task_category: "judge",
+  tools: "read_only"
 })
 ```
 
-### Tool profiles
+Judge selection crosses families only when a valid tier-safe executable alternative exists.
 
-| Profile | Tools | When |
-|---|---|---|
-| `read_only` | read, grep, find, ls, mcp | Safe exploration only |
-| `standard` | read, grep, find, ls, bash, mcp | Most tasks (default) |
-| `full` | read, grep, find, ls, bash, edit, write, mcp | Needs to write files |
+## Prompt discipline
 
-## Prompt tips
+The child has no conversation history. Include all necessary facts, paths, constraints, and the desired output shape.
 
-The delegate has **no conversation history**. Write self-contained prompts:
+- Bad: `"Fix the bug we discussed."`
+- Good: `"Read src/cache.ts and tests/cache.test.ts. Diagnose why stale entries survive invalidate(), propose the smallest fix, and return a patch outline."`
 
-- ❌ "Summarize that file we were looking at"
-- ✅ "Summarize /workspace/notes/piclaw-sessions.md in 3 bullets"
-
-- ❌ "Fix the bug"
-- ✅ "Read /workspace/.pi/extensions/delegate.ts and check for any shell escaping issues"
-
-Include file paths explicitly. Give clear output format instructions.
+Use the final result normally. While it runs, Delegate may emit bounded structured status/tool progress. It retries automatically only for provider setup, authentication, or unavailable-model failures; ordinary execution, protocol, timeout, cancellation, and rate-limit failures are returned without retry.
