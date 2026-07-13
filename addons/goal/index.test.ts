@@ -7,6 +7,7 @@ import goalAddon, {
   buildGoalContinuationPrompt,
   buildGoalFinalizationPrompt,
   buildGoalSystemPrompt,
+  buildLocalAgentMessageHeaders,
   createThreadGoal,
   flushGoalPromptDispatchesForTests,
   goalResponse,
@@ -22,6 +23,8 @@ const addonDir = import.meta.dir;
 afterEach(async () => {
   await flushGoalPromptDispatchesForTests();
   resetGoalAddonForTests();
+  delete process.env.PICLAW_INTERNAL_SECRET;
+  delete process.env.PICLAW_WEB_INTERNAL_SECRET;
   delete (globalThis as { __piclawRuntimeInterop?: unknown }).__piclawRuntimeInterop;
   delete (globalThis as { __PICLAW_BROADCAST_EVENT__?: unknown }).__PICLAW_BROADCAST_EVENT__;
   delete (globalThis as { __piclaw_planSidebarApi?: unknown }).__piclaw_planSidebarApi;
@@ -102,6 +105,17 @@ test("goal web pane targets the thread-goal addon API", () => {
   expect(source).toContain("update_goal");
   expect(source).not.toContain("`${API}/config`");
   expect(source).not.toContain("`${API}/session`");
+});
+
+test("goal continuation requests include internal auth only for loopback agent URLs", () => {
+  process.env.PICLAW_INTERNAL_SECRET = "test-secret";
+  expect(buildLocalAgentMessageHeaders("http://127.0.0.1:3000")).toMatchObject({
+    "Content-Type": "application/json",
+    "X-Piclaw-Internal-Secret": "test-secret",
+    Authorization: "Bearer test-secret",
+  });
+  expect(buildLocalAgentMessageHeaders("http://localhost:3000")["X-Piclaw-Internal-Secret"]).toBe("test-secret");
+  expect(buildLocalAgentMessageHeaders("https://example.invalid")).toEqual({ "Content-Type": "application/json" });
 });
 
 test("resolveActiveChatJid falls back to the session directory for web branches", () => {

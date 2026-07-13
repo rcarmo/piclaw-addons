@@ -793,12 +793,32 @@ function resolveLocalAgentBaseUrl(): string {
   return `http://127.0.0.1:${port}`;
 }
 
+function isLoopbackAgentBaseUrl(baseUrl: string): boolean {
+  try {
+    const hostname = new URL(baseUrl).hostname.toLowerCase();
+    return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1" || hostname === "[::1]";
+  } catch {
+    return false;
+  }
+}
+
+export function buildLocalAgentMessageHeaders(baseUrl = resolveLocalAgentBaseUrl()): Record<string, string> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const internalSecret = normalizeText(process.env.PICLAW_INTERNAL_SECRET || process.env.PICLAW_WEB_INTERNAL_SECRET);
+  if (internalSecret && isLoopbackAgentBaseUrl(baseUrl)) {
+    headers["X-Piclaw-Internal-Secret"] = internalSecret;
+    headers.Authorization = `Bearer ${internalSecret}`;
+  }
+  return headers;
+}
+
 async function sendGoalPromptViaLocalAgent(goal: ThreadGoal, content: string): Promise<void> {
   if (goalPromptSenderForTests) return await goalPromptSenderForTests(goal, content);
-  const url = `${resolveLocalAgentBaseUrl()}/agent/default/message?chat_jid=${encodeURIComponent(goal.chat_jid)}`;
+  const baseUrl = resolveLocalAgentBaseUrl();
+  const url = `${baseUrl}/agent/default/message?chat_jid=${encodeURIComponent(goal.chat_jid)}`;
   const response = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: buildLocalAgentMessageHeaders(baseUrl),
     body: JSON.stringify({ content, mode: "auto" }),
   });
   if (!response.ok) {
