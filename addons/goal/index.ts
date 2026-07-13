@@ -72,6 +72,14 @@ export interface GoalToolResponse {
 
 type GoalRuntimeContext = Pick<ExtensionContext, "sessionManager"> | Pick<ExtensionCommandContext, "sessionManager"> | undefined;
 type PiclawBroadcastEvent = (type: string, payload: Record<string, unknown>) => void;
+type PiclawRuntimeAgentMessageApi = {
+  enqueueAgentMessage?: (request: {
+    chatJid: string;
+    content: string;
+    mode?: "auto" | "queue" | "steer";
+    source?: string;
+  }) => Promise<unknown>;
+};
 
 type GoalMutationSource = "api" | "command" | "tool" | "runtime";
 type GoalMutationAction = "create" | "update" | "clear" | "pause" | "resume" | "complete" | "blocked" | "budget_limited" | "stopped";
@@ -781,6 +789,23 @@ function sendGoalSkippedActivity(pi: ExtensionAPI, chatJid: string, reason: Goal
   }
 }
 
+function getPiclawRuntimeAgentMessageApi(): PiclawRuntimeAgentMessageApi | null {
+  const runtime = (globalThis as { __piclaw_runtime?: PiclawRuntimeAgentMessageApi }).__piclaw_runtime;
+  return runtime && typeof runtime.enqueueAgentMessage === "function" ? runtime : null;
+}
+
+async function sendGoalPromptViaRuntimeApi(goal: ThreadGoal, content: string): Promise<boolean> {
+  const runtime = getPiclawRuntimeAgentMessageApi();
+  if (!runtime?.enqueueAgentMessage) return false;
+  await runtime.enqueueAgentMessage({
+    chatJid: goal.chat_jid,
+    content,
+    mode: "auto",
+    source: "goal.continuation",
+  });
+  return true;
+}
+
 function resolveLocalAgentBaseUrl(): string {
   const fromEnv = normalizeText(process.env.PICLAW_AGENT_BASE_URL || process.env.PICLAW_WEB_BASE_URL || process.env.PICLAW_BASE_URL);
   if (fromEnv) return fromEnv.replace(/\/+$/, "");
@@ -814,6 +839,8 @@ export function buildLocalAgentMessageHeaders(baseUrl = resolveLocalAgentBaseUrl
 
 async function sendGoalPromptViaLocalAgent(goal: ThreadGoal, content: string): Promise<void> {
   if (goalPromptSenderForTests) return await goalPromptSenderForTests(goal, content);
+  if (await sendGoalPromptViaRuntimeApi(goal, content)) return;
+
   const baseUrl = resolveLocalAgentBaseUrl();
   const url = `${baseUrl}/agent/default/message?chat_jid=${encodeURIComponent(goal.chat_jid)}`;
   const response = await fetch(url, {

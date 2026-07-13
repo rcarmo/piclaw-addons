@@ -26,11 +26,12 @@ afterEach(async () => {
   delete process.env.PICLAW_INTERNAL_SECRET;
   delete process.env.PICLAW_WEB_INTERNAL_SECRET;
   delete (globalThis as { __piclawRuntimeInterop?: unknown }).__piclawRuntimeInterop;
+  delete (globalThis as { __piclaw_runtime?: unknown }).__piclaw_runtime;
   delete (globalThis as { __PICLAW_BROADCAST_EVENT__?: unknown }).__PICLAW_BROADCAST_EVENT__;
   delete (globalThis as { __piclaw_planSidebarApi?: unknown }).__piclaw_planSidebarApi;
 });
 
-function createHarness(options: { confirm?: boolean; pending?: boolean; idle?: boolean } = {}) {
+function createHarness(options: { confirm?: boolean; pending?: boolean; idle?: boolean; mockPromptSender?: boolean } = {}) {
   const commands = new Map<string, any>();
   const tools = new Map<string, any>();
   const handlers: Array<{ event: string; handler: (...args: any[]) => any }> = [];
@@ -47,9 +48,11 @@ function createHarness(options: { confirm?: boolean; pending?: boolean; idle?: b
     sendUserMessage(content: unknown, options?: unknown) { sentUserMessages.push({ content, options }); },
   } as any;
 
-  setGoalPromptSenderForTests(async (_goal, content) => {
-    sentUserMessages.push({ content, options: { via: "local-agent-endpoint" } });
-  });
+  if (options.mockPromptSender !== false) {
+    setGoalPromptSenderForTests(async (_goal, content) => {
+      sentUserMessages.push({ content, options: { via: "local-agent-endpoint" } });
+    });
+  }
 
   const ctx = {
     ui: {
@@ -116,6 +119,32 @@ test("goal continuation requests include internal auth only for loopback agent U
   });
   expect(buildLocalAgentMessageHeaders("http://localhost:3000")["X-Piclaw-Internal-Secret"]).toBe("test-secret");
   expect(buildLocalAgentMessageHeaders("https://example.invalid")).toEqual({ "Content-Type": "application/json" });
+});
+
+test("goal continuations prefer the first-class Piclaw runtime enqueue API over localhost HTTP", async () => {
+  const enqueued: unknown[] = [];
+  (globalThis as { __piclaw_runtime?: unknown }).__piclaw_runtime = {
+    enqueueAgentMessage: async (request: unknown) => {
+      enqueued.push(request);
+      return { status: "ok", chat_jid: "web:goal", queued: "followup", thread_id: null };
+    },
+  };
+
+  const { commands, sentUserMessages, ctx } = createHarness({ mockPromptSender: false });
+  await withChatContext("web:goal", "web", async () => {
+    await commands.get("goal").handler("Ship the runtime API", ctx);
+  });
+  await flushGoalPromptDispatchesForTests();
+
+  expect(sentUserMessages).toHaveLength(0);
+  expect(enqueued).toEqual([
+    {
+      chatJid: "web:goal",
+      content: "🎯 Continue goal: Ship the runtime API",
+      mode: "auto",
+      source: "goal.continuation",
+    },
+  ]);
 });
 
 test("resolveActiveChatJid falls back to the session directory for web branches", () => {
