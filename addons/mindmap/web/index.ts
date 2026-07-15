@@ -210,6 +210,38 @@ function createMindmapChrome(container: HTMLElement): void {
     container.appendChild(ctx);
 }
 
+// ── Pane mount ownership ────────────────────────────────────────
+
+const mountedMindmapPanes = new WeakMap<HTMLElement, PaneInstance>();
+
+/**
+ * The host normally disposes before remounting, but pane effects can be
+ * replayed while vendor scripts/content are still loading. Keep one owner per
+ * host container so a replay cannot append a second full-height editor below
+ * the first one.
+ */
+export function mountExclusiveMindmapPane(
+    container: HTMLElement,
+    createInstance: () => PaneInstance,
+): PaneInstance {
+    const previous = mountedMindmapPanes.get(container);
+    previous?.dispose();
+    if (typeof container.replaceChildren === 'function') container.replaceChildren();
+    else container.innerHTML = '';
+
+    const instance = createInstance();
+    const originalDispose = instance.dispose.bind(instance);
+    let disposed = false;
+    instance.dispose = () => {
+        if (disposed) return;
+        disposed = true;
+        if (mountedMindmapPanes.get(container) === instance) mountedMindmapPanes.delete(container);
+        originalDispose();
+    };
+    mountedMindmapPanes.set(container, instance);
+    return instance;
+}
+
 // ── Preview card ────────────────────────────────────────────────
 
 class MindmapPreviewCard implements PaneInstance {
@@ -258,6 +290,7 @@ class MindmapEditorInstance implements PaneInstance {
     private lastContent = '';
     private currentMtime: string | null = null;
     private conflictMonitor: FileConflictMonitor | null = null;
+    private editorMounted = false;
     private readonly themeListener = () => {
         (window as any).__mindmapEditor?.setTheme?.(isDarkThemeActive());
     };
@@ -327,6 +360,7 @@ class MindmapEditorInstance implements PaneInstance {
                     return `/workspace/raw?path=${encodeURIComponent(fileDir + '/' + relPath)}`;
                 },
             });
+            this.editorMounted = true;
             if (this.pendingContent !== null) {
                 api.update(this.pendingContent);
                 this.lastContent = this.pendingContent;
@@ -426,7 +460,10 @@ class MindmapEditorInstance implements PaneInstance {
         this.disposed = true;
         this.conflictMonitor?.dispose();
         window.removeEventListener('piclaw-theme-change', this.themeListener as EventListener);
-        (window as any).__mindmapEditor?.destroy();
+        if (this.editorMounted) {
+            (window as any).__mindmapEditor?.destroy();
+            this.editorMounted = false;
+        }
         this.pendingContent = null;
         this.container.innerHTML = '';
     }
@@ -448,8 +485,10 @@ export const mindmapPaneExtension: WebPaneExtension = {
     },
 
     mount(container: HTMLElement, context: PaneContext): PaneInstance {
-        if (context?.mode === 'view') return new MindmapPreviewCard(container, context);
-        return new MindmapEditorInstance(container, context);
+        return mountExclusiveMindmapPane(container, () => {
+            if (context?.mode === 'view') return new MindmapPreviewCard(container, context);
+            return new MindmapEditorInstance(container, context);
+        });
     },
 };
 

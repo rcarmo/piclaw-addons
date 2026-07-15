@@ -4,6 +4,7 @@ import {
   findExistingMindmapTab,
   handleMindmapDuplicateOpenRequest,
   isMindmapPath,
+  mountExclusiveMindmapPane,
   normalizeMindmapOpenWorkspaceFileRequest,
   normalizeMindmapPanePath,
 } from "./index.ts";
@@ -34,6 +35,32 @@ function createTab(title: string) {
 }
 
 describe("mindmap web duplicate-open guard", () => {
+  test("mount ownership disposes and replaces an existing editor in the same pane host", () => {
+    let clears = 0;
+    const container = {
+      innerHTML: "stale",
+      replaceChildren() { clears += 1; this.innerHTML = ""; },
+    } as any;
+    const disposeCalls: string[] = [];
+    const pane = (id: string) => ({
+      getContent: () => undefined,
+      isDirty: () => false,
+      focus() {},
+      dispose() { disposeCalls.push(id); },
+    });
+
+    const first = mountExclusiveMindmapPane(container, () => pane("first"));
+    const second = mountExclusiveMindmapPane(container, () => pane("second"));
+
+    expect(clears).toBe(2);
+    expect(disposeCalls).toEqual(["first"]);
+    first.dispose();
+    expect(disposeCalls).toEqual(["first"]);
+    second.dispose();
+    second.dispose();
+    expect(disposeCalls).toEqual(["first", "second"]);
+  });
+
   test("normalizes mindmap pane paths for stable identity", () => {
     expect(normalizeMindmapPanePath(" ./notes//maps/../plan.mindmap.yaml ")).toBe("notes/plan.mindmap.yaml");
     expect(normalizeMindmapPanePath("notes\\plan.mindmap.yml")).toBe("notes/plan.mindmap.yml");
