@@ -452,7 +452,7 @@
     {
       "slug": "mindmap",
       "name": "@rcarmo/piclaw-addon-mindmap",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "type": "extension",
       "description": "D3-based mindmap editor pane for .mindmap.yaml files in Piclaw",
       "path": "addons/mindmap",
@@ -466,9 +466,9 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-mindmap-0.1.1.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-mindmap-0.1.2.tgz"
       },
-      "updatedAt": "2026-05-07"
+      "updatedAt": "2026-07-15"
     },
     {
       "slug": "observability",
