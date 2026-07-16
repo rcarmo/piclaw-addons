@@ -571,8 +571,7 @@ function startModelCallSpan(turnEntry: InflightTurnEntry, sharedAttrs: Record<st
       "piclaw.model.sequence": sequence,
       ...(reason ? { "piclaw.model.resume_reason": reason } : {}),
     }, "/model/call", modelDependencyTarget(model), "model"),
-    context: trace.setSpan(context.active(), turnEntry.span),
-  });
+  }, trace.setSpan(context.active(), turnEntry.span));
   const key = `${turnEntry.turnKey}:${sequence}`;
   inflightModelResponses.set(key, { span, turnKey: turnEntry.turnKey });
   turnEntry.activeModelKey = key;
