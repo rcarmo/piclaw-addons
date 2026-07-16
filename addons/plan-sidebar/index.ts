@@ -566,7 +566,7 @@ export default function planSidebarAddon(pi: ExtensionAPI): void {
     description: "Read or update the current session's Plan sidebar. Prefer action=patch for multi-item add/update/remove operations; use action=update for full-plan replacement and action=edit only for exact Markdown edits. All mutations are normalized with at most one in_progress item.",
     promptSnippet: "plan: session checklist. Prefer action=patch with patches: [{ operation: add|update|remove, index?, match?, step?, status? }] for multi-item changes. Use action=update for full replacement. At most one item may be in_progress.",
     parameters: PlanToolSchema,
-    prepareArguments(args) {
+    prepareArguments(args): any {
       if (!args || typeof args !== "object") return args;
       const input = args as { action?: unknown; markdown?: unknown; oldText?: unknown; newText?: unknown; edits?: unknown; patches?: unknown; plan?: unknown };
       if (input.action === "get") return { ...input, action: "read" };
