@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-code-validator",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Diagnostics tool for code validation (Python, JS/TS, JSON, extensible via validators.json)",
   "type": "module",
   "main": "index.ts",

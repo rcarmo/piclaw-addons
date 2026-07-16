@@ -6,7 +6,7 @@
  *
  * Drop into .pi/extensions/ and /reload.
  */
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
 import { resolve, extname } from "node:path";
 import { readFileSync, existsSync } from "node:fs";
@@ -34,6 +34,26 @@ BUILT_IN[".json"] = [jqcheck];
 const MAX_OUTPUT = 10 * 1024 * 1024;
 const TIMEOUT = 30_000;
 const BASE_DIR = "/workspace";
+const WORKING_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+
+type ToolUiContext = Pick<ExtensionContext, "hasUI" | "ui">;
+
+export function startDiagnosticsProgress(ctx: ToolUiContext | undefined, message: string): void {
+  if (!ctx?.hasUI) return;
+  ctx.ui.setWorkingIndicator({ frames: WORKING_FRAMES, intervalMs: 90 });
+  ctx.ui.setWorkingMessage(message);
+}
+
+export function updateDiagnosticsProgress(ctx: ToolUiContext | undefined, message: string): void {
+  if (!ctx?.hasUI) return;
+  ctx.ui.setWorkingMessage(message);
+}
+
+export function finishDiagnosticsProgress(ctx: ToolUiContext | undefined): void {
+  if (!ctx?.hasUI) return;
+  ctx.ui.setWorkingMessage();
+  ctx.ui.setWorkingIndicator();
+}
 
 interface RunResult {
   stdout: string;
@@ -152,7 +172,7 @@ export default function (pi: ExtensionAPI) {
         Type.String({ description: "File to validate (relative to workspace). Omit to list available validators." }),
       ),
     }),
-    async execute(_id, params, signal) {
+    async execute(_id, params, signal, _onUpdate, ctx) {
       const registry = getRegistry();
 
       // No file → list available validators
@@ -194,35 +214,41 @@ export default function (pi: ExtensionAPI) {
       const results: string[] = [];
       let hasErrors = false;
 
-      for (const validator of validators) {
-        const cmd = validator.cmd.map((a) => (a === "$FILE" ? resolved : a));
-        const toolName = cmd[0] === "bunx" || cmd[0] === "uvx" ? cmd[1] : cmd[0];
+      startDiagnosticsProgress(ctx, `Diagnostics: validating ${params.file}…`);
+      try {
+        for (const validator of validators) {
+          const cmd = validator.cmd.map((a) => (a === "$FILE" ? resolved : a));
+          const toolName = cmd[0] === "bunx" || cmd[0] === "uvx" ? cmd[1] : cmd[0];
+          updateDiagnosticsProgress(ctx, `Diagnostics: running ${toolName} on ${params.file}…`);
 
-        const result = await runValidator(cmd, validator.env, signal);
+          const result = await runValidator(cmd, validator.env, signal);
 
-        if (result.exitCode === 127) {
-          results.push(`⚠ ${toolName}: not installed, skipping`);
-          continue;
-        }
-
-        const output = (result.stderr || result.stdout).trim();
-        if (result.exitCode !== 0 && output) {
-          hasErrors = true;
-          // Truncate to 10 diagnostics
-          const lines = output.split("\n");
-          const truncated = lines.length > 30;
-          const shown = truncated ? lines.slice(0, 30).join("\n") + `\n... and ${lines.length - 30} more lines` : output;
-          results.push(`❌ ${toolName}:\n${shown}`);
-        } else if (result.exitCode === 0) {
-          const warn = (result.stderr || result.stdout).trim();
-          if (warn && (warn.includes("warning") || warn.includes("Warning"))) {
-            results.push(`⚠ ${toolName} (warnings):\n${warn}`);
-          } else {
-            results.push(`✅ ${toolName}: no issues`);
+          if (result.exitCode === 127) {
+            results.push(`⚠ ${toolName}: not installed, skipping`);
+            continue;
           }
-        } else if (result.signalCode) {
-          results.push(`⚠ ${toolName}: killed (${result.signalCode})`);
+
+          const output = (result.stderr || result.stdout).trim();
+          if (result.exitCode !== 0 && output) {
+            hasErrors = true;
+            // Truncate to 10 diagnostics
+            const lines = output.split("\n");
+            const truncated = lines.length > 30;
+            const shown = truncated ? lines.slice(0, 30).join("\n") + `\n... and ${lines.length - 30} more lines` : output;
+            results.push(`❌ ${toolName}:\n${shown}`);
+          } else if (result.exitCode === 0) {
+            const warn = (result.stderr || result.stdout).trim();
+            if (warn && (warn.includes("warning") || warn.includes("Warning"))) {
+              results.push(`⚠ ${toolName} (warnings):\n${warn}`);
+            } else {
+              results.push(`✅ ${toolName}: no issues`);
+            }
+          } else if (result.signalCode) {
+            results.push(`⚠ ${toolName}: killed (${result.signalCode})`);
+          }
         }
+      } finally {
+        finishDiagnosticsProgress(ctx);
       }
 
       const summary = hasErrors ? "Issues found" : "No issues";
