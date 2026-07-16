@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-dev-tools",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Developer tools for workspace diagnostics and environment inspection",
   "type": "module",
   "main": "index.ts",

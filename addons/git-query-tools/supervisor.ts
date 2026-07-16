@@ -5,7 +5,7 @@
  * validation, and execute handlers.
  */
 
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
 import { extname, relative } from "node:path";
 
@@ -15,6 +15,30 @@ import { safePath, validateText, checkJqExpression, parseBlameLines } from "./va
 import { BASE_DIR, DEFAULT_TIMEOUT, FAST_TIMEOUT } from "./constants.js";
 
 const GIT_BASE_DIR = `${BASE_DIR}/.pi/extensions`;
+const WORKING_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+
+type ToolUiContext = Pick<ExtensionContext, "hasUI" | "ui">;
+
+export function startGitQueryProgress(ctx: ToolUiContext | undefined, message: string): void {
+  if (!ctx?.hasUI) return;
+  ctx.ui.setWorkingIndicator({ frames: WORKING_FRAMES, intervalMs: 90 });
+  ctx.ui.setWorkingMessage(message);
+}
+
+export function finishGitQueryProgress(ctx: ToolUiContext | undefined): void {
+  if (!ctx?.hasUI) return;
+  ctx.ui.setWorkingMessage();
+  ctx.ui.setWorkingIndicator();
+}
+
+export async function withGitQueryProgress<T>(ctx: ToolUiContext | undefined, message: string, fn: () => Promise<T>): Promise<T> {
+  startGitQueryProgress(ctx, message);
+  try {
+    return await fn();
+  } finally {
+    finishGitQueryProgress(ctx);
+  }
+}
 
 function result(text: string) {
   return { content: [{ type: "text" as const, text }], details: {} };
@@ -91,7 +115,7 @@ export default function (pi: ExtensionAPI) {
       all: Type.Optional(Type.Boolean({ description: "Search all branches (cannot combine with ref)" })),
       ref: Type.Optional(Type.String({ description: "Branch/tag/ref to search" })),
     }),
-    async execute(_id, params, signal) {
+    async execute(_id, params, signal, _onUpdate, ctx) {
       type P = typeof params;
       const p = params as P;
 
@@ -132,21 +156,21 @@ export default function (pi: ExtensionAPI) {
           const args = ["log", ...common, ...(p.all ? ["--all"] : p.ref ? [p.ref.trim()] : [])];
           if (p.diff) args.push("-p");
           if (repoFile) args.push("--follow", "--", repoFile);
-          return result(await runGit(args, "log", signal));
+          return result(await withGitQueryProgress(ctx, "Git history: loading recent extension commits…", () => runGit(args, "log", signal)));
         }
         case "content_search": {
           if (!p.query) return result(err(TOOL_GIT, "'query' required for content_search"));
           const args = ["log", `-S${p.query.trim()}`, ...common, ...(p.all ? ["--all"] : p.ref ? [p.ref.trim()] : [])];
           if (p.diff) args.push("-p");
           if (repoFile) args.push("--follow", "--", repoFile);
-          return result(await runGit(args, "content_search", signal));
+          return result(await withGitQueryProgress(ctx, "Git history: searching extension commit diffs…", () => runGit(args, "content_search", signal)));
         }
         case "message_search": {
           if (!p.query) return result(err(TOOL_GIT, "'query' required for message_search"));
           const args = ["log", `--grep=${p.query.trim()}`, ...common, ...(p.all ? ["--all"] : p.ref ? [p.ref.trim()] : [])];
           if (p.diff) args.push("-p");
           if (repoFile) args.push("--follow", "--", repoFile);
-          return result(await runGit(args, "message_search", signal));
+          return result(await withGitQueryProgress(ctx, "Git history: searching extension commit messages…", () => runGit(args, "message_search", signal)));
         }
         case "blame": {
           if (!repoFile) return result(err(TOOL_GIT, "'file' required for blame"));
@@ -156,7 +180,7 @@ export default function (pi: ExtensionAPI) {
           if (normalized) args.push(`-L${normalized}`);
           if (p.ref) args.push(p.ref.trim());
           args.push("--", repoFile);
-          return result(await runGit(args, "blame", signal));
+          return result(await withGitQueryProgress(ctx, "Git history: running extension blame…", () => runGit(args, "blame", signal)));
         }
       }
       return result(err(TOOL_GIT, `Unknown mode: ${p.mode}`));
@@ -178,7 +202,7 @@ export default function (pi: ExtensionAPI) {
       compact: Type.Optional(Type.Boolean({ description: "Compact output" })),
       keys_only: Type.Optional(Type.Boolean({ description: "List root-level keys (overrides expression)" })),
     }),
-    async execute(_id, params, signal) {
+    async execute(_id, params, signal, _onUpdate, ctx) {
       type P = typeof params;
       const p = params as P;
 
@@ -218,11 +242,15 @@ export default function (pi: ExtensionAPI) {
         : ["jq", ...flags, "--", expression];
       const stdinBlob = resolvedPath ? undefined : new Blob([p.input!.trim()]);
 
-      const { stdout, stderr, exitCode, signalCode } = await runProcess(cmd, {
-        stdin: stdinBlob,
-        timeout: FAST_TIMEOUT,
-        signal,
-      });
+      const { stdout, stderr, exitCode, signalCode } = await withGitQueryProgress(
+        ctx,
+        resolvedPath ? `JSON query: filtering ${p.file}…` : "JSON query: filtering inline input…",
+        () => runProcess(cmd, {
+          stdin: stdinBlob,
+          timeout: FAST_TIMEOUT,
+          signal,
+        }),
+      );
 
       const warnings = expressionOverridden
         ? [`keys_only=true ignored expression '${p.expression?.trim()}'`]

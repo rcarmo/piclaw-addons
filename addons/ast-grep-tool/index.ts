@@ -5,7 +5,7 @@
  *   code_search  — find code by AST pattern with metavariables
  *   code_rewrite — structural find-and-replace
  */
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -13,6 +13,30 @@ import { existsSync } from "node:fs";
 const WORKSPACE_ROOT = "/workspace";
 const MAX_RESULTS = 100;
 const MAX_OUTPUT_CHARS = 30_000;
+const WORKING_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+
+type ToolUiContext = Pick<ExtensionContext, "hasUI" | "ui">;
+
+export function startAstGrepProgress(ctx: ToolUiContext | undefined, message: string): void {
+  if (!ctx?.hasUI) return;
+  ctx.ui.setWorkingIndicator({ frames: WORKING_FRAMES, intervalMs: 90 });
+  ctx.ui.setWorkingMessage(message);
+}
+
+export function finishAstGrepProgress(ctx: ToolUiContext | undefined): void {
+  if (!ctx?.hasUI) return;
+  ctx.ui.setWorkingMessage();
+  ctx.ui.setWorkingIndicator();
+}
+
+export async function withAstGrepProgress<T>(ctx: ToolUiContext | undefined, message: string, fn: () => Promise<T>): Promise<T> {
+  startAstGrepProgress(ctx, message);
+  try {
+    return await fn();
+  } finally {
+    finishAstGrepProgress(ctx);
+  }
+}
 
 /** Resolve the ast-grep binary path.
  * Looks in local node_modules/.bin first (self-contained), then global PATH.
@@ -87,6 +111,7 @@ export default async function register(api: ExtensionAPI) {
 
   api.registerTool({
     name: "code_search",
+    label: "Code Search",
     description: [
       "Search code by AST structure using patterns with metavariables.",
       "Use $VAR for a single AST node, $$$VAR for multiple nodes.",
@@ -111,7 +136,7 @@ export default async function register(api: ExtensionAPI) {
         description: `Max results to return (default: ${MAX_RESULTS})`,
       })),
     }),
-    async execute(_toolCallId, args, signal) {
+    async execute(_toolCallId, args, signal, _onUpdate, ctx) {
       const pattern = args.pattern as string;
       const lang = args.lang as string;
       const searchPath = (args.path as string) || ".";
@@ -126,16 +151,20 @@ export default async function register(api: ExtensionAPI) {
         searchPath,
       ];
 
-      const { stdout, stderr, code } = await runAstGrep(cmdArgs, signal);
+      const { stdout, stderr, code } = await withAstGrepProgress(
+        ctx,
+        `ast-grep: searching ${searchPath} (${lang})…`,
+        () => runAstGrep(cmdArgs, signal),
+      );
       const stdoutText = stdout.trim();
       const stderrText = stderr.trim();
 
       if (isNoMatchExit(code, stdoutText, stderrText)) {
-        return { content: [{ type: "text" as const, text: "No matches found." }] };
+        return { content: [{ type: "text" as const, text: "No matches found." }], details: {} };
       }
 
       if (code !== 0 && !stdoutText && stderrText) {
-        return { content: [{ type: "text" as const, text: `Error: ${stderrText}` }] };
+        return { content: [{ type: "text" as const, text: `Error: ${stderrText}` }], details: {} };
       }
 
       const lines = stdoutText.split("\n").filter(Boolean);
@@ -154,7 +183,7 @@ export default async function register(api: ExtensionAPI) {
       }
 
       if (matches.length === 0) {
-        return { content: [{ type: "text" as const, text: "No matches found." }] };
+        return { content: [{ type: "text" as const, text: "No matches found." }], details: {} };
       }
 
       let output = matches.join("\n");
@@ -164,12 +193,13 @@ export default async function register(api: ExtensionAPI) {
       if (output.length > MAX_OUTPUT_CHARS) {
         output = output.slice(0, MAX_OUTPUT_CHARS) + "\n\n(output truncated)";
       }
-      return { content: [{ type: "text" as const, text: output }] };
+      return { content: [{ type: "text" as const, text: output }], details: {} };
     },
   });
 
   api.registerTool({
     name: "code_rewrite",
+    label: "Code Rewrite",
     description: [
       "Structural find-and-replace using AST patterns.",
       "Matches code by structure and replaces using metavariable references.",
@@ -195,7 +225,7 @@ export default async function register(api: ExtensionAPI) {
         description: "Preview changes without writing (default: true)",
       })),
     }),
-    async execute(_toolCallId, args, signal) {
+    async execute(_toolCallId, args, signal, _onUpdate, ctx) {
       const pattern = args.pattern as string;
       const rewrite = args.rewrite as string;
       const lang = args.lang as string;
@@ -212,7 +242,11 @@ export default async function register(api: ExtensionAPI) {
         searchPath,
       ];
 
-      const { stdout, stderr, code } = await runAstGrep(cmdArgs, signal);
+      const { stdout, stderr, code } = await withAstGrepProgress(
+        ctx,
+        `ast-grep: ${dryRun ? "previewing rewrite" : "rewriting"} ${searchPath} (${lang})…`,
+        () => runAstGrep(cmdArgs, signal),
+      );
       const stdoutText = stdout.trim();
       const stderrText = stderr.trim();
 
@@ -222,11 +256,12 @@ export default async function register(api: ExtensionAPI) {
             type: "text" as const,
             text: `${dryRun ? "DRY RUN — preview only (set dry_run: false to apply):\n\n" : "Applied changes:\n\n"}No matches found.`,
           }],
+          details: {},
         };
       }
 
       if (code !== 0 && !stdoutText && stderrText) {
-        return { content: [{ type: "text" as const, text: `Error: ${stderrText}` }] };
+        return { content: [{ type: "text" as const, text: `Error: ${stderrText}` }], details: {} };
       }
 
       const prefix = dryRun
@@ -237,7 +272,7 @@ export default async function register(api: ExtensionAPI) {
         ? raw.slice(0, MAX_OUTPUT_CHARS) + "\n\n(output truncated)"
         : raw;
 
-      return { content: [{ type: "text" as const, text: prefix + output }] };
+      return { content: [{ type: "text" as const, text: prefix + output }], details: {} };
     },
   });
 }

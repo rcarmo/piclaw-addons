@@ -11,7 +11,7 @@
  * - password in keychain at imap/<name>/password
  */
 
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
 import { ImapClient, buildSearchCriteria, type ImapConfig } from "./imap-client.ts";
 import { createMimeMessage } from "./mime.ts";
@@ -91,6 +91,53 @@ function parseUidList(value: string): string {
 
 function truncate(text: string, max = 8000): string {
   return text.length > max ? `${text.slice(0, max)}\n…(truncated)` : text;
+}
+
+const WORKING_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+type ToolUiContext = Pick<ExtensionContext, "hasUI" | "ui">;
+
+export function startImapProgress(ctx: ToolUiContext | undefined, message: string): void {
+  if (!ctx?.hasUI) return;
+  ctx.ui.setWorkingIndicator({ frames: WORKING_FRAMES, intervalMs: 90 });
+  ctx.ui.setWorkingMessage(message);
+}
+
+export function finishImapProgress(ctx: ToolUiContext | undefined): void {
+  if (!ctx?.hasUI) return;
+  ctx.ui.setWorkingMessage();
+  ctx.ui.setWorkingIndicator();
+}
+
+const MAILBOX_ACTIONS = new Set([
+  "list_folders", "search", "fetch", "move", "copy", "flag",
+  "create_draft", "file_message", "create_folder", "delete_folder",
+]);
+
+export function shouldShowImapProgress(action: string): boolean {
+  return MAILBOX_ACTIONS.has(action);
+}
+
+export function describeImapAction(action: string, params: Record<string, unknown>): string {
+  const account = typeof params.account === "string" && params.account.trim() ? ` (${params.account.trim()})` : "";
+  const folder = typeof params.folder === "string" && params.folder.trim() ? params.folder.trim() : "INBOX";
+  switch (action) {
+    case "list_accounts": return "IMAP: listing accounts…";
+    case "get_account": return `IMAP: loading account${account}…`;
+    case "save_account": return `IMAP: saving account${account}…`;
+    case "delete_account": return `IMAP: deleting account${account}…`;
+    case "set_default_account": return `IMAP: setting default account${account}…`;
+    case "list_folders": return `IMAP: listing folders${account}…`;
+    case "search": return `IMAP: searching ${folder}${account}…`;
+    case "fetch": return `IMAP: fetching messages from ${folder}${account}…`;
+    case "move": return `IMAP: moving messages from ${folder}${account}…`;
+    case "copy": return `IMAP: copying messages from ${folder}${account}…`;
+    case "flag": return `IMAP: updating flags in ${folder}${account}…`;
+    case "create_draft": return `IMAP: creating draft${account}…`;
+    case "file_message": return `IMAP: filing message${account}…`;
+    case "create_folder": return `IMAP: creating folder${account}…`;
+    case "delete_folder": return `IMAP: deleting folder${account}…`;
+    default: return `IMAP: running ${action || "operation"}${account}…`;
+  }
 }
 
 async function resolveAccount(_pi: ExtensionAPI, accountName?: string): Promise<ImapAccount> {
@@ -271,9 +318,11 @@ export default function imapExtension(pi: ExtensionAPI) {
       setDefault: Type.Optional(Type.String()),
     }),
 
-    async execute(_id: string, params: any) {
+    async execute(_id: string, params: any, _signal, _onUpdate, ctx) {
       const action = String(params.action ?? "").toLowerCase().trim();
       const text = "text" as const;
+      const showProgress = shouldShowImapProgress(action);
+      if (showProgress) startImapProgress(ctx, describeImapAction(action, params));
       try {
         if (action === "list_accounts") {
           const payload = await listAccounts();
@@ -465,6 +514,8 @@ export default function imapExtension(pi: ExtensionAPI) {
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         throw new Error(`IMAP ${action || "operation"} failed: ${message}`);
+      } finally {
+        if (showProgress) finishImapProgress(ctx);
       }
     },
   });
