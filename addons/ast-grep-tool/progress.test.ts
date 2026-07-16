@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { finishAstGrepProgress, startAstGrepProgress, withAstGrepProgress } from "./index.ts";
+import { finishAstGrepProgress, startAstGrepProgress, withAstGrepProgress } from "./index.js";
 
 function uiHarness(hasUI = true) {
   const calls: Array<[string, unknown]> = [];

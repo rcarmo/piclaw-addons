@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { withGitQueryProgress } from "./supervisor.ts";
+import { withGitQueryProgress } from "./supervisor.js";
 
 function uiHarness(hasUI = true) {
   const calls: Array<[string, unknown]> = [];

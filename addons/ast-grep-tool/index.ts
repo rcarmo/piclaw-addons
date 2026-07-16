@@ -160,11 +160,11 @@ export default async function register(api: ExtensionAPI) {
       const stderrText = stderr.trim();
 
       if (isNoMatchExit(code, stdoutText, stderrText)) {
-        return { content: [{ type: "text" as const, text: "No matches found." }] };
+        return { content: [{ type: "text" as const, text: "No matches found." }], details: {} };
       }
 
       if (code !== 0 && !stdoutText && stderrText) {
-        return { content: [{ type: "text" as const, text: `Error: ${stderrText}` }] };
+        return { content: [{ type: "text" as const, text: `Error: ${stderrText}` }], details: {} };
       }
 
       const lines = stdoutText.split("\n").filter(Boolean);
@@ -183,7 +183,7 @@ export default async function register(api: ExtensionAPI) {
       }
 
       if (matches.length === 0) {
-        return { content: [{ type: "text" as const, text: "No matches found." }] };
+        return { content: [{ type: "text" as const, text: "No matches found." }], details: {} };
       }
 
       let output = matches.join("\n");
@@ -193,7 +193,7 @@ export default async function register(api: ExtensionAPI) {
       if (output.length > MAX_OUTPUT_CHARS) {
         output = output.slice(0, MAX_OUTPUT_CHARS) + "\n\n(output truncated)";
       }
-      return { content: [{ type: "text" as const, text: output }] };
+      return { content: [{ type: "text" as const, text: output }], details: {} };
     },
   });
 
@@ -256,11 +256,12 @@ export default async function register(api: ExtensionAPI) {
             type: "text" as const,
             text: `${dryRun ? "DRY RUN — preview only (set dry_run: false to apply):\n\n" : "Applied changes:\n\n"}No matches found.`,
           }],
+          details: {},
         };
       }
 
       if (code !== 0 && !stdoutText && stderrText) {
-        return { content: [{ type: "text" as const, text: `Error: ${stderrText}` }] };
+        return { content: [{ type: "text" as const, text: `Error: ${stderrText}` }], details: {} };
       }
 
       const prefix = dryRun
@@ -271,7 +272,7 @@ export default async function register(api: ExtensionAPI) {
         ? raw.slice(0, MAX_OUTPUT_CHARS) + "\n\n(output truncated)"
         : raw;
 
-      return { content: [{ type: "text" as const, text: prefix + output }] };
+      return { content: [{ type: "text" as const, text: prefix + output }], details: {} };
     },
   });
 }

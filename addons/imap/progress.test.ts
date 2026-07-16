@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { describeImapAction, finishImapProgress, shouldShowImapProgress, startImapProgress } from "./index.ts";
+import { describeImapAction, finishImapProgress, shouldShowImapProgress, startImapProgress } from "./index.js";
 
 function uiHarness(hasUI = true) {
   const calls: Array<[string, unknown]> = [];

@@ -4,7 +4,7 @@ import {
   startDiagnosticsProgress,
   updateDiagnosticsProgress,
   withDiagnosticsProgress,
-} from "./index.ts";
+} from "./index.js";
 
 function uiHarness(hasUI = true) {
   const calls: Array<[string, unknown]> = [];

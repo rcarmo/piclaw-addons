@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { withDevToolProgress } from "./index.ts";
+import { withDevToolProgress } from "./index.js";
 
 function uiHarness(hasUI = true) {
   const calls: Array<[string, unknown]> = [];
