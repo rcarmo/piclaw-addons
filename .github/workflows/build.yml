@@ -45,6 +45,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: rcarmo/piclaw
+          ref: main
           path: .piclaw-runtime
       - name: Install Piclaw runtime dependencies
         if: steps.addon_tests.outputs.present == 'true'
@@ -101,11 +102,11 @@ jobs:
           PICLAW_E2E_URL: http://localhost:3000
           PICLAW_INTERNAL_SECRET: ${{ env.PICLAW_INTERNAL_SECRET }}
       - name: Generate add-on UX PDF reports
-        if: always() && steps.addon_tests.outputs.present == 'true'
+        if: always() && steps.addon_tests.outputs.present == 'true' && hashFiles('tests/addon-e2e/reports/results.json') != ''
         run: bun run report
         working-directory: tests/addon-e2e
       - name: Upload add-on UX reports
-        if: always() && steps.addon_tests.outputs.present == 'true'
+        if: always() && steps.addon_tests.outputs.present == 'true' && hashFiles('addons/*/tests/reports/results.json') != ''
         uses: actions/upload-artifact@v7
         with:
           name: addon-ux-reports
