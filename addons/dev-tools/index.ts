@@ -4,7 +4,7 @@
  * Ported from cjnova/oc-tool-in-a-box OpenCode tools.
  * Drop into .pi/extensions/ and /reload.
  */
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
 import { resolve, relative, isAbsolute, extname } from "node:path";
 
@@ -17,6 +17,30 @@ const DEFAULT_TIMEOUT = 30_000;
 const FAST_TIMEOUT = 10_000;
 const MAX_PROCESS_OUTPUT = 10 * 1024 * 1024;
 const BASE_DIR = "/workspace";
+const WORKING_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+
+type ToolUiContext = Pick<ExtensionContext, "hasUI" | "ui">;
+
+export function startDevToolProgress(ctx: ToolUiContext | undefined, message: string): void {
+  if (!ctx?.hasUI) return;
+  ctx.ui.setWorkingIndicator({ frames: WORKING_FRAMES, intervalMs: 90 });
+  ctx.ui.setWorkingMessage(message);
+}
+
+export function finishDevToolProgress(ctx: ToolUiContext | undefined): void {
+  if (!ctx?.hasUI) return;
+  ctx.ui.setWorkingMessage();
+  ctx.ui.setWorkingIndicator();
+}
+
+export async function withDevToolProgress<T>(ctx: ToolUiContext | undefined, message: string, fn: () => Promise<T>): Promise<T> {
+  startDevToolProgress(ctx, message);
+  try {
+    return await fn();
+  } finally {
+    finishDevToolProgress(ctx);
+  }
+}
 
 interface CollectResult {
   output: string;
@@ -284,7 +308,7 @@ export default function (pi: ExtensionAPI) {
       all: Type.Optional(Type.Boolean({ description: "Search all branches (cannot combine with ref)" })),
       ref: Type.Optional(Type.String({ description: "Branch/tag/ref to search" })),
     }),
-    async execute(_id, params, signal) {
+    async execute(_id, params, signal, _onUpdate, ctx) {
       type P = typeof params;
       const p = params as P;
 
@@ -320,21 +344,21 @@ export default function (pi: ExtensionAPI) {
           const args = ["log", ...common, ...(p.all ? ["--all"] : p.ref ? [p.ref.trim()] : [])];
           if (p.diff) args.push("-p");
           if (p.file) args.push("--follow", "--", relPath(p.file.trim()));
-          return result(await runGit(args, "log", signal));
+          return result(await withDevToolProgress(ctx, "Git history: loading recent commits…", () => runGit(args, "log", signal)));
         }
         case "content_search": {
           if (!p.query) return result(err(TOOL_GIT, "'query' required for content_search"));
           const args = ["log", `-S${p.query.trim()}`, ...common, ...(p.all ? ["--all"] : p.ref ? [p.ref.trim()] : [])];
           if (p.diff) args.push("-p");
           if (p.file) args.push("--follow", "--", relPath(p.file.trim()));
-          return result(await runGit(args, "content_search", signal));
+          return result(await withDevToolProgress(ctx, "Git history: searching commit diffs…", () => runGit(args, "content_search", signal)));
         }
         case "message_search": {
           if (!p.query) return result(err(TOOL_GIT, "'query' required for message_search"));
           const args = ["log", `--grep=${p.query.trim()}`, ...common, ...(p.all ? ["--all"] : p.ref ? [p.ref.trim()] : [])];
           if (p.diff) args.push("-p");
           if (p.file) args.push("--follow", "--", relPath(p.file.trim()));
-          return result(await runGit(args, "message_search", signal));
+          return result(await withDevToolProgress(ctx, "Git history: searching commit messages…", () => runGit(args, "message_search", signal)));
         }
         case "blame": {
           if (!p.file) return result(err(TOOL_GIT, "'file' required for blame"));
@@ -345,7 +369,7 @@ export default function (pi: ExtensionAPI) {
           if (normalized) args.push(`-L${normalized}`);
           if (p.ref) args.push(p.ref.trim());
           args.push("--", resolved);
-          return result(await runGit(args, "blame", signal));
+          return result(await withDevToolProgress(ctx, "Git history: running blame…", () => runGit(args, "blame", signal)));
         }
       }
       return result(err(TOOL_GIT, `Unknown mode: ${p.mode}`));
@@ -369,7 +393,7 @@ export default function (pi: ExtensionAPI) {
       compact: Type.Optional(Type.Boolean({ description: "Compact output" })),
       keys_only: Type.Optional(Type.Boolean({ description: "List root-level keys (overrides expression)" })),
     }),
-    async execute(_id, params, signal) {
+    async execute(_id, params, signal, _onUpdate, ctx) {
       type P = typeof params;
       const p = params as P;
 
@@ -412,11 +436,15 @@ export default function (pi: ExtensionAPI) {
         : ["jq", ...flags, "--", expression];
       const stdinBlob = resolvedPath ? undefined : new Blob([p.input!.trim()]);
 
-      const { stdout, stderr, exitCode, signalCode } = await runProcess(cmd, {
-        stdin: stdinBlob,
-        timeout: FAST_TIMEOUT,
-        signal,
-      });
+      const { stdout, stderr, exitCode, signalCode } = await withDevToolProgress(
+        ctx,
+        resolvedPath ? `JSON query: filtering ${p.file}…` : "JSON query: filtering inline input…",
+        () => runProcess(cmd, {
+          stdin: stdinBlob,
+          timeout: FAST_TIMEOUT,
+          signal,
+        }),
+      );
 
       const warnings = expressionOverridden ? [`keys_only=true ignored expression '${p.expression?.trim()}'`] : undefined;
 
