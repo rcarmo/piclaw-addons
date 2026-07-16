@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { finishAstGrepProgress, startAstGrepProgress } from "./index.ts";
+import { finishAstGrepProgress, startAstGrepProgress, withAstGrepProgress } from "./index.ts";
 
 function uiHarness(hasUI = true) {
   const calls: Array<[string, unknown]> = [];
@@ -25,6 +25,12 @@ test("ast-grep progress starts with a message and restores default UI", () => {
   expect(calls[1]).toEqual(["message", "Searching…"]);
   expect(calls[2]).toEqual(["message", undefined]);
   expect(calls[3]).toEqual(["indicator", undefined]);
+});
+
+test("ast-grep progress restores default UI after failure", async () => {
+  const { calls, ctx } = uiHarness();
+  await expect(withAstGrepProgress(ctx, "Searching…", async () => { throw new Error("boom"); })).rejects.toThrow("boom");
+  expect(calls.slice(-2)).toEqual([["message", undefined], ["indicator", undefined]]);
 });
 
 test("ast-grep progress is a no-op without UI", () => {

@@ -3,6 +3,7 @@ import {
   finishDiagnosticsProgress,
   startDiagnosticsProgress,
   updateDiagnosticsProgress,
+  withDiagnosticsProgress,
 } from "./index.ts";
 
 function uiHarness(hasUI = true) {
@@ -30,6 +31,12 @@ test("diagnostics progress updates messages and restores default UI", () => {
   expect(calls[2]).toEqual(["message", "Running oxlint…"]);
   expect(calls[3]).toEqual(["message", undefined]);
   expect(calls[4]).toEqual(["indicator", undefined]);
+});
+
+test("diagnostics progress restores default UI after failure", async () => {
+  const { calls, ctx } = uiHarness();
+  await expect(withDiagnosticsProgress(ctx, "Validating…", async () => { throw new Error("boom"); })).rejects.toThrow("boom");
+  expect(calls.slice(-2)).toEqual([["message", undefined], ["indicator", undefined]]);
 });
 
 test("diagnostics progress is a no-op without UI", () => {

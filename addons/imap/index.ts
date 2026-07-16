@@ -108,6 +108,15 @@ export function finishImapProgress(ctx: ToolUiContext | undefined): void {
   ctx.ui.setWorkingIndicator();
 }
 
+const MAILBOX_ACTIONS = new Set([
+  "list_folders", "search", "fetch", "move", "copy", "flag",
+  "create_draft", "file_message", "create_folder", "delete_folder",
+]);
+
+export function shouldShowImapProgress(action: string): boolean {
+  return MAILBOX_ACTIONS.has(action);
+}
+
 export function describeImapAction(action: string, params: Record<string, unknown>): string {
   const account = typeof params.account === "string" && params.account.trim() ? ` (${params.account.trim()})` : "";
   const folder = typeof params.folder === "string" && params.folder.trim() ? params.folder.trim() : "INBOX";
@@ -312,7 +321,8 @@ export default function imapExtension(pi: ExtensionAPI) {
     async execute(_id: string, params: any, _signal, _onUpdate, ctx) {
       const action = String(params.action ?? "").toLowerCase().trim();
       const text = "text" as const;
-      startImapProgress(ctx, describeImapAction(action, params));
+      const showProgress = shouldShowImapProgress(action);
+      if (showProgress) startImapProgress(ctx, describeImapAction(action, params));
       try {
         if (action === "list_accounts") {
           const payload = await listAccounts();
@@ -505,7 +515,7 @@ export default function imapExtension(pi: ExtensionAPI) {
         const message = error instanceof Error ? error.message : String(error);
         throw new Error(`IMAP ${action || "operation"} failed: ${message}`);
       } finally {
-        finishImapProgress(ctx);
+        if (showProgress) finishImapProgress(ctx);
       }
     },
   });

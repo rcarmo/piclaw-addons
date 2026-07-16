@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { describeImapAction, finishImapProgress, startImapProgress } from "./index.ts";
+import { describeImapAction, finishImapProgress, shouldShowImapProgress, startImapProgress } from "./index.ts";
 
 function uiHarness(hasUI = true) {
   const calls: Array<[string, unknown]> = [];
@@ -18,7 +18,14 @@ function uiHarness(hasUI = true) {
 test("IMAP action descriptions include useful account and folder context", () => {
   expect(describeImapAction("search", { account: "work", folder: "Archive" })).toBe("IMAP: searching Archive (work)…");
   expect(describeImapAction("fetch", {})).toBe("IMAP: fetching messages from INBOX…");
-  expect(describeImapAction("list_accounts", {})).toBe("IMAP: listing accounts…");
+});
+
+test("IMAP progress is limited to mailbox operations", () => {
+  expect(shouldShowImapProgress("search")).toBe(true);
+  expect(shouldShowImapProgress("create_draft")).toBe(true);
+  expect(shouldShowImapProgress("list_accounts")).toBe(false);
+  expect(shouldShowImapProgress("save_account")).toBe(false);
+  expect(shouldShowImapProgress("unknown")).toBe(false);
 });
 
 test("IMAP progress restores default UI", () => {

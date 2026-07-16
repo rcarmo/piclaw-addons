@@ -29,6 +29,15 @@ export function finishAstGrepProgress(ctx: ToolUiContext | undefined): void {
   ctx.ui.setWorkingIndicator();
 }
 
+export async function withAstGrepProgress<T>(ctx: ToolUiContext | undefined, message: string, fn: () => Promise<T>): Promise<T> {
+  startAstGrepProgress(ctx, message);
+  try {
+    return await fn();
+  } finally {
+    finishAstGrepProgress(ctx);
+  }
+}
+
 /** Resolve the ast-grep binary path.
  * Looks in local node_modules/.bin first (self-contained), then global PATH.
  * Never tries "sg" to avoid collision with /usr/bin/sg (util-linux). */
@@ -142,14 +151,11 @@ export default async function register(api: ExtensionAPI) {
         searchPath,
       ];
 
-      startAstGrepProgress(ctx, `ast-grep: searching ${searchPath} (${lang})…`);
-      let result: Awaited<ReturnType<typeof runAstGrep>>;
-      try {
-        result = await runAstGrep(cmdArgs, signal);
-      } finally {
-        finishAstGrepProgress(ctx);
-      }
-      const { stdout, stderr, code } = result;
+      const { stdout, stderr, code } = await withAstGrepProgress(
+        ctx,
+        `ast-grep: searching ${searchPath} (${lang})…`,
+        () => runAstGrep(cmdArgs, signal),
+      );
       const stdoutText = stdout.trim();
       const stderrText = stderr.trim();
 
@@ -236,14 +242,11 @@ export default async function register(api: ExtensionAPI) {
         searchPath,
       ];
 
-      startAstGrepProgress(ctx, `ast-grep: ${dryRun ? "previewing rewrite" : "rewriting"} ${searchPath} (${lang})…`);
-      let result: Awaited<ReturnType<typeof runAstGrep>>;
-      try {
-        result = await runAstGrep(cmdArgs, signal);
-      } finally {
-        finishAstGrepProgress(ctx);
-      }
-      const { stdout, stderr, code } = result;
+      const { stdout, stderr, code } = await withAstGrepProgress(
+        ctx,
+        `ast-grep: ${dryRun ? "previewing rewrite" : "rewriting"} ${searchPath} (${lang})…`,
+        () => runAstGrep(cmdArgs, signal),
+      );
       const stdoutText = stdout.trim();
       const stderrText = stderr.trim();
 

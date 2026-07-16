@@ -55,6 +55,15 @@ export function finishDiagnosticsProgress(ctx: ToolUiContext | undefined): void 
   ctx.ui.setWorkingIndicator();
 }
 
+export async function withDiagnosticsProgress<T>(ctx: ToolUiContext | undefined, message: string, fn: () => Promise<T>): Promise<T> {
+  startDiagnosticsProgress(ctx, message);
+  try {
+    return await fn();
+  } finally {
+    finishDiagnosticsProgress(ctx);
+  }
+}
+
 interface RunResult {
   stdout: string;
   stderr: string;
@@ -214,8 +223,7 @@ export default function (pi: ExtensionAPI) {
       const results: string[] = [];
       let hasErrors = false;
 
-      startDiagnosticsProgress(ctx, `Diagnostics: validating ${params.file}…`);
-      try {
+      await withDiagnosticsProgress(ctx, `Diagnostics: validating ${params.file}…`, async () => {
         for (const validator of validators) {
           const cmd = validator.cmd.map((a) => (a === "$FILE" ? resolved : a));
           const toolName = cmd[0] === "bunx" || cmd[0] === "uvx" ? cmd[1] : cmd[0];
@@ -247,9 +255,7 @@ export default function (pi: ExtensionAPI) {
             results.push(`⚠ ${toolName}: killed (${result.signalCode})`);
           }
         }
-      } finally {
-        finishDiagnosticsProgress(ctx);
-      }
+      });
 
       const summary = hasErrors ? "Issues found" : "No issues";
       return {
