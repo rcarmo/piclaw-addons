@@ -20,6 +20,7 @@ function createFakeExtensionApi() {
       registerFlag() {},
       getFlag() { return undefined; },
       registerMessageRenderer() {},
+      registerEntryRenderer() {},
       sendMessage() {},
       sendUserMessage() {},
       appendEntry() {},
@@ -36,6 +37,10 @@ function createFakeExtensionApi() {
       setThinkingLevel() {},
       registerProvider() {},
       unregisterProvider() {},
+      events: {
+        on() { return () => {}; },
+        emit() {},
+      },
     },
     tools,
     handlers,

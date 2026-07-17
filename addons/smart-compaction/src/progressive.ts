@@ -6,7 +6,7 @@
  */
 
 import type { Message } from "@earendil-works/pi-ai";
-import { completeSimple } from "@earendil-works/pi-ai/compat";
+import { completeWithCompatibilityAuth, type CompatibilityRequestAuth } from "./model-execution.js";
 import type { FileOperations } from "./types.js";
 import {
   BUDGET_SAFETY_MARGIN,
@@ -236,22 +236,21 @@ function buildMergePrompt(input: {
 
 async function completeCompactionPrompt(
   model: any,
-  auth: { apiKey?: string; headers?: Record<string, string> },
+  auth: CompatibilityRequestAuth,
   promptText: string,
   maxTokens: number,
   abortSignal: AbortSignal,
 ): Promise<string> {
   if (abortSignal.aborted) throw new Error("Compaction cancelled");
   const safeOutput = getSafeCompactionMaxTokens(model, promptText, maxTokens);
-  const response = await completeSimple(
+  const response = await completeWithCompatibilityAuth(
     model,
     {
       systemPrompt: SYSTEM_PROMPT,
       messages: [{ role: "user", content: [{ type: "text", text: promptText }], timestamp: Date.now() }],
     },
-    (model as any).reasoning
-      ? { maxTokens: safeOutput.maxTokens, signal: abortSignal, apiKey: auth.apiKey, headers: auth.headers, reasoning: "high" as const }
-      : { maxTokens: safeOutput.maxTokens, signal: abortSignal, apiKey: auth.apiKey, headers: auth.headers },
+    auth,
+    { maxTokens: safeOutput.maxTokens, signal: abortSignal },
   );
   if ((response as any).stopReason === "error") {
     throw new Error((response as any).errorMessage || "Progressive compaction LLM error");
@@ -271,7 +270,7 @@ async function completeCompactionPrompt(
 async function mergeProgressiveSummaries(input: {
   summaries: string[];
   model: any;
-  auth: { apiKey?: string; headers?: Record<string, string> };
+  auth: CompatibilityRequestAuth;
   budget: ProgressiveCompactionBudget;
   maxTokens: number;
   abortSignal: AbortSignal;
@@ -375,7 +374,7 @@ export async function runProgressiveCompaction(input: {
   llmMessages: Message[];
   humanUserIndexes: Set<number>;
   model: any;
-  auth: { apiKey?: string; headers?: Record<string, string> };
+  auth: CompatibilityRequestAuth;
   settings: { reserveTokens: number };
   previousSummary?: string;
   keptMessagesSummary?: string;

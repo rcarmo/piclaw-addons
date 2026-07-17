@@ -5,13 +5,14 @@ import {
 	appendAssistantMessageDiagnostic,
 	clampThinkingLevel,
 	createAssistantMessageDiagnostic,
-	getEnvApiKey,
 	type Api,
 	type AssistantMessage,
 	type AssistantMessageEventStream,
 	type Context,
 	type Model,
+	type ProviderHeaders,
 	type SimpleStreamOptions,
+	type Tool,
 } from "@earendil-works/pi-ai";
 import type { ResponseCreateParamsStreaming } from "openai/resources/responses/responses.js";
 import {
@@ -33,6 +34,7 @@ const CODEX_RESPONSE_STATUSES = new Set(["completed", "incomplete", "failed", "c
 const OPENAI_BETA_RESPONSES_WEBSOCKETS = "responses_websockets=2026-02-06";
 const WEBSOCKET_MESSAGE_TOO_BIG_CLOSE_CODE = 1009;
 const SESSION_WEBSOCKET_CACHE_TTL_MS = 5 * 60 * 1000;
+const OPENAI_PROMPT_CACHE_KEY_MAX_LENGTH = 64;
 const dynamicImport = (specifier: string) => import(specifier);
 let _os: { platform(): string; release(): string; arch(): string } | null = null;
 
@@ -422,16 +424,35 @@ function createCodexRequestId(): string {
 	return `codex_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
+export function clampCodexSessionId(sessionId: string | undefined): string | undefined {
+	if (sessionId === undefined) return undefined;
+	const chars = Array.from(sessionId);
+	return chars.length <= OPENAI_PROMPT_CACHE_KEY_MAX_LENGTH
+		? sessionId
+		: chars.slice(0, OPENAI_PROMPT_CACHE_KEY_MAX_LENGTH).join("");
+}
+
+export function mergeCodexHeaders(
+	modelHeaders: ProviderHeaders | undefined,
+	additionalHeaders: ProviderHeaders | undefined,
+): Headers {
+	const headers = new Headers();
+	for (const source of [modelHeaders, additionalHeaders]) {
+		for (const [key, value] of Object.entries(source ?? {})) {
+			if (value === null) headers.delete(key);
+			else headers.set(key, value);
+		}
+	}
+	return headers;
+}
+
 function buildBaseCodexHeaders(
-	modelHeaders: Record<string, string> | undefined,
-	additionalHeaders: Record<string, string> | undefined,
+	modelHeaders: ProviderHeaders | undefined,
+	additionalHeaders: ProviderHeaders | undefined,
 	accountId: string,
 	token: string,
 ): Headers {
-	const headers = new Headers(modelHeaders);
-	for (const [key, value] of Object.entries(additionalHeaders ?? {})) {
-		headers.set(key, value);
-	}
+	const headers = mergeCodexHeaders(modelHeaders, additionalHeaders);
 
 	headers.set("Authorization", `Bearer ${token}`);
 	headers.set("chatgpt-account-id", accountId);
@@ -440,9 +461,9 @@ function buildBaseCodexHeaders(
 	return headers;
 }
 
-function buildSSEHeaders(
-	modelHeaders: Record<string, string> | undefined,
-	additionalHeaders: Record<string, string> | undefined,
+export function buildSSEHeaders(
+	modelHeaders: ProviderHeaders | undefined,
+	additionalHeaders: ProviderHeaders | undefined,
 	accountId: string,
 	token: string,
 	sessionId: string | undefined,
@@ -453,16 +474,16 @@ function buildSSEHeaders(
 	headers.set("content-type", "application/json");
 
 	if (sessionId) {
-		headers.set("session_id", sessionId);
+		headers.set("session-id", sessionId);
 		headers.set("x-client-request-id", sessionId);
 	}
 
 	return headers;
 }
 
-function buildWebSocketHeaders(
-	modelHeaders: Record<string, string> | undefined,
-	additionalHeaders: Record<string, string> | undefined,
+export function buildWebSocketHeaders(
+	modelHeaders: ProviderHeaders | undefined,
+	additionalHeaders: ProviderHeaders | undefined,
 	accountId: string,
 	token: string,
 	requestId: string,
@@ -474,7 +495,7 @@ function buildWebSocketHeaders(
 	headers.delete("openai-beta");
 	headers.set("OpenAI-Beta", OPENAI_BETA_RESPONSES_WEBSOCKETS);
 	headers.set("x-client-request-id", requestId);
-	headers.set("session_id", requestId);
+	headers.set("session-id", requestId);
 	return headers;
 }
 
@@ -516,9 +537,39 @@ function resolveCodexServiceTier(responseServiceTier: ServiceTier, requestServic
 	return responseServiceTier ?? requestServiceTier;
 }
 
+function splitDeferredTools(context: Context, enabled: boolean): { immediate: Tool[]; deferred: Map<string, Tool> } {
+	const uniqueTools = new Map((context.tools ?? []).map((tool) => [tool.name, tool]));
+	if (!enabled) return { immediate: [...uniqueTools.values()], deferred: new Map() };
+
+	const deferredNames = new Set<string>();
+	const usedNames = new Set<string>();
+	for (const message of context.messages) {
+		if (message.role === "assistant") {
+			for (const block of message.content) {
+				if (block.type === "toolCall") usedNames.add(block.name);
+			}
+		} else if (message.role === "toolResult") {
+			for (const name of message.addedToolNames ?? []) {
+				if (!usedNames.has(name)) deferredNames.add(name);
+			}
+		}
+	}
+
+	const immediate: Tool[] = [];
+	const deferred = new Map<string, Tool>();
+	for (const [name, tool] of uniqueTools) {
+		if (deferredNames.has(name)) deferred.set(name, tool);
+		else immediate.push(tool);
+	}
+	return { immediate, deferred };
+}
+
 export function buildRequestBody<TApi extends Api>(model: Model<TApi>, context: Context, options?: SimpleStreamOptions): ResponsesBody {
+	const supportsToolSearch = (model.compat as { supportsToolSearch?: boolean } | undefined)?.supportsToolSearch ?? false;
+	const toolPlacement = splitDeferredTools(context, supportsToolSearch);
 	const messages = convertResponsesMessages(model, context, CODEX_TOOL_CALL_PROVIDERS, {
 		includeSystemPrompt: false,
+		deferredTools: toolPlacement.deferred,
 	});
 
 	const body: ResponsesBody = {
@@ -529,7 +580,7 @@ export function buildRequestBody<TApi extends Api>(model: Model<TApi>, context: 
 		input: messages,
 		text: { verbosity: ((options as { textVerbosity?: string } | undefined)?.textVerbosity ?? "low") as string },
 		include: ["reasoning.encrypted_content"],
-		prompt_cache_key: options?.sessionId,
+		prompt_cache_key: clampCodexSessionId(options?.sessionId),
 		tool_choice: "auto",
 		parallel_tool_calls: true,
 	};
@@ -548,9 +599,9 @@ export function buildRequestBody<TApi extends Api>(model: Model<TApi>, context: 
 		body.service_tier = serviceTier;
 	}
 
-	if (context.tools && context.tools.length > 0) {
-		body.tools = convertResponsesTools(context.tools, { strict: null });
-		const hasWebSearchTool = context.tools.some((tool) => tool.name === "web_search");
+	if (toolPlacement.immediate.length > 0) {
+		body.tools = convertResponsesTools(toolPlacement.immediate, { strict: null });
+		const hasWebSearchTool = toolPlacement.immediate.some((tool) => tool.name === "web_search");
 		if (hasWebSearchTool) {
 			body.include.push("web_search_call.action.sources", "web_search_call.results");
 		}
@@ -1484,7 +1535,7 @@ function createCodexStream<TApi extends Api>(
 		const requestPrompt = getLatestUserText(context);
 
 		try {
-			const apiKey = options?.apiKey || getEnvApiKey(model.provider) || "";
+			const apiKey = options?.apiKey ?? "";
 			if (!apiKey) {
 				throw new Error(`No API key for provider: ${model.provider}`);
 			}
@@ -1496,8 +1547,9 @@ function createCodexStream<TApi extends Api>(
 				body = nextBody as ResponsesBody;
 			}
 
-			const websocketRequestId = options?.sessionId || createCodexRequestId();
-			const sseHeaders = buildSSEHeaders(model.headers, options?.headers, accountId, apiKey, options?.sessionId);
+			const codexSessionId = clampCodexSessionId(options?.sessionId);
+			const websocketRequestId = codexSessionId || createCodexRequestId();
+			const sseHeaders = buildSSEHeaders(model.headers, options?.headers, accountId, apiKey, codexSessionId);
 			const websocketHeaders = buildWebSocketHeaders(model.headers, options?.headers, accountId, apiKey, websocketRequestId);
 			const bodyJson = JSON.stringify(body);
 			const transport = options?.transport || "auto";

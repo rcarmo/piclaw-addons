@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "allowImportingTsExtensions": true,
+    "moduleDetection": "force",
+    "types": ["bun-types"]
+  },
+  "include": [
+    "addons/autoresearch/supervisor.ts",
+    "addons/cheapskate/**/*.ts",
+    "addons/codex-conversion/**/*.ts",
+    "addons/delegate/**/*.ts",
+    "addons/skill-model-effort/**/*.ts",
+    "addons/smart-compaction/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "addons/autoresearch/vendor"
+  ]
+}

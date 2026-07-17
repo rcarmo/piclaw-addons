@@ -1,4 +1,5 @@
-import { expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
+import { resolveRefreshedSkillModel } from "./src/index.ts";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -27,4 +28,57 @@ test("skill-model-effort source imports the Piclaw package scope", () => {
   expect(source).toContain('pi.on("input"');
   expect(source).toContain('pi.on("tool_call"');
   expect(source).toContain('pi.on("agent_end"');
+});
+
+describe("skill model resolution", () => {
+  const stale = { provider: "test", id: "stale", name: "Stale" } as any;
+  const fresh = { provider: "test", id: "fresh", name: "Fresh" } as any;
+
+  test("awaits refresh before taking one coherent model snapshot", async () => {
+    let refreshed = false;
+    let reads = 0;
+    const resolved = await resolveRefreshedSkillModel("test/fresh", {
+      modelRegistry: {
+        async refresh() {
+          await Bun.sleep(5);
+          refreshed = true;
+        },
+        getAll() {
+          reads++;
+          return refreshed ? [fresh] : [stale];
+        },
+      } as any,
+    });
+
+    expect(reads).toBe(1);
+    expect(resolved).toEqual({ model: fresh, refreshError: undefined });
+  });
+
+  test("uses the last-good snapshot and reports refresh failure", async () => {
+    const resolved = await resolveRefreshedSkillModel("test/stale", {
+      modelRegistry: {
+        async refresh() { throw new Error("offline"); },
+        getAll() { return [stale]; },
+      } as any,
+    });
+
+    expect(resolved.model).toBe(stale);
+    expect(resolved.refreshError).toBe("offline");
+  });
+
+  test("keeps ambiguous short names unresolved", async () => {
+    const resolved = await resolveRefreshedSkillModel("shared", {
+      modelRegistry: {
+        async refresh() {},
+        getAll() {
+          return [
+            { ...stale, id: "shared", provider: "one" },
+            { ...fresh, id: "shared", provider: "two" },
+          ];
+        },
+      } as any,
+    });
+
+    expect(resolved.model).toBeUndefined();
+  });
 });

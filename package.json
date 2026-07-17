@@ -12,6 +12,8 @@
   "scripts": {
     "sync:catalog": "bun scripts/sync-catalog.ts --write",
     "check:catalog": "bun scripts/sync-catalog.ts --check",
+    "typecheck:earendil-compat": "tsc --noEmit -p tsconfig.earendil-compat.json",
+    "test:earendil-compat": "bun test addons/cheapskate/index.test.ts addons/codex-conversion/index.test.ts addons/delegate/index.test.ts addons/skill-model-effort/index.test.ts addons/smart-compaction/index.test.ts addons/autoresearch/supervisor.test.ts",
     "addon:e2e": "cd tests/addon-e2e && bun run test -- --project=desktop-chrome",
     "addon:e2e:all": "cd tests/addon-e2e && PICLAW_ADDON=all bun run test -- --project=desktop-chrome",
     "addon:e2e:report": "cd tests/addon-e2e && bun run report"
@@ -117,11 +119,12 @@
     "catalog.json"
   ],
   "devDependencies": {
+    "@earendil-works/pi-agent-core": "0.80.10",
+    "@earendil-works/pi-ai": "0.80.10",
+    "@earendil-works/pi-coding-agent": "0.80.10",
+    "@earendil-works/pi-tui": "0.80.10",
     "bun-types": "^1.3.13",
     "marked": "^18.0.3",
-    "@earendil-works/pi-agent-core": "0.80.3",
-    "@earendil-works/pi-ai": "0.80.3",
-    "@earendil-works/pi-coding-agent": "0.80.3",
-    "@earendil-works/pi-tui": "0.80.3"
+    "typescript": "5.9.3"
   }
 }

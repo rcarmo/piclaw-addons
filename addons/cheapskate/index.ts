@@ -10,7 +10,9 @@
  * providers (Cloudflare) have a safety-cap toggle.
  */
 
-import type { ExtensionAPI, ExtensionFactory } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionFactory, ProviderConfig, ProviderModelConfig } from "@earendil-works/pi-coding-agent";
+import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
+import type { ProviderStreams } from "@earendil-works/pi-ai";
 import { Type } from "@sinclair/typebox";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -283,17 +285,34 @@ function buildModelName(backend: FreeBackend | null, configured: FreeBackend[]):
   return `Free \u2192 ${backend.name} / ${backend.modelName} \u00b7 $0`;
 }
 
-function buildProviderModel(backend: FreeBackend, configured: FreeBackend[]) {
+function buildProviderModel(backend: FreeBackend, configured: FreeBackend[]): ProviderModelConfig {
   return {
     id: "auto",
     name: buildModelName(backend, configured),
-    api: "openai",
+    api: "openai-completions",
     reasoning: backend.reasoning,
-    input: ["text", "image"] as ("text" | "image")[],
+    input: ["text", "image"],
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     contextWindow: backend.contextWindow,
     maxTokens: backend.maxTokens,
-    compat: { modelId: backend.modelId } as any,
+  };
+}
+
+function buildProviderConfig(
+  backend: FreeBackend,
+  configured: FreeBackend[],
+  streams: Pick<ProviderStreams, "streamSimple"> = openAICompletionsApi(),
+): ProviderConfig {
+  return {
+    baseUrl: resolveBaseUrl(backend),
+    apiKey: `$${backend.apiKeyEnv}`,
+    api: "openai-completions",
+    models: [buildProviderModel(backend, configured)],
+    streamSimple: (model, context, options) => streams.streamSimple(
+      { ...model, id: backend.modelId, api: "openai-completions" },
+      context,
+      options,
+    ),
   };
 }
 
@@ -302,26 +321,14 @@ function registerCheapskateProvider(pi: ExtensionAPI): boolean {
   if (configured.length === 0) return false;
 
   const best = getCurrentBackend() || configured[0]!;
-
-  pi.registerProvider("cheapskate", {
-    baseUrl: resolveBaseUrl(best),
-    apiKey: best.apiKeyEnv,
-    api: "openai",
-    models: [buildProviderModel(best, configured)],
-  });
+  pi.registerProvider("cheapskate", buildProviderConfig(best, configured));
 
   currentBackendId = best.id;
   return true;
 }
 
 function reRegisterWithBackend(pi: ExtensionAPI, backend: FreeBackend): void {
-  const configured = getConfiguredBackends();
-  pi.registerProvider("cheapskate", {
-    baseUrl: resolveBaseUrl(backend),
-    apiKey: backend.apiKeyEnv,
-    api: "openai",
-    models: [buildProviderModel(backend, configured)],
-  });
+  pi.registerProvider("cheapskate", buildProviderConfig(backend, getConfiguredBackends()));
 }
 
 function mergeCheapskateConfig(patch: Partial<CheapskateConfig>): CheapskateConfig {
@@ -498,4 +505,4 @@ const cheapskate: ExtensionFactory = (pi: ExtensionAPI) => {
 };
 
 export default cheapskate;
-export { cheapskate, BACKENDS, getConfiguredBackends, getAvailableBackends, getCurrentBackend, getUsage, currentBackendId, buildProviderModel, isContextLimitError };
+export { cheapskate, BACKENDS, getConfiguredBackends, getAvailableBackends, getCurrentBackend, getUsage, currentBackendId, buildProviderModel, buildProviderConfig, isContextLimitError };
