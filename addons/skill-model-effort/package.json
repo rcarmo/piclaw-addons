@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-skill-model-effort",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Honor model, effort, and thinking frontmatter on Piclaw skills",
   "type": "module",
   "main": "src/index.ts",

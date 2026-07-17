@@ -10,12 +10,12 @@
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { Message } from "@earendil-works/pi-ai";
-import { completeSimple } from "@earendil-works/pi-ai/compat";
 
 import { MIN_SUMMARY_CHARS, PROGRESSIVE_FALLBACK_CONTEXT_WINDOW, SELECTIVE_THRESHOLD } from "./src/config.js";
 import { estimateCompactionPromptTokens, getContextWindowEstimate, publishContextEstimate } from "./src/context.js";
 import { compressFilePaths, fileListsFromOps } from "./src/files.js";
 import { convertMessagesWithMetadata, type SourceMessage } from "./src/messages.js";
+import { completeWithCompatibilityAuth, resolveCompatibilityRequestAuth } from "./src/model-execution.js";
 import { appendFileLists, buildTurnPrefixSummary, extractKeptMessagesSummary, tryNoOpCompaction } from "./src/noop.js";
 import { buildProgressiveCompactionChunks, getProgressiveCompactionBudget, runProgressiveCompaction } from "./src/progressive.js";
 import { clampKeepRecentTokens, estimatePostCompactionFit, getSafeCompactionMaxTokens } from "./src/safety.js";
@@ -231,11 +231,12 @@ export function smartCompaction(pi: ExtensionAPI): void {
         log.debug("No model available for smart compaction", "warning");
         return;
       }
-      const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
-      if (!auth.ok) {
-        log.debug(`Compaction model is not configured in pi settings: ${auth.error}`, "warning");
+      const authResolution = await resolveCompatibilityRequestAuth(ctx.modelRegistry, model);
+      if (!authResolution.ok) {
+        log.debug(`Compaction model is not configured in pi settings: ${authResolution.error}`, "warning");
         return;
       }
+      const auth = authResolution.auth;
 
       const budget = getProgressiveCompactionBudget(model);
       if (budget.forceProgressive || promptText.length > budget.promptBudgetChars) {
@@ -304,19 +305,16 @@ export function smartCompaction(pi: ExtensionAPI): void {
       ];
 
       const requestedMaxTokens = Math.floor(0.8 * settings.reserveTokens);
-      const authForCompletion = auth as { apiKey?: string; headers?: Record<string, string> };
 
       try {
         const safeOutput = getSafeCompactionMaxTokens(model, promptText, requestedMaxTokens);
-        const completionOptions = (model as any).reasoning
-          ? { maxTokens: safeOutput.maxTokens, signal: abortSignal, apiKey: authForCompletion.apiKey, headers: authForCompletion.headers, reasoning: "high" as const }
-          : { maxTokens: safeOutput.maxTokens, signal: abortSignal, apiKey: authForCompletion.apiKey, headers: authForCompletion.headers };
         ctx.ui.setWorkingMessage("Smart compaction: generating selective summary…");
         publishContextEstimate(ctx, estimateCompactionPromptTokens(promptText), "generating_summary");
-        const response = await completeSimple(
+        const response = await completeWithCompatibilityAuth(
           model,
           { systemPrompt: SYSTEM_PROMPT, messages },
-          completionOptions,
+          auth,
+          { maxTokens: safeOutput.maxTokens, signal: abortSignal },
         );
 
         if (response.stopReason === "error") {

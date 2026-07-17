@@ -92,22 +92,35 @@ function readSkillRuntimeMeta(skill: RuntimeSkill): RuntimeMeta {
   return { model, thinking: normalizedLevel as ThinkingLevel, warnings };
 }
 
-function findModel(modelRef: string, ctx: ExtensionContext): ExtensionContext["model"] {
+function findModelInSnapshot(modelRef: string, models: ReturnType<ExtensionContext["modelRegistry"]["getAll"]>): ExtensionContext["model"] {
   if (modelRef.includes("/")) {
     const [provider, ...idParts] = modelRef.split("/");
     const id = idParts.join("/");
-    return ctx.modelRegistry.find(provider, id);
+    return models.find((model) => model.provider === provider && model.id === id);
   }
 
-  const exactMatches = ctx.modelRegistry.getAll().filter((model) => model.id === modelRef || model.name === modelRef);
+  const exactMatches = models.filter((model) => model.id === modelRef || model.name === modelRef);
   if (exactMatches.length === 1) return exactMatches[0];
 
   const lowerRef = modelRef.toLowerCase();
-  const caseInsensitiveMatches = ctx.modelRegistry
-    .getAll()
-    .filter((model) => model.id.toLowerCase() === lowerRef || model.name.toLowerCase() === lowerRef);
-
+  const caseInsensitiveMatches = models.filter(
+    (model) => model.id.toLowerCase() === lowerRef || model.name.toLowerCase() === lowerRef,
+  );
   return caseInsensitiveMatches.length === 1 ? caseInsensitiveMatches[0] : undefined;
+}
+
+export async function resolveRefreshedSkillModel(
+  modelRef: string,
+  ctx: Pick<ExtensionContext, "modelRegistry">,
+): Promise<{ model: ExtensionContext["model"]; refreshError?: string }> {
+  let refreshError: string | undefined;
+  try {
+    await ctx.modelRegistry.refresh();
+  } catch (error) {
+    refreshError = error instanceof Error ? error.message : String(error);
+  }
+  const models = ctx.modelRegistry.getAll();
+  return { model: findModelInSnapshot(modelRef, models), refreshError };
 }
 
 export default function skillModelEffort(pi: ExtensionAPI) {
@@ -150,11 +163,14 @@ export default function skillModelEffort(pi: ExtensionAPI) {
     }
 
     if (meta.model) {
-      const model = findModel(meta.model, ctx);
-      if (!model) {
+      const resolved = await resolveRefreshedSkillModel(meta.model, ctx);
+      if (resolved.refreshError && ctx.hasUI) {
+        ctx.ui.notify(`Could not refresh the model catalog; using cached models: ${resolved.refreshError}`, "warning");
+      }
+      if (!resolved.model) {
         if (ctx.hasUI) ctx.ui.notify(`Skill "${skill.name}" requested unknown model "${meta.model}".`, "error");
       } else {
-        const ok = await pi.setModel(model);
+        const ok = await pi.setModel(resolved.model);
         if (!ok && ctx.hasUI) {
           ctx.ui.notify(`Skill "${skill.name}" requested model "${meta.model}", but no API key is configured.`, "error");
         }

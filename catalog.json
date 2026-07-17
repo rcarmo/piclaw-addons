@@ -42,12 +42,12 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-autoresearch-0.1.3.tgz"
       },
-      "updatedAt": "2026-07-16"
+      "updatedAt": "2026-07-17"
     },
     {
       "slug": "cheapskate",
       "name": "@rcarmo/piclaw-addon-cheapskate",
-      "version": "0.4.4",
+      "version": "0.4.5",
       "type": "extension",
       "description": "Free-tier provider auto-rotation — select cheapskate/auto as your model and it transparently routes across configured free-tier backends (Gemini, Cerebras, Groq, SambaNova, OpenRouter, OpenCode Zen, NVIDIA, Cloudflare)",
       "path": "addons/cheapskate",
@@ -62,9 +62,9 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-cheapskate-0.4.4.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-cheapskate-0.4.5.tgz"
       },
-      "updatedAt": "2026-05-08"
+      "updatedAt": "2026-07-17"
     },
     {
       "slug": "code-validator",
@@ -89,7 +89,7 @@
     {
       "slug": "codex-conversion",
       "name": "@rcarmo/piclaw-addon-codex-conversion",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "type": "extension",
       "description": "Codex-style prompt and tool adapter for OpenAI/Codex-like models in Piclaw",
       "path": "addons/codex-conversion",
@@ -104,14 +104,14 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-codex-conversion-0.1.2.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-codex-conversion-0.1.3.tgz"
       },
-      "updatedAt": "2026-07-16"
+      "updatedAt": "2026-07-17"
     },
     {
       "slug": "delegate",
       "name": "@rcarmo/piclaw-addon-delegate",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "type": "extension",
       "description": "Delegate tasks to verified cheaper/faster child-Pi models with deterministic tier-safe selection",
       "path": "addons/delegate",
@@ -126,9 +126,9 @@
       ],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-delegate-0.2.0.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-delegate-0.2.1.tgz"
       },
-      "updatedAt": "2026-07-11"
+      "updatedAt": "2026-07-17"
     },
     {
       "slug": "dev-tools",
@@ -671,7 +671,7 @@
     {
       "slug": "skill-model-effort",
       "name": "@rcarmo/piclaw-addon-skill-model-effort",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "type": "extension",
       "description": "Honor model, effort, and thinking frontmatter on Piclaw skills",
       "path": "addons/skill-model-effort",
@@ -685,14 +685,14 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-skill-model-effort-0.1.1.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-skill-model-effort-0.1.2.tgz"
       },
-      "updatedAt": "2026-05-08"
+      "updatedAt": "2026-07-17"
     },
     {
       "slug": "smart-compaction",
       "name": "@rcarmo/piclaw-addon-smart-compaction",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "type": "extension",
       "description": "Standalone Pi-compatible smart compaction extension for vanilla pi users; Piclaw already includes this behavior natively.",
       "path": "addons/smart-compaction",
@@ -706,9 +706,9 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-smart-compaction-0.1.2.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-smart-compaction-0.1.3.tgz"
       },
-      "updatedAt": "2026-06-23"
+      "updatedAt": "2026-07-17"
     },
     {
       "slug": "stealth-browser",

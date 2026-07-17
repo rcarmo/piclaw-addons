@@ -2,7 +2,8 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import cheapskate, { BACKENDS, currentBackendId, resetCheapskateForTests } from "./index.ts";
+import cheapskate, { BACKENDS, buildProviderConfig, currentBackendId, resetCheapskateForTests } from "./index.ts";
+import { createAssistantMessageEventStream } from "@earendil-works/pi-ai";
 
 type ProviderRegistration = { name: string; config: any };
 
@@ -116,13 +117,72 @@ describe("cheapskate addon", () => {
 
     const model = getActiveModel(providers);
     const google = BACKENDS.find((backend) => backend.id === "google")!;
-    expect(model.compat.modelId).toBe(google.modelId);
+    expect(model.id).toBe("auto");
+    expect(model.api).toBe("openai-completions");
     expect(model.contextWindow).toBe(google.contextWindow);
     expect(model.maxTokens).toBe(google.maxTokens);
     expect(model.reasoning).toBe(google.reasoning);
 
     const status = await tools.get("cheapskate").execute("call-1", { action: "status" });
     expect(status.details).toEqual({ configured: 1, available: 1, active: "google" });
+  });
+
+  test("builds a typed OpenAI completions provider that keeps the virtual catalog identity", () => {
+    const google = BACKENDS.find((backend) => backend.id === "google")!;
+    const config = buildProviderConfig(google, [google]);
+
+    expect(config).toMatchObject({
+      baseUrl: google.baseUrl,
+      apiKey: `$${google.apiKeyEnv}`,
+      api: "openai-completions",
+    });
+    expect(config.models).toEqual([expect.objectContaining({
+      id: "auto",
+      api: "openai-completions",
+      contextWindow: google.contextWindow,
+      maxTokens: google.maxTokens,
+    })]);
+    expect(typeof config.streamSimple).toBe("function");
+    expect(config.oauth).toBeUndefined();
+  });
+
+  test("routes the virtual model ID while preserving runtime request options", () => {
+    const google = BACKENDS.find((backend) => backend.id === "google")!;
+    let received: { model?: any; context?: any; options?: any } = {};
+    const stream = createAssistantMessageEventStream();
+    const config = buildProviderConfig(google, [google], {
+      streamSimple(model, context, options) {
+        received = { model, context, options };
+        return stream;
+      },
+    });
+    const virtualModel = {
+      provider: "cheapskate",
+      id: "auto",
+      name: "Auto",
+      api: "openai-completions",
+      baseUrl: google.baseUrl,
+      reasoning: true,
+      input: ["text"],
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+      contextWindow: google.contextWindow,
+      maxTokens: google.maxTokens,
+    } as any;
+    const context = { systemPrompt: "test", messages: [] };
+    const options = {
+      apiKey: "resolved-key",
+      headers: { "x-delete": null, "x-keep": "yes" },
+      env: { HTTPS_PROXY: "http://proxy.test" },
+      signal: new AbortController().signal,
+      maxRetries: 1,
+      onPayload: (payload: unknown) => payload,
+      onResponse: () => {},
+    } as any;
+
+    expect(config.streamSimple?.(virtualModel, context, options)).toBe(stream);
+    expect(received.model).toEqual({ ...virtualModel, id: google.modelId, api: "openai-completions" });
+    expect(received.context).toBe(context);
+    expect(received.options).toBe(options);
   });
 
   test("reports the active backend model limits instead of the largest configured backend", async () => {
@@ -136,7 +196,8 @@ describe("cheapskate addon", () => {
     const groq = BACKENDS.find((backend) => backend.id === "groq")!;
 
     let model = getActiveModel(providers);
-    expect(model.compat.modelId).toBe(google.modelId);
+    expect(providers.at(-1)?.config.api).toBe("openai-completions");
+    expect(model.id).toBe("auto");
     expect(model.contextWindow).toBe(google.contextWindow);
     expect(model.maxTokens).toBe(google.maxTokens);
     expect(currentBackendId).toBe("google");
@@ -144,7 +205,7 @@ describe("cheapskate addon", () => {
     await tools.get("cheapskate").execute("call-2", { action: "rotate" });
 
     model = getActiveModel(providers);
-    expect(model.compat.modelId).toBe(groq.modelId);
+    expect(model.id).toBe("auto");
     expect(model.contextWindow).toBe(groq.contextWindow);
     expect(model.maxTokens).toBe(groq.maxTokens);
     expect(model.reasoning).toBe(groq.reasoning);
@@ -172,7 +233,7 @@ describe("cheapskate addon", () => {
 
     const model = getActiveModel(providers);
     const google = BACKENDS.find((backend) => backend.id === "google")!;
-    expect(model.compat.modelId).toBe(google.modelId);
+    expect(model.id).toBe("auto");
     expect(model.contextWindow).toBe(google.contextWindow);
     expect(currentBackendId).toBe("google");
   });

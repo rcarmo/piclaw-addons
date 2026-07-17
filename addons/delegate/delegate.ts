@@ -20,7 +20,18 @@ const MAX_OUTPUT_CHARS = 50_000;
 const DELEGATE_STATUS_KEY = "delegate";
 const MAX_TEXT_FILE_BYTES = 100_000; // 100KB limit for text file inlining
 const ADDON_DIR = dirname(fileURLToPath(import.meta.url));
-const WORKSPACE_ROOT = "/workspace";
+
+export function getDelegateWorkspaceRoot(
+  env: Record<string, string | undefined> = process.env,
+  cwd = process.cwd(),
+): string {
+  const candidate = resolve(env.PICLAW_WORKSPACE || cwd);
+  try {
+    return realpathSync(candidate);
+  } catch {
+    return candidate;
+  }
+}
 
 const DELEGATE_STATUS_ICON_SVG = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M16 3h5v5"></path><path d="M21 3l-7 7"></path><path d="M8 21H3v-5"></path><path d="M3 21l7-7"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
 
@@ -641,9 +652,23 @@ export function runtimeModelToAvailable(model: any): AvailableModel | null {
   };
 }
 
-export function captureRuntimeCatalog(ctx: any): RuntimeCatalogSnapshot {
-  try { ctx?.modelRegistry?.refresh?.(); } catch { /* retain the current registry snapshot */ }
-  const rawModels = ctx?.modelRegistry?.getAvailable?.();
+export async function captureRuntimeCatalog(
+  ctx: any,
+  fallback?: RuntimeCatalogSnapshot | null,
+): Promise<RuntimeCatalogSnapshot> {
+  try {
+    await ctx?.modelRegistry?.refresh?.();
+  } catch {
+    // ModelRegistry keeps its last-good snapshot when reload fails; read it below.
+  }
+
+  let rawModels: unknown;
+  try {
+    rawModels = ctx?.modelRegistry?.getAvailable?.();
+  } catch {
+    rawModels = undefined;
+  }
+
   const seen = new Set<string>();
   const models = (Array.isArray(rawModels) ? rawModels : [])
     .map(runtimeModelToAvailable)
@@ -653,7 +678,10 @@ export function captureRuntimeCatalog(ctx: any): RuntimeCatalogSnapshot {
       seen.add(model.fullId);
       return true;
     });
-  const currentModel = runtimeModelToAvailable(ctx?.model);
+  const currentModel = runtimeModelToAvailable(ctx?.model) ?? fallback?.currentModel ?? null;
+  if (models.length === 0 && fallback?.models.length) {
+    return { ...fallback, currentModel, capturedAt: Date.now() };
+  }
   return { source: "runtime", models, currentModel, capturedAt: Date.now() };
 }
 
@@ -712,7 +740,7 @@ function runPiListModels(timeoutMs = 20_000, signal?: AbortSignal): Promise<stri
     }
     const cli = resolveDelegateCliCommand();
     const child = nodeSpawn(cli.command, [...cli.argsPrefix, "--list-models"], {
-      cwd: WORKSPACE_ROOT,
+      cwd: getDelegateWorkspaceRoot(),
       stdio: ["ignore", "pipe", "pipe"],
       env: process.env,
       detached: process.platform !== "win32",
@@ -918,10 +946,10 @@ export function inspectDelegateFile(path: string): DelegateFileInspection {
 }
 
 /** Validate a resolved path: must be inside workspace, no control characters. */
-function validateFilePath(resolved: string, original: string): string | null {
-  if (/[\x00-\x1f]/.test(resolved)) return `Unsafe characters in path: ${original}`;
-  if (!resolved.startsWith(WORKSPACE_ROOT + "/") && resolved !== WORKSPACE_ROOT) {
-    return `Path outside workspace: ${original} (resolved to ${resolved})`;
+function validateFilePath(resolvedPath: string, original: string, workspaceRoot: string): string | null {
+  if (/[\x00-\x1f]/.test(resolvedPath)) return `Unsafe characters in path: ${original}`;
+  if (!resolvedPath.startsWith(workspaceRoot + "/") && resolvedPath !== workspaceRoot) {
+    return `Path outside workspace: ${original} (resolved to ${resolvedPath})`;
   }
   return null;
 }
@@ -933,12 +961,13 @@ export interface PreparedDelegateFile {
 }
 
 export function prepareDelegateFile(filePath: string): PreparedDelegateFile {
+  const workspaceRoot = getDelegateWorkspaceRoot();
   const lexicalPath = resolve(filePath);
-  const lexicalError = validateFilePath(lexicalPath, filePath);
+  const lexicalError = validateFilePath(lexicalPath, filePath, workspaceRoot);
   if (lexicalError) throw new Error(lexicalError);
   if (!existsSync(lexicalPath)) throw new Error(`File not found: ${filePath}`);
   const resolved = realpathSync(lexicalPath);
-  const canonicalError = validateFilePath(resolved, filePath);
+  const canonicalError = validateFilePath(resolved, filePath, workspaceRoot);
   if (canonicalError) throw new Error(canonicalError);
   const stat = statSync(resolved);
   if (!stat.isFile()) throw new Error(`Delegate files must be regular files: ${filePath}`);
@@ -1154,8 +1183,8 @@ if (typeof registerAddonConfigApi === "function") {
 // ── Extension ──────────────────────────────────────────────────
 
 export default function (pi: any) {
-  const updateRuntimeCatalog = (ctx: any) => {
-    runtimeCatalogSnapshot = captureRuntimeCatalog(ctx);
+  const updateRuntimeCatalog = async (ctx: any) => {
+    runtimeCatalogSnapshot = await captureRuntimeCatalog(ctx, runtimeCatalogSnapshot);
   };
   pi.on("session_start", async (_event: unknown, ctx: any) => updateRuntimeCatalog(ctx));
   pi.on("model_select", async (_event: unknown, ctx: any) => updateRuntimeCatalog(ctx));
@@ -1173,7 +1202,7 @@ export default function (pi: any) {
   ].join("\n");
 
   pi.on("before_agent_start", async (event: { systemPrompt: string }, ctx: any) => {
-    updateRuntimeCatalog(ctx);
+    await updateRuntimeCatalog(ctx);
     // Auto-activate delegate tool so it's available without manual activate_tools
     const active = pi.getActiveTools();
     if (!active.includes("delegate")) {
@@ -1244,7 +1273,8 @@ export default function (pi: any) {
       const rawCategory = (params.task_category as TaskCategory) || "summarize";
       const category: TaskCategory = VALID_CATEGORIES.has(rawCategory) ? rawCategory : "summarize";
       const config = loadConfig();
-      runtimeCatalogSnapshot = captureRuntimeCatalog(ctx);
+      runtimeCatalogSnapshot = await captureRuntimeCatalog(ctx, runtimeCatalogSnapshot);
+      remainingBudget("runtime model refresh");
       const executableCatalog = await getExecutableCatalog(false, Math.min(20_000, remainingBudget("model discovery")), signal);
       remainingBudget("model discovery");
       const discoveredModels = mergeExecutableRuntimeMetadata(executableCatalog.models, runtimeCatalogSnapshot.models);
@@ -1672,7 +1702,7 @@ export function runDelegateProcess(
   return new Promise((resolvePromise, reject) => {
     const resolvedCli = cliOverride ?? resolveDelegateCliCommand();
     const child = nodeSpawn(resolvedCli.command, [...(resolvedCli.argsPrefix ?? []), ...piArgs], {
-      cwd: WORKSPACE_ROOT,
+      cwd: getDelegateWorkspaceRoot(),
       stdio: ["pipe", "pipe", "pipe"],
       env: process.env,
       detached: process.platform !== "win32",

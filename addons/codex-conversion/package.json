@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-codex-conversion",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Codex-style prompt and tool adapter for OpenAI/Codex-like models in Piclaw",
   "type": "module",
   "main": "src/index.ts",

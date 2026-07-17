@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { buildCompatibilityCompletionOptions, resolveCompatibilityRequestAuth } from "./src/model-execution.ts";
 
 const addonDir = import.meta.dir;
 
@@ -26,5 +27,62 @@ describe("smart-compaction addon", () => {
     expect(source).toContain("Progressive compaction time budget exhausted before final merge");
     expect(source).toContain("timeoutMs: input.timeoutMs");
     expect(source).toContain("startedAt: input.startedAt");
+  });
+
+  test("resolves and forwards the complete public compatibility auth contract", async () => {
+    const model = {
+      provider: "custom",
+      id: "model",
+      name: "Model",
+      api: "openai-completions",
+      baseUrl: "https://credential-specific.example/v1",
+      reasoning: true,
+      input: ["text"],
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+      contextWindow: 128_000,
+      maxTokens: 8_192,
+    } as any;
+    const signal = new AbortController().signal;
+    const onPayload = (payload: unknown) => payload;
+    const onResponse = () => {};
+    const resolution = await resolveCompatibilityRequestAuth({
+      async getApiKeyAndHeaders(received: unknown) {
+        expect(received).toBe(model);
+        return {
+          ok: true as const,
+          apiKey: "resolved-key",
+          headers: { "x-provider": "resolved" },
+          env: { AWS_REGION: "eu-west-1" },
+        };
+      },
+    }, model);
+
+    expect(resolution.ok).toBe(true);
+    if (!resolution.ok) throw new Error(resolution.error);
+    const options = buildCompatibilityCompletionOptions(model, resolution.auth, {
+      maxTokens: 123,
+      signal,
+      onPayload,
+      onResponse,
+    });
+    expect(model.baseUrl).toBe("https://credential-specific.example/v1");
+    expect(options).toEqual({
+      maxTokens: 123,
+      signal,
+      onPayload,
+      onResponse,
+      apiKey: "resolved-key",
+      headers: { "x-provider": "resolved" },
+      env: { AWS_REGION: "eu-west-1" },
+      reasoning: "high",
+    });
+  });
+
+  test("preserves explicit reasoning and reports auth failures", async () => {
+    const model = { provider: "custom", id: "model", reasoning: true } as any;
+    expect(buildCompatibilityCompletionOptions(model, {}, { reasoning: "low" })).toMatchObject({ reasoning: "low" });
+    await expect(resolveCompatibilityRequestAuth({
+      async getApiKeyAndHeaders() { return { ok: false as const, error: "not configured" }; },
+    }, model)).resolves.toEqual({ ok: false, error: "not configured" });
   });
 });

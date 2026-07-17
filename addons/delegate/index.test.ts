@@ -1,9 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 
-import delegateAddon, { buildDelegateModelChain, buildDelegateStatusUpdate, buildModelCandidates, captureRuntimeCatalog, classifyDelegateFailure, classifyModel, delegateProcessFailure, delegateStatusModelHint, describeImageCapability, delegateTaskPreview, getCurrentTier, getExecutableCatalog, inspectDelegateFile, invalidateExecutableCatalog, isProviderAuthError, isRetryableDelegateFailure, mergeExecutableRuntimeMetadata, parseDelegateJsonOutput, parsePiListModelsOutput, prepareDelegateFile, resolveDelegateCliCommand, runDelegateProcess, runtimeModelToAvailable, selectModel, validateExplicitDelegateModel } from "./delegate.ts";
+import delegateAddon, { buildDelegateModelChain, buildDelegateStatusUpdate, buildModelCandidates, captureRuntimeCatalog, classifyDelegateFailure, classifyModel, delegateProcessFailure, delegateStatusModelHint, describeImageCapability, delegateTaskPreview, getCurrentTier, getDelegateWorkspaceRoot, getExecutableCatalog, inspectDelegateFile, invalidateExecutableCatalog, isProviderAuthError, isRetryableDelegateFailure, mergeExecutableRuntimeMetadata, parseDelegateJsonOutput, parsePiListModelsOutput, prepareDelegateFile, resolveDelegateCliCommand, runDelegateProcess, runtimeModelToAvailable, selectModel, validateExplicitDelegateModel } from "./delegate.ts";
 
 const addonDir = dirname(fileURLToPath(import.meta.url));
 
@@ -47,7 +48,7 @@ anthropic       claude-sonnet-4.6  200K     32K      yes       yes
   });
 
   test("executable catalog cache expires explicitly, retries failures, and preserves last good data", async () => {
-    const dir = mkdtempSync("/workspace/tmp/delegate-catalog-");
+    const dir = mkdtempSync(join(tmpdir(), "delegate-catalog-"));
     const previousCli = process.env.PI_DELEGATE_CLI;
     try {
       const script = resolve(dir, "catalog.ts");
@@ -88,7 +89,7 @@ anthropic       claude-sonnet-4.6  200K     32K      yes       yes
   });
 
   test("cancellation interrupts executable-model discovery before delegation", async () => {
-    const dir = mkdtempSync("/workspace/tmp/delegate-discovery-abort-");
+    const dir = mkdtempSync(join(tmpdir(), "delegate-discovery-abort-"));
     const previousCli = process.env.PI_DELEGATE_CLI;
     try {
       const script = resolve(dir, "slow-catalog.ts");
@@ -107,7 +108,7 @@ anthropic       claude-sonnet-4.6  200K     32K      yes       yes
       const started = Date.now();
       await expect(tool.execute("abort-discovery", { prompt: "never runs", timeout_sec: 10 }, controller.signal, undefined, {
         model: { provider: "github-copilot", id: "gpt-5.6-sol" },
-        modelRegistry: { refresh() {}, getAvailable() { return []; } },
+        modelRegistry: { async refresh() {}, getAvailable() { return []; } },
       })).rejects.toThrow(/aborted/i);
       expect(Date.now() - started).toBeLessThan(1_000);
     } finally {
@@ -216,7 +217,7 @@ anthropic       claude-sonnet-4.6  200K     32K      yes       yes
     }
   });
 
-  test("runtime metadata enriches exact executable models and unknown current models fail closed", () => {
+  test("runtime metadata enriches exact executable models and unknown current models fail closed", async () => {
     const runtimeModel = {
       provider: "github-copilot",
       id: "gpt-5.6-sol",
@@ -227,7 +228,7 @@ anthropic       claude-sonnet-4.6  200K     32K      yes       yes
       input: ["text", "image"],
     };
     expect(runtimeModelToAvailable(runtimeModel)).toMatchObject({ fullId: "github-copilot/gpt-5.6-sol", contextWindow: 272_000, maxOutputTokens: 128_000, reasoning: true, supportsImages: true, catalogSource: "runtime" });
-    const snapshot = captureRuntimeCatalog({ model: runtimeModel, modelRegistry: { refresh() {}, getAvailable: () => [runtimeModel, runtimeModel] } });
+    const snapshot = await captureRuntimeCatalog({ model: runtimeModel, modelRegistry: { async refresh() {}, getAvailable: () => [runtimeModel, runtimeModel] } });
     expect(snapshot.models).toHaveLength(1);
     expect(snapshot.currentModel?.fullId).toBe("github-copilot/gpt-5.6-sol");
     const merged = mergeExecutableRuntimeMetadata([
@@ -240,8 +241,48 @@ anthropic       claude-sonnet-4.6  200K     32K      yes       yes
     expect(getCurrentTier({ model: { provider: "custom", id: "unknown-model" } })).toBeNull();
   });
 
+  test("runtime catalog awaits refresh, reads one coherent snapshot, and preserves last-good data", async () => {
+    const oldModel = { provider: "github-copilot", id: "gpt-5.4", input: ["text"] };
+    const freshModel = { provider: "github-copilot", id: "gpt-5.6-sol", input: ["text", "image"] };
+    let refreshed = false;
+    let reads = 0;
+    const ctx = {
+      model: freshModel,
+      modelRegistry: {
+        async refresh() {
+          await Bun.sleep(5);
+          refreshed = true;
+        },
+        getAvailable() {
+          reads++;
+          return refreshed ? [freshModel] : [oldModel];
+        },
+      },
+    };
+
+    const fresh = await captureRuntimeCatalog(ctx);
+    expect(reads).toBe(1);
+    expect(fresh.models.map((model) => model.fullId)).toEqual(["github-copilot/gpt-5.6-sol"]);
+
+    const retained = await captureRuntimeCatalog({
+      model: freshModel,
+      modelRegistry: {
+        async refresh() { throw new Error("offline"); },
+        getAvailable() { throw new Error("registry unavailable"); },
+      },
+    }, fresh);
+    expect(retained.models).toEqual(fresh.models);
+    expect(retained.currentModel?.fullId).toBe("github-copilot/gpt-5.6-sol");
+  });
+
+  test("workspace root follows Piclaw configuration and standalone cwd", () => {
+    expect(getDelegateWorkspaceRoot({ PICLAW_WORKSPACE: "/workspace" }, "/tmp")).toBe("/workspace");
+    expect(getDelegateWorkspaceRoot({}, process.cwd())).toBe(process.cwd());
+  });
+
   test("file inspection accepts only Pi-native raster formats and rejects unsupported binaries", () => {
-    const dir = mkdtempSync("/workspace/tmp/delegate-files-");
+    const workspaceTempRoot = getDelegateWorkspaceRoot();
+    const dir = mkdtempSync(join(workspaceTempRoot, ".delegate-files-"));
     try {
       const fixtures: Array<[string, Buffer, string]> = [
         ["image.png", Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), "PNG"],
@@ -460,7 +501,7 @@ anthropic       claude-sonnet-4.6  200K     32K      yes       yes
   });
 
   test("runs JSON mode with progress and no persistent-session flags", async () => {
-    const dir = mkdtempSync("/workspace/tmp/delegate-runner-");
+    const dir = mkdtempSync(join(tmpdir(), "delegate-runner-"));
     try {
       const script = resolve(dir, "fixture.ts");
       writeFileSync(script, `
@@ -490,7 +531,7 @@ anthropic       claude-sonnet-4.6  200K     32K      yes       yes
   });
 
   test("timeout terminates the delegated process tree", async () => {
-    const dir = mkdtempSync("/workspace/tmp/delegate-timeout-");
+    const dir = mkdtempSync(join(tmpdir(), "delegate-timeout-"));
     try {
       const marker = resolve(dir, "orphan.txt");
       const childScript = resolve(dir, "child.ts");
@@ -506,7 +547,7 @@ anthropic       claude-sonnet-4.6  200K     32K      yes       yes
   });
 
   test("abort signals terminate the delegated child", async () => {
-    const dir = mkdtempSync("/workspace/tmp/delegate-abort-");
+    const dir = mkdtempSync(join(tmpdir(), "delegate-abort-"));
     try {
       const script = resolve(dir, "wait.ts");
       writeFileSync(script, "setInterval(() => {}, 1000);");

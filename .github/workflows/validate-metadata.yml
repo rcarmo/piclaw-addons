@@ -20,8 +20,20 @@ jobs:
         with:
           bun-version: 1.3.14
 
+      - name: Install development dependencies
+        run: bun install --frozen-lockfile
+
       - name: Validate catalog and root package metadata
         run: bun run check:catalog
+
+      - name: Type-check Earendil compatibility surface
+        run: bun run typecheck:earendil-compat
+
+      - name: Test Earendil compatibility surface
+        run: bun run test:earendil-compat
+
+      - name: Test standalone add-on imports
+        run: bun test standalone-import.test.ts
 
       - name: Validate package can be packed
         run: bun pm pack --dry-run >/dev/null

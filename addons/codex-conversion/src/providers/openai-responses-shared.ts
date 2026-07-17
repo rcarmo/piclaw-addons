@@ -34,10 +34,12 @@ type TextSignaturePhase = "commentary" | "final_answer";
 
 interface ConvertResponsesMessagesOptions {
 	includeSystemPrompt?: boolean;
+	deferredTools?: ReadonlyMap<string, Tool>;
 }
 
 interface ConvertResponsesToolsOptions {
 	strict?: boolean | null;
+	deferLoading?: boolean;
 }
 
 function shortHash(str: string): string {
@@ -257,6 +259,7 @@ export function convertResponsesMessages<TApi extends Api>(
 	options?: ConvertResponsesMessagesOptions,
 ): ResponseInput {
 	const messages: ResponseInput = [];
+	const loadedToolNames = new Set<string>();
 	const normalizeIdPart = (part: string) => {
 		const sanitized = part.replace(/[^a-zA-Z0-9_-]/g, "_");
 		const normalized = sanitized.length > 64 ? sanitized.slice(0, 64) : sanitized;
@@ -351,6 +354,32 @@ export function convertResponsesMessages<TApi extends Api>(
 					]
 				: sanitizeSurrogates(hasText ? textResult : "(see attached image)");
 			messages.push({ type: "function_call_output", call_id: callId, output });
+
+			const deferredTools: Tool[] = [];
+			for (const name of msg.addedToolNames ?? []) {
+				const tool = options?.deferredTools?.get(name);
+				if (!tool || loadedToolNames.has(name)) continue;
+				loadedToolNames.add(name);
+				deferredTools.push(tool);
+			}
+			if (deferredTools.length > 0) {
+				const names = deferredTools.map((tool) => tool.name);
+				const searchCallId = `pi_tool_load_${shortHash(`${msg.toolCallId}:${names.join(",")}`)}`;
+				messages.push({
+					type: "tool_search_call",
+					call_id: searchCallId,
+					execution: "client",
+					status: "completed",
+					arguments: { query: names.join(" "), limit: names.length },
+				} as ResponseInput[number]);
+				messages.push({
+					type: "tool_search_output",
+					call_id: searchCallId,
+					execution: "client",
+					status: "completed",
+					tools: convertResponsesTools(deferredTools, { deferLoading: true }),
+				} as ResponseInput[number]);
+			}
 		}
 		msgIndex++;
 	}
@@ -366,7 +395,8 @@ export function convertResponsesTools(tools: Tool[], options?: ConvertResponsesT
 		description: tool.description,
 		parameters: tool.parameters as unknown as Record<string, unknown>,
 		strict,
-	}));
+		...(options?.deferLoading ? { defer_loading: true } : {}),
+	}) as OpenAITool);
 }
 
 export async function processResponsesStream<TApi extends Api>(
