@@ -24,8 +24,8 @@ This package keeps the upstream source layout under `src/` and adapts imports to
 - `@earendil-works/pi-tui`
 - `@sinclair/typebox`
 
-It also declares upstream runtime dependencies (`node-pty`, `partial-json`, `web-tree-sitter`, `tree-sitter-bash`) so Piclaw's add-on installer can run a nested `bun install` for this package.
+It also declares upstream runtime dependencies (`node-gyp`, `node-pty`, `partial-json`, `web-tree-sitter`, `tree-sitter-bash`) so Piclaw's add-on installer can run a nested `bun install` for this package. `node-gyp` is package-local rather than a host-global prerequisite.
 
 ## Caveats
 
-`node-pty` is a native dependency. Installation requires the host to have the normal build toolchain available. The Piclaw LXC images used for development include `build-essential`, but very small deployments may need equivalent native-build tools.
+`node-pty` is a native dependency. Installation requires a compiler, `make`, and Python. The Piclaw LXC and microVM images include that toolchain; very small deployments may need equivalent native-build tools.
