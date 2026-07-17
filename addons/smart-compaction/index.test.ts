@@ -51,8 +51,8 @@ describe("smart-compaction addon", () => {
         return {
           ok: true as const,
           apiKey: "resolved-key",
-          headers: { "x-provider": "resolved" },
-          env: { AWS_REGION: "eu-west-1" },
+          headers: { "x-provider": "resolved", "x-shared": "auth", "x-delete": "auth" },
+          env: { AWS_REGION: "eu-west-1", SHARED_ENV: "auth" },
         };
       },
     }, model);
@@ -64,6 +64,9 @@ describe("smart-compaction addon", () => {
       signal,
       onPayload,
       onResponse,
+      apiKey: "request-key",
+      headers: { "x-request": "yes", "x-shared": "request", "x-delete": null },
+      env: { HTTPS_PROXY: "http://proxy.test", SHARED_ENV: "request" },
     });
     expect(model.baseUrl).toBe("https://credential-specific.example/v1");
     expect(options).toEqual({
@@ -71,16 +74,26 @@ describe("smart-compaction addon", () => {
       signal,
       onPayload,
       onResponse,
-      apiKey: "resolved-key",
-      headers: { "x-provider": "resolved" },
-      env: { AWS_REGION: "eu-west-1" },
+      apiKey: "request-key",
+      headers: {
+        "x-provider": "resolved",
+        "x-request": "yes",
+        "x-shared": "request",
+        "x-delete": null,
+      },
+      env: {
+        AWS_REGION: "eu-west-1",
+        HTTPS_PROXY: "http://proxy.test",
+        SHARED_ENV: "request",
+      },
       reasoning: "high",
     });
   });
 
-  test("preserves explicit reasoning and reports auth failures", async () => {
+  test("preserves explicit reasoning, falls back to resolved auth, and reports auth failures", async () => {
     const model = { provider: "custom", id: "model", reasoning: true } as any;
-    expect(buildCompatibilityCompletionOptions(model, {}, { reasoning: "low" })).toMatchObject({ reasoning: "low" });
+    expect(buildCompatibilityCompletionOptions(model, { apiKey: "resolved-key" }, { reasoning: "low" }))
+      .toMatchObject({ apiKey: "resolved-key", reasoning: "low" });
     await expect(resolveCompatibilityRequestAuth({
       async getApiKeyAndHeaders() { return { ok: false as const, error: "not configured" }; },
     }, model)).resolves.toEqual({ ok: false, error: "not configured" });
