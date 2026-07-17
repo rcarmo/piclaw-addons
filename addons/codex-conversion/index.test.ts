@@ -1,6 +1,8 @@
 import { expect, test } from "bun:test";
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import {
   buildRequestBody,
   buildSSEHeaders,
@@ -77,6 +79,55 @@ test("registers only a partial stream overlay so built-in OAuth and catalog rema
   expect(providers[0]!.config).not.toHaveProperty("apiKey");
   expect(handlers.has("session_shutdown")).toBe(true);
 });
+
+test("partial overlay preserves built-in OAuth, base URL, and full catalog in ModelRuntime", async () => {
+  const root = mkdtempSync(join(tmpdir(), "codex-overlay-runtime-"));
+  try {
+    const runtime = await ModelRuntime.create({
+      authPath: join(root, "auth.json"),
+      modelsPath: null,
+      modelsStorePath: join(root, "models-store.json"),
+      allowModelNetwork: false,
+    });
+    const before = runtime.getProvider("openai-codex")!;
+    const beforeModelIds = before.getModels().map((model) => model.id);
+    const beforeOAuth = before.auth.oauth;
+    const beforeFilterModels = before.filterModels;
+    const beforeRefreshModels = before.refreshModels;
+    let overlay: Record<string, any> | undefined;
+    registerOpenAICodexCustomProvider({
+      registerProvider(id: string, config: Record<string, any>) {
+        expect(id).toBe("openai-codex");
+        overlay = config;
+      },
+      on() {},
+      registerMessageRenderer() {},
+      sendMessage() {},
+    } as any, { getCurrentCwd: () => root });
+    if (!overlay) throw new Error("Codex overlay was not registered");
+
+    runtime.registerProvider("openai-codex", overlay);
+    await runtime.refresh({ allowNetwork: false });
+    const after = runtime.getProvider("openai-codex")!;
+
+    expect(Object.keys(runtime.getRegisteredProviderConfig("openai-codex")!).sort()).toEqual(["api", "streamSimple"]);
+    expect(after.baseUrl).toBe(before.baseUrl);
+    expect(after.baseUrl).toBe("https://chatgpt.com/backend-api");
+    expect(after.auth.oauth).toBeDefined();
+    expect(after.auth.oauth?.name).toBe(beforeOAuth?.name);
+    expect(Object.keys(after.auth.oauth ?? {}).sort()).toEqual(Object.keys(beforeOAuth ?? {}).sort());
+    expect(typeof after.auth.oauth?.login).toBe("function");
+    expect(typeof after.auth.oauth?.refresh).toBe("function");
+    expect(typeof after.auth.oauth?.toAuth).toBe("function");
+    expect(after.filterModels).toBe(beforeFilterModels);
+    expect(typeof after.refreshModels).toBe(typeof beforeRefreshModels);
+    expect(typeof after.refreshModels).toBe("function");
+    expect(after.getModels().map((model) => model.id)).toEqual(beforeModelIds);
+    expect(beforeModelIds.length).toBeGreaterThan(0);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}, 30_000);
 
 test("nullable request headers delete inherited defaults", () => {
   const headers = mergeCodexHeaders(

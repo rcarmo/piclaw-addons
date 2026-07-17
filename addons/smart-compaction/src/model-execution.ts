@@ -1,10 +1,10 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import type { Api, Context, Model, SimpleStreamOptions } from "@earendil-works/pi-ai";
+import type { Api, Context, Model, ProviderHeaders, SimpleStreamOptions } from "@earendil-works/pi-ai";
 import { completeSimple } from "@earendil-works/pi-ai/compat";
 
 export type CompatibilityRequestAuth = {
   apiKey?: string;
-  headers?: Record<string, string>;
+  headers?: ProviderHeaders;
   env?: Record<string, string>;
 };
 
@@ -41,9 +41,9 @@ export function buildCompatibilityCompletionOptions(
 ): SimpleStreamOptions {
   return {
     ...options,
-    apiKey: auth.apiKey,
-    headers: auth.headers,
-    env: auth.env,
+    apiKey: options.apiKey ?? auth.apiKey,
+    headers: auth.headers || options.headers ? { ...auth.headers, ...options.headers } : undefined,
+    env: auth.env || options.env ? { ...auth.env, ...options.env } : undefined,
     ...(model.reasoning ? { reasoning: options.reasoning ?? "high" } : {}),
   };
 }
