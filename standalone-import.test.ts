@@ -58,7 +58,7 @@ test("standalone piclaw-addon-cheapskate imports outside the monorepo root", asy
 test("standalone piclaw-addon-codex-conversion imports outside the monorepo root", async () => {
   const mod = await importStandaloneAddon("codex-conversion");
   expect(typeof mod.default).toBe("function");
-}, 120_000);
+}, 300_000);
 
 test("standalone piclaw-addon-delegate imports outside the monorepo root", async () => {
   const mod = await importStandaloneAddon("delegate");

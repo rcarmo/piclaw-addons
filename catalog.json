@@ -89,7 +89,7 @@
     {
       "slug": "codex-conversion",
       "name": "@rcarmo/piclaw-addon-codex-conversion",
-      "version": "0.1.3",
+      "version": "0.1.4",
       "type": "extension",
       "description": "Codex-style prompt and tool adapter for OpenAI/Codex-like models in Piclaw",
       "path": "addons/codex-conversion",
@@ -104,7 +104,7 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-codex-conversion-0.1.3.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-codex-conversion-0.1.4.tgz"
       },
       "updatedAt": "2026-07-17"
     },
