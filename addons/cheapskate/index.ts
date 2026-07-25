@@ -28,6 +28,7 @@ interface FreeBackend {
   modelId: string;
   modelName: string;
   reasoning: boolean;
+  input: Array<"text" | "image">;
   contextWindow: number;
   maxTokens: number;
   requestsPerMinute: number;
@@ -42,7 +43,7 @@ const BACKENDS: FreeBackend[] = [
     baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
     apiKeyEnv: "GOOGLE_GENERATIVE_AI_API_KEY",
     modelId: "gemini-2.5-flash", modelName: "Gemini 2.5 Flash",
-    reasoning: true, contextWindow: 1_000_000, maxTokens: 65_536,
+    reasoning: true, input: ["text", "image"], contextWindow: 1_000_000, maxTokens: 65_536,
     requestsPerMinute: 10, tokensPerMinute: 250_000, tokensPerDay: 1_000_000,
   },
   {
@@ -50,7 +51,7 @@ const BACKENDS: FreeBackend[] = [
     baseUrl: "https://api.cerebras.ai/v1",
     apiKeyEnv: "CEREBRAS_API_KEY",
     modelId: "qwen-3-235b-a22b-instruct-2507", modelName: "Qwen 3 235B",
-    reasoning: true, contextWindow: 131_072, maxTokens: 16_384,
+    reasoning: true, input: ["text"], contextWindow: 131_072, maxTokens: 16_384,
     requestsPerMinute: 30, tokensPerMinute: 60_000, tokensPerDay: 1_000_000,
   },
   {
@@ -58,7 +59,7 @@ const BACKENDS: FreeBackend[] = [
     baseUrl: "https://api.groq.com/openai/v1",
     apiKeyEnv: "GROQ_API_KEY",
     modelId: "qwen-qwq-32b", modelName: "QwQ 32B",
-    reasoning: true, contextWindow: 131_072, maxTokens: 16_384,
+    reasoning: true, input: ["text"], contextWindow: 131_072, maxTokens: 16_384,
     requestsPerMinute: 30, tokensPerMinute: 15_000, tokensPerDay: 500_000,
   },
   {
@@ -66,7 +67,7 @@ const BACKENDS: FreeBackend[] = [
     baseUrl: "https://api.sambanova.ai/v1",
     apiKeyEnv: "SAMBANOVA_API_KEY",
     modelId: "DeepSeek-R1", modelName: "DeepSeek R1",
-    reasoning: true, contextWindow: 65_536, maxTokens: 16_384,
+    reasoning: true, input: ["text"], contextWindow: 65_536, maxTokens: 16_384,
     requestsPerMinute: 10, tokensPerMinute: 100_000, tokensPerDay: 1_000_000,
   },
   {
@@ -74,7 +75,7 @@ const BACKENDS: FreeBackend[] = [
     baseUrl: "https://openrouter.ai/api/v1",
     apiKeyEnv: "OPENROUTER_API_KEY",
     modelId: "deepseek/deepseek-r1:free", modelName: "DeepSeek R1 (free)",
-    reasoning: true, contextWindow: 163_840, maxTokens: 16_384,
+    reasoning: true, input: ["text"], contextWindow: 163_840, maxTokens: 16_384,
     requestsPerMinute: 20, tokensPerMinute: 200_000, tokensPerDay: 1_000_000,
   },
   {
@@ -82,7 +83,7 @@ const BACKENDS: FreeBackend[] = [
     baseUrl: "https://api.opencode.ai/v1",
     apiKeyEnv: "OPENCODE_API_KEY",
     modelId: "openai/gpt-oss-120b", modelName: "GPT OSS 120B",
-    reasoning: true, contextWindow: 128_000, maxTokens: 16_384,
+    reasoning: true, input: ["text"], contextWindow: 128_000, maxTokens: 16_384,
     requestsPerMinute: 20, tokensPerMinute: 100_000, tokensPerDay: 1_000_000,
   },
   {
@@ -90,7 +91,7 @@ const BACKENDS: FreeBackend[] = [
     baseUrl: "https://integrate.api.nvidia.com/v1",
     apiKeyEnv: "NVIDIA_API_KEY",
     modelId: "meta/llama-3.3-70b-instruct", modelName: "Llama 3.3 70B",
-    reasoning: false, contextWindow: 131_072, maxTokens: 8_192,
+    reasoning: false, input: ["text"], contextWindow: 131_072, maxTokens: 8_192,
     requestsPerMinute: 20, tokensPerMinute: 80_000, tokensPerDay: 1_000_000,
   },
   {
@@ -98,7 +99,7 @@ const BACKENDS: FreeBackend[] = [
     baseUrl: "https://api.cloudflare.com/client/v4/accounts/CLOUDFLARE_ACCOUNT_ID/ai/v1",
     apiKeyEnv: "CLOUDFLARE_API_TOKEN",
     modelId: "@cf/meta/llama-3.3-70b-instruct-fp8-fast", modelName: "Llama 3.3 70B",
-    reasoning: false, contextWindow: 131_072, maxTokens: 8_192,
+    reasoning: false, input: ["text"], contextWindow: 131_072, maxTokens: 8_192,
     requestsPerMinute: 60, tokensPerMinute: 100_000, tokensPerDay: 1_000_000,
     hasSoftCap: true,
   },
@@ -291,7 +292,7 @@ function buildProviderModel(backend: FreeBackend, configured: FreeBackend[]): Pr
     name: buildModelName(backend, configured),
     api: "openai-completions",
     reasoning: backend.reasoning,
-    input: ["text", "image"],
+    input: backend.input,
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     contextWindow: backend.contextWindow,
     maxTokens: backend.maxTokens,

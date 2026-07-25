@@ -47,7 +47,7 @@
     {
       "slug": "cheapskate",
       "name": "@rcarmo/piclaw-addon-cheapskate",
-      "version": "0.4.5",
+      "version": "0.4.6",
       "type": "extension",
       "description": "Free-tier provider auto-rotation — select cheapskate/auto as your model and it transparently routes across configured free-tier backends (Gemini, Cerebras, Groq, SambaNova, OpenRouter, OpenCode Zen, NVIDIA, Cloudflare)",
       "path": "addons/cheapskate",
@@ -62,7 +62,7 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-cheapskate-0.4.5.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-cheapskate-0.4.6.tgz"
       },
       "updatedAt": "2026-07-17"
     },
@@ -642,7 +642,8 @@
       "install": {
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-session-dashboard-0.1.0.tgz"
-      }
+      },
+      "updatedAt": "2026-07-25"
     },
     {
       "slug": "session-tree",

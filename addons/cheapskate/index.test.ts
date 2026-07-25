@@ -98,10 +98,20 @@ describe("cheapskate addon", () => {
     expect(nvidia?.modelId).toBe("meta/llama-3.3-70b-instruct");
   });
 
-  test("settings pane lists OpenCode Zen and NVIDIA keychain entries", () => {
+  test("settings pane lists OpenCode Zen and NVIDIA keychain entries without workspace source imports", () => {
     const source = readFileSync(resolve(addonDir, "web", "index.ts"), "utf8");
     expect(source).toContain("opencode/api-key");
     expect(source).toContain("nvidia/api-key");
+    expect(source).not.toContain("../../components/settings/pane-registry");
+    expect(source).not.toContain("require(");
+  });
+
+  test("advertises image input only for backends that support it", () => {
+    const google = BACKENDS.find((backend) => backend.id === "google")!;
+    const cerebras = BACKENDS.find((backend) => backend.id === "cerebras")!;
+
+    expect(buildProviderConfig(google, [google]).models[0].input).toEqual(["text", "image"]);
+    expect(buildProviderConfig(cerebras, [cerebras]).models[0].input).toEqual(["text"]);
   });
 
   test("registers in a vanilla runtime without piclaw globals", async () => {

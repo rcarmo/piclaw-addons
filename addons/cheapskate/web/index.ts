@@ -55,7 +55,7 @@ function registerPane() {
     let reg, notify;
     const r = globalThis.__piclawSettingsPaneRegistry;
     if (r) { reg = r.registerSettingsPane; notify = r.notifySettingsPanesChanged; }
-    if (!reg) { try { const m = require('../../components/settings/pane-registry.js'); reg = m.registerSettingsPane; notify = m.notifySettingsPanesChanged; } catch { return; } }
+    if (!reg) return;
 
     const icon = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/></svg>`;
 
