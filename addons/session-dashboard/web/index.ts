@@ -466,11 +466,12 @@ function injectStyles() {
       transform: translateX(-50%);
       z-index: 120;
       display: inline-flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 5px;
+      gap: 2px;
       width: 34px;
-      min-height: 24px;
+      min-height: 28px;
       padding: 0;
       border: 1px solid var(--border-color, rgba(148,163,184,.35));
       border-top: 0;
@@ -491,7 +492,7 @@ function injectStyles() {
       border-top: 0;
     }
     .session-dashboard-toggle:hover { color: var(--text-primary,#f8fafc); border-color: var(--accent-color,#2563eb); }
-    .session-dashboard-toggle svg { width: 12px; height: 12px; flex-shrink: 0; transition: transform var(--ui-transition-fast, .18s); }
+    .session-dashboard-toggle svg { width: 12px; height: 12px; flex-shrink: 0; order: 2; transition: transform var(--ui-transition-fast, .18s); }
     .session-dashboard-root.open .session-dashboard-toggle svg { transform: rotate(180deg); }
     .session-dashboard-toggle-dot {
       position: relative;
@@ -499,6 +500,7 @@ function injectStyles() {
       height: 3px;
       border-radius: 999px;
       overflow: hidden;
+      order: 1;
       background: color-mix(in srgb, var(--border-color, rgba(148,163,184,.45)) 72%, transparent);
     }
     .session-dashboard-toggle-dot::before {

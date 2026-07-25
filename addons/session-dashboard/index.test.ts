@@ -100,6 +100,9 @@ test("web defaults to eight visible sessions and follows sidebar surface variabl
   expect(source).not.toContain("session-dashboard-toggle-label");
   expect(source).toContain("--session-dashboard-panel-height");
   expect(source).toContain("--session-dashboard-active-fill");
+  expect(source).toContain("flex-direction: column;");
+  expect(source).toContain(".session-dashboard-toggle svg { width: 12px; height: 12px; flex-shrink: 0; order: 2;");
+  expect(source).toContain("order: 1;");
   expect(source).toContain("width: var(--session-dashboard-active-fill");
   expect(source).toContain("var(--bg-primary");
   expect(source).toContain("var(--bg-secondary");
