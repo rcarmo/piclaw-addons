@@ -36,7 +36,6 @@ export function installSessionDashboard() {
   root.innerHTML = `
     <button class="session-dashboard-toggle" type="button" aria-label="Show sessions" title="Show sessions">
       <span class="session-dashboard-toggle-dot" aria-hidden="true"></span>
-      <span class="session-dashboard-toggle-label">Sessions</span>
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 6 8 10 12 6" /></svg>
     </button>
     <section class="session-dashboard-panel" aria-label="Recent active sessions">
@@ -460,9 +459,10 @@ function injectStyles() {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 6px;
+      gap: 5px;
+      width: 34px;
       min-height: 24px;
-      padding: 0 10px;
+      padding: 0;
       border: 1px solid var(--border-color, rgba(148,163,184,.35));
       border-top: 0;
       border-radius: 0 0 var(--radius-md, 8px) var(--radius-md, 8px);
@@ -586,7 +586,7 @@ function injectStyles() {
     .session-dashboard-context-meter span { display: block; height: 100%; border-radius: inherit; background: var(--accent-color,#2563eb); }
     .session-dashboard-footer { max-width: var(--session-dashboard-max-width); margin: 10px auto 0; min-height: 16px; }
     .session-dashboard-empty { grid-column: 1 / -1; border: 1px dashed var(--border-color, rgba(148,163,184,.35)); border-radius: var(--radius-md, 8px); padding: 18px; text-align: center; color: var(--text-secondary,#94a3b8); }
-    @media (max-width: 720px) { .session-dashboard-toggle-label { display: none; } .session-dashboard-panel { max-height: 72vh; } .session-dashboard-grid { grid-template-columns: 1fr; } .session-dashboard-header { align-items: flex-start; } }
+    @media (max-width: 720px) { .session-dashboard-panel { max-height: 72vh; } .session-dashboard-grid { grid-template-columns: 1fr; } .session-dashboard-header { align-items: flex-start; } }
   `;
   document.head.appendChild(style);
 }

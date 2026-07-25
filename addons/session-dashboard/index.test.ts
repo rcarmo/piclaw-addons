@@ -97,6 +97,7 @@ test("web defaults to eight visible sessions and follows sidebar surface variabl
   const source = readFileSync(join(import.meta.dir, "web", "index.ts"), "utf8");
 
   expect(source).toContain("const DEFAULT_LIMIT = 8;");
+  expect(source).not.toContain("session-dashboard-toggle-label");
   expect(source).toContain("--session-dashboard-panel-height");
   expect(source).toContain("var(--bg-primary");
   expect(source).toContain("var(--bg-secondary");
