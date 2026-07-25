@@ -111,6 +111,9 @@ test("web defaults to eight visible sessions and follows sidebar surface variabl
   expect(source).toContain("ResizeObserver");
   expect(source).toContain('event.key === "Escape"');
   expect(source).toContain('event.key === "`" || event.key === "~"');
+  expect(source).toContain('document.addEventListener("keydown", handleKeydown, true)');
+  expect(source).toContain('document.removeEventListener("keydown", handleKeydown, true)');
+  expect(source).toContain("event.stopImmediatePropagation?.()");
   expect(source).toContain("isEditableTarget");
   expect(source).toContain(".compose-box");
   expect(source).toContain("event.composedPath?.()");
@@ -144,6 +147,8 @@ test("web shortcut guard ignores compose and editor targets", () => {
     expect(__sessionDashboardTest.isEditableTarget(new FakeElement("textarea"))).toBe(true);
     expect(__sessionDashboardTest.isEditableTarget(new FakeElement(".compose-box"))).toBe(true);
     expect(__sessionDashboardTest.isEditableTarget(new FakeElement(".compose-model-popup"))).toBe(true);
+    expect(__sessionDashboardTest.isEditableTarget(new FakeElement(".timeline-quick-actions"))).toBe(true);
+    expect(__sessionDashboardTest.isEditableTarget(new FakeElement(".timeline-quick-actions-input"))).toBe(true);
     expect(__sessionDashboardTest.isEditableTarget(new FakeElement(".cm-editor"))).toBe(true);
     expect(__sessionDashboardTest.isEditableTarget(new FakeElement("div"), [new FakeElement("span"), new FakeElement(".compose-box")])).toBe(true);
     expect(__sessionDashboardTest.isEditableTarget(new FakeElement("div", true))).toBe(true);

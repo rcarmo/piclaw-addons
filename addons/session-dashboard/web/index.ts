@@ -234,15 +234,17 @@ export function installSessionDashboard() {
   }
 
   function handleKeydown(event) {
-    if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
+    if (event.defaultPrevented || event.repeat || event.metaKey || event.ctrlKey || event.altKey) return;
     if (isEditableTarget(event.target, event.composedPath?.())) return;
     if (event.key === "Escape" && state.open) {
       event.preventDefault();
+      event.stopImmediatePropagation?.();
       setOpen(false);
       return;
     }
     if (event.key === "`" || event.key === "~") {
       event.preventDefault();
+      event.stopImmediatePropagation?.();
       setOpen(!state.open);
     }
   }
@@ -255,7 +257,7 @@ export function installSessionDashboard() {
   window.addEventListener("piclaw-extension-ui", handleLiveEvent);
   window.addEventListener("piclaw-extension-ui:status", handleLiveEvent);
   window.addEventListener("focus", () => { if (state.open) void refreshNow("focus"); });
-  document.addEventListener("keydown", handleKeydown);
+  document.addEventListener("keydown", handleKeydown, true);
   if (typeof ResizeObserver !== "undefined") {
     state.panelResizeObserver = new ResizeObserver(updatePanelHeight);
     state.panelResizeObserver.observe(panel);
@@ -265,7 +267,7 @@ export function installSessionDashboard() {
   updatePanelHeight();
   schedulePolling();
   if (state.open) void refreshNow("startup");
-  return { root, refreshNow, destroy: () => { if (state.pollTimer) clearTimeout(state.pollTimer); state.panelResizeObserver?.disconnect?.(); document.removeEventListener("keydown", handleKeydown); root.remove(); } };
+  return { root, refreshNow, destroy: () => { if (state.pollTimer) clearTimeout(state.pollTimer); state.panelResizeObserver?.disconnect?.(); document.removeEventListener("keydown", handleKeydown, true); root.remove(); } };
 }
 
 const EDITABLE_SHORTCUT_SELECTOR = [
@@ -284,6 +286,10 @@ const EDITABLE_SHORTCUT_SELECTOR = [
   ".editor-pane-container",
   ".dock-panel",
   ".timeline-menu-dropdown",
+  ".timeline-quick-actions",
+  ".timeline-quick-actions-portal",
+  ".timeline-quick-actions-overlay",
+  ".timeline-quick-actions-input",
   ".rename-branch-overlay",
   ".agent-request-modal",
   ".attachment-preview-modal",
