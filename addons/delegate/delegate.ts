@@ -656,12 +656,11 @@ export async function captureRuntimeCatalog(
   ctx: any,
   fallback?: RuntimeCatalogSnapshot | null,
 ): Promise<RuntimeCatalogSnapshot> {
-  try {
-    await ctx?.modelRegistry?.refresh?.();
-  } catch {
-    // ModelRegistry keeps its last-good snapshot when reload fails; read it below.
-  }
-
+  // Catalog capture is a passive lifecycle read. ModelRegistry.refresh() is
+  // process-wide and network-enabled by default, so invoking it from
+  // session_start/model_select blocks session readiness and refreshes every
+  // dynamic provider. Piclaw owns background provider refresh and publishes
+  // its last-good availability snapshot synchronously through getAvailable().
   let rawModels: unknown;
   try {
     rawModels = ctx?.modelRegistry?.getAvailable?.();

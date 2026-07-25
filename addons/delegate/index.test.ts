@@ -241,36 +241,34 @@ anthropic       claude-sonnet-4.6  200K     32K      yes       yes
     expect(getCurrentTier({ model: { provider: "custom", id: "unknown-model" } })).toBeNull();
   });
 
-  test("runtime catalog awaits refresh, reads one coherent snapshot, and preserves last-good data", async () => {
-    const oldModel = { provider: "github-copilot", id: "gpt-5.4", input: ["text"] };
+  test("runtime catalog passively reads one coherent snapshot and preserves last-good data", async () => {
     const freshModel = { provider: "github-copilot", id: "gpt-5.6-sol", input: ["text", "image"] };
-    let refreshed = false;
+    let refreshes = 0;
     let reads = 0;
     const ctx = {
       model: freshModel,
       modelRegistry: {
-        async refresh() {
-          await Bun.sleep(5);
-          refreshed = true;
-        },
+        async refresh() { refreshes++; },
         getAvailable() {
           reads++;
-          return refreshed ? [freshModel] : [oldModel];
+          return [freshModel];
         },
       },
     };
 
     const fresh = await captureRuntimeCatalog(ctx);
+    expect(refreshes).toBe(0);
     expect(reads).toBe(1);
     expect(fresh.models.map((model) => model.fullId)).toEqual(["github-copilot/gpt-5.6-sol"]);
 
     const retained = await captureRuntimeCatalog({
       model: freshModel,
       modelRegistry: {
-        async refresh() { throw new Error("offline"); },
+        async refresh() { refreshes++; },
         getAvailable() { throw new Error("registry unavailable"); },
       },
     }, fresh);
+    expect(refreshes).toBe(0);
     expect(retained.models).toEqual(fresh.models);
     expect(retained.currentModel?.fullId).toBe("github-copilot/gpt-5.6-sol");
   });
