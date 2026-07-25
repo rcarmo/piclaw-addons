@@ -4,7 +4,7 @@ import { Database } from "bun:sqlite";
 
 const ADDON_ID = "session-dashboard";
 const API_ACTION = "sessions";
-const DEFAULT_LIMIT = 9;
+const DEFAULT_LIMIT = 8;
 const MAX_LIMIT = 12;
 const DEFAULT_MESSAGES_DB = "/workspace/.piclaw/store/messages.db";
 

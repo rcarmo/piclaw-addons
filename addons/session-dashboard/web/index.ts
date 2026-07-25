@@ -5,6 +5,8 @@ const STORAGE_OPEN = "piclaw:session-dashboard:open";
 const STORAGE_LIMIT = "piclaw:session-dashboard:limit";
 const DEFAULT_LIMIT = 8;
 const DEFAULT_CHAT_JID = "web:default";
+const PREVIEW_REFRESH_INTERVAL_MS = 3000;
+const PREVIEW_MAX_LENGTH = 220;
 
 if (!globalThis.__piclawSessionDashboardInstalled) {
   globalThis.__piclawSessionDashboardInstalled = true;
@@ -21,10 +23,13 @@ export function installSessionDashboard() {
     sessions: [],
     activeByJid: new Map(),
     contextByJid: new Map(),
+    previewByJid: new Map(),
     loading: false,
+    previewLoading: false,
     error: "",
     lastGeneratedAt: null,
     pollTimer: null,
+    previewTimer: null,
     panelResizeObserver: null,
     refreshQueued: false,
   };
@@ -68,6 +73,7 @@ export function installSessionDashboard() {
     localStorage.setItem(STORAGE_OPEN, state.open ? "true" : "false");
     render();
     schedulePolling();
+    schedulePreviewPolling();
     if (state.open) void refreshNow("open");
   }
 
@@ -82,6 +88,19 @@ export function installSessionDashboard() {
       schedulePolling();
     }, 5000);
     state.pollTimer.unref?.();
+  }
+
+  function schedulePreviewPolling() {
+    if (state.previewTimer) {
+      clearTimeout(state.previewTimer);
+      state.previewTimer = null;
+    }
+    if (!state.open) return;
+    state.previewTimer = setTimeout(async () => {
+      await refreshSessionPreviews("preview-poll").catch(() => undefined);
+      schedulePreviewPolling();
+    }, PREVIEW_REFRESH_INTERVAL_MS);
+    state.previewTimer.unref?.();
   }
 
   async function refreshNow(reason = "manual") {
@@ -102,7 +121,10 @@ export function installSessionDashboard() {
       state.lastGeneratedAt = recentPayload?.generated_at || new Date().toISOString();
       state.sessions = mergeSessions(recentPayload?.sessions || [], [...state.activeByJid.values()], state.limit);
       render();
-      await refreshContexts();
+      await Promise.all([
+        refreshContexts(),
+        refreshSessionPreviews("refresh", { renderOnChange: false }),
+      ]);
       render();
     } catch (error) {
       state.error = String(error?.message || error);
@@ -128,6 +150,47 @@ export function installSessionDashboard() {
       }
     }));
     state.contextByJid = new Map(entries);
+  }
+
+  async function refreshSessionPreviews(reason = "preview", options = {}) {
+    if (!state.open || state.previewLoading) return;
+    const visible = state.sessions.slice(0, state.limit);
+    const activeVisible = visible.filter((session) => isSessionActive(session, state.activeByJid.get(session.chat_jid)));
+    const visibleJids = new Set(visible.map((session) => session.chat_jid));
+    const activeVisibleJids = new Set(activeVisible.map((session) => session.chat_jid));
+    const next = new Map(state.previewByJid);
+    for (const jid of [...next.keys()]) {
+      if (!visibleJids.has(jid) || !activeVisibleJids.has(jid)) next.delete(jid);
+    }
+    if (!activeVisible.length) {
+      if (!previewMapsEqual(state.previewByJid, next)) {
+        state.previewByJid = next;
+        if (options.renderOnChange !== false) render();
+      }
+      return;
+    }
+
+    state.previewLoading = true;
+    try {
+      const entries = await Promise.all(activeVisible.map(async (session) => {
+        try {
+          const status = await apiJson(`/agent/status?chat_jid=${encodeURIComponent(session.chat_jid)}`);
+          return [session.chat_jid, resolveStatusPreview(status)];
+        } catch {
+          return [session.chat_jid, null];
+        }
+      }));
+      for (const [jid, preview] of entries) {
+        if (preview) next.set(jid, preview);
+        else next.delete(jid);
+      }
+      if (!previewMapsEqual(state.previewByJid, next)) {
+        state.previewByJid = next;
+        if (options.renderOnChange !== false) render();
+      }
+    } finally {
+      state.previewLoading = false;
+    }
   }
 
   function renderChrome() {
@@ -173,6 +236,7 @@ export function installSessionDashboard() {
   function renderTile(session) {
     const active = state.activeByJid.get(session.chat_jid);
     const context = state.contextByJid.get(session.chat_jid);
+    const preview = state.previewByJid.get(session.chat_jid);
     const tile = document.createElement("button");
     tile.type = "button";
     tile.className = "session-dashboard-tile";
@@ -198,7 +262,16 @@ export function installSessionDashboard() {
 
     const summary = document.createElement("div");
     summary.className = "session-dashboard-summary";
-    summary.textContent = session.summary || "No recent output yet.";
+    if (preview) {
+      const previewLabel = document.createElement("span");
+      previewLabel.className = "session-dashboard-preview-label";
+      previewLabel.textContent = preview.label;
+      const previewText = document.createElement("span");
+      previewText.textContent = preview.text;
+      summary.append(previewLabel, previewText);
+    } else {
+      summary.textContent = session.summary || "No recent output yet.";
+    }
 
     const contextRow = document.createElement("div");
     contextRow.className = "session-dashboard-context";
@@ -266,8 +339,9 @@ export function installSessionDashboard() {
   render();
   updatePanelHeight();
   schedulePolling();
+  schedulePreviewPolling();
   if (state.open) void refreshNow("startup");
-  return { root, refreshNow, destroy: () => { if (state.pollTimer) clearTimeout(state.pollTimer); state.panelResizeObserver?.disconnect?.(); document.removeEventListener("keydown", handleKeydown, true); root.remove(); } };
+  return { root, refreshNow, refreshSessionPreviews, destroy: () => { if (state.pollTimer) clearTimeout(state.pollTimer); if (state.previewTimer) clearTimeout(state.previewTimer); state.panelResizeObserver?.disconnect?.(); document.removeEventListener("keydown", handleKeydown, true); window.removeEventListener("piclaw:current-chat-changed", handleCurrentChatChanged); window.removeEventListener("popstate", handleCurrentChatChanged); window.removeEventListener("piclaw-extension-ui", handleLiveEvent); window.removeEventListener("piclaw-extension-ui:status", handleLiveEvent); root.remove(); } };
 }
 
 const EDITABLE_SHORTCUT_SELECTOR = [
@@ -382,6 +456,55 @@ function normalizeContext(context) {
 function formatContext(context) {
   if (!context || context.percent == null) return "context unknown";
   return `${Math.round(context.percent)}% context`;
+}
+
+function resolveStatusPreview(status) {
+  if (!status || status.status !== "active") return null;
+  return normalizePreview("draft", status.draft) || normalizePreview("thinking", status.thought);
+}
+
+function normalizePreview(kind, value) {
+  const text = cleanPreviewText(typeof value === "string" ? value : value?.text);
+  if (!text) return null;
+  return {
+    kind,
+    label: kind === "thinking" ? "thinking" : "draft",
+    text: truncateText(text, PREVIEW_MAX_LENGTH),
+    totalLines: Number.isFinite(Number(value?.totalLines)) ? Number(value.totalLines) : inferLineCount(text),
+  };
+}
+
+function cleanPreviewText(value) {
+  return String(value || "")
+    .replace(/\r\n/g, "\n")
+    .replace(/```+/g, "")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/^>\s?/gm, "")
+    .replace(/[\t ]+/g, " ")
+    .replace(/\n+/g, " ")
+    .replace(/[*_~]{1,3}/g, "")
+    .trim();
+}
+
+function truncateText(value, maxLength) {
+  const text = String(value || "").trim();
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
+}
+
+function inferLineCount(value) {
+  const lines = String(value || "").split(/\r?\n/).filter((line) => line.trim()).length;
+  return lines || 0;
+}
+
+function previewMapsEqual(left, right) {
+  if (left.size !== right.size) return false;
+  for (const [key, value] of left) {
+    const other = right.get(key);
+    if (!other || other.kind !== value.kind || other.text !== value.text || other.totalLines !== value.totalLines) return false;
+  }
+  return true;
 }
 
 function navigateToSession(chatJid, event) {
@@ -609,6 +732,7 @@ function injectStyles() {
     .session-dashboard-status::before { content: ""; width: 7px; height: 7px; border-radius: 999px; background: var(--text-secondary,#64748b); opacity: .8; }
     .session-dashboard-meta { color: var(--text-secondary,#94a3b8); font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .session-dashboard-summary { color: var(--text-primary,#e5e7eb); font-size: 12px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+    .session-dashboard-preview-label { display: inline-flex; align-items: center; max-width: max-content; margin: 0 6px 2px 0; padding: 1px 5px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--accent-color,#2563eb) 38%, transparent); color: var(--accent-color,#60a5fa); font-size: 9px; line-height: 1.3; text-transform: uppercase; letter-spacing: .04em; }
     .session-dashboard-context { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--text-secondary,#94a3b8); font-size: 10px; }
     .session-dashboard-context-meter { flex: 1; height: 5px; max-width: 90px; border-radius: 999px; background: color-mix(in srgb, var(--border-color, rgba(148,163,184,.35)) 72%, transparent); overflow: hidden; }
     .session-dashboard-context-meter span { display: block; height: 100%; border-radius: inherit; background: var(--accent-color,#2563eb); }
@@ -625,6 +749,9 @@ export const __sessionDashboardTest = {
   isEditableTarget,
   normalizeContext,
   formatContext,
+  normalizePreview,
+  resolveStatusPreview,
+  previewMapsEqual,
   formatRelativeTime,
   agentNameFromChatJid,
 };

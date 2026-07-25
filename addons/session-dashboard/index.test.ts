@@ -97,6 +97,10 @@ test("web defaults to eight visible sessions and follows sidebar surface variabl
   const source = readFileSync(join(import.meta.dir, "web", "index.ts"), "utf8");
 
   expect(source).toContain("const DEFAULT_LIMIT = 8;");
+  expect(source).toContain("const PREVIEW_REFRESH_INTERVAL_MS = 3000;");
+  expect(source).toContain("previewByJid: new Map()");
+  expect(source).toContain("refreshSessionPreviews");
+  expect(source).toContain("/agent/status?chat_jid=");
   expect(source).not.toContain("session-dashboard-toggle-label");
   expect(source).toContain("--session-dashboard-panel-height");
   expect(source).toContain("--session-dashboard-active-fill");
@@ -167,4 +171,25 @@ test("web merge helper keeps active sessions visible and orders streaming sessio
 
   expect(merged.map((session: any) => session.chat_jid)).toEqual(["web:auditor", "web:addons"]);
   expect(__sessionDashboardTest.formatContext({ percent: 21.4 })).toBe("21% context");
+});
+
+test("web preview helpers prefer draft, clean thinking text, and detect unchanged maps", () => {
+  expect(__sessionDashboardTest.normalizePreview("thinking", { text: "**Planning** `next`", totalLines: 1 })).toEqual({
+    kind: "thinking",
+    label: "thinking",
+    text: "Planning next",
+    totalLines: 1,
+  });
+  expect(__sessionDashboardTest.resolveStatusPreview({
+    status: "active",
+    thought: { text: "thinking", totalLines: 1 },
+    draft: { text: "draft text", totalLines: 1 },
+  })).toMatchObject({ kind: "draft", text: "draft text" });
+  expect(__sessionDashboardTest.resolveStatusPreview({ status: "idle", thought: { text: "hidden" } })).toBeNull();
+
+  const left = new Map([["web:addons", { kind: "draft", text: "same", totalLines: 1 }]]);
+  const right = new Map([["web:addons", { kind: "draft", text: "same", totalLines: 1 }]]);
+  const changed = new Map([["web:addons", { kind: "thinking", text: "same", totalLines: 1 }]]);
+  expect(__sessionDashboardTest.previewMapsEqual(left, right)).toBe(true);
+  expect(__sessionDashboardTest.previewMapsEqual(left, changed)).toBe(false);
 });
