@@ -430,12 +430,10 @@ const cheapskate: ExtensionFactory = (pi: ExtensionAPI) => {
     description: "Manage free-tier provider rotation. Check status, list backends, view usage, or force rotation.",
     promptSnippet: "cheapskate: check free-tier backend status, usage, or force rotation to the next available provider.",
     parameters: Type.Object({
-      action: Type.Union([
-        Type.Literal("status"),
-        Type.Literal("list"),
-        Type.Literal("usage"),
-        Type.Literal("rotate"),
-      ]),
+      action: Type.String({
+        enum: ["status", "list", "usage", "rotate"],
+        description: "Management action to run.",
+      }),
     }),
     async execute(_toolCallId, params, _signal, _update, _ctx) {
       if (params.action === "list") {

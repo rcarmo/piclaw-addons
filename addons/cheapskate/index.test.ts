@@ -100,10 +100,29 @@ describe("cheapskate addon", () => {
 
   test("settings pane lists OpenCode Zen and NVIDIA keychain entries without workspace source imports", () => {
     const source = readFileSync(resolve(addonDir, "web", "index.ts"), "utf8");
+    const kvSource = readFileSync(resolve(addonDir, "compat", "extension-kv.ts"), "utf8");
     expect(source).toContain("opencode/api-key");
     expect(source).toContain("nvidia/api-key");
     expect(source).not.toContain("../../components/settings/pane-registry");
     expect(source).not.toContain("require(");
+    expect(kvSource).not.toContain("require(");
+    expect(kvSource).not.toContain("piclaw/runtime/src");
+  });
+
+  test("does not ship the obsolete standalone settings page or legacy API route", () => {
+    const packageSource = readFileSync(resolve(addonDir, "package.json"), "utf8");
+    const indexSource = readFileSync(resolve(addonDir, "index.ts"), "utf8");
+    expect(() => readFileSync(resolve(addonDir, "settings.html"), "utf8")).toThrow();
+    expect(packageSource).not.toContain("settings.html");
+    expect(indexSource).not.toContain("/cheapskate/api/config");
+  });
+
+  test("uses a Google-compatible string enum for tool actions", () => {
+    const source = readFileSync(resolve(addonDir, "index.ts"), "utf8");
+    expect(source).toContain("Type.String({");
+    expect(source).toContain('enum: ["status", "list", "usage", "rotate"]');
+    expect(source).not.toContain("Type.Union([");
+    expect(source).not.toContain("Type.Literal(\"status\")");
   });
 
   test("advertises image input only for backends that support it", () => {
