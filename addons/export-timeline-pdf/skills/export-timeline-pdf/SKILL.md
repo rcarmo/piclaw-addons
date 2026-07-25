@@ -68,4 +68,4 @@ The script resolves it in this order:
 
 - The script is read-only: it never opens SQLite and never writes auth/session state.
 - The HTML export endpoint is `GET /internal/export/timeline`.
-- The script writes an HTML sidecar next to the PDF for inspection.
+- The script writes an HTML sidecar next to the PDF for inspection, then renders that local file so bearer tokens are not passed to `wkhtmltopdf`.

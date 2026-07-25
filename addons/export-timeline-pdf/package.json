@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-export-timeline-pdf",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Export chat timelines to PDF with inline avatars and referenced message pills",
   "type": "module",
   "piclaw": {

@@ -4,11 +4,11 @@ Export chat timelines to PDF with inline avatars and referenced message pills.
 
 ## Features
 
-- Exports any chat timeline range to a self-contained PDF via `wkhtmltopdf`
+- Exports any chat timeline range to a self-contained HTML sidecar, then renders that local file to PDF via `wkhtmltopdf`
 - Inlines agent/user avatars as base64 data URIs (no broken images in PDF)
 - Renders `message:NNN` references as styled pills with author + preview
 - Supports light/dark themes, date ranges, row ranges, and last-N filters
-- Read-only — never opens SQLite or writes auth state
+- Read-only — never opens SQLite, writes auth state, or passes bearer tokens to `wkhtmltopdf`
 
 ## Requirements
 

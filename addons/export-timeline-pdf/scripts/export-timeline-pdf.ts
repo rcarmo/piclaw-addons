@@ -22,15 +22,15 @@
  * - never opens SQLite
  * - never writes auth/session state
  * - fetches printable HTML from the localhost internal export endpoint
- * - renders via wkhtmltopdf
+ * - renders the fetched local HTML sidecar via wkhtmltopdf
  */
 
 import { accessSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "fs";
-import { join } from "path";
+import { dirname } from "path";
 import { spawnSync } from "node:child_process";
+import { pathToFileURL } from "node:url";
 
-if (process.argv.includes("--help") || process.argv.includes("-h")) {
-  console.log(`Usage: bun export-timeline-pdf.ts [options]
+const HELP = `Usage: bun export-timeline-pdf.ts [options]
 
 Export a chat timeline to a PDF using the internal localhost export endpoint.
 
@@ -47,36 +47,86 @@ Other options:
   --out <path>           Output PDF path
   --port <n>             Piclaw web server port (default: auto-detect or 8080)
   --auth-key <key>       Internal export auth key (defaults to env/config lookup)
-  --html-only            Write HTML sidecar and exit without PDF generation`);
-  process.exit(0);
+  --html-only            Write HTML sidecar and exit without PDF generation`;
+
+export interface ExportTimelinePdfOptions {
+  chatJid: string;
+  fromTs: string;
+  toTs: string;
+  fromRow: string;
+  toRow: string;
+  lastN: string;
+  theme: "light" | "dark";
+  outPath: string;
+  portArg: string;
+  htmlOnly: boolean;
+  authKeyArg: string;
 }
 
-const args = process.argv.slice(2);
-const getArg = (name: string): string | undefined => {
+function getArg(args: string[], name: string): string | undefined {
   const idx = args.indexOf(name);
   if (idx >= 0 && idx + 1 < args.length) {
     const value = args[idx + 1];
     if (!value.startsWith("--")) return value;
   }
   return undefined;
-};
-const hasFlag = (name: string): boolean => args.includes(name);
+}
 
-const chatJid = getArg("--chat") || "web:default";
-const fromTs = getArg("--from") || "";
-const toTs = getArg("--to") || "";
-const fromRow = getArg("--from-row") || "";
-const toRow = getArg("--to-row") || "";
-const lastN = getArg("--last") || "";
-const theme = (getArg("--theme") || "light").toLowerCase();
-const outPath = getArg("--out") || `/workspace/exports/timeline-${chatJid.replace(/[^a-z0-9]+/gi, "_")}.pdf`;
-const portArg = getArg("--port");
-const htmlOnly = hasFlag("--html-only");
-const authKeyArg = getArg("--auth-key") || "";
+function hasFlag(args: string[], name: string): boolean {
+  return args.includes(name);
+}
 
-mkdirSync(join(outPath, ".."), { recursive: true });
+function safeChatPathSegment(chatJid: string): string {
+  return chatJid.replace(/[^a-z0-9]+/gi, "_");
+}
 
-async function detectPort(): Promise<number> {
+function assertPositiveIntegerString(value: string, label: string): void {
+  if (!value) return;
+  if (!/^\d+$/.test(value) || Number(value) < 1) {
+    throw new Error(`${label} must be a positive integer`);
+  }
+}
+
+export function parseCliArgs(args = process.argv.slice(2)): ExportTimelinePdfOptions {
+  const chatJid = getArg(args, "--chat") || "web:default";
+  const fromTs = getArg(args, "--from") || "";
+  const toTs = getArg(args, "--to") || "";
+  const fromRow = getArg(args, "--from-row") || "";
+  const toRow = getArg(args, "--to-row") || "";
+  const lastN = getArg(args, "--last") || "";
+  const theme = (getArg(args, "--theme") || "light").toLowerCase();
+  const outPath = getArg(args, "--out") || `/workspace/exports/timeline-${safeChatPathSegment(chatJid)}.pdf`;
+  const portArg = getArg(args, "--port") || "";
+  const htmlOnly = hasFlag(args, "--html-only");
+  const authKeyArg = getArg(args, "--auth-key") || "";
+
+  if (theme !== "light" && theme !== "dark") throw new Error("--theme must be light or dark");
+  assertPositiveIntegerString(fromRow, "--from-row");
+  assertPositiveIntegerString(toRow, "--to-row");
+  assertPositiveIntegerString(lastN, "--last");
+  assertPositiveIntegerString(portArg, "--port");
+
+  return {
+    chatJid,
+    fromTs,
+    toTs,
+    fromRow,
+    toRow,
+    lastN,
+    theme,
+    outPath,
+    portArg,
+    htmlOnly,
+    authKeyArg,
+  };
+}
+
+export function resolveOutputPaths(outPath: string): { outPath: string; htmlPath: string; outDir: string } {
+  const htmlPath = /\.pdf$/i.test(outPath) ? outPath.replace(/\.pdf$/i, ".html") : `${outPath}.html`;
+  return { outPath, htmlPath, outDir: dirname(outPath) || "." };
+}
+
+export async function detectPort(portArg = ""): Promise<number> {
   if (portArg) return Number(portArg);
   for (const port of [8080, 3000, 8443]) {
     try {
@@ -98,7 +148,7 @@ function loadConfigAuthKey(): string {
   }
 }
 
-function resolveAuthKey(): string {
+export function resolveAuthKey(authKeyArg = ""): string {
   return (
     authKeyArg ||
     process.env.PICLAW_EXPORT_AUTH_KEY ||
@@ -108,19 +158,19 @@ function resolveAuthKey(): string {
   ).trim();
 }
 
-function buildExportUrl(port: number): string {
+export function buildExportUrl(port: number, options: ExportTimelinePdfOptions): string {
   const params = new URLSearchParams();
-  params.set("chat_jid", chatJid);
-  params.set("theme", theme);
-  if (fromTs) params.set("from", fromTs);
-  if (toTs) params.set("to", toTs);
-  if (fromRow) params.set("from_row", fromRow);
-  if (toRow) params.set("to_row", toRow);
-  if (lastN) params.set("last", lastN);
+  params.set("chat_jid", options.chatJid);
+  params.set("theme", options.theme);
+  if (options.fromTs) params.set("from", options.fromTs);
+  if (options.toTs) params.set("to", options.toTs);
+  if (options.fromRow) params.set("from_row", options.fromRow);
+  if (options.toRow) params.set("to_row", options.toRow);
+  if (options.lastN) params.set("last", options.lastN);
   return `http://127.0.0.1:${port}/internal/export/timeline?${params.toString()}`;
 }
 
-async function fetchExportHtml(url: string, authKey: string): Promise<string> {
+export async function fetchExportHtml(url: string, authKey: string): Promise<string> {
   const res = await fetch(url, {
     headers: {
       Authorization: `Bearer ${authKey}`,
@@ -140,7 +190,7 @@ async function fetchExportHtml(url: string, authKey: string): Promise<string> {
   return html;
 }
 
-function ensureWkhtmltopdf(): string {
+export function ensureWkhtmltopdf(): string {
   const candidate = spawnSync("bash", ["-lc", "command -v wkhtmltopdf"], { encoding: "utf8" });
   const path = (candidate.stdout || "").trim();
   if (!path) {
@@ -150,17 +200,20 @@ function ensureWkhtmltopdf(): string {
   return path;
 }
 
-function runWkhtmltopdf(binary: string, url: string, authKey: string, pdfPath: string): void {
-  const result = spawnSync(binary, [
+export function buildWkhtmltopdfArgs(htmlPath: string, pdfPath: string): string[] {
+  return [
     "--print-media-type",
     "--encoding", "utf-8",
     "--load-error-handling", "abort",
     "--load-media-error-handling", "ignore",
-    "--custom-header", "Authorization", `Bearer ${authKey}`,
-    "--custom-header-propagation",
-    url,
+    "--enable-local-file-access",
+    pathToFileURL(htmlPath).href,
     pdfPath,
-  ], {
+  ];
+}
+
+export function runWkhtmltopdf(binary: string, htmlPath: string, pdfPath: string): void {
+  const result = spawnSync(binary, buildWkhtmltopdfArgs(htmlPath, pdfPath), {
     stdio: "inherit",
   });
 
@@ -169,15 +222,17 @@ function runWkhtmltopdf(binary: string, url: string, authKey: string, pdfPath: s
   }
 }
 
-async function run() {
-  const authKey = resolveAuthKey();
+export async function run(options = parseCliArgs()): Promise<string> {
+  const authKey = resolveAuthKey(options.authKeyArg);
   if (!authKey) {
     throw new Error("No internal export auth key configured. Pass --auth-key or set web.internalSecret / PICLAW_INTERNAL_SECRET.");
   }
 
-  const port = await detectPort();
-  const exportUrl = buildExportUrl(port);
-  const htmlPath = outPath.replace(/\.pdf$/i, ".html");
+  const { outPath, htmlPath, outDir } = resolveOutputPaths(options.outPath);
+  mkdirSync(outDir, { recursive: true });
+
+  const port = await detectPort(options.portArg);
+  const exportUrl = buildExportUrl(port, options);
 
   console.error(`Using server at 127.0.0.1:${port}`);
   console.error(`Export URL: ${exportUrl}`);
@@ -186,13 +241,13 @@ async function run() {
   writeFileSync(htmlPath, html, "utf8");
   console.error(`HTML written: ${htmlPath}`);
 
-  if (htmlOnly) {
+  if (options.htmlOnly) {
     process.stdout.write(htmlPath);
-    return;
+    return htmlPath;
   }
 
   const wkhtmltopdf = ensureWkhtmltopdf();
-  runWkhtmltopdf(wkhtmltopdf, exportUrl, authKey, outPath);
+  runWkhtmltopdf(wkhtmltopdf, htmlPath, outPath);
 
   if (!existsSync(outPath)) {
     throw new Error("wkhtmltopdf did not create the PDF output");
@@ -204,9 +259,16 @@ async function run() {
 
   console.error(`PDF written: ${outPath}`);
   process.stdout.write(outPath);
+  return outPath;
 }
 
-run().catch((err) => {
-  console.error(err.message || String(err));
-  process.exit(1);
-});
+if (import.meta.main) {
+  if (process.argv.includes("--help") || process.argv.includes("-h")) {
+    console.log(HELP);
+    process.exit(0);
+  }
+  run().catch((err) => {
+    console.error(err.message || String(err));
+    process.exit(1);
+  });
+}
