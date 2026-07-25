@@ -1,0 +1,40 @@
+{
+  "name": "@rcarmo/piclaw-addon-session-dashboard",
+  "version": "0.1.0",
+  "description": "Roll-down active session dashboard with recent work summaries and context indicators",
+  "type": "module",
+  "main": "index.ts",
+  "piclaw": {
+    "type": "extension",
+    "compatibleVersions": ">=2.0.0",
+    "tags": [
+      "session",
+      "dashboard",
+      "navigation",
+      "ui"
+    ]
+  },
+  "pi": {
+    "extensions": [
+      "index.ts"
+    ],
+    "web": {
+      "entries": [
+        "web/index.ts"
+      ]
+    }
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "keywords": [
+    "pi-package",
+    "piclaw",
+    "piclaw-addon",
+    "session",
+    "dashboard",
+    "navigation"
+  ],
+  "license": "MIT",
+  "homepage": "https://rcarmo.github.io/piclaw-addons/addons/session-dashboard/"
+}

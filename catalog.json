@@ -625,6 +625,26 @@
       "updatedAt": "2026-05-08"
     },
     {
+      "slug": "session-dashboard",
+      "name": "@rcarmo/piclaw-addon-session-dashboard",
+      "version": "0.1.0",
+      "type": "extension",
+      "description": "Roll-down active session dashboard with recent work summaries and context indicators",
+      "path": "addons/session-dashboard",
+      "homepage": "https://rcarmo.github.io/piclaw-addons/addons/session-dashboard/",
+      "tags": [
+        "dashboard",
+        "navigation",
+        "session",
+        "ui"
+      ],
+      "skills": [],
+      "install": {
+        "kind": "tarball",
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-session-dashboard-0.1.0.tgz"
+      }
+    },
+    {
       "slug": "session-tree",
       "name": "@rcarmo/piclaw-addon-session-tree",
       "version": "0.1.0",

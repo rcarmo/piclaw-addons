@@ -1,0 +1,421 @@
+// @ts-nocheck
+const ADDON_ID = "session-dashboard";
+const API = `/agent/addons/api/${ADDON_ID}/sessions`;
+const STORAGE_OPEN = "piclaw:session-dashboard:open";
+const STORAGE_LIMIT = "piclaw:session-dashboard:limit";
+const DEFAULT_LIMIT = 9;
+const DEFAULT_CHAT_JID = "web:default";
+
+if (!globalThis.__piclawSessionDashboardInstalled) {
+  globalThis.__piclawSessionDashboardInstalled = true;
+  installSessionDashboard();
+}
+
+export function installSessionDashboard() {
+  if (typeof document === "undefined") return null;
+
+  const state = {
+    open: localStorage.getItem(STORAGE_OPEN) === "true",
+    limit: clampNumber(Number(localStorage.getItem(STORAGE_LIMIT)) || DEFAULT_LIMIT, 1, 12),
+    currentChatJid: getCurrentChatJid(),
+    sessions: [],
+    activeByJid: new Map(),
+    contextByJid: new Map(),
+    loading: false,
+    error: "",
+    lastGeneratedAt: null,
+    pollTimer: null,
+    refreshQueued: false,
+  };
+
+  injectStyles();
+
+  const root = document.createElement("div");
+  root.className = "session-dashboard-root";
+  root.innerHTML = `
+    <button class="session-dashboard-toggle" type="button" aria-label="Show sessions" title="Show sessions">
+      <span class="session-dashboard-toggle-dot" aria-hidden="true"></span>
+      <span class="session-dashboard-toggle-label">Sessions</span>
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 6 8 10 12 6" /></svg>
+    </button>
+    <section class="session-dashboard-panel" aria-label="Recent active sessions">
+      <header class="session-dashboard-header">
+        <div>
+          <div class="session-dashboard-title">Active sessions</div>
+          <div class="session-dashboard-subtitle"></div>
+        </div>
+        <div class="session-dashboard-actions">
+          <button class="session-dashboard-refresh" type="button">Refresh</button>
+          <button class="session-dashboard-close" type="button" aria-label="Hide sessions">×</button>
+        </div>
+      </header>
+      <div class="session-dashboard-grid" role="list"></div>
+      <footer class="session-dashboard-footer" aria-live="polite"></footer>
+    </section>
+  `;
+  document.body.appendChild(root);
+
+  const toggle = root.querySelector(".session-dashboard-toggle");
+  const panel = root.querySelector(".session-dashboard-panel");
+  const subtitle = root.querySelector(".session-dashboard-subtitle");
+  const grid = root.querySelector(".session-dashboard-grid");
+  const footer = root.querySelector(".session-dashboard-footer");
+  const refreshButton = root.querySelector(".session-dashboard-refresh");
+  const closeButton = root.querySelector(".session-dashboard-close");
+
+  function setOpen(next) {
+    state.open = Boolean(next);
+    localStorage.setItem(STORAGE_OPEN, state.open ? "true" : "false");
+    render();
+    schedulePolling();
+    if (state.open) void refreshNow("open");
+  }
+
+  function schedulePolling() {
+    if (state.pollTimer) {
+      clearTimeout(state.pollTimer);
+      state.pollTimer = null;
+    }
+    if (!state.open) return;
+    state.pollTimer = setTimeout(async () => {
+      await refreshNow("poll").catch(() => undefined);
+      schedulePolling();
+    }, 5000);
+    state.pollTimer.unref?.();
+  }
+
+  async function refreshNow(reason = "manual") {
+    if (!state.open) return;
+    if (state.loading) {
+      state.refreshQueued = true;
+      return;
+    }
+    state.loading = true;
+    state.error = "";
+    renderChrome();
+    try {
+      const [recentPayload, activePayload] = await Promise.all([
+        apiJson(`${API}?limit=${encodeURIComponent(state.limit)}`),
+        apiJson("/agent/active-chats").catch(() => ({ chats: [] })),
+      ]);
+      state.activeByJid = new Map((activePayload?.chats || []).filter((chat) => chat?.chat_jid).map((chat) => [chat.chat_jid, chat]));
+      state.lastGeneratedAt = recentPayload?.generated_at || new Date().toISOString();
+      state.sessions = mergeSessions(recentPayload?.sessions || [], [...state.activeByJid.values()], state.limit);
+      render();
+      await refreshContexts();
+      render();
+    } catch (error) {
+      state.error = String(error?.message || error);
+      render();
+    } finally {
+      state.loading = false;
+      renderChrome();
+      if (state.refreshQueued) {
+        state.refreshQueued = false;
+        setTimeout(() => void refreshNow("queued"), 50);
+      }
+    }
+  }
+
+  async function refreshContexts() {
+    const visible = state.sessions.slice(0, state.limit);
+    const entries = await Promise.all(visible.map(async (session) => {
+      try {
+        const context = await apiJson(`/agent/context?chat_jid=${encodeURIComponent(session.chat_jid)}`);
+        return [session.chat_jid, normalizeContext(context)];
+      } catch {
+        return [session.chat_jid, null];
+      }
+    }));
+    state.contextByJid = new Map(entries);
+  }
+
+  function renderChrome() {
+    state.currentChatJid = getCurrentChatJid();
+    root.classList.toggle("open", state.open);
+    root.classList.toggle("loading", state.loading);
+    toggle.title = state.open ? "Hide sessions" : "Show recent sessions";
+    toggle.setAttribute("aria-label", state.open ? "Hide sessions" : "Show recent sessions");
+    toggle.setAttribute("aria-expanded", state.open ? "true" : "false");
+    panel.setAttribute("aria-hidden", state.open ? "false" : "true");
+    refreshButton.disabled = state.loading;
+  }
+
+  function render() {
+    renderChrome();
+    const activeCount = state.sessions.filter((session) => isSessionActive(session, state.activeByJid.get(session.chat_jid))).length;
+    subtitle.textContent = state.error
+      ? "Unable to load sessions"
+      : `${state.sessions.length || state.limit} slots • ${activeCount} active • ${state.currentChatJid}`;
+    footer.textContent = state.error
+      ? state.error
+      : state.lastGeneratedAt ? `Updated ${formatRelativeTime(state.lastGeneratedAt)}` : "Waiting for session data…";
+    grid.textContent = "";
+    if (!state.sessions.length) {
+      const empty = document.createElement("div");
+      empty.className = "session-dashboard-empty";
+      empty.textContent = state.loading ? "Loading sessions…" : "No recent sessions found.";
+      grid.appendChild(empty);
+      return;
+    }
+    for (const session of state.sessions) grid.appendChild(renderTile(session));
+  }
+
+  function renderTile(session) {
+    const active = state.activeByJid.get(session.chat_jid);
+    const context = state.contextByJid.get(session.chat_jid);
+    const tile = document.createElement("button");
+    tile.type = "button";
+    tile.className = "session-dashboard-tile";
+    tile.classList.toggle("current", session.chat_jid === state.currentChatJid);
+    tile.classList.toggle("active", isSessionActive(session, active));
+    tile.role = "listitem";
+    tile.title = `Open ${session.chat_jid}`;
+    tile.addEventListener("click", (event) => navigateToSession(session.chat_jid, event));
+
+    const top = document.createElement("div");
+    top.className = "session-dashboard-tile-top";
+    const name = document.createElement("div");
+    name.className = "session-dashboard-name";
+    name.textContent = `@${session.agent_name || agentNameFromChatJid(session.chat_jid)}`;
+    const status = document.createElement("span");
+    status.className = "session-dashboard-status";
+    status.textContent = formatStatus(active);
+    top.append(name, status);
+
+    const meta = document.createElement("div");
+    meta.className = "session-dashboard-meta";
+    meta.textContent = `${formatRelativeTime(session.last_active_at)} • ${session.chat_jid}`;
+
+    const summary = document.createElement("div");
+    summary.className = "session-dashboard-summary";
+    summary.textContent = session.summary || "No recent output yet.";
+
+    const contextRow = document.createElement("div");
+    contextRow.className = "session-dashboard-context";
+    const label = document.createElement("span");
+    label.textContent = formatContext(context);
+    const meter = document.createElement("span");
+    meter.className = "session-dashboard-context-meter";
+    const fill = document.createElement("span");
+    fill.style.width = `${clampNumber(Math.round(context?.percent || 0), 0, 100)}%`;
+    meter.appendChild(fill);
+    contextRow.append(label, meter);
+
+    tile.append(top, meta, summary, contextRow);
+    return tile;
+  }
+
+  function handleLiveEvent(event) {
+    if (!state.open) return;
+    const detail = event?.detail || {};
+    const payload = detail.payload || detail;
+    if (payload?.chat_jid && payload.chat_jid !== state.currentChatJid && !state.activeByJid.has(payload.chat_jid)) return;
+    if (payload?.key === "context_usage" && payload?.chat_jid) {
+      state.contextByJid.set(payload.chat_jid, normalizeContext(payload.context_usage || safeJson(payload.text)));
+      render();
+      return;
+    }
+    setTimeout(() => void refreshNow("event"), 100);
+  }
+
+  function handleCurrentChatChanged() {
+    state.currentChatJid = getCurrentChatJid();
+    render();
+  }
+
+  toggle.addEventListener("click", () => setOpen(!state.open));
+  closeButton.addEventListener("click", () => setOpen(false));
+  refreshButton.addEventListener("click", () => void refreshNow("manual"));
+  window.addEventListener("piclaw:current-chat-changed", handleCurrentChatChanged);
+  window.addEventListener("popstate", handleCurrentChatChanged);
+  window.addEventListener("piclaw-extension-ui", handleLiveEvent);
+  window.addEventListener("piclaw-extension-ui:status", handleLiveEvent);
+  window.addEventListener("focus", () => { if (state.open) void refreshNow("focus"); });
+
+  render();
+  schedulePolling();
+  if (state.open) void refreshNow("startup");
+  return { root, refreshNow, destroy: () => { if (state.pollTimer) clearTimeout(state.pollTimer); root.remove(); } };
+}
+
+function mergeSessions(recent, active, limit) {
+  const byJid = new Map();
+  for (const session of recent) {
+    if (!session?.chat_jid) continue;
+    byJid.set(session.chat_jid, { ...session });
+  }
+  for (const chat of active) {
+    if (!chat?.chat_jid) continue;
+    const existing = byJid.get(chat.chat_jid) || {};
+    byJid.set(chat.chat_jid, {
+      chat_jid: chat.chat_jid,
+      agent_name: chat.agent_name || existing.agent_name || agentNameFromChatJid(chat.chat_jid),
+      root_chat_jid: chat.root_chat_jid || existing.root_chat_jid || null,
+      branch_id: chat.branch_id || existing.branch_id || null,
+      last_active_at: chat.last_activity_at || chat.last_event_at || existing.last_active_at || null,
+      summary: existing.summary || chat.summary || "No recent output yet.",
+      message_count: existing.message_count || 0,
+      is_archived: Boolean(existing.is_archived),
+      model: chat.model || existing.model || null,
+    });
+  }
+  return [...byJid.values()]
+    .sort((left, right) => {
+      const leftActive = activeStateScore(left, active.find((chat) => chat.chat_jid === left.chat_jid));
+      const rightActive = activeStateScore(right, active.find((chat) => chat.chat_jid === right.chat_jid));
+      if (leftActive !== rightActive) return rightActive - leftActive;
+      return Date.parse(right.last_active_at || "") - Date.parse(left.last_active_at || "");
+    })
+    .slice(0, limit);
+}
+
+function activeStateScore(session, active) {
+  if (!active) return 0;
+  if (active.activity_status === "streaming") return 3;
+  if (active.activity_status === "working" || active.activity_status === "busy") return 2;
+  if (active.is_active || session.is_active) return 1;
+  return 0;
+}
+
+function isSessionActive(session, active) {
+  return activeStateScore(session, active) > 0;
+}
+
+function formatStatus(active) {
+  if (!active) return "idle";
+  if (active.activity_status) return String(active.activity_status).replace(/_/g, " ");
+  return active.is_active ? "active" : "idle";
+}
+
+function normalizeContext(context) {
+  if (!context || typeof context !== "object") return null;
+  const percent = Number(context.percent);
+  const tokens = Number(context.tokens);
+  const contextWindow = Number(context.contextWindow);
+  return {
+    percent: Number.isFinite(percent) ? percent : null,
+    tokens: Number.isFinite(tokens) ? tokens : null,
+    contextWindow: Number.isFinite(contextWindow) ? contextWindow : null,
+  };
+}
+
+function formatContext(context) {
+  if (!context || context.percent == null) return "context unknown";
+  return `${Math.round(context.percent)}% context`;
+}
+
+function navigateToSession(chatJid, event) {
+  const url = new URL(globalThis.location?.href || "http://localhost/");
+  url.searchParams.set("chat_jid", chatJid);
+  url.searchParams.delete("branch_loader");
+  url.searchParams.delete("pane_popout");
+  if (event?.metaKey || event?.ctrlKey || event?.button === 1) {
+    window.open(url.toString(), "_blank", "noopener");
+    return;
+  }
+  window.location.href = url.toString();
+}
+
+async function apiJson(url, options) {
+  const response = await fetch(url, { credentials: "same-origin", ...options });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || payload?.ok === false) throw new Error(payload?.error || `${response.status} ${response.statusText}`);
+  return payload;
+}
+
+function getCurrentChatJid() {
+  const fromApi = normalizeChatJid(globalThis.__piclaw_web?.getCurrentChatJid?.());
+  if (fromApi !== DEFAULT_CHAT_JID) return fromApi;
+  const fromGlobal = normalizeChatJid(globalThis.__piclawCurrentChatJid);
+  if (fromGlobal !== DEFAULT_CHAT_JID) return fromGlobal;
+  try {
+    const url = new URL(globalThis.location?.href || "https://example.test/");
+    return normalizeChatJid(url.searchParams.get("chat_jid"));
+  } catch {
+    return DEFAULT_CHAT_JID;
+  }
+}
+
+function normalizeChatJid(value) {
+  const trimmed = typeof value === "string" ? value.trim() : "";
+  return trimmed || DEFAULT_CHAT_JID;
+}
+
+function agentNameFromChatJid(chatJid) {
+  const suffix = String(chatJid || "").split(":").pop() || "session";
+  return suffix.replace(/[^a-zA-Z0-9._-]+/g, "-") || "session";
+}
+
+function formatRelativeTime(value) {
+  const time = Date.parse(value || "");
+  if (!Number.isFinite(time)) return "never";
+  const delta = Date.now() - time;
+  if (delta < 30_000) return "just now";
+  const minutes = Math.round(delta / 60_000);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 48) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  return `${days}d ago`;
+}
+
+function clampNumber(value, min, max) {
+  return Math.max(min, Math.min(max, Number.isFinite(value) ? value : min));
+}
+
+function safeJson(value) {
+  if (typeof value !== "string" || !value.trim()) return null;
+  try { return JSON.parse(value); } catch { return null; }
+}
+
+function injectStyles() {
+  if (document.getElementById("session-dashboard-styles")) return;
+  const style = document.createElement("style");
+  style.id = "session-dashboard-styles";
+  style.textContent = `
+    .session-dashboard-root { position: fixed; inset: 0 0 auto 0; z-index: 820; pointer-events: none; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: var(--text, #e5e7eb); }
+    .session-dashboard-toggle { pointer-events: auto; position: fixed; top: max(8px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 8px; min-height: 32px; padding: 6px 12px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--border, #334155) 72%, transparent); background: color-mix(in srgb, var(--surface, #0f172a) 88%, transparent); color: var(--text, #e5e7eb); box-shadow: 0 12px 30px rgba(0,0,0,.28); cursor: pointer; backdrop-filter: blur(14px); transition: transform .18s ease, background .18s ease, border-color .18s ease; }
+    .session-dashboard-root.open .session-dashboard-toggle { transform: translate(-50%, calc(var(--session-dashboard-panel-height, 0px) + 8px)); }
+    .session-dashboard-toggle:hover { background: color-mix(in srgb, var(--surface-hover, #172033) 92%, transparent); border-color: color-mix(in srgb, var(--accent, #38bdf8) 42%, var(--border, #334155)); }
+    .session-dashboard-toggle svg { width: 14px; height: 14px; transition: transform .18s ease; }
+    .session-dashboard-root.open .session-dashboard-toggle svg { transform: rotate(180deg); }
+    .session-dashboard-toggle-dot { width: 8px; height: 8px; border-radius: 999px; background: #64748b; box-shadow: 0 0 0 3px rgba(100,116,139,.16); }
+    .session-dashboard-root.loading .session-dashboard-toggle-dot { background: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,.18); }
+    .session-dashboard-panel { pointer-events: auto; --panel-pad: clamp(10px, 1.5vw, 18px); position: fixed; top: 0; left: 0; right: 0; max-height: min(58vh, 520px); padding: calc(var(--panel-pad) + env(safe-area-inset-top)) var(--panel-pad) var(--panel-pad); background: linear-gradient(180deg, color-mix(in srgb, var(--surface, #0f172a) 96%, #020617), color-mix(in srgb, var(--surface, #0f172a) 90%, #020617)); border-bottom: 1px solid color-mix(in srgb, var(--border, #334155) 72%, transparent); box-shadow: 0 20px 60px rgba(0,0,0,.36); transform: translateY(-105%); transition: transform .22s cubic-bezier(.2,.8,.2,1); overflow: hidden auto; backdrop-filter: blur(18px); }
+    .session-dashboard-root.open .session-dashboard-panel { transform: translateY(0); }
+    .session-dashboard-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 0 auto 12px; max-width: 1180px; }
+    .session-dashboard-title { font-weight: 700; letter-spacing: .01em; font-size: 15px; }
+    .session-dashboard-subtitle, .session-dashboard-footer { color: var(--muted, #94a3b8); font-size: 12px; }
+    .session-dashboard-actions { display: flex; gap: 8px; align-items: center; }
+    .session-dashboard-actions button { border: 1px solid var(--border, #334155); background: color-mix(in srgb, var(--surface-raised, #172033) 92%, transparent); color: inherit; border-radius: 10px; padding: 6px 10px; cursor: pointer; }
+    .session-dashboard-actions button:disabled { opacity: .55; cursor: wait; }
+    .session-dashboard-close { font-size: 18px; line-height: 1; min-width: 32px; }
+    .session-dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: 10px; max-width: 1180px; margin: 0 auto; }
+    .session-dashboard-tile { min-height: 132px; text-align: left; border: 1px solid color-mix(in srgb, var(--border, #334155) 70%, transparent); border-radius: 16px; padding: 12px; background: color-mix(in srgb, var(--surface-raised, #111827) 92%, transparent); color: inherit; cursor: pointer; display: grid; grid-template-rows: auto auto 1fr auto; gap: 8px; transition: transform .16s ease, border-color .16s ease, background .16s ease; }
+    .session-dashboard-tile:hover { transform: translateY(-1px); border-color: color-mix(in srgb, var(--accent, #38bdf8) 50%, var(--border, #334155)); background: color-mix(in srgb, var(--surface-hover, #1e293b) 94%, transparent); }
+    .session-dashboard-tile.current { border-color: color-mix(in srgb, var(--accent, #38bdf8) 68%, var(--border, #334155)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent, #38bdf8) 35%, transparent); }
+    .session-dashboard-tile.active .session-dashboard-status::before { background: #22c55e; box-shadow: 0 0 0 3px rgba(34,197,94,.16); }
+    .session-dashboard-tile-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .session-dashboard-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; font-size: 14px; }
+    .session-dashboard-status { display: inline-flex; align-items: center; gap: 6px; color: var(--muted, #94a3b8); font-size: 11px; white-space: nowrap; }
+    .session-dashboard-status::before { content: ""; width: 7px; height: 7px; border-radius: 999px; background: #64748b; }
+    .session-dashboard-meta { color: var(--muted, #94a3b8); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .session-dashboard-summary { color: color-mix(in srgb, var(--text, #e5e7eb) 88%, var(--muted, #94a3b8)); font-size: 12px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+    .session-dashboard-context { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--muted, #94a3b8); font-size: 11px; }
+    .session-dashboard-context-meter { flex: 1; height: 5px; max-width: 90px; border-radius: 999px; background: rgba(148,163,184,.22); overflow: hidden; }
+    .session-dashboard-context-meter span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #22c55e, #eab308, #ef4444); }
+    .session-dashboard-footer { max-width: 1180px; margin: 10px auto 0; min-height: 18px; }
+    .session-dashboard-empty { grid-column: 1 / -1; border: 1px dashed var(--border, #334155); border-radius: 16px; padding: 18px; text-align: center; color: var(--muted, #94a3b8); }
+    @media (max-width: 720px) { .session-dashboard-toggle-label { display: none; } .session-dashboard-panel { max-height: 72vh; } .session-dashboard-grid { grid-template-columns: 1fr; } .session-dashboard-header { align-items: flex-start; } }
+  `;
+  document.head.appendChild(style);
+}
+
+export const __sessionDashboardTest = {
+  mergeSessions,
+  normalizeContext,
+  formatContext,
+  formatRelativeTime,
+  agentNameFromChatJid,
+};

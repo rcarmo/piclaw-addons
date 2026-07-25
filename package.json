@@ -51,6 +51,7 @@
       "addons/portainer/index.ts",
       "addons/proxmox/index.ts",
       "addons/sample-addon/index.ts",
+      "addons/session-dashboard/index.ts",
       "addons/session-tree/index.ts",
       "addons/skill-model-effort/src/index.ts",
       "addons/smart-compaction/index.ts",
