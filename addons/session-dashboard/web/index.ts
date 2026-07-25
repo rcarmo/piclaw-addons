@@ -149,6 +149,10 @@ export function installSessionDashboard() {
   function render() {
     renderChrome();
     const activeCount = state.sessions.filter((session) => isSessionActive(session, state.activeByJid.get(session.chat_jid))).length;
+    const activeFill = activeFillPercent(activeCount, state.limit);
+    root.style.setProperty("--session-dashboard-active-fill", `${activeFill}%`);
+    toggle.title = state.open ? `Hide sessions (${activeCount} active)` : `Show recent sessions (${activeCount} active)`;
+    toggle.setAttribute("aria-label", toggle.title);
     subtitle.textContent = state.error
       ? "Unable to load sessions"
       : `${state.sessions.length || state.limit} slots • ${activeCount} active • ${state.currentChatJid}`;
@@ -347,6 +351,10 @@ function isSessionActive(session, active) {
   return activeStateScore(session, active) > 0;
 }
 
+function activeFillPercent(activeCount, limit) {
+  return clampNumber(Math.round((Number(activeCount) / Math.max(1, Number(limit) || 1)) * 100), 0, 100);
+}
+
 function formatStatus(active) {
   if (!active) return "idle";
   if (active.activity_status) return String(active.activity_status).replace(/_/g, " ");
@@ -448,6 +456,7 @@ function injectStyles() {
       color: var(--text-primary,#e5e7eb);
       --session-dashboard-max-width: 1180px;
       --session-dashboard-panel-height: 0px;
+      --session-dashboard-active-fill: 0%;
     }
     .session-dashboard-toggle {
       pointer-events: auto;
@@ -485,12 +494,23 @@ function injectStyles() {
     .session-dashboard-toggle svg { width: 12px; height: 12px; flex-shrink: 0; transition: transform var(--ui-transition-fast, .18s); }
     .session-dashboard-root.open .session-dashboard-toggle svg { transform: rotate(180deg); }
     .session-dashboard-toggle-dot {
-      width: 3px;
-      height: 14px;
+      position: relative;
+      width: 14px;
+      height: 3px;
       border-radius: 999px;
+      overflow: hidden;
       background: color-mix(in srgb, var(--border-color, rgba(148,163,184,.45)) 72%, transparent);
     }
-    .session-dashboard-root.loading .session-dashboard-toggle-dot { background: var(--accent-color,#2563eb); }
+    .session-dashboard-toggle-dot::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: var(--session-dashboard-active-fill, 0%);
+      border-radius: inherit;
+      background: var(--accent-color,#2563eb);
+      transition: width var(--ui-transition-fast, .18s);
+    }
+    .session-dashboard-root.loading .session-dashboard-toggle-dot::before { opacity: .72; }
     .session-dashboard-panel {
       pointer-events: auto;
       position: fixed;
@@ -593,6 +613,7 @@ function injectStyles() {
 
 export const __sessionDashboardTest = {
   mergeSessions,
+  activeFillPercent,
   isEditableTarget,
   normalizeContext,
   formatContext,

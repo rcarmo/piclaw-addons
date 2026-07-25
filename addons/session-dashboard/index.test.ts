@@ -99,6 +99,8 @@ test("web defaults to eight visible sessions and follows sidebar surface variabl
   expect(source).toContain("const DEFAULT_LIMIT = 8;");
   expect(source).not.toContain("session-dashboard-toggle-label");
   expect(source).toContain("--session-dashboard-panel-height");
+  expect(source).toContain("--session-dashboard-active-fill");
+  expect(source).toContain("width: var(--session-dashboard-active-fill");
   expect(source).toContain("var(--bg-primary");
   expect(source).toContain("var(--bg-secondary");
   expect(source).toContain("var(--border-color");
@@ -112,6 +114,13 @@ test("web defaults to eight visible sessions and follows sidebar surface variabl
   expect(source).not.toContain("backdrop-filter");
   expect(source).not.toContain("box-shadow: 0 20px");
   expect(source).not.toContain("border-radius: 16px");
+});
+
+test("web tab meter fill is proportional to visible active sessions", () => {
+  expect(__sessionDashboardTest.activeFillPercent(0, 8)).toBe(0);
+  expect(__sessionDashboardTest.activeFillPercent(2, 8)).toBe(25);
+  expect(__sessionDashboardTest.activeFillPercent(8, 8)).toBe(100);
+  expect(__sessionDashboardTest.activeFillPercent(12, 8)).toBe(100);
 });
 
 test("web shortcut guard ignores compose and editor targets", () => {
