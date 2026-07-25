@@ -106,9 +106,38 @@ test("web defaults to eight visible sessions and follows sidebar surface variabl
   expect(source).toContain('event.key === "Escape"');
   expect(source).toContain('event.key === "`" || event.key === "~"');
   expect(source).toContain("isEditableTarget");
+  expect(source).toContain(".compose-box");
+  expect(source).toContain("event.composedPath?.()");
   expect(source).not.toContain("backdrop-filter");
   expect(source).not.toContain("box-shadow: 0 20px");
   expect(source).not.toContain("border-radius: 16px");
+});
+
+test("web shortcut guard ignores compose and editor targets", () => {
+  const previousElement = globalThis.Element;
+  class FakeElement {
+    selector: string;
+    isContentEditable = false;
+    constructor(selector: string, isContentEditable = false) {
+      this.selector = selector;
+      this.isContentEditable = isContentEditable;
+    }
+    closest(selector: string) {
+      return selector.includes(this.selector) ? this : null;
+    }
+  }
+  globalThis.Element = FakeElement as any;
+  try {
+    expect(__sessionDashboardTest.isEditableTarget(new FakeElement("textarea"))).toBe(true);
+    expect(__sessionDashboardTest.isEditableTarget(new FakeElement(".compose-box"))).toBe(true);
+    expect(__sessionDashboardTest.isEditableTarget(new FakeElement(".compose-model-popup"))).toBe(true);
+    expect(__sessionDashboardTest.isEditableTarget(new FakeElement(".cm-editor"))).toBe(true);
+    expect(__sessionDashboardTest.isEditableTarget(new FakeElement("div"), [new FakeElement("span"), new FakeElement(".compose-box")])).toBe(true);
+    expect(__sessionDashboardTest.isEditableTarget(new FakeElement("div", true))).toBe(true);
+    expect(__sessionDashboardTest.isEditableTarget(new FakeElement("div"))).toBe(false);
+  } finally {
+    globalThis.Element = previousElement;
+  }
 });
 
 test("web merge helper keeps active sessions visible and orders streaming sessions first", () => {

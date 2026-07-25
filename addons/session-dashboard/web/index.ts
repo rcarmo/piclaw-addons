@@ -232,7 +232,7 @@ export function installSessionDashboard() {
 
   function handleKeydown(event) {
     if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
-    if (isEditableTarget(event.target)) return;
+    if (isEditableTarget(event.target, event.composedPath?.())) return;
     if (event.key === "Escape" && state.open) {
       event.preventDefault();
       setOpen(false);
@@ -265,11 +265,44 @@ export function installSessionDashboard() {
   return { root, refreshNow, destroy: () => { if (state.pollTimer) clearTimeout(state.pollTimer); state.panelResizeObserver?.disconnect?.(); document.removeEventListener("keydown", handleKeydown); root.remove(); } };
 }
 
-function isEditableTarget(target) {
-  const element = target instanceof Element ? target : null;
-  if (!element) return false;
-  if (element.closest("input, textarea, select, [contenteditable='true'], [contenteditable='']")) return true;
-  return Boolean(element.closest(".cm-editor, .monaco-editor"));
+const EDITABLE_SHORTCUT_SELECTOR = [
+  "input",
+  "textarea",
+  "select",
+  "[contenteditable='true']",
+  "[contenteditable='']",
+  "[role='textbox']",
+  "[aria-multiline='true']",
+  ".compose-box",
+  ".compose-model-popup",
+  ".compose-session-popup",
+  ".settings-dialog",
+  ".workspace-sidebar",
+  ".editor-pane-container",
+  ".dock-panel",
+  ".timeline-menu-dropdown",
+  ".rename-branch-overlay",
+  ".agent-request-modal",
+  ".attachment-preview-modal",
+  ".adaptive-card-container",
+  ".vnc-pane-shell",
+  ".kanban-plugin",
+  ".cm-editor",
+  ".cm-content",
+  ".monaco-editor",
+  ".ProseMirror",
+  "[data-no-session-dashboard-shortcut]",
+].join(",");
+
+function isEditableTarget(target, path = []) {
+  const candidates = Array.isArray(path) && path.length ? path : [target];
+  for (const candidate of candidates) {
+    const element = candidate instanceof Element ? candidate : null;
+    if (!element) continue;
+    if (element.isContentEditable) return true;
+    if (element.closest(EDITABLE_SHORTCUT_SELECTOR)) return true;
+  }
+  return false;
 }
 
 function mergeSessions(recent, active, limit) {
