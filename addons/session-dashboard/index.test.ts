@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { Database } from "bun:sqlite";
@@ -91,6 +91,24 @@ test("queryRecentSessions falls back to a safe agent name when no branch exists"
 
 test("truncateSummary caps long text with an ellipsis", () => {
   expect(truncateSummary("abcdef", 4)).toBe("abc…");
+});
+
+test("web defaults to eight visible sessions and follows sidebar surface variables", () => {
+  const source = readFileSync(join(import.meta.dir, "web", "index.ts"), "utf8");
+
+  expect(source).toContain("const DEFAULT_LIMIT = 8;");
+  expect(source).toContain("--session-dashboard-panel-height");
+  expect(source).toContain("var(--bg-primary");
+  expect(source).toContain("var(--bg-secondary");
+  expect(source).toContain("var(--border-color");
+  expect(source).toContain("var(--radius-md");
+  expect(source).toContain("ResizeObserver");
+  expect(source).toContain('event.key === "Escape"');
+  expect(source).toContain('event.key === "`" || event.key === "~"');
+  expect(source).toContain("isEditableTarget");
+  expect(source).not.toContain("backdrop-filter");
+  expect(source).not.toContain("box-shadow: 0 20px");
+  expect(source).not.toContain("border-radius: 16px");
 });
 
 test("web merge helper keeps active sessions visible and orders streaming sessions first", () => {
