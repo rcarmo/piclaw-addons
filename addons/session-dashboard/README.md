@@ -31,7 +31,7 @@ For active sessions, the dashboard displays the first available source in this o
 3. current `tool_call` or `tool_status` from `/agent/status`
 4. latest saved session summary
 
-Generic `Working...` text is omitted. Completed, failed, cancelled, or aborted tool events fall back to the latest saved session summary; a specific ongoing state such as `Streaming output...` appears after the tool title. If the runtime omits a precomputed title, the dashboard derives one from common tool arguments such as `command`, `path`, `file`, `url`, or `query`.
+Generic `Working...` text is omitted. A specific ongoing state such as `Streaming output...` appears after the tool title. Tool activity uses the interface's monospace font. When a tool finishes, fails, is cancelled, or is aborted, the tile restores the latest non-empty draft or thought from the same turn before falling back to the saved session summary. Transient status-request failures preserve the last live preview. If the runtime omits a precomputed title, the dashboard derives one from common tool arguments such as `command`, `path`, `file`, `url`, or `query`.
 
 ## Responsive layout
 
