@@ -244,7 +244,7 @@ test("web merge helper keeps active sessions visible and orders streaming sessio
   expect(__sessionDashboardTest.formatContext({ percent: 21.4 })).toBe("21% context");
 });
 
-test("web preview helpers prefer draft, clean thinking text, and detect unchanged maps", () => {
+test("web preview helpers prefer agent output, then show active tool invocations", () => {
   expect(__sessionDashboardTest.normalizePreview("thinking", { text: "**Planning** `next`", totalLines: 1 })).toEqual({
     kind: "thinking",
     label: "thinking",
@@ -255,12 +255,52 @@ test("web preview helpers prefer draft, clean thinking text, and detect unchange
     status: "active",
     thought: { text: "thinking", totalLines: 1 },
     draft: { text: "draft text", totalLines: 1 },
+    data: { type: "tool_status", title: "Searching files", tool_name: "grep", status: "Streaming output..." },
   })).toMatchObject({ kind: "draft", text: "draft text" });
-  expect(__sessionDashboardTest.resolveStatusPreview({ status: "idle", thought: { text: "hidden" } })).toBeNull();
+  expect(__sessionDashboardTest.resolveStatusPreview({
+    status: "active",
+    thought: { text: "thinking", totalLines: 1 },
+    data: { type: "tool_call", title: "Searching files", tool_name: "grep" },
+  })).toMatchObject({ kind: "thinking", text: "thinking" });
+  expect(__sessionDashboardTest.resolveStatusPreview({
+    status: "active",
+    data: { type: "tool_call", title: "Searching files", tool_name: "grep" },
+  })).toEqual({ kind: "tool", label: "tool", text: "Searching files", totalLines: 1 });
+  expect(__sessionDashboardTest.resolveStatusPreview({
+    status: "active",
+    data: { type: "tool_status", title: "Searching files", tool_name: "grep", status: "Streaming output..." },
+  })).toMatchObject({ kind: "tool", text: "Searching files — Streaming output..." });
+  expect(__sessionDashboardTest.resolveStatusPreview({
+    status: "active",
+    data: { type: "tool_status", toolName: "bash", toolStatus: "Working...", toolArgs: { command: "echo hi" } },
+  })).toMatchObject({ kind: "tool", text: "bash: echo hi" });
+  expect(__sessionDashboardTest.resolveStatusPreview({
+    status: "active",
+    data: { type: "tool_call", tool_name: "read", tool_args: JSON.stringify({ arguments: { path: "/workspace/foo_bar.ts" } }) },
+  })).toMatchObject({ kind: "tool", text: "read: /workspace/foo_bar.ts" });
+  expect(__sessionDashboardTest.resolveStatusPreview({
+    status: "active",
+    data: { type: "tool_call", tool_name: "find", tool_args: { path: "~/.ssh/config", query: "**/*.ts" } },
+  })).toMatchObject({ kind: "tool", text: "find: ~/.ssh/config" });
+  expect(__sessionDashboardTest.resolveStatusPreview({
+    status: "active",
+    data: { type: "tool_call", tool_name: "bash", tool_args: { command: "x".repeat(160) } },
+  })).toMatchObject({ kind: "tool", text: `bash: ${"x".repeat(119)}…` });
+  expect(__sessionDashboardTest.resolveStatusPreview({
+    status: "active",
+    data: { type: "tool_status", title: "Searching files", tool_name: "grep", status: "Done" },
+  })).toBeNull();
+  expect(__sessionDashboardTest.resolveStatusPreview({
+    status: "active",
+    data: { type: "tool_status", title: "Searching files", tool_name: "grep", status: "Failed" },
+  })).toBeNull();
+  expect(__sessionDashboardTest.resolveStatusPreview({ status: "active", data: { type: "thinking", title: "Thinking..." } })).toBeNull();
+  expect(__sessionDashboardTest.resolveStatusPreview({ status: "active", data: { type: "tool_call" } })).toBeNull();
+  expect(__sessionDashboardTest.resolveStatusPreview({ status: "idle", data: { type: "tool_call", title: "Hidden" } })).toBeNull();
 
   const left = new Map([["web:addons", { kind: "draft", text: "same", totalLines: 1 }]]);
   const right = new Map([["web:addons", { kind: "draft", text: "same", totalLines: 1 }]]);
-  const changed = new Map([["web:addons", { kind: "thinking", text: "same", totalLines: 1 }]]);
+  const changed = new Map([["web:addons", { kind: "tool", text: "same", totalLines: 1 }]]);
   expect(__sessionDashboardTest.previewMapsEqual(left, right)).toBe(true);
   expect(__sessionDashboardTest.previewMapsEqual(left, changed)).toBe(false);
 });
