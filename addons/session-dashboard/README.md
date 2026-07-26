@@ -16,10 +16,22 @@ The dashboard shows:
 - current activity state
 - the latest saved assistant output
 - live draft or thinking previews for active sessions
+- the current tool invocation when an active session has no draft or thinking text
 - context-window usage
 - a footer with visible capacity, active count, current chat, and update age
 
 Click a tile to switch through Piclaw's in-app navigation. Ctrl/Cmd-click opens the session in a new tab.
+
+## Live preview priority
+
+For active sessions, the dashboard displays the first available source in this order:
+
+1. assistant draft
+2. thinking text
+3. current `tool_call` or `tool_status` from `/agent/status`
+4. latest saved session summary
+
+Generic `Working...` text is omitted. Completed, failed, cancelled, or aborted tool events fall back to the latest saved session summary; a specific ongoing state such as `Streaming output...` appears after the tool title. If the runtime omits a precomputed title, the dashboard derives one from common tool arguments such as `command`, `path`, `file`, `url`, or `query`.
 
 ## Responsive layout
 
@@ -32,7 +44,7 @@ The panel always uses two rows when enough sessions exist:
 ## Refresh behaviour
 
 - full session/context refresh: every 15 seconds while open
-- draft/thinking status refresh: every 3 seconds for visible active sessions
+- draft/thinking/tool status refresh: every 3 seconds for visible active sessions
 - footer age: local DOM update every second
 - live event bursts: coalesced before a full refresh
 

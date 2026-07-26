@@ -519,7 +519,9 @@ function formatContext(context) {
 
 function resolveStatusPreview(status) {
   if (!status || status.status !== "active") return null;
-  return normalizePreview("draft", status.draft) || normalizePreview("thinking", status.thought);
+  return normalizePreview("draft", status.draft)
+    || normalizePreview("thinking", status.thought)
+    || normalizeToolPreview(status.data);
 }
 
 function normalizePreview(kind, value) {
@@ -531,6 +533,72 @@ function normalizePreview(kind, value) {
     text: truncateText(text, PREVIEW_MAX_LENGTH),
     totalLines: Number.isFinite(Number(value?.totalLines)) ? Number(value.totalLines) : inferLineCount(text),
   };
+}
+
+function normalizeToolPreview(value) {
+  if (!value || typeof value !== "object") return null;
+  const type = typeof value.type === "string" ? value.type.trim() : "";
+  if (type !== "tool_call" && type !== "tool_status") return null;
+
+  const statusValue = value.status ?? value.tool_status ?? value.toolStatus;
+  const status = normalizeToolPreviewText(typeof statusValue === "string" ? statusValue : "");
+  if (type === "tool_status" && /^(done|failed|cancelled|canceled|aborted)$/i.test(status)) return null;
+
+  const title = resolveToolPreviewTitle(value);
+  const statusSuffix = status && !/^working(?:\.{3}|…)?$/i.test(status) ? status : "";
+  const text = [title, statusSuffix].filter(Boolean).join(" — ");
+  if (!text) return null;
+
+  return {
+    kind: "tool",
+    label: "tool",
+    text: truncateText(text, PREVIEW_MAX_LENGTH),
+    totalLines: 1,
+  };
+}
+
+function resolveToolPreviewTitle(value) {
+  const title = normalizeToolPreviewText(typeof value?.title === "string" ? value.title : "");
+  if (title) return title;
+
+  const toolNameValue = value?.tool_name ?? value?.toolName;
+  const toolName = normalizeToolPreviewText(typeof toolNameValue === "string" ? toolNameValue : "");
+  if (!toolName) return "";
+
+  const args = extractToolPreviewArgs(value?.tool_args ?? value?.toolArgs);
+  if (!args) return toolName;
+  const candidates = [
+    args.command,
+    Array.isArray(args.commands) ? args.commands.filter((item) => typeof item === "string").join(" && ") : "",
+    args.path ?? args.filePath ?? args.target,
+    Array.isArray(args.paths) ? args.paths.filter((item) => typeof item === "string").join(", ") : "",
+    args.fileName ?? args.filename ?? args.file,
+    args.url,
+    args.query,
+  ];
+  const detail = candidates
+    .map((candidate) => normalizeToolPreviewText(typeof candidate === "string" ? candidate : ""))
+    .filter(Boolean)
+    .sort((left, right) => right.length - left.length)[0];
+  return detail ? `${toolName}: ${truncateText(detail, 120)}` : toolName;
+}
+
+function normalizeToolPreviewText(value) {
+  return String(value || "")
+    .replace(/\r\n?/g, "\n")
+    .replace(/[\t ]+/g, " ")
+    .replace(/\n+/g, " ")
+    .trim();
+}
+
+function extractToolPreviewArgs(value) {
+  if (!value) return null;
+  if (typeof value === "string") {
+    try { return extractToolPreviewArgs(JSON.parse(value)); } catch { return null; }
+  }
+  if (typeof value !== "object" || Array.isArray(value)) return null;
+  const nested = value.arguments ?? value.input ?? value.params ?? value.parameters ?? value.args ?? value.payload;
+  return nested && typeof nested === "object" && !Array.isArray(nested) ? nested : value;
 }
 
 function cleanPreviewText(value) {
@@ -810,6 +878,7 @@ export const __sessionDashboardTest = {
   normalizeContext,
   formatContext,
   normalizePreview,
+  normalizeToolPreview,
   resolveStatusPreview,
   previewMapsEqual,
   buildSessionUrl,
