@@ -89,6 +89,24 @@ test("goal manifest declares the web entry", () => {
   expect(manifest.pi?.web?.entries).toEqual(["web/index.ts"]);
 });
 
+test("goal compat storage avoids runtime source imports", () => {
+  const source = readFileSync(resolve(addonDir, "compat", "extension-kv.ts"), "utf8");
+  expect(source).not.toContain("require(");
+  expect(source).not.toContain("piclaw/runtime/src");
+});
+
+test("goal status and stop-reason schemas use string enums", () => {
+  const { tools } = createHarness();
+  expect(tools.get("update_goal").parameters.properties.status).toMatchObject({
+    type: "string",
+    enum: ["complete", "blocked"],
+  });
+  expect(tools.get("goal_stop").parameters.properties.reason).toMatchObject({
+    type: "string",
+    enum: ["plan_complete_unverified", "no_progress", "user_needed", "external_blocked", "other"],
+  });
+});
+
 test("goal README documents Codex-compatible tools and statuses", () => {
   const readme = readFileSync(resolve(addonDir, "README.md"), "utf8");
   expect(readme).toContain("get_goal");

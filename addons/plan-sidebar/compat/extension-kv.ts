@@ -1,7 +1,7 @@
 /**
  * compat/extension-kv.ts — Extension KV store client for standalone addons.
  *
- * Accesses piclaw's global extension KV store singleton when running inside
+ * Accesses piclaw's global extension KV store bridge when running inside
  * the piclaw runtime. Falls back to an in-memory store for standalone use.
  *
  * Extensions use this through scoped wrappers that bind the extension ID.
@@ -109,7 +109,8 @@ function getRuntimeInterop(): { getExtensionKvStore?: () => RuntimeKvStore } | n
 
 /**
  * Try to resolve piclaw's runtime KV store.
- * Prefer the runtime global bridge, then fall back to direct module access.
+ * Add-ons must not import piclaw workspace/runtime source paths directly;
+ * the installed runtime exposes the DB-backed store through this global bridge.
  */
 function tryGetRuntimeStore(): RuntimeKvStore | null {
   try {
@@ -118,16 +119,7 @@ function tryGetRuntimeStore(): RuntimeKvStore | null {
       return interop.getExtensionKvStore();
     }
   } catch {
-    // continue to module fallback
-  }
-
-  try {
-    const mod = require("piclaw/runtime/src/extension-kv-registry.js");
-    if (typeof mod?.getExtensionKvStore === "function") {
-      return mod.getExtensionKvStore();
-    }
-  } catch {
-    // Not running inside piclaw — use fallback
+    // Not running inside piclaw — use fallback.
   }
   return null;
 }

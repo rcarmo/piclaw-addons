@@ -1059,10 +1059,10 @@ const CreateGoalSchema = Type.Object({
   token_budget: Type.Optional(Type.Number({ description: "Optional positive token budget for the new active goal." })),
 });
 const UpdateGoalSchema = Type.Object({
-  status: Type.Union([
-    Type.Literal("complete"),
-    Type.Literal("blocked"),
-  ], { description: "Set to complete only when achieved; set to blocked only after the strict repeated-blocker audit is satisfied." }),
+  status: Type.String({
+    enum: ["complete", "blocked"],
+    description: "Set to complete only when achieved; set to blocked only after the strict repeated-blocker audit is satisfied.",
+  }),
   summary: Type.Optional(Type.String({ description: "Short evidence-backed completion or blocker summary. Required when status is complete." })),
   evidence: Type.Optional(Type.Array(Type.String(), { minItems: 1, description: "Concrete evidence. Required when status is complete." })),
 });
@@ -1071,13 +1071,10 @@ const GoalCompleteSchema = Type.Object({
   evidence: Type.Array(Type.String(), { minItems: 1, description: "Concrete evidence such as passing checks, commits, deployed versions, rendered behavior, or verified commands." }),
 });
 const GoalStopSchema = Type.Object({
-  reason: Type.Union([
-    Type.Literal("plan_complete_unverified"),
-    Type.Literal("no_progress"),
-    Type.Literal("user_needed"),
-    Type.Literal("external_blocked"),
-    Type.Literal("other"),
-  ], { description: "Why the autonomous goal loop should stop without marking complete." }),
+  reason: Type.String({
+    enum: ["plan_complete_unverified", "no_progress", "user_needed", "external_blocked", "other"],
+    description: "Why the autonomous goal loop should stop without marking complete.",
+  }),
   summary: Type.String({ description: "Concise explanation for stopping the goal loop." }),
   evidence: Type.Optional(Type.Array(Type.String(), { description: "Optional supporting evidence for the stop decision." })),
 });

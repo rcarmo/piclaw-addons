@@ -1,3 +1,12 @@
+/**
+ * compat/extension-kv.ts — Extension KV store client for standalone addons.
+ *
+ * Accesses piclaw's global extension KV store bridge when running inside
+ * the piclaw runtime. Falls back to an in-memory store for standalone use.
+ *
+ * Extensions use this through scoped wrappers that bind the extension ID.
+ */
+
 export type KvScope = "chat" | "global";
 
 export interface ExtensionStorage {
@@ -7,6 +16,8 @@ export interface ExtensionStorage {
   list(prefix?: string, scope?: KvScope, scopeKey?: string): string[];
   clear(scope?: KvScope, scopeKey?: string): number;
 }
+
+// ── In-memory fallback ───────────────────────────────────────────
 
 class InMemoryStorage implements ExtensionStorage {
   private store = new Map<string, string>();
@@ -33,9 +44,10 @@ class InMemoryStorage implements ExtensionStorage {
     const base = `${this.extensionId}\0${scope || "chat"}\0${scopeKey || ""}\0`;
     const keys: string[] = [];
     for (const k of this.store.keys()) {
-      if (!k.startsWith(base)) continue;
-      const remainder = k.slice(base.length);
-      if (!prefix || remainder.startsWith(prefix)) keys.push(remainder);
+      if (k.startsWith(base)) {
+        const remainder = k.slice(base.length);
+        if (!prefix || remainder.startsWith(prefix)) keys.push(remainder);
+      }
     }
     return keys.sort();
   }
@@ -48,13 +60,13 @@ class InMemoryStorage implements ExtensionStorage {
         : `${this.extensionId}\0`;
     let count = 0;
     for (const k of [...this.store.keys()]) {
-      if (!k.startsWith(prefix)) continue;
-      this.store.delete(k);
-      count++;
+      if (k.startsWith(prefix)) { this.store.delete(k); count++; }
     }
     return count;
   }
 }
+
+// ── Runtime-backed storage ───────────────────────────────────────
 
 interface RuntimeKvStore {
   get<T>(extensionId: string, key: string, scope?: KvScope, scopeKey?: string): T | null;
@@ -88,10 +100,18 @@ class RuntimeBackedStorage implements ExtensionStorage {
   }
 }
 
+// ── Factory ──────────────────────────────────────────────────────
+
 function getRuntimeInterop(): { getExtensionKvStore?: () => RuntimeKvStore } | null {
-  return (globalThis as { __piclawRuntimeInterop?: { getExtensionKvStore?: () => RuntimeKvStore } }).__piclawRuntimeInterop || null;
+  const interop = (globalThis as { __piclawRuntimeInterop?: { getExtensionKvStore?: () => RuntimeKvStore } }).__piclawRuntimeInterop;
+  return interop || null;
 }
 
+/**
+ * Try to resolve piclaw's runtime KV store.
+ * Add-ons must not import piclaw workspace/runtime source paths directly;
+ * the installed runtime exposes the DB-backed store through this global bridge.
+ */
 function tryGetRuntimeStore(): RuntimeKvStore | null {
   try {
     const interop = getRuntimeInterop();
@@ -99,22 +119,20 @@ function tryGetRuntimeStore(): RuntimeKvStore | null {
       return interop.getExtensionKvStore();
     }
   } catch {
-    // continue to module fallback
-  }
-
-  try {
-    const mod = require("piclaw/runtime/src/extension-kv-registry.js");
-    if (typeof mod?.getExtensionKvStore === "function") {
-      return mod.getExtensionKvStore();
-    }
-  } catch {
-    // not running inside piclaw
+    // Not running inside piclaw — use fallback.
   }
   return null;
 }
 
+/**
+ * Create a scoped ExtensionStorage for the given extension ID.
+ * If running inside piclaw, uses the DB-backed store.
+ * Otherwise falls back to in-memory.
+ */
 export function createExtensionStorage(extensionId: string): ExtensionStorage {
   const runtimeStore = tryGetRuntimeStore();
-  if (runtimeStore) return new RuntimeBackedStorage(extensionId, runtimeStore);
+  if (runtimeStore) {
+    return new RuntimeBackedStorage(extensionId, runtimeStore);
+  }
   return new InMemoryStorage(extensionId);
 }

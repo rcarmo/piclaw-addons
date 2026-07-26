@@ -5,6 +5,24 @@ import planSidebarAddon, { applyPlanEdits, applyPlanPatches, getStructuredSessio
 
 const addonDir = import.meta.dir;
 
+test("plan compat storage avoids runtime source imports", () => {
+  const source = readFileSync(resolve(addonDir, "compat", "extension-kv.ts"), "utf8");
+  expect(source).not.toContain("require(");
+  expect(source).not.toContain("piclaw/runtime/src");
+});
+
+test("plan tool schema uses string enums throughout", () => {
+  let tool: any = null;
+  planSidebarAddon({ on() {}, registerTool(definition: any) { tool = definition; } } as any);
+  const properties = tool.parameters.properties;
+  expect(properties.action).toMatchObject({ type: "string", enum: ["read", "write", "edit", "patch", "update"] });
+  expect(properties.plan.items.properties.status).toMatchObject({ type: "string", enum: ["pending", "in_progress", "completed"] });
+  expect(properties.edits.items.properties.operation).toMatchObject({ type: "string", enum: ["replace", "delete", "insert_after", "insert_before", "append", "prepend"] });
+  expect(properties.patches.items.properties.operation).toMatchObject({ type: "string", enum: ["add", "update", "remove"] });
+  expect(properties.patches.items.properties.status).toMatchObject({ type: "string", enum: ["pending", "in_progress", "completed"] });
+  expect(properties.patches.items.properties.position).toMatchObject({ type: "string", enum: ["start", "end"] });
+});
+
 test("plan storage is scoped by chat jid", () => {
   resetPlanSidebarAddonForTests();
 
