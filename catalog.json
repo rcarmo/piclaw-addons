@@ -602,7 +602,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-proxmox-0.1.8.tgz"
       },
-      "updatedAt": "2026-05-08"
+      "updatedAt": "2026-07-26"
     },
     {
       "slug": "sample-addon",
