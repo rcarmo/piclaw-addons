@@ -129,8 +129,8 @@ describe("cheapskate addon", () => {
     const google = BACKENDS.find((backend) => backend.id === "google")!;
     const cerebras = BACKENDS.find((backend) => backend.id === "cerebras")!;
 
-    expect(buildProviderConfig(google, [google]).models[0].input).toEqual(["text", "image"]);
-    expect(buildProviderConfig(cerebras, [cerebras]).models[0].input).toEqual(["text"]);
+    expect(buildProviderConfig(google, [google]).models![0]!.input).toEqual(["text", "image"]);
+    expect(buildProviderConfig(cerebras, [cerebras]).models![0]!.input).toEqual(["text"]);
   });
 
   test("registers in a vanilla runtime without piclaw globals", async () => {
