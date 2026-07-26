@@ -153,6 +153,7 @@ test("web defaults to eight visible sessions and follows sidebar surface variabl
   expect(source).not.toContain("border-radius: 16px");
   expect(source).toContain('previewText.classList.toggle("tool", preview.kind === "tool")');
   expect(source).toContain(".session-dashboard-preview-text.tool { font-family: var(--font-mono");
+  expect(source).toContain("font-size: .92em; overflow-wrap: anywhere;");
 });
 
 test("web layout helper always resolves two rows with four to eight slots", () => {

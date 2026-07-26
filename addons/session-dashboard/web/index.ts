@@ -898,7 +898,7 @@ function injectStyles() {
     .session-dashboard-meta { color: var(--text-secondary,#94a3b8); font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .session-dashboard-summary { color: var(--text-primary,#e5e7eb); font-size: 12px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
     .session-dashboard-preview-label { display: inline-flex; align-items: center; max-width: max-content; margin: 0 6px 2px 0; padding: 1px 5px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--accent-color,#2563eb) 38%, transparent); color: var(--accent-color,#60a5fa); font-size: 9px; line-height: 1.3; text-transform: uppercase; letter-spacing: .04em; }
-    .session-dashboard-preview-text.tool { font-family: var(--font-mono, var(--font-family-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace)); overflow-wrap: anywhere; }
+    .session-dashboard-preview-text.tool { font-family: var(--font-mono, var(--font-family-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace)); font-size: .92em; overflow-wrap: anywhere; }
     .session-dashboard-context { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--text-secondary,#94a3b8); font-size: 10px; }
     .session-dashboard-context-meter { flex: 1; height: 5px; max-width: 90px; border-radius: 999px; background: color-mix(in srgb, var(--border-color, rgba(148,163,184,.35)) 72%, transparent); overflow: hidden; }
     .session-dashboard-context-meter span { display: block; height: 100%; border-radius: inherit; background: var(--accent-color,#2563eb); }
