@@ -217,6 +217,9 @@ test("goal prompts port Codex fidelity, escaping, plan action=update, and blocke
   expect(systemPrompt).toContain("Codex-compatible fallback");
   expect(systemPrompt).toContain("update_goal({ status: \"complete\"");
   expect(systemPrompt).toContain("do not end the turn with only the tool call");
+  expect(systemPrompt).not.toContain("Tokens used:");
+  expect(systemPrompt).not.toContain("Tokens remaining:");
+  expect(buildGoalSystemPrompt({ ...goal, tokens_used: 750, time_used_seconds: 60 })).toBe(systemPrompt);
   const finalization = buildGoalFinalizationPrompt(goal, 1, [{ step: "Verify release", status: "completed" }]);
   expect(finalization).toContain("no pending or in-progress items");
   expect(finalization).toContain("call goal_complete");

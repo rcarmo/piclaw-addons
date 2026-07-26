@@ -498,7 +498,6 @@ function clearPlanLoopGuards(goal: ThreadGoal): ThreadGoal {
 
 export function buildGoalSystemPrompt(goal: ThreadGoal): string {
   const tokenBudget = goal.token_budget === null ? "none" : String(goal.token_budget);
-  const remaining = goal.token_budget === null ? "unbounded" : String(Math.max(0, goal.token_budget - goal.tokens_used));
   const objective = escapeXmlText(goal.objective);
   return [
     "## Active Goal",
@@ -510,9 +509,7 @@ export function buildGoalSystemPrompt(goal: ThreadGoal): string {
     "</objective>",
     "",
     `Status: ${goal.status}`,
-    `Tokens used: ${goal.tokens_used}`,
     `Token budget: ${tokenBudget}`,
-    `Tokens remaining: ${remaining}`,
     "",
     "Terminal action guidance:",
     "- When the full objective is verified complete, do not just report success while leaving the goal active.",

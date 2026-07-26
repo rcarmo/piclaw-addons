@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import planSidebarAddon, { applyPlanEdits, applyPlanPatches, getStructuredSessionPlan, loadSessionPlan, normalizeStoredPlanMarkdown, normalizeUpdatePlanArgs, parsePlanMarkdown, resetPlanSidebarAddonForTests, resetSessionPlan, saveSessionPlan, updatePlanArgsToMarkdown } from "./index";
+import planSidebarAddon, { applyPlanEdits, applyPlanPatches, buildPlanSystemPrompt, buildPlanTurnMessage, getStructuredSessionPlan, loadSessionPlan, normalizeStoredPlanMarkdown, normalizeUpdatePlanArgs, parsePlanMarkdown, resetPlanSidebarAddonForTests, resetSessionPlan, saveSessionPlan, updatePlanArgsToMarkdown } from "./index";
 
 const addonDir = import.meta.dir;
 
@@ -161,6 +161,15 @@ test("Markdown parsing and normalization expose the same structured plan data", 
   });
 });
 
+test("mutable plan content stays in tail context without changing the system prompt", () => {
+  const first = { chat_jid: "web:default", markdown: "- [ ] first", updated_at: "one" } as any;
+  const second = { chat_jid: "web:default", markdown: "- [x] first\n- [ ] second", updated_at: "two" } as any;
+
+  expect(buildPlanSystemPrompt(second)).toBe(buildPlanSystemPrompt(first));
+  expect(buildPlanTurnMessage(second)).not.toEqual(buildPlanTurnMessage(first));
+  expect(buildPlanTurnMessage(second)?.content[0].text).toContain("- [ ] second");
+});
+
 test("saved plan is injected into the next model turn", async () => {
   resetPlanSidebarAddonForTests();
   let beforeAgentStart: any = null;
@@ -186,7 +195,13 @@ test("saved plan is injected into the next model turn", async () => {
   expect(result.systemPrompt).toContain("action=edit");
   expect(result.systemPrompt).toContain("action=write");
   expect(result.systemPrompt).toContain("at most one `[-]`");
-  expect(result.systemPrompt).toContain("- [ ] next step");
+  expect(result.systemPrompt).toContain("mutable checklist content is kept out of the system prompt");
+  expect(result.systemPrompt).not.toContain("- [ ] next step");
+  expect(result.message).toEqual({
+    customType: "plan_sidebar_context",
+    content: [{ type: "text", text: "Current Plan Sidebar checklist for web:default:\n\n- [ ] next step" }],
+    display: false,
+  });
 });
 
 test("plan edit applies atomic exact replacements", async () => {
