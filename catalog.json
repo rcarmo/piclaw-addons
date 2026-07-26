@@ -128,7 +128,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-delegate-0.2.3.tgz"
       },
-      "updatedAt": "2026-07-25"
+      "updatedAt": "2026-07-26"
     },
     {
       "slug": "dev-tools",
@@ -425,7 +425,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-late-night-regrets-0.1.2.tgz"
       },
-      "updatedAt": "2026-05-08"
+      "updatedAt": "2026-07-26"
     },
     {
       "slug": "lite-term",
@@ -622,7 +622,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-sample-addon-0.1.10.tgz"
       },
-      "updatedAt": "2026-05-08"
+      "updatedAt": "2026-07-26"
     },
     {
       "slug": "session-dashboard",
@@ -794,7 +794,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-vent-0.1.2.tgz"
       },
-      "updatedAt": "2026-05-08"
+      "updatedAt": "2026-07-26"
     },
     {
       "slug": "voice-pipeline",
@@ -816,7 +816,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-voice-pipeline-0.2.1.tgz"
       },
-      "updatedAt": "2026-07-01"
+      "updatedAt": "2026-07-26"
     },
     {
       "slug": "web-viewer",
