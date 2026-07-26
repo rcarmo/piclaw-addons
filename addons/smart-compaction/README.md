@@ -2,6 +2,8 @@
 
 > ⚠️ **For vanilla `pi` users.** Piclaw already includes smart compaction natively. If this package is loaded inside Piclaw it disables itself by default to avoid duplicate compaction handlers.
 
+Requires Piclaw `>=2.3.0`.
+
 This is a standalone, code-complete Pi extension package that ports Piclaw's selective smart-compaction behavior into a vanilla `pi` add-on. It does **not** import Piclaw runtime internals and does **not** move or replace Piclaw's built-in implementation.
 
 ## What it does
@@ -20,13 +22,13 @@ This is a standalone, code-complete Pi extension package that ports Piclaw's sel
 From a local checkout:
 
 ```bash
-pi install /workspace/piclaw-addons/addons/smart-compaction
+pi install https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-smart-compaction-0.1.4.tgz
 ```
 
 Or run temporarily:
 
 ```bash
-pi -e /workspace/piclaw-addons/addons/smart-compaction
+pi -e /path/to/piclaw-addons/addons/smart-compaction
 ```
 
 ## Piclaw behavior
@@ -50,7 +52,7 @@ Optional environment variables:
 | `PI_SMART_COMPACTION_PROGRESSIVE=1` | Force progressive chunk/merge compaction. |
 | `PI_SMART_COMPACTION_PROGRESSIVE_PROMPT_CHARS` | Override the single-pass prompt character budget before progressive mode. |
 
-Historical `PICLAW_*` equivalents are accepted for copied local configurations, but `PI_SMART_COMPACTION_*` is preferred for vanilla `pi`.
+Historical compatibility names exist only for `PICLAW_SYSTEM_PROMPT_OVERHEAD_TOKENS`, `PICLAW_PROGRESSIVE_COMPACTION`, and `PICLAW_PROGRESSIVE_COMPACTION_PROMPT_CHARS`. Use the `PI_SMART_COMPACTION_*` names for other settings.
 
 ## Notes
 

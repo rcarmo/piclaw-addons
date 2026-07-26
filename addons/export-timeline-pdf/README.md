@@ -2,6 +2,8 @@
 
 Export chat timelines to PDF with inline avatars and referenced message pills.
 
+Requires Piclaw `>=2.3.0`.
+
 ## Features
 
 - Exports any chat timeline range to a self-contained HTML sidecar, then renders that local file to PDF via `wkhtmltopdf`

@@ -2,6 +2,8 @@
 
 Self-hosted draw.io diagram editor extension for piclaw.
 
+Requires Piclaw `>=1.8.0`.
+
 ## Install
 
 Open **Settings → Add-Ons** and install **drawio-editor** from the catalog.
@@ -10,8 +12,10 @@ Open **Settings → Add-Ons** and install **drawio-editor** from the catalog.
 
 - Registers an HTTP route at `/drawio/*` serving the draw.io webapp in embed mode
 - Provides the `open_drawio_editor` tool for the agent
-- Diagrams stored as `.drawio` XML files in the workspace
-- Supports PNG/SVG export
+- Opens `.drawio`, `.drawio.xml`, `.drawio.svg`, `.drawio.png`, and `.xml` workspace files
+- Auto-creates a missing target file when opened through `open_drawio_editor`
+- Supports PNG, JPG, and SVG export from the reduced export menu
+- Saves through `POST /drawio/save` and supports read-only attachment/media preview
 
 ## Vendor files
 
@@ -24,5 +28,5 @@ The draw.io webapp (~44MB) is not included in this addon package. It must be ven
 ## Architecture
 
 Uses piclaw's `globalThis.__piclaw_registerRoute` to serve the draw.io webapp.
-A wrapper page (`/drawio/edit.html`) embeds the editor in an iframe and handles
+A wrapper page at `/drawio/edit?path=...` (also accepted as `/drawio/edit.html`) embeds the editor in an iframe and handles
 the postMessage protocol for load/save via the piclaw raw file API.

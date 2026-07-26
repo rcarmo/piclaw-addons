@@ -4,6 +4,8 @@ Switch the **document editor** font from a dropdown embedded in the editor
 footer. Built for writing: pick a comfortable reading/writing face and the
 CodeMirror editor updates live.
 
+Requires Piclaw `>=2.0.0`.
+
 ## Fonts
 
 | Option | Source | Bundled |
@@ -13,7 +15,7 @@ CodeMirror editor updates live.
 | **Georgia** | OS serif | no |
 | **Inter** | SIL OFL — rsms / Google Fonts | ✅ variable woff2 |
 | **Noto Sans** | SIL OFL — Google | ✅ variable woff2 |
-| **Noto Sans Traditional Chinese** | SIL OFL — Google (CJK TC) | ✅ variable woff2 |
+| **Noto Sans TC** | SIL OFL — Google (CJK TC) | ✅ variable woff2 |
 | **New Tegomin** | SIL OFL — Google (Japanese serif) | ✅ woff2 |
 | **IBM Plex Sans** | SIL OFL — IBM | ✅ variable woff2 |
 
@@ -33,9 +35,7 @@ Bundled faces are served from the add-on's own asset route and registered with
 - Scope is limited to the in-app document editor; other CodeMirror instances
   (e.g. the plan sidebar) are left untouched.
 - Code blocks and inline code intentionally stay monospace, even in preview.
-- Both frontends are supported: the **classic** UI places the picker in the
-  editor status bar (next to Whitespace / Vim / Save); the **visual** UI appends
-  a footer row to the editor frame.
+- The picker is injected into `.editor-status-actions`, the status-action area shared by the supported editor frontends.
 
 ## Notes / limitations
 

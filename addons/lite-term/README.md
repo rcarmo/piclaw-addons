@@ -2,6 +2,8 @@
 
 `@rcarmo/piclaw-addon-lite-term` is the add-on form of Piclaw's bundled default xterm.js terminal pane.
 
+Requires Piclaw `>=1.8.0`.
+
 It is intentionally identical to the built-in default terminal renderer, keeping Piclaw's existing terminal backend, authentication, session handoff, theme colors, terminal font stack, and vendored xterm.js assets. Use it as a reference implementation and a good starting point for terminal customizations without changing Piclaw core.
 
 ## What it includes
@@ -28,7 +30,7 @@ Piclaw's existing Nerd Font assets are used through the same CSS terminal font s
 ## Behavior
 
 - Registers replacement `terminal` and `terminal-tab` panes.
-- Uses `/terminal/session`, `/terminal/handoff`, and `/terminal/ws` from the existing backend.
+- Uses `/terminal/session` and `/terminal/handoff`, then connects to the WebSocket path returned by `/terminal/session` (`session.ws_path`, with `/terminal/ws` as the fallback).
 - Sends Piclaw's JSON terminal frames for input and resize.
 - Defaults to the canvas renderer for low-spec machines.
 - Supports ligatures, Unicode width/grapheme handling, clickable links, clipboard helpers, image protocol rendering, search, serialize support, and progress add-on loading.

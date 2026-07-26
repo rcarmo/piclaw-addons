@@ -2,6 +2,8 @@
 
 Workspace `.kanban.md` editor add-on for piclaw.
 
+Requires Piclaw `>=2.0.0`.
+
 ## Install
 
 Open **Settings → Add-Ons** and install **kanban-editor** from the catalog.
@@ -9,7 +11,7 @@ Open **Settings → Add-Ons** and install **kanban-editor** from the catalog.
 ## What it does
 
 - registers a `kanban-editor` workspace pane for `.kanban.md` files
-- overrides the built-in kanban pane when installed, so the editor can be carved out incrementally into an add-on
+- takes over `.kanban.md` handling through the `kanban-editor` workspace pane; Piclaw core no longer ships a built-in kanban pane
 - keeps the board editor workflow inside normal workspace tabs
 - adds Obsidian-style `[[wiki links]]` between kanban boards
 

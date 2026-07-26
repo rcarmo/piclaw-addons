@@ -1,3 +1,9 @@
+---
+name: diagram-colour-picker
+description: Open an interactive widget to adjust the semantic colour palette used by diagram rendering scripts.
+distribution: public
+---
+
 # Diagram Colour Picker
 
 Interactive widget for adjusting the 11-tag diagram colour palette.

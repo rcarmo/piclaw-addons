@@ -62,11 +62,11 @@ The scheduled task runs at **02:30 UTC** (configurable):
 /regrets
 ```
 
-Runs the classifier and reflection pass immediately.
+Shows working/status feedback only; it does not execute the classifier scripts.
 
 ## Configuration
 
-Settings → Late Night Regrets:
+The direct config API stores these fields; the add-on does not include a browser settings pane:
 
 | Field | Default | Description |
 |---|---|---|

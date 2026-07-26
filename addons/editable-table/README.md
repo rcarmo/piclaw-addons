@@ -2,6 +2,8 @@
 
 Editable Markdown table widget for the PiClaw web UI.
 
+Requires Piclaw `>=2.0.0`.
+
 This add-on opens a spreadsheet-style floating widget for a Markdown table, lets the user edit it visually, and inserts the final result back into chat as a Markdown table so the agent can read it.
 
 ## Install
@@ -10,7 +12,7 @@ Open **Settings → Add-Ons** and install **editable-table** from the catalog.
 
 ## Tool
 
-- `editable_table`
+`editable_table` requires the interactive Piclaw web UI and opens a floating widget. Parameters include the Markdown `table` plus optional `title` and `instructions`. Without an interactive UI, the tool returns an explicit requirement error.
 
 ## Input format
 

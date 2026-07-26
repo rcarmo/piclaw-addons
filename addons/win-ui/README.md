@@ -2,6 +2,8 @@
 
 Windows desktop automation add-on for Piclaw.
 
+Requires Piclaw `>=2.0.0`.
+
 This add-on packages the former bundled `runtime/extensions/platform/windows/win-ui` extension as an installable add-on. It registers `win_*` tools on Windows and is a safe no-op on non-Windows platforms.
 
 ## Tools

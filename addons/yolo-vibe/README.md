@@ -2,6 +2,8 @@
 
 Quick compose-box YOLO buttons for the PiClaw web UI.
 
+Requires Piclaw `>=2.0.0`.
+
 This add-on mounts three compact buttons **inside the compose box**, on the bottom action row next to the send/search controls. They stay partially transparent until you hover or focus the compose box (or the buttons themselves), then become fully opaque:
 
 | Button | Submitted prompt |

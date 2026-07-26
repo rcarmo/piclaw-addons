@@ -2,6 +2,8 @@
 
 ## Install
 
+Requires Piclaw `>=2.0.0`.
+
 Open **Settings → Add-Ons** and install **imap** from the catalog.
 
 IMAP email management addon for piclaw.

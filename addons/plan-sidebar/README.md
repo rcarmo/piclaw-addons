@@ -2,6 +2,8 @@
 
 Adds a right-side slide-out sidebar for the current chat/session plan.
 
+Requires Piclaw `>=2.0.0`.
+
 - Full-text Markdown checklist editor for normal human selection, paste, deletion, and multi-line edits.
 - Persists the plan per `chat_jid` in Piclaw's extension KV store.
 - Survives browser refreshes and follows the active web chat/session.

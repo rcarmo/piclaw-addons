@@ -2,6 +2,8 @@
 
 Workspace vent-log add-on for piclaw.
 
+Requires Piclaw `>=2.1.0`.
+
 This is an **adapted repackaging** of [pi-vent](https://github.com/IgorWarzocha/pi-vent) by **Igor Warzocha**, released under the **MIT** license. The main addition is a **Settings** pane that lets you choose the output file instead of always writing to `VENT.md`.
 
 ## Attribution

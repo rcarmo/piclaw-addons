@@ -48,13 +48,13 @@ Use `model: "provider/model"` only when an exact executable child-CLI model is r
 
 ## Tool profiles
 
-| Profile | Child tools |
+| Profile | Built-in child tools |
 |---|---|
-| `read_only` | `read,grep,find,ls,mcp` |
-| `standard` (default) | `read,grep,find,ls,bash,mcp` |
-| `full` | `read,grep,find,ls,bash,edit,write,mcp` |
+| `read_only` | `read,grep,find,ls` |
+| `standard` (default) | `read,grep,find,ls,bash` |
+| `full` | `read,grep,find,ls,bash,edit,write` |
 
-A custom comma-separated list of Pi child built-ins is accepted. Do not assume Piclaw add-on tools are present: the child loads only the discovered MCP adapter in addition to core tools.
+If the known MCP adapter is installed, Delegate adds the `mcp` tool. A custom comma-separated list of Pi child built-ins is accepted; custom lists must name `mcp` explicitly when needed. Do not assume other Piclaw add-on tools are present.
 
 ## Files
 

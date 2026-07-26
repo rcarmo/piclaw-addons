@@ -19,11 +19,20 @@ mkdir -p addons/my-addon/skills/my-skill
 # 3. Sync the catalog
 bun run sync:catalog
 
-# 4. Type-check
-bunx tsc --noEmit
+# 4. Validate the repository contracts
+bun install --frozen-lockfile
+bun run check:catalog
+bun run typecheck:earendil-compat
+bun run test:earendil-compat
+bun test standalone-import.test.ts
+bun pm pack --dry-run
 
-# 5. Push — CI handles the rest
-git add addons/my-addon && git commit -m "feat: add my-addon" && git push
+# 5. Commit on a feature branch and open a pull request
+git switch -c feat/my-addon
+git add addons/my-addon package.json catalog.json
+git commit -m "feat: add my-addon"
+git push -u origin feat/my-addon
+gh pr create
 ```
 
 ---
@@ -115,7 +124,7 @@ export default function myAddon(pi: ExtensionAPI) {
 | `version` | ✓ | Bump on every functional change |
 | `description` | ✓ | Shown in the catalog and web UI |
 | `piclaw.type` | ✓ | `"extension"` or `"skill"` |
-| `piclaw.compatibleVersions` | ✓ | Minimum supported Piclaw range, for example `">=2.0.0"` |
+| `piclaw.compatibleVersions` | ✓ | Actual minimum supported Piclaw range; current add-ons span `>=1.8.0` to `>=2.5.5` |
 | `piclaw.tags` | ✓ | Categorisation for search and display |
 | `pi.extensions` | ✓ | Entry points — usually `["index.ts"]` |
 | `peerDependencies` | ✓ | Must declare imported Pi core packages (`@earendil-works/pi-coding-agent`, `@earendil-works/pi-ai`, `@earendil-works/pi-tui`) plus `@sinclair/typebox` when imported |
@@ -235,13 +244,17 @@ Use `/agent/keychain` only for secrets. Do **not** build new settings panes arou
 bun test standalone-import.test.ts
 ```
 
-Validates that each addon can be imported without crashing.
+Validates standalone imports for the add-ons listed in `standalone-import.test.ts`.
 
-### Type-check
+### Compatibility checks
 
 ```bash
-bunx tsc --noEmit
+bun run typecheck:earendil-compat
+bun run test:earendil-compat
+bun pm pack --dry-run
 ```
+
+For browser-level add-on changes, run `bun run addon:e2e`; use `bun run addon:e2e:all` for the complete add-on matrix.
 
 ### Catalog validation
 
@@ -279,11 +292,12 @@ Store screenshots under `addons/<slug>/assets/` when possible so the README can 
 
 ## Publishing
 
-### What happens on push
+### What happens in CI
 
-1. `sync-catalog` — regenerates `catalog.json` from all addon `package.json` files using **public GitHub Pages tarball URLs**
-2. `validate-metadata` — verifies the catalog is in sync and the package can be packed
-3. `build + deploy` — rebuilds the docs site at [rcarmo.github.io/piclaw-addons](https://rcarmo.github.io/piclaw-addons/) and publishes the downloadable `.tgz` files
+1. `validate-metadata` runs on pull requests and pushes to `main`; it checks generated metadata and Earendil compatibility.
+2. `sync-catalog` runs on `main` after add-on or catalog-script changes and may update both `catalog.json` and root `package.json`.
+3. `build + deploy` runs on `main` after add-on, catalog, asset, or build changes and publishes the GitHub Pages site and public `.tgz` files.
+4. `publish` runs on `main` for version-bumped add-on manifests and mirrors packages to GitHub Packages for archival or alternate use.
 
 ### Manual sync
 

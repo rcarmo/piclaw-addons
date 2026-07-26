@@ -2,11 +2,13 @@
 
 ESPHome-only voice assistant extension for `piclaw`.
 
+Requires Piclaw `>=1.8.0`.
+
 ## What it does
 
 - Connects to an ESPHome/Linux Voice Assistant node (Pi Zero 2 W + ReSpeaker 2-Mic / ThinkSmart style devices)
 - Runs wake-word audio through Azure STT
-- Sends transcriptions to the Flint chat runtime
+- Sends transcriptions to the active Piclaw chat runtime
 - Synthesizes responses with Azure TTS
 - Plays announcements back through the AV device
 - Exposes an `ava` tool for direct device control (play/pause/scene/sensors/snapshot/announce)
@@ -50,7 +52,7 @@ rather than in a plaintext `.env` file:
 | `ESPHOME_TTS_MAX_ENTRIES` | `32` | hard cap on cached TTS clips |
 | `VOICE_LLM_TIMEOUT_MS` | `120000` | LLM turn timeout |
 | `VOICE_TURN_TIMEOUT_MS` | `180000` | overall turn watchdog |
-| `VOICE_STORE_TURNS` | `1` | set `0` to disable DB persistence |
+| `VOICE_STORE_TURNS` | `1` | parsed and shown in diagnostics; current ESPHome turn handling still persists turns |
 | `VOICE_DEBUG` | `0` | set `1` for verbose transcript/response logging |
 | `PICLAW_DB` | `/workspace/.piclaw/store/messages.db` | |
 
@@ -64,8 +66,7 @@ detected/used value is shown in `/voice-status`.
   native API and does **not** support the encrypted (Noise) transport. Set
   `ESPHOME_PASSWORD` and keep the device on a trusted LAN. A warning is logged
   and surfaced in `/voice-status` when no password is set.
-- **TTS HTTP server** is bound to `ESPHOME_SERVER_HOST` (not all interfaces
-  unless that resolves broadly), is `GET`-only, requires a per-process bearer
+- **TTS HTTP server** uses `ESPHOME_SERVER_HOST` as its explicit bind address when that value is not `127.0.0.1`; otherwise Bun uses its default listener binding. The server is `GET`-only, requires a per-process bearer
   token in the URL, evicts clips on a TTL, and is capped in size.
 
 ## Commands

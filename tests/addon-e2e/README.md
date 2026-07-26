@@ -24,7 +24,9 @@ Start or prepare a Piclaw test instance with the target add-on installed, then r
 
 ```bash
 cd tests/addon-e2e
-PICLAW_ADDON=sample-addon bun run test -- --project=desktop-chrome
+PICLAW_INTERNAL_SECRET=<same-secret-as-the-test-instance> \
+  PICLAW_ADDON=sample-addon \
+  bun run test -- --project=desktop-chrome
 bun run report
 ```
 
@@ -37,7 +39,14 @@ PICLAW_RUNTIME_ROOT=/path/to/piclaw/runtime \
 bun run tests/addon-e2e/scripts/prepare-addon-test-instance.ts
 ```
 
-The runner generates Playwright specs from Gherkin into `.generated/` and writes reports to:
+The test run generates Playwright specs from Gherkin into `.generated/` and writes Playwright output to:
+
+```text
+tests/addon-e2e/reports/html
+tests/addon-e2e/reports/results.json
+```
+
+`bun run report` then writes per-add-on reports to:
 
 ```text
 addons/<slug>/tests/reports/<slug>-ux-report.pdf

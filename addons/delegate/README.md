@@ -2,7 +2,9 @@
 
 Delegate self-contained work to a cheaper/faster model in a fresh, ephemeral Pi context.
 
-## What 0.2.0 does
+Requires Piclaw `>=1.8.0`.
+
+## Behaviour
 
 - **Verified model catalogs** — Piclaw's runtime registry supplies capability metadata; only exact models returned by child `pi --list-models` are executable.
 - **Deterministic policy** — every recognized model has one family, one tier, one ordered rule, and a classification reason. Unknown current models fail closed.
@@ -56,11 +58,11 @@ The requested tier is capped at the current model's verified tier. If that tier 
 
 | Profile | Child tools |
 |---|---|
-| `read_only` | `read,grep,find,ls,mcp` |
-| `standard` (default) | `read,grep,find,ls,bash,mcp` |
-| `full` | `read,grep,find,ls,bash,edit,write,mcp` |
+| `read_only` | `read,grep,find,ls` |
+| `standard` (default) | `read,grep,find,ls,bash` |
+| `full` | `read,grep,find,ls,bash,edit,write` |
 
-A custom comma-separated list of Pi child built-ins is also accepted. A named tool must actually be available in the child; Delegate does not claim that installed Piclaw add-on tools are inherited.
+A discovered MCP adapter is appended only when explicitly available. A custom comma-separated list of child Pi built-ins is also accepted. A named tool must exist in the child; installed Piclaw add-on tools are not inherited automatically.
 
 ### Explicit model override
 
@@ -83,6 +85,10 @@ The ID must exactly match the child CLI catalog. An explicit override bypasses a
 - Canonical paths must remain under `/workspace`; symlinks cannot escape it, and non-regular files are rejected before sniffing.
 
 For a PDF or Office document, extract it with the appropriate Piclaw tool and delegate the resulting text. Convert unsupported images to PNG, JPEG, GIF, WebP, or BMP first.
+
+## Settings API
+
+The browser pane reads configuration from `/agent/addons/api/delegate/config` and model diagnostics from `/agent/addons/api/delegate/models`. Both are authenticated local Piclaw endpoints; Delegate stores no secrets.
 
 ## Model catalogs and caching
 
