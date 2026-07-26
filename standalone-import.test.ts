@@ -13,7 +13,7 @@ afterEach(() => {
   }
 });
 
-async function importStandaloneAddon(slug: "autoresearch" | "cheapskate" | "codex-conversion" | "delegate" | "editable-table" | "goal" | "image-processing" | "imap" | "kanban-editor" | "lite-term" | "mindmap" | "office-viewer" | "plan-sidebar" | "portainer" | "proxmox" | "session-tree" | "skill-model-effort" | "smart-compaction" | "vent" | "voice-pipeline" | "win-ui" | "yolo-vibe") {
+async function importStandaloneAddon(slug: "autoresearch" | "cheapskate" | "codex-conversion" | "delegate" | "editable-table" | "goal" | "image-processing" | "imap" | "kanban-editor" | "lite-term" | "mindmap" | "observability" | "office-tools" | "office-viewer" | "plan-sidebar" | "portainer" | "proxmox" | "session-tree" | "skill-model-effort" | "smart-compaction" | "vent" | "voice-pipeline" | "win-ui" | "yolo-vibe") {
   const tempRoot = mkdtempSync(join(tmpdir(), `piclaw-addon-${slug}-`));
   tempDirs.push(tempRoot);
 
@@ -97,6 +97,16 @@ test("standalone piclaw-addon-lite-term imports outside the monorepo root", asyn
 
 test("standalone piclaw-addon-mindmap imports outside the monorepo root", async () => {
   const mod = await importStandaloneAddon("mindmap");
+  expect(typeof mod.default).toBe("function");
+});
+
+test("standalone piclaw-addon-observability imports outside the monorepo root", async () => {
+  const mod = await importStandaloneAddon("observability");
+  expect(typeof mod.default).toBe("function");
+}, 120_000);
+
+test("standalone piclaw-addon-office-tools imports outside the monorepo root", async () => {
+  const mod = await importStandaloneAddon("office-tools");
   expect(typeof mod.default).toBe("function");
 });
 

@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-image-processing",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Image manipulation tool (image_process) for Piclaw — resize, crop, convert, composite and more via sharp",
   "type": "module",
   "main": "index.ts",
@@ -15,11 +15,11 @@
     ]
   },
   "dependencies": {
-    "typebox": "*",
     "sharp": "*"
   },
   "peerDependencies": {
-    "@earendil-works/pi-coding-agent": "*"
+    "@earendil-works/pi-coding-agent": "*",
+    "@sinclair/typebox": "*"
   },
   "license": "MIT",
   "keywords": [

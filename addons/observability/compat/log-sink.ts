@@ -36,15 +36,6 @@ function resolveRuntime(): boolean {
       return true;
     }
   } catch {}
-
-  try {
-    const mod = require("piclaw/runtime/src/utils/logger.js");
-    if (typeof mod?.addLogSink === "function" && typeof mod?.removeLogSink === "function") {
-      runtimeAddLogSink = mod.addLogSink;
-      runtimeRemoveLogSink = mod.removeLogSink;
-      return true;
-    }
-  } catch {}
   return false;
 }
 

@@ -6,6 +6,8 @@ OpenTelemetry observability for piclaw — trace errors and agent turns across m
 
 Uses the runtime's structured log-sink contract. The runtime never imports OTel — it just logs structured records. This addon subscribes to those records and creates OTel spans, exceptions, and Graphite metrics from them.
 
+The add-on keeps **one telemetry/exporter runtime per Piclaw process** and multiplexes all chat/session activity through shared tracer state keyed by `chatJid`, `turnId`, and `sessionLeafId`. A single session shutting down does not tear down telemetry for other active sessions.
+
 ## Setup
 
 ### 1. Install
@@ -14,7 +16,7 @@ Open **Settings → Add-Ons** and install **observability** from the catalog.
 
 ### 2. Configure via Settings → Observability
 
-The pane loads/saves non-secret settings through the direct backend add-on config API (`/agent/addons/api/observability/config`). The connection string can be pasted directly into the settings pane — it is saved to the keychain automatically as `azure/appinsights-connection-string`. A restart is needed after setting or changing the connection string.
+The pane loads/saves non-secret settings through the direct backend add-on config API (`/agent/addons/api/observability/config`). The connection string can be pasted directly into the settings pane — it is saved to the keychain automatically as `azure/appinsights-connection-string`. Changes are applied live to the process-wide telemetry runtime.
 
 ![Observability settings pane on the microVM test instance](./assets/settings-pane-microvm.png)
 

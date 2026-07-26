@@ -1,4 +1,4 @@
-import { Type, type Static } from "typebox";
+import { Type, type Static } from "@sinclair/typebox";
 import type {
   AgentToolResult,
   AgentToolUpdateCallback,
@@ -39,7 +39,7 @@ const FORMAT_EXT: Record<OutputFormat, string> = {
 // Formats that support transparency
 const TRANSPARENCY_FORMATS = new Set<OutputFormat>(["png", "webp", "avif", "tiff", "gif"]);
 
-const ImageProcessSchema = Type.Object({
+export const ImageProcessSchema = Type.Object({
   action: Type.String({
     description: "Operation: resize | crop | convert | optimize | trim | rotate | flip | blur | sharpen | composite | " +
       "greyscale | modulate | contrast | gamma | tint | normalize | negate | clahe | threshold | median | " +

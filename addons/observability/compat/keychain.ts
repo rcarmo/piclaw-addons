@@ -4,9 +4,9 @@
  * Reads API tokens from environment variables injected by piclaw's keychain
  * auto-injection (names sanitized: / - . → _ and uppercased).
  *
- * Falls back to reading from piclaw's keychain SQLite DB if available.
- * Provides the same function signatures as piclaw's secure/keychain.ts
- * and secure/shell-secrets.ts so client code can import unchanged.
+ * Uses the live piclaw runtime keychain bridge when available, then the piclaw
+ * CLI as a standalone fallback. Provides the same function signatures as the
+ * runtime keychain helpers so client code can import unchanged.
  */
 
 import { existsSync } from "node:fs";
@@ -16,6 +16,61 @@ const WORKSPACE_DIR = process.env.PICLAW_WORKSPACE || "/workspace";
 
 function sanitizeEnvName(keychainName: string): string {
   return keychainName.replace(/[/\-.]/g, "_").toUpperCase();
+}
+
+function parseJsonFromMixedOutput(text: string): unknown | null {
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+  const lines = trimmed.split(/\r?\n/);
+  for (let i = 0; i < lines.length; i++) {
+    const candidate = lines.slice(i).join("\n").trim();
+    if (!candidate.startsWith("{") && !candidate.startsWith("[") && !candidate.startsWith('"')) continue;
+    try {
+      return JSON.parse(candidate);
+    } catch {
+      // keep scanning
+    }
+  }
+  return null;
+}
+
+function extractStructuredSecret(text: string): { secret: string; username?: string } | null {
+  const parsed = parseJsonFromMixedOutput(text);
+  if (!parsed || typeof parsed !== "object") return null;
+  const record = parsed as Record<string, unknown>;
+  const secret = typeof record.secret === "string"
+    ? record.secret.trim()
+    : typeof record.token === "string"
+      ? record.token.trim()
+      : typeof record.api_token === "string"
+        ? record.api_token.trim()
+        : "";
+  if (!secret) return null;
+  const username = typeof record.username === "string"
+    ? record.username.trim()
+    : typeof record.user === "string"
+      ? record.user.trim()
+      : "";
+  return {
+    secret,
+    ...(username ? { username } : {}),
+  };
+}
+
+function normalizeKeychainEntry(name: string, entry: { type?: unknown; secret?: unknown; username?: unknown }): KeychainEntry | null {
+  if (typeof entry?.secret !== "string") return null;
+  const structured = extractStructuredSecret(entry.secret);
+  const secret = structured?.secret || entry.secret.trim();
+  if (!secret) return null;
+  const username = typeof entry.username === "string"
+    ? entry.username.trim()
+    : structured?.username || "";
+  return {
+    name,
+    type: typeof entry.type === "string" && entry.type.trim() ? entry.type : "secret",
+    secret,
+    ...(username ? { username } : {}),
+  };
 }
 
 // ── Types matching piclaw's keychain ─────────────────────────────
@@ -34,6 +89,23 @@ export interface KeychainEntryMetadata {
   updatedAt?: string;
 }
 
+function normalizeKeychainMetadata(value: unknown): KeychainEntryMetadata[] {
+  if (!Array.isArray(value)) return [];
+  const entries = value.flatMap((candidate) => {
+    if (!candidate || typeof candidate !== "object") return [];
+    const record = candidate as Record<string, unknown>;
+    const name = typeof record.name === "string" ? record.name.trim() : "";
+    if (!name) return [];
+    return [{
+      name,
+      type: typeof record.type === "string" && record.type.trim() ? record.type.trim() : "secret",
+      ...(typeof record.createdAt === "string" ? { createdAt: record.createdAt } : {}),
+      ...(typeof record.updatedAt === "string" ? { updatedAt: record.updatedAt } : {}),
+    }];
+  });
+  return entries.filter((entry, index) => entries.findIndex((candidate) => candidate.name === entry.name) === index);
+}
+
 // ── Primary: env-var-based resolution ────────────────────────────
 
 function resolveFromEnv(name: string): KeychainEntry | null {
@@ -41,18 +113,14 @@ function resolveFromEnv(name: string): KeychainEntry | null {
   const envValue = process.env[envName];
   if (!envValue) return null;
 
-  try {
-    const parsed = JSON.parse(envValue);
-    if (typeof parsed === "object" && parsed !== null) {
-      const secret = parsed.secret || parsed.token || parsed.api_token;
-      if (typeof secret === "string" && secret) {
-        return { name, type: "secret", secret, username: parsed.username || parsed.user || undefined };
-      }
-    }
-  } catch {
-    // Not JSON — treat as raw secret
+  const structured = extractStructuredSecret(envValue);
+  if (structured) {
+    return { name, type: "secret", secret: structured.secret, username: structured.username };
   }
-  return { name, type: "secret", secret: envValue };
+
+  const secret = envValue.trim();
+  if (!secret) return null;
+  return { name, type: "secret", secret };
 }
 
 // ── Compatibility API matching piclaw's secure/keychain.ts ───────
@@ -74,31 +142,8 @@ export async function getKeychainEntry(name: string): Promise<KeychainEntry> {
     }).__piclawRuntimeInterop;
     if (typeof interop?.getKeychainEntry === "function") {
       const entry = await interop.getKeychainEntry(name);
-      if (entry?.secret) {
-        return {
-          name,
-          type: entry.type || "secret",
-          secret: String(entry.secret),
-          username: entry.username || undefined,
-        };
-      }
-    }
-  } catch {
-    // continue to module fallback
-  }
-
-  try {
-    const mod = require("piclaw/runtime/src/secure/keychain.js");
-    if (typeof mod?.getKeychainEntry === "function") {
-      const entry = await mod.getKeychainEntry(name);
-      if (entry?.secret) {
-        return {
-          name,
-          type: entry.type || "secret",
-          secret: String(entry.secret),
-          username: entry.username || undefined,
-        };
-      }
+      const normalized = normalizeKeychainEntry(name, entry || {});
+      if (normalized) return normalized;
     }
   } catch {
     // Not running inside piclaw runtime — continue to CLI fallback.
@@ -113,14 +158,11 @@ export async function getKeychainEntry(name: string): Promise<KeychainEntry> {
     if (proc.exitCode === 0 && proc.stdout) {
       const text = proc.stdout.toString().trim();
       if (text) {
-        try {
-          const parsed = JSON.parse(text);
-          if (typeof parsed?.secret === "string" && parsed.secret) {
-            return { name, type: parsed.type || "secret", secret: parsed.secret, username: parsed.username };
-          }
-        } catch {
-          // Some CLI outputs are human-readable wrappers, not raw secrets.
+        const structured = extractStructuredSecret(text);
+        if (structured) {
+          return { name, type: "secret", secret: structured.secret, username: structured.username };
         }
+        return { name, type: "secret", secret: text };
       }
     }
   } catch {
@@ -132,16 +174,40 @@ export async function getKeychainEntry(name: string): Promise<KeychainEntry> {
 
 /**
  * List all keychain entries (metadata only).
+ * Sanitized environment names cannot be reversed safely (for example,
+ * AZURE_APPINSIGHTS_CONNECTION_STRING may represent azure/appinsights-connection-string), so prefer an explicit
+ * runtime metadata bridge and then the metadata-only Piclaw CLI command.
  */
 export function listKeychainEntries(): KeychainEntryMetadata[] {
-  // Return entries visible as env vars with the keychain naming pattern
-  const entries: KeychainEntryMetadata[] = [];
-  for (const [key, _value] of Object.entries(process.env)) {
-    if (key && _value) {
-      entries.push({ name: key, type: "secret" });
+  try {
+    const interop = (globalThis as {
+      __piclawRuntimeInterop?: {
+        listKeychainEntries?: () => unknown;
+      };
+    }).__piclawRuntimeInterop;
+    if (typeof interop?.listKeychainEntries === "function") {
+      const entries = normalizeKeychainMetadata(interop.listKeychainEntries());
+      if (entries.length) return entries;
     }
+  } catch {
+    // Continue to CLI fallback.
   }
-  return entries;
+
+  try {
+    const proc = Bun.spawnSync(["piclaw", "keychain", "list"], {
+      stdout: "pipe",
+      stderr: "pipe",
+      env: process.env,
+    });
+    if (proc.exitCode === 0 && proc.stdout) {
+      const entries = normalizeKeychainMetadata(parseJsonFromMixedOutput(proc.stdout.toString()));
+      if (entries.length) return entries;
+    }
+  } catch {
+    // CLI not available.
+  }
+
+  return [];
 }
 
 /**

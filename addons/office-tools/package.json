@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-office-tools",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Office document read/write tools for Piclaw (docx, xlsx, pptx, odt, md→pdf)",
   "type": "module",
   "main": "index.ts",
@@ -16,11 +16,9 @@
       "pdf"
     ]
   },
-  "dependencies": {
-    "typebox": "*"
-  },
   "peerDependencies": {
-    "@earendil-works/pi-coding-agent": "*"
+    "@earendil-works/pi-coding-agent": "*",
+    "@sinclair/typebox": "*"
   },
   "license": "MIT",
   "keywords": [

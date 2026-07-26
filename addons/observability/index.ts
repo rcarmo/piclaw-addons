@@ -11,7 +11,9 @@
  * All config in extension KV (global scope). Secrets in keychain.
  */
 
-import { hostname } from "os";
+import { existsSync } from "node:fs";
+import { createConnection, type Socket } from "node:net";
+import { hostname } from "node:os";
 import { trace, context, SpanKind, SpanStatusCode, type Tracer, type Span } from "@opentelemetry/api";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
@@ -97,11 +99,8 @@ function instanceName(config: ObservabilityConfig): string {
 
 function detectDeploymentMode(): string {
   if (process.env.PICLAW_DEPLOYMENT_MODE) return process.env.PICLAW_DEPLOYMENT_MODE.trim();
-  try {
-    const { existsSync } = require("fs");
-    if (existsSync("/.dockerenv")) return "docker";
-    if (existsSync("/run/systemd/container")) return "lxc";
-  } catch {}
+  if (existsSync("/.dockerenv")) return "docker";
+  if (existsSync("/run/systemd/container")) return "lxc";
   return "host-native";
 }
 
@@ -342,15 +341,14 @@ export function recordProviderError(chatJid: string, error: string, opts?: { mod
 
 // ── Graphite Carbon plaintext ────────────────────────────────────
 
-let graphiteSocket: ReturnType<typeof import("net").createConnection> | null = null;
+let graphiteSocket: Socket | null = null;
 let graphiteTimer: ReturnType<typeof setTimeout> | null = null;
 let graphiteCfg: { host: string; port: number; prefix: string } | null = null;
 
 function ensureGraphite(): void {
   if (!graphiteCfg?.host || graphiteSocket) return;
   try {
-    const net = require("net");
-    graphiteSocket = net.createConnection({ host: graphiteCfg.host, port: graphiteCfg.port }, () =>
+    graphiteSocket = createConnection({ host: graphiteCfg.host, port: graphiteCfg.port }, () =>
       log.info("Graphite connected", { host: graphiteCfg!.host }));
     graphiteSocket!.on("error", () => { graphiteSocket = null; scheduleReconnect(); });
     graphiteSocket!.on("close", () => { graphiteSocket = null; scheduleReconnect(); });
@@ -377,7 +375,26 @@ export function recordMetric(name: string, value: number, timestampSec?: number)
 
 // ── Apply config ─────────────────────────────────────────────────
 
-async function applyConfig(config: ObservabilityConfig): Promise<void> {
+export function buildRuntimeConfigKey(config: ObservabilityConfig): string {
+  return JSON.stringify({
+    enabled: Boolean(config.enabled),
+    instance_name: instanceName(config),
+    appinsights_enabled: Boolean(config.appinsights_enabled),
+    appinsights_keychain: config.appinsights_keychain.trim(),
+    appinsights_live_metrics: Boolean(config.appinsights_live_metrics),
+    appinsights_standard_metrics: Boolean(config.appinsights_standard_metrics),
+    appinsights_sampling_ratio: Math.max(0, Math.min(1, config.appinsights_sampling_ratio)),
+    graphite_enabled: Boolean(config.graphite_enabled),
+    graphite_host: config.graphite_host.trim(),
+    graphite_port: config.graphite_port,
+    graphite_prefix: config.graphite_prefix.trim(),
+  });
+}
+
+let appliedRuntimeConfigKey: string | null = null;
+let runtimeApplyChain: Promise<void> = Promise.resolve();
+
+async function applyRuntimeConfig(config: ObservabilityConfig): Promise<void> {
   if (!config.enabled) {
     removeLogSinkBridge();
     await stopOtel();
@@ -398,11 +415,31 @@ async function applyConfig(config: ObservabilityConfig): Promise<void> {
   installLogSinkBridge();
 }
 
+async function ensureProcessRuntimeConfig(config: ObservabilityConfig, options: { force?: boolean } = {}): Promise<void> {
+  const nextKey = buildRuntimeConfigKey(config);
+  if (!options.force && nextKey === appliedRuntimeConfigKey) return;
+
+  const run = async () => {
+    if (!options.force && nextKey === appliedRuntimeConfigKey) return;
+    await applyRuntimeConfig(config);
+    appliedRuntimeConfigKey = nextKey;
+  };
+
+  const pending = runtimeApplyChain.then(run, run);
+  runtimeApplyChain = pending.catch((err) => {
+    log.error("Failed to apply observability runtime config", {
+      operation: "observability.runtime.apply",
+      error: formatError(err),
+    });
+  });
+  await pending;
+}
+
 // ── Settings API ─────────────────────────────────────────────────
 
 function handleGetConfig(): ObservabilityConfig { return loadConfig(); }
 
-function handleSetConfig(body: Partial<ObservabilityConfig>): { ok: boolean; config: ObservabilityConfig } {
+async function handleSetConfig(body: Partial<ObservabilityConfig>): Promise<{ ok: boolean; config: ObservabilityConfig }> {
   const c = loadConfig();
   const next: ObservabilityConfig = {
     enabled:                     body.enabled ?? c.enabled,
@@ -418,7 +455,7 @@ function handleSetConfig(body: Partial<ObservabilityConfig>): { ok: boolean; con
     graphite_prefix:             typeof body.graphite_prefix === "string" ? body.graphite_prefix.trim() : c.graphite_prefix,
   };
   saveConfig(next);
-  void applyConfig(next);
+  await ensureProcessRuntimeConfig(next, { force: true });
   return { ok: true, config: next };
 }
 
@@ -433,23 +470,17 @@ const registerAddonConfigApi = (globalThis as Record<string, unknown>).__piclaw_
 if (typeof registerAddonConfigApi === "function") {
   registerAddonConfigApi("observability", "config", {
     get: async () => handleGetConfig(),
-    set: async (payload) => handleSetConfig((payload && typeof payload === "object" ? payload : {}) as Partial<ObservabilityConfig>),
+    set: async (payload) => await handleSetConfig((payload && typeof payload === "object" ? payload : {}) as Partial<ObservabilityConfig>),
   }, import.meta.dir);
 }
 
 // ── Extension entry point ────────────────────────────────────────
 
 export default function observabilityExtension(pi: ExtensionAPI): void {
+  void ensureProcessRuntimeConfig(loadConfig()).catch(() => undefined);
+
   pi.on("session_start", async () => {
-    const config = loadConfig();
-    if (config.enabled) {
-      await applyConfig(config);
-    }
-  });
-  pi.on("session_shutdown", async () => {
-    removeLogSinkBridge();
-    await stopOtel();
-    teardownGraphite();
+    await ensureProcessRuntimeConfig(loadConfig()).catch(() => undefined);
   });
 
   pi.on("before_agent_start", async (event) => {
