@@ -2,9 +2,11 @@
 const ADDON_ID = "session-dashboard";
 const API = `/agent/addons/api/${ADDON_ID}/sessions`;
 const STORAGE_OPEN = "piclaw:session-dashboard:open";
-const STORAGE_LIMIT = "piclaw:session-dashboard:limit";
 const DEFAULT_LIMIT = 8;
 const DEFAULT_CHAT_JID = "web:default";
+const NARROW_LAYOUT_MAX_WIDTH = 759;
+const MEDIUM_LAYOUT_MAX_WIDTH = 1079;
+const RESIZE_DEBOUNCE_MS = 150;
 const DASHBOARD_REFRESH_INTERVAL_MS = 15000;
 const FOOTER_CLOCK_INTERVAL_MS = 1000;
 const LIVE_REFRESH_DEBOUNCE_MS = 1000;
@@ -19,9 +21,11 @@ if (!globalThis.__piclawSessionDashboardInstalled) {
 export function installSessionDashboard() {
   if (typeof document === "undefined") return null;
 
+  const initialLayout = resolveDashboardLayout(globalThis.innerWidth);
   const state = {
     open: localStorage.getItem(STORAGE_OPEN) === "true",
-    limit: clampNumber(Number(localStorage.getItem(STORAGE_LIMIT)) || DEFAULT_LIMIT, 1, 12),
+    limit: initialLayout.limit,
+    columns: initialLayout.columns,
     currentChatJid: getCurrentChatJid(),
     sessions: [],
     activeByJid: new Map(),
@@ -35,6 +39,7 @@ export function installSessionDashboard() {
     previewTimer: null,
     footerClockTimer: null,
     liveRefreshTimer: null,
+    resizeTimer: null,
     panelResizeObserver: null,
     refreshQueued: false,
   };
@@ -205,6 +210,7 @@ export function installSessionDashboard() {
 
   function renderChrome() {
     state.currentChatJid = getCurrentChatJid();
+    root.style.setProperty("--session-dashboard-columns", String(state.columns));
     root.classList.toggle("open", state.open);
     root.classList.toggle("loading", state.loading);
     toggle.title = state.open ? "Hide sessions" : "Show recent sessions";
@@ -220,12 +226,13 @@ export function installSessionDashboard() {
   }
 
   function renderFooter() {
-    const activeCount = state.sessions.filter((session) => isSessionActive(session, state.activeByJid.get(session.chat_jid))).length;
+    const visibleSessions = state.sessions.slice(0, state.limit);
+    const activeCount = visibleSessions.filter((session) => isSessionActive(session, state.activeByJid.get(session.chat_jid))).length;
     if (state.error) {
       footerStatus.textContent = state.error;
       return;
     }
-    const summary = `${state.sessions.length || state.limit} slots • ${activeCount} active • ${state.currentChatJid}`;
+    const summary = `${state.limit} slots • ${activeCount} active • ${state.currentChatJid}`;
     footerStatus.textContent = state.lastGeneratedAt
       ? `${summary} • Updated ${formatRelativeTime(state.lastGeneratedAt)}`
       : `${summary} • Waiting for session data…`;
@@ -233,7 +240,8 @@ export function installSessionDashboard() {
 
   function render() {
     renderChrome();
-    const activeCount = state.sessions.filter((session) => isSessionActive(session, state.activeByJid.get(session.chat_jid))).length;
+    const visibleSessions = state.sessions.slice(0, state.limit);
+    const activeCount = visibleSessions.filter((session) => isSessionActive(session, state.activeByJid.get(session.chat_jid))).length;
     const activeFill = activeFillPercent(activeCount, state.limit);
     root.style.setProperty("--session-dashboard-active-fill", `${activeFill}%`);
     toggle.title = state.open ? `Hide sessions (${activeCount} active)` : `Show recent sessions (${activeCount} active)`;
@@ -247,7 +255,7 @@ export function installSessionDashboard() {
       grid.appendChild(empty);
       return;
     }
-    for (const session of state.sessions) grid.appendChild(renderTile(session));
+    for (const session of visibleSessions) grid.appendChild(renderTile(session));
   }
 
   function renderTile(session) {
@@ -332,6 +340,23 @@ export function installSessionDashboard() {
     if (state.open) void refreshNow("focus");
   }
 
+  function handleWindowResize() {
+    if (state.resizeTimer) clearTimeout(state.resizeTimer);
+    state.resizeTimer = setTimeout(() => {
+      state.resizeTimer = null;
+      const nextLayout = resolveDashboardLayout(globalThis.innerWidth);
+      if (nextLayout.limit === state.limit && nextLayout.columns === state.columns) return;
+      const previousLimit = state.limit;
+      state.limit = nextLayout.limit;
+      state.columns = nextLayout.columns;
+      render();
+      if (state.open && nextLayout.limit > previousLimit && state.sessions.length >= previousLimit) {
+        void refreshNow("resize");
+      }
+    }, RESIZE_DEBOUNCE_MS);
+    state.resizeTimer.unref?.();
+  }
+
   function handleKeydown(event) {
     if (event.defaultPrevented || event.repeat || event.metaKey || event.ctrlKey || event.altKey) return;
     if (isEditableTarget(event.target, event.composedPath?.())) return;
@@ -355,6 +380,7 @@ export function installSessionDashboard() {
   window.addEventListener("piclaw-extension-ui", handleLiveEvent);
   window.addEventListener("piclaw-extension-ui:status", handleLiveEvent);
   window.addEventListener("focus", handleWindowFocus);
+  window.addEventListener("resize", handleWindowResize);
   document.addEventListener("keydown", handleKeydown, true);
   if (typeof ResizeObserver !== "undefined") {
     state.panelResizeObserver = new ResizeObserver(updatePanelHeight);
@@ -367,7 +393,7 @@ export function installSessionDashboard() {
   schedulePreviewPolling();
   scheduleFooterClock();
   if (state.open) void refreshNow("startup");
-  return { root, refreshNow, refreshSessionPreviews, destroy: () => { if (state.pollTimer) clearTimeout(state.pollTimer); if (state.previewTimer) clearTimeout(state.previewTimer); if (state.footerClockTimer) clearTimeout(state.footerClockTimer); if (state.liveRefreshTimer) clearTimeout(state.liveRefreshTimer); state.panelResizeObserver?.disconnect?.(); document.removeEventListener("keydown", handleKeydown, true); window.removeEventListener("piclaw:current-chat-changed", handleCurrentChatChanged); window.removeEventListener("popstate", handleCurrentChatChanged); window.removeEventListener("piclaw-extension-ui", handleLiveEvent); window.removeEventListener("piclaw-extension-ui:status", handleLiveEvent); window.removeEventListener("focus", handleWindowFocus); root.remove(); } };
+  return { root, refreshNow, refreshSessionPreviews, destroy: () => { if (state.pollTimer) clearTimeout(state.pollTimer); if (state.previewTimer) clearTimeout(state.previewTimer); if (state.footerClockTimer) clearTimeout(state.footerClockTimer); if (state.liveRefreshTimer) clearTimeout(state.liveRefreshTimer); if (state.resizeTimer) clearTimeout(state.resizeTimer); state.panelResizeObserver?.disconnect?.(); document.removeEventListener("keydown", handleKeydown, true); window.removeEventListener("piclaw:current-chat-changed", handleCurrentChatChanged); window.removeEventListener("popstate", handleCurrentChatChanged); window.removeEventListener("piclaw-extension-ui", handleLiveEvent); window.removeEventListener("piclaw-extension-ui:status", handleLiveEvent); window.removeEventListener("focus", handleWindowFocus); window.removeEventListener("resize", handleWindowResize); root.remove(); } };
 }
 
 const EDITABLE_SHORTCUT_SELECTOR = [
@@ -443,6 +469,13 @@ function mergeSessions(recent, active, limit) {
       return Date.parse(right.last_active_at || "") - Date.parse(left.last_active_at || "");
     })
     .slice(0, limit);
+}
+
+function resolveDashboardLayout(width) {
+  const viewportWidth = Number.isFinite(Number(width)) && Number(width) > 0 ? Number(width) : 1280;
+  if (viewportWidth <= NARROW_LAYOUT_MAX_WIDTH) return { columns: 2, rows: 2, limit: 4 };
+  if (viewportWidth <= MEDIUM_LAYOUT_MAX_WIDTH) return { columns: 3, rows: 2, limit: 6 };
+  return { columns: 4, rows: 2, limit: DEFAULT_LIMIT };
 }
 
 function activeStateScore(session, active) {
@@ -729,7 +762,7 @@ function injectStyles() {
     .session-dashboard-refresh:disabled { opacity: .45; cursor: default; }
     .session-dashboard-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(min(230px, 100%), 1fr));
+      grid-template-columns: repeat(var(--session-dashboard-columns, 4), minmax(0, 1fr));
       gap: 8px;
       max-width: var(--session-dashboard-max-width);
       margin: 0 auto;
@@ -764,13 +797,14 @@ function injectStyles() {
     .session-dashboard-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; max-width: var(--session-dashboard-max-width); margin: 10px auto 0; min-height: 22px; color: var(--text-secondary,#94a3b8); font-size: 10px; }
     .session-dashboard-footer-status { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .session-dashboard-empty { grid-column: 1 / -1; border: 1px dashed var(--border-color, rgba(148,163,184,.35)); border-radius: var(--radius-md, 8px); padding: 18px; text-align: center; color: var(--text-secondary,#94a3b8); }
-    @media (max-width: 720px) { .session-dashboard-panel { max-height: 72vh; } .session-dashboard-grid { grid-template-columns: 1fr; } .session-dashboard-footer-status { white-space: normal; } }
+    @media (max-width: 720px) { .session-dashboard-panel { max-height: 72vh; } .session-dashboard-tile { padding: 8px; } .session-dashboard-footer-status { white-space: normal; } }
   `;
   document.head.appendChild(style);
 }
 
 export const __sessionDashboardTest = {
   mergeSessions,
+  resolveDashboardLayout,
   activeFillPercent,
   isEditableTarget,
   normalizeContext,

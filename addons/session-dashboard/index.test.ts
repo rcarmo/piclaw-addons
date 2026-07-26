@@ -97,6 +97,9 @@ test("web defaults to eight visible sessions and follows sidebar surface variabl
   const source = readFileSync(join(import.meta.dir, "web", "index.ts"), "utf8");
 
   expect(source).toContain("const DEFAULT_LIMIT = 8;");
+  expect(source).toContain("const NARROW_LAYOUT_MAX_WIDTH = 759;");
+  expect(source).toContain("const MEDIUM_LAYOUT_MAX_WIDTH = 1079;");
+  expect(source).toContain("const RESIZE_DEBOUNCE_MS = 150;");
   expect(source).toContain("const DASHBOARD_REFRESH_INTERVAL_MS = 15000;");
   expect(source).toContain("const FOOTER_CLOCK_INTERVAL_MS = 1000;");
   expect(source).toContain("const LIVE_REFRESH_DEBOUNCE_MS = 1000;");
@@ -114,6 +117,11 @@ test("web defaults to eight visible sessions and follows sidebar surface variabl
   expect(source).toContain("scheduleFooterClock");
   expect(source).toContain("renderFooter");
   expect(source).toContain("slots • ${activeCount} active • ${state.currentChatJid}");
+  expect(source).toContain('window.addEventListener("resize", handleWindowResize)');
+  expect(source).toContain('window.removeEventListener("resize", handleWindowResize)');
+  expect(source).toContain('grid-template-columns: repeat(var(--session-dashboard-columns, 4), minmax(0, 1fr))');
+  expect(source).not.toContain("repeat(auto-fit");
+  expect(source).not.toContain("STORAGE_LIMIT");
   expect(source).not.toContain("/agent/models");
   expect(source).not.toContain("/agent/model");
   expect(source).not.toContain("getModels");
@@ -142,6 +150,16 @@ test("web defaults to eight visible sessions and follows sidebar surface variabl
   expect(source).not.toContain("backdrop-filter");
   expect(source).not.toContain("box-shadow: 0 20px");
   expect(source).not.toContain("border-radius: 16px");
+});
+
+test("web layout helper always resolves two rows with four to eight slots", () => {
+  expect(__sessionDashboardTest.resolveDashboardLayout(320)).toEqual({ columns: 2, rows: 2, limit: 4 });
+  expect(__sessionDashboardTest.resolveDashboardLayout(759)).toEqual({ columns: 2, rows: 2, limit: 4 });
+  expect(__sessionDashboardTest.resolveDashboardLayout(760)).toEqual({ columns: 3, rows: 2, limit: 6 });
+  expect(__sessionDashboardTest.resolveDashboardLayout(1079)).toEqual({ columns: 3, rows: 2, limit: 6 });
+  expect(__sessionDashboardTest.resolveDashboardLayout(1080)).toEqual({ columns: 4, rows: 2, limit: 8 });
+  expect(__sessionDashboardTest.resolveDashboardLayout(1920)).toEqual({ columns: 4, rows: 2, limit: 8 });
+  expect(__sessionDashboardTest.resolveDashboardLayout(undefined)).toEqual({ columns: 4, rows: 2, limit: 8 });
 });
 
 test("web session tiles switch in-app and preserve modified-click new tabs", () => {
