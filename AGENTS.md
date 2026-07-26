@@ -90,6 +90,7 @@ export default function myAddon(pi: ExtensionAPI) {
   "main": "index.ts",
   "piclaw": {
     "type": "extension",
+    "compatibleVersions": ">=2.0.0",
     "tags": ["relevant", "tags"]
   },
   "pi": {
@@ -114,6 +115,7 @@ export default function myAddon(pi: ExtensionAPI) {
 | `version` | ✓ | Bump on every functional change |
 | `description` | ✓ | Shown in the catalog and web UI |
 | `piclaw.type` | ✓ | `"extension"` or `"skill"` |
+| `piclaw.compatibleVersions` | ✓ | Minimum supported Piclaw range, for example `">=2.0.0"` |
 | `piclaw.tags` | ✓ | Categorisation for search and display |
 | `pi.extensions` | ✓ | Entry points — usually `["index.ts"]` |
 | `peerDependencies` | ✓ | Must declare imported Pi core packages (`@earendil-works/pi-coding-agent`, `@earendil-works/pi-ai`, `@earendil-works/pi-tui`) plus `@sinclair/typebox` when imported |
@@ -162,13 +164,13 @@ pi.on("resources_discover", () => ({
 
 ### Tool parameters
 
-Use `@sinclair/typebox`:
+Use `@sinclair/typebox`. Represent closed string choices as `Type.String({ enum: [...] })`; avoid literal unions because some provider schema dialects reject them:
 
 ```ts
 import { Type } from "@sinclair/typebox";
 
 const Params = Type.Object({
-  action: Type.Union([Type.Literal("get"), Type.Literal("list")]),
+  action: Type.String({ enum: ["get", "list"] }),
   id: Type.Optional(Type.String()),
 });
 ```
@@ -178,7 +180,7 @@ const Params = Type.Object({
 Persist config or state:
 
 ```ts
-import { createExtensionStorage } from "../../lib/compat/extension-kv.js";
+import { createExtensionStorage } from "./compat/extension-kv.js";
 
 const kv = createExtensionStorage("my-addon");
 kv.set("config", value, "chat", chatJid);   // per-chat
