@@ -643,7 +643,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-session-dashboard-0.1.8.tgz"
       },
-      "updatedAt": "2026-07-25"
+      "updatedAt": "2026-07-26"
     },
     {
       "slug": "session-tree",
