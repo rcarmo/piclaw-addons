@@ -581,12 +581,12 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-portainer-0.1.7.tgz"
       },
-      "updatedAt": "2026-05-08"
+      "updatedAt": "2026-07-26"
     },
     {
       "slug": "proxmox",
       "name": "@rcarmo/piclaw-addon-proxmox",
-      "version": "0.1.7",
+      "version": "0.1.8",
       "type": "extension",
       "description": "Proxmox VE management tool — session-scoped API config, ad-hoc requests, and orchestration workflows for VMs, LXC containers, storage, tasks, and metrics",
       "path": "addons/proxmox",
@@ -600,7 +600,7 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-proxmox-0.1.7.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-proxmox-0.1.8.tgz"
       },
       "updatedAt": "2026-05-08"
     },

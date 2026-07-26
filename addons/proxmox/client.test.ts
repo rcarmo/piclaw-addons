@@ -5,6 +5,7 @@ import {
   resolveProxmoxToken,
   setProxmoxCurlExecutorForTests,
 } from "./client.js";
+import { listKeychainEntries } from "./compat/keychain.js";
 
 afterEach(() => {
   setProxmoxCurlExecutorForTests(null);
@@ -12,6 +13,21 @@ afterEach(() => {
 });
 
 describe("proxmox client auth", () => {
+  test("listKeychainEntries preserves canonical names from runtime metadata", () => {
+    (globalThis as { __piclawRuntimeInterop?: { listKeychainEntries?: () => unknown } }).__piclawRuntimeInterop = {
+      listKeychainEntries: () => [
+        { name: "proxmox/piclaw-management-token", type: "token" },
+        { name: "proxmox/piclaw-management-token", type: "token" },
+        { name: "other/service", type: "secret" },
+      ],
+    };
+
+    expect(listKeychainEntries()).toEqual([
+      { name: "proxmox/piclaw-management-token", type: "token" },
+      { name: "other/service", type: "secret" },
+    ]);
+  });
+
   test("resolveProxmoxToken combines configured username with a raw keychain secret", async () => {
     (globalThis as { __piclawRuntimeInterop?: { getKeychainEntry?: (name: string) => Promise<unknown> } }).__piclawRuntimeInterop = {
       getKeychainEntry: async (name: string) => ({
