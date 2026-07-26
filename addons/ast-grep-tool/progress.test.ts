@@ -1,5 +1,13 @@
 import { expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { finishAstGrepProgress, startAstGrepProgress, withAstGrepProgress } from "./index.js";
+
+
+test("manifest declares the supported Piclaw version range", () => {
+  const manifest = JSON.parse(readFileSync(join(import.meta.dir, "package.json"), "utf8"));
+  expect(manifest.piclaw.compatibleVersions).toBe(">=1.8.0");
+});
 
 function uiHarness(hasUI = true) {
   const calls: Array<[string, unknown]> = [];

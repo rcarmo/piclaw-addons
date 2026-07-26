@@ -5,25 +5,18 @@ The web UI remains the primary interface.
 
 ## Enable
 
-Set both enable flag and bot token:
+Open **Settings → Telegram**, save the BotFather token, and enable the channel. The token is stored in the Piclaw keychain as `telegram/bot-token`; non-secret settings use the direct add-on config API and extension KV.
+
+Environment overrides are also supported:
 
 ```bash
 PICLAW_TELEGRAM_ENABLED=1
-PICLAW_TELEGRAM_BOT_TOKEN=123456789:your_botfather_token
+TELEGRAM_BOT_TOKEN=123456789:your_botfather_token
 ```
 
-Or in `/workspace/.piclaw/config.json`:
+`PICLAW_TELEGRAM_BOT_TOKEN` and legacy KV-stored tokens remain readable for backward compatibility, but new secrets are written only to the keychain.
 
-```json
-{
-  "telegram": {
-    "enabled": true,
-    "botToken": "123456789:your_botfather_token"
-  }
-}
-```
-
-If disabled (or missing token), piclaw uses a no-op Telegram boundary and continues normally.
+If disabled (or missing a token), the add-on remains inactive and Piclaw continues normally.
 
 ## Chat IDs and topics
 

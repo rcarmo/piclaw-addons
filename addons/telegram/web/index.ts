@@ -5,6 +5,27 @@ const { html, useState, useEffect, useCallback } = (globalThis as any).__piclawP
 const HAS_RUNTIME = Boolean(html && useState && useEffect && useCallback);
 
 const ADDON_ID = "telegram";
+const BOT_TOKEN_KEYCHAIN = "telegram/bot-token";
+
+async function keychainHas(name: string): Promise<boolean> {
+  try {
+    const res = await fetch("/agent/keychain");
+    if (!res.ok) return false;
+    const data = await res.json();
+    return (data.entries || []).some((entry: any) => entry?.name === name);
+  } catch { return false; }
+}
+
+async function saveKeychainToken(secret: string): Promise<boolean> {
+  try {
+    const res = await fetch("/agent/keychain", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: BOT_TOKEN_KEYCHAIN, secret, type: "token" }),
+    });
+    return res.ok;
+  } catch { return false; }
+}
 
 const ICON = HAS_RUNTIME
   ? html`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>`
@@ -13,7 +34,7 @@ const ICON = HAS_RUNTIME
 function TelegramSettings() {
   if (!HAS_RUNTIME) return null;
 
-  const [config, setConfig] = useState<any>({ botToken: "", enabled: false, pollingTimeout: 30, connected: false });
+  const [config, setConfig] = useState<any>({ enabled: false, pollingTimeout: 30, connected: false, botTokenConfigured: false });
   const [saving, setSaving] = useState(false);
   const [botToken, setBotToken] = useState("");
   const [enabled, setEnabled] = useState(false);
@@ -24,8 +45,9 @@ function TelegramSettings() {
       const res = await fetch(`/agent/addons/api/${ADDON_ID}/config`);
       if (res.ok) {
         const data = await res.json();
-        setConfig(data);
-        setBotToken(data.botToken || "");
+        const botTokenConfigured = data.botTokenConfigured || await keychainHas(BOT_TOKEN_KEYCHAIN);
+        setConfig({ ...data, botTokenConfigured });
+        setBotToken("");
         setEnabled(data.enabled ?? false);
         setPollingTimeout(data.pollingTimeout ?? 30);
       }
@@ -37,8 +59,9 @@ function TelegramSettings() {
   const saveConfig = useCallback(async () => {
     setSaving(true);
     try {
+      const nextToken = botToken.trim();
+      if (nextToken && !(await saveKeychainToken(nextToken))) throw new Error("Failed to save Telegram token to keychain");
       const body: any = { enabled, pollingTimeout };
-      if (botToken && !botToken.startsWith("***")) body.botToken = botToken;
       const res = await fetch(`/agent/addons/api/${ADDON_ID}/config`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -46,11 +69,12 @@ function TelegramSettings() {
       });
       if (res.ok) {
         const data = await res.json();
-        setConfig(data);
+        setConfig({ ...data, botTokenConfigured: data.botTokenConfigured || Boolean(nextToken) || config.botTokenConfigured });
+        setBotToken("");
       }
     } catch { /* ignore */ }
     setSaving(false);
-  }, [botToken, enabled, pollingTimeout]);
+  }, [botToken, config.botTokenConfigured, enabled, pollingTimeout]);
 
   return html`
     <section>
@@ -71,7 +95,7 @@ function TelegramSettings() {
         <input
           type="password"
           value=${botToken}
-          placeholder="123456:ABC-DEF..."
+          placeholder=${config.botTokenConfigured ? "••••••• (stored in keychain)" : "123456:ABC-DEF..."}
           onInput=${(e: any) => setBotToken(e.target.value)}
           style="background: var(--bg-elevated, #1a1a2e); border: 1px solid var(--border, #2f3336); color: var(--text-primary, #e7e9ea); padding: 5px 10px; border-radius: 3px; font-size: 13px; width: 240px;"
         />
@@ -101,7 +125,7 @@ function TelegramSettings() {
       </div>
 
       <p style="font-size: 11px; color: var(--text-secondary, #71767b); margin-top: 12px;">
-        Create a bot via <a href="https://t.me/BotFather" target="_blank" style="color: var(--accent, #1d9bf0);">@BotFather</a> on Telegram. After saving, restart PiClaw for changes to take effect.
+        Create a bot via <a href="https://t.me/BotFather" target="_blank" style="color: var(--accent, #1d9bf0);">@BotFather</a> on Telegram. The token is stored in keychain entry <code>${BOT_TOKEN_KEYCHAIN}</code>. Restart PiClaw after changing it.
       </p>
     </section>
   `;

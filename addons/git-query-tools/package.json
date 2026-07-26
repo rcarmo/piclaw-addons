@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-git-query-tools",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Git history and JSON query tools for piclaw agents",
   "type": "module",
   "main": "index.ts",

@@ -18,6 +18,39 @@ function getConfig(): { phone: string; enabled: boolean } {
   return { phone, enabled };
 }
 
+export function handleGetConfig() {
+  const { phone, enabled } = getConfig();
+  return {
+    phone,
+    enabled,
+    connected: Boolean((globalThis as any).__whatsappConnected),
+    pairingCode: (globalThis as any).__whatsappPairingCode || null,
+  };
+}
+
+export function handleSetConfig(payload: unknown) {
+  const body = payload && typeof payload === "object" ? payload as Record<string, unknown> : {};
+  const kv = (globalThis as any).__piclawRuntimeInterop?.getExtensionKvStore?.();
+  if (typeof body.phone === "string") kv?.set(ADDON_ID, "phone", body.phone.trim());
+  if (typeof body.enabled === "boolean") kv?.set(ADDON_ID, "enabled", body.enabled);
+  return { ok: true, ...handleGetConfig() };
+}
+
+type AddonConfigApiRegistrar = (
+  addonId: string,
+  action: string,
+  handlers: { get?: (payload: unknown, req: Request) => unknown | Promise<unknown>; set?: (payload: unknown, req: Request) => unknown | Promise<unknown> },
+  extensionPath?: string,
+) => "created" | "updated";
+
+const registerAddonConfigApi = (globalThis as Record<string, unknown>).__piclaw_registerAddonConfigApi as AddonConfigApiRegistrar | undefined;
+if (typeof registerAddonConfigApi === "function") {
+  registerAddonConfigApi(ADDON_ID, "config", {
+    get: async () => handleGetConfig(),
+    set: async (payload) => handleSetConfig(payload),
+  }, import.meta.dir);
+}
+
 const register: ExtensionFactory = (pi: ExtensionAPI) => {
   const interop = (globalThis as any).__piclawRuntimeInterop;
 
@@ -26,36 +59,6 @@ const register: ExtensionFactory = (pi: ExtensionAPI) => {
     interop.registerChannelDetector((jid: string) => {
       if (jid.includes("@s.whatsapp.net") || jid.endsWith("@g.us")) return "whatsapp";
       return null;
-    });
-  }
-
-  // Register config API endpoint for the settings pane
-  const registerApi = (globalThis as any).__piclaw_registerAddonConfigApi;
-  if (typeof registerApi === "function") {
-    registerApi(ADDON_ID, {
-      async config(req: Request): Promise<Response> {
-        if (req.method === "GET") {
-          const { phone, enabled } = getConfig();
-          const connected = Boolean((globalThis as any).__whatsappConnected);
-          const pairingCode = (globalThis as any).__whatsappPairingCode || null;
-          return new Response(JSON.stringify({ phone, enabled, connected, pairingCode }), {
-            headers: { "Content-Type": "application/json" },
-          });
-        }
-        if (req.method === "POST") {
-          const body = await req.json().catch(() => ({})) as Record<string, unknown>;
-          const kv = interop?.getExtensionKvStore?.();
-          if (typeof body.phone === "string") kv?.set(ADDON_ID, "phone", body.phone.trim());
-          if (typeof body.enabled === "boolean") kv?.set(ADDON_ID, "enabled", body.enabled);
-          const { phone, enabled } = getConfig();
-          const connected = Boolean((globalThis as any).__whatsappConnected);
-          const pairingCode = (globalThis as any).__whatsappPairingCode || null;
-          return new Response(JSON.stringify({ phone, enabled, connected, pairingCode }), {
-            headers: { "Content-Type": "application/json" },
-          });
-        }
-        return new Response("Method not allowed", { status: 405 });
-      },
     });
   }
 

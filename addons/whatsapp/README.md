@@ -4,6 +4,8 @@ WhatsApp channel addon for PiClaw. Connects to WhatsApp Web via Baileys and rout
 
 ## Configuration
 
+Use **Settings → WhatsApp** to store the phone number and enable the channel through the direct add-on config API. Environment overrides are also supported:
+
 | Env var | Description |
 |---|---|
 | `PICLAW_WHATSAPP_PHONE` | Phone number to connect (with country code) |
