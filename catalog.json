@@ -338,7 +338,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-image-processing-0.1.3.tgz"
       },
-      "updatedAt": "2026-05-08"
+      "updatedAt": "2026-07-26"
     },
     {
       "slug": "imap",
@@ -493,7 +493,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-observability-0.1.10.tgz"
       },
-      "updatedAt": "2026-07-16"
+      "updatedAt": "2026-07-26"
     },
     {
       "slug": "office-tools",
@@ -516,7 +516,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-office-tools-0.1.3.tgz"
       },
-      "updatedAt": "2026-05-27"
+      "updatedAt": "2026-07-26"
     },
     {
       "slug": "office-viewer",
