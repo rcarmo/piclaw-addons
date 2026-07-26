@@ -527,12 +527,18 @@ export function buildPlanSystemPrompt(plan: SessionPlan): string {
     "Use `action=read` to inspect raw Markdown, `action=edit` for batch exact Markdown edits (replace/delete/insert_after/insert_before/append/prepend, including multi-line checklist blocks), and `action=write` only when replacing the whole Markdown checklist.",
     "All plan mutations are normalized into the same Markdown storage. Treat `[x]` items as completed, `[-]` items as in progress, unchecked items as pending, and update the plan after meaningful progress or plan changes.",
     "There may be at most one `[-]` / `in_progress` item.",
-    "",
-    "Current plan:",
-    "```markdown",
-    markdown,
-    "```",
+    "Read the current checklist with `plan` action=read when its exact state is needed; mutable checklist content is kept out of the system prompt to preserve provider prompt-cache reuse.",
   ].join("\n");
+}
+
+export function buildPlanTurnMessage(plan: SessionPlan): { customType: string; content: Array<{ type: "text"; text: string }>; display: boolean } | undefined {
+  const markdown = normalizeLineEndings(plan.markdown).trim();
+  if (!markdown) return undefined;
+  return {
+    customType: "plan_sidebar_context",
+    content: [{ type: "text", text: `Current Plan Sidebar checklist for ${plan.chat_jid}:\n\n${markdown}` }],
+    display: false,
+  };
 }
 
 export function resetPlanSidebarAddonForTests(): void {
@@ -547,7 +553,10 @@ export default function planSidebarAddon(pi: ExtensionAPI): void {
     if (!plan.updated_at && plan.markdown === DEFAULT_PLAN) return {};
     const prompt = buildPlanSystemPrompt(plan);
     if (!prompt) return {};
-    return { systemPrompt: `${event.systemPrompt}\n\n${prompt}` };
+    return {
+      systemPrompt: `${event.systemPrompt}\n\n${prompt}`,
+      message: buildPlanTurnMessage(plan),
+    };
   });
 
   pi.registerTool({
