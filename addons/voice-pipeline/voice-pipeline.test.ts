@@ -6,6 +6,14 @@ import { detectLanIp } from "./config.ts";
 import { BusyError, VoiceQueue } from "./voice-queue.ts";
 import { encodeFrame, FrameReader, MSG } from "./esphome/framing.ts";
 import { putTts, TTS_TOKEN, ttsCacheSize, ttsUrl } from "./esphome/client.ts";
+import { AvaToolSchema } from "./index.ts";
+
+test("ava command schema uses a Google-compatible string enum", () => {
+  expect(AvaToolSchema.properties.command).toMatchObject({
+    type: "string",
+    enum: ["announce", "play", "pause", "stop", "mute", "unmute", "volume", "scene", "wake", "sensors", "entities", "snapshot", "subtitle"],
+  });
+});
 
 describe("audio WAV helpers (#1, #10)", () => {
   const pcm = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]);

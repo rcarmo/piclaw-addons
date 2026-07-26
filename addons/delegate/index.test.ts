@@ -13,6 +13,12 @@ describe("delegate addon", () => {
     expect(typeof delegateAddon).toBe("function");
   });
 
+  test("compat storage avoids runtime source imports", () => {
+    const source = readFileSync(resolve(addonDir, "compat", "extension-kv.ts"), "utf8");
+    expect(source).not.toContain("require(");
+    expect(source).not.toContain("piclaw/runtime/src");
+  });
+
   test("delegate task previews are compact and single-line", () => {
     const preview = delegateTaskPreview("  Review\n\nthis long task and summarize the important findings for the user  ", 32);
     expect(preview).toBe("Review this long task and summa…");

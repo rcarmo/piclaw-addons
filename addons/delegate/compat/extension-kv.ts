@@ -109,7 +109,7 @@ function getRuntimeInterop(): { getExtensionKvStore?: () => RuntimeKvStore } | n
 
 /**
  * Try to resolve piclaw's runtime KV store.
- * Prefer the runtime global bridge, then fall back to direct module access.
+ * Use the runtime global bridge without importing runtime source modules.
  */
 function tryGetRuntimeStore(): RuntimeKvStore | null {
   try {
@@ -118,17 +118,9 @@ function tryGetRuntimeStore(): RuntimeKvStore | null {
       return interop.getExtensionKvStore();
     }
   } catch {
-    // continue to module fallback
+    // Not running inside piclaw — use fallback.
   }
 
-  try {
-    const mod = require("piclaw/runtime/src/extension-kv-registry.js");
-    if (typeof mod?.getExtensionKvStore === "function") {
-      return mod.getExtensionKvStore();
-    }
-  } catch {
-    // Not running inside piclaw — use fallback
-  }
   return null;
 }
 

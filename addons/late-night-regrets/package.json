@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-late-night-regrets",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Nightly Bayesian interaction-quality classifier — trains on chat history, flags behavioral patterns, and writes self-improvement reflections",
   "type": "module",
   "main": "index.ts",

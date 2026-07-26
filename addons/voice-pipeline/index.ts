@@ -19,22 +19,11 @@ import { ensureTtsChat, closeDb } from "./store/messages.ts";
 import { addWavHeader, EspHomeClient, putTts, ttsUrl } from "./esphome/client.ts";
 import { VoiceQueue } from "./voice-queue.ts";
 
-const AvaToolSchema = Type.Object({
-  command: Type.Union([
-    Type.Literal("announce"),
-    Type.Literal("play"),
-    Type.Literal("pause"),
-    Type.Literal("stop"),
-    Type.Literal("mute"),
-    Type.Literal("unmute"),
-    Type.Literal("volume"),
-    Type.Literal("scene"),
-    Type.Literal("wake"),
-    Type.Literal("sensors"),
-    Type.Literal("entities"),
-    Type.Literal("snapshot"),
-    Type.Literal("subtitle"),
-  ]),
+export const AvaToolSchema = Type.Object({
+  command: Type.String({
+    enum: ["announce", "play", "pause", "stop", "mute", "unmute", "volume", "scene", "wake", "sensors", "entities", "snapshot", "subtitle"],
+    description: "ThinkSmart command to execute.",
+  }),
   text: Type.Optional(Type.String({ description: "Text to announce or set as subtitle" })),
   url: Type.Optional(Type.String({ description: "Media URL to play" })),
   scene: Type.Optional(Type.String({ description: "Notification scene name" })),

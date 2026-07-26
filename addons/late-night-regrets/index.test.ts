@@ -2,6 +2,12 @@ import { expect, test, describe } from "bun:test";
 import { join } from "node:path";
 
 describe("late-night-regrets", () => {
+  test("compat storage avoids runtime source imports", async () => {
+    const source = await Bun.file(join(import.meta.dir, "compat", "extension-kv.ts")).text();
+    expect(source).not.toContain("require(");
+    expect(source).not.toContain("piclaw/runtime/src");
+  });
+
   test("train script exists and is valid TypeScript", async () => {
     const scriptPath = join(import.meta.dir, "scripts", "train-interaction-quality-bayes.ts");
     const file = Bun.file(scriptPath);

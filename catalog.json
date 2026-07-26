@@ -111,7 +111,7 @@
     {
       "slug": "delegate",
       "name": "@rcarmo/piclaw-addon-delegate",
-      "version": "0.2.2",
+      "version": "0.2.3",
       "type": "extension",
       "description": "Delegate tasks to verified cheaper/faster child-Pi models with deterministic tier-safe selection",
       "path": "addons/delegate",
@@ -126,7 +126,7 @@
       ],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-delegate-0.2.2.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-delegate-0.2.3.tgz"
       },
       "updatedAt": "2026-07-25"
     },
@@ -407,7 +407,7 @@
     {
       "slug": "late-night-regrets",
       "name": "@rcarmo/piclaw-addon-late-night-regrets",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "type": "extension",
       "description": "Nightly Bayesian interaction-quality classifier — trains on chat history, flags behavioral patterns, and writes self-improvement reflections",
       "path": "addons/late-night-regrets",
@@ -423,7 +423,7 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-late-night-regrets-0.1.1.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-late-night-regrets-0.1.2.tgz"
       },
       "updatedAt": "2026-05-08"
     },
@@ -607,7 +607,7 @@
     {
       "slug": "sample-addon",
       "name": "@rcarmo/piclaw-addon-sample-addon",
-      "version": "0.1.9",
+      "version": "0.1.10",
       "type": "extension",
       "description": "Sample add-on — starter template showing a settings pane, keychain secret, SQLite KV config, and a test endpoint",
       "path": "addons/sample-addon",
@@ -620,7 +620,7 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-sample-addon-0.1.9.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-sample-addon-0.1.10.tgz"
       },
       "updatedAt": "2026-05-08"
     },
@@ -777,7 +777,7 @@
     {
       "slug": "vent",
       "name": "@rcarmo/piclaw-addon-vent",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "type": "extension",
       "description": "Workspace vent log add-on, adapted from pi-vent by Igor Warzocha, with a configurable output file",
       "path": "addons/vent",
@@ -792,14 +792,14 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-vent-0.1.1.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-vent-0.1.2.tgz"
       },
       "updatedAt": "2026-05-08"
     },
     {
       "slug": "voice-pipeline",
       "name": "@rcarmo/piclaw-addon-voice-pipeline",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "type": "extension",
       "description": "ESPHome-only voice assistant pipeline for ThinkSmart/ESP32-Audio devices using Azure STT/TTS and the Flint chat runtime",
       "path": "addons/voice-pipeline",
@@ -814,7 +814,7 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-voice-pipeline-0.2.0.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-voice-pipeline-0.2.1.tgz"
       },
       "updatedAt": "2026-07-01"
     },

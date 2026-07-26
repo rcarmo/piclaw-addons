@@ -5,6 +5,14 @@ import { join } from "node:path";
 
 import { normalizeVentOutputPath, writeVentEntry } from "./index.ts";
 
+const addonDir = import.meta.dir;
+
+test("compat storage avoids runtime source imports", () => {
+  const source = readFileSync(join(addonDir, "compat", "extension-kv.ts"), "utf8");
+  expect(source).not.toContain("require(");
+  expect(source).not.toContain("piclaw/runtime/src");
+});
+
 test("normalizeVentOutputPath keeps simple relative paths", () => {
   expect(normalizeVentOutputPath("VENT.md")).toBe("VENT.md");
   expect(normalizeVentOutputPath("notes/vent-log.md")).toBe("notes/vent-log.md");
