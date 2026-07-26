@@ -2,6 +2,8 @@
 
 First-party Piclaw packaging of Rob Zolkos's MIT-licensed [`pi-skill-model-effort`](https://github.com/robzolkos/pi-skill-model-effort) extension.
 
+Requires Piclaw `>=1.8.0`.
+
 This add-on honors optional skill frontmatter keys at runtime:
 
 - `model` — temporarily switches to the requested model while the skill runs

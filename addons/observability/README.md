@@ -2,6 +2,8 @@
 
 OpenTelemetry observability for piclaw — trace errors and agent turns across multiple instances to **Azure Application Insights** (with Live Metrics Stream) and **local Graphite**.
 
+Requires Piclaw `>=2.0.0`.
+
 ![Azure App Insights Live Metrics example](./azure-app-insights-live-metrics.jpg)
 
 Uses the runtime's structured log-sink contract. The runtime never imports OTel — it just logs structured records. This addon subscribes to those records and creates OTel spans, exceptions, and Graphite metrics from them.
@@ -76,7 +78,7 @@ Each piclaw instance needs:
   <text x="410" y="110" text-anchor="middle" fill="#555" font-size="11">Live Metrics — real-time stream</text>
   <!-- Arrow instances → App Insights -->
   <line x1="150" y1="85" x2="275" y2="85" stroke="#2563eb" stroke-width="2" marker-end="url(#ah)"/>
-  <text x="212" y="78" text-anchor="middle" fill="#2563eb" font-size="10" font-weight="600">OTLP/HTTP</text>
+  <text x="212" y="78" text-anchor="middle" fill="#2563eb" font-size="10" font-weight="600">Azure Monitor exporter</text>
   <!-- Graphite -->
   <rect x="280" y="190" width="200" height="50" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="1.5"/>
   <text x="380" y="220" text-anchor="middle" font-weight="600" fill="#166534">Graphite :2003</text>
@@ -148,7 +150,7 @@ The goal is to make the standard Application Insights UX behave as if Piclaw wer
 | Session | Piclaw runtime session/fork | `session.id`, `ai.session.id`, `piclaw.session.id`; value is `sessionLeafId` when available, otherwise `chatJid` |
 | Operation / transaction | One agent turn | `piclaw.turn_id`; child model/tool spans share the same trace/operation |
 | Request | User-visible agent turn | `agent.turn` SERVER span, request-style attributes (`http.route=/agent/turn`) |
-| Dependency | Work performed by the turn | `model.call`, `tool.call`, `provider.error` CLIENT/dependency spans |
+| Dependency | Work performed by the turn | `model.call` and `tool.call` CLIENT/dependency spans; `provider.error` is an error span |
 | Metrics | Spend and performance | token dimensions on `model.call`, duration/count metrics in Graphite, standard Azure Monitor metrics when enabled |
 
 ### Why these fields
@@ -240,8 +242,7 @@ These interactions should be emitted by the backend as structured log records an
     "session.id": "session-leaf-123",
     "piclaw.instance": "smith",
     "piclaw.model": "azure-openai/gpt-5-4",
-    "piclaw.turn.status": "error",
-    "piclaw.recovery.attempts": 0
+    "piclaw.turn.status": "error"
   },
   "events": [
     {
@@ -314,12 +315,10 @@ These interactions should be emitted by the backend as structured log records an
 piclaw.smith.agent.turn.count 1 1745828400
 piclaw.smith.agent.turn.duration_ms 4523 1745828400
 piclaw.smith.agent.turn.success 1 1745828400
-piclaw.smith.agent.turn.error 0 1745828400
 
 # Tool calls
 piclaw.smith.tool.bash.count 1 1745828400
 piclaw.smith.tool.bash.duration_ms 320 1745828400
-piclaw.smith.tool.bash.error 0 1745828400
 
 # Recovery
 piclaw.smith.recovery.attempts 2 1745828400
@@ -327,7 +326,7 @@ piclaw.smith.provider.error.rate_limit 1 1745828400
 
 # Session lifecycle
 piclaw.smith.session.created 1 1745828400
-piclaw.smith.session.evicted 0 1745828400
+piclaw.smith.session.evicted 1 1745828400
 
 # Dream
 piclaw.smith.dream.duration_ms 45000 1745828400

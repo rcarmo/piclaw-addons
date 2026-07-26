@@ -3,9 +3,11 @@
 Telegram is an **optional secondary channel** for mobile-first chat access.
 The web UI remains the primary interface.
 
+Requires Piclaw `>=2.0.0`.
+
 ## Enable
 
-Open **Settings → Telegram**, save the BotFather token, and enable the channel. The token is stored in the Piclaw keychain as `telegram/bot-token`; non-secret settings use the direct add-on config API and extension KV.
+Open **Settings → Telegram**, save the BotFather token, enable the channel, then reload Piclaw. The token is stored in the Piclaw keychain as `telegram/bot-token`; non-secret settings use the direct add-on config API and extension KV.
 
 Environment overrides are also supported:
 
@@ -29,10 +31,10 @@ Piclaw stores Telegram chats as `chat_jid` values like:
 ## Notes
 
 - Telegram uses long polling by default.
-- Messages are prefixed with assistant name, same as WhatsApp behavior.
+- Telegram sends assistant messages unchanged; unlike WhatsApp, it does not prepend the assistant name.
 - Telegram formatting guidance is applied in channel-specific prompt hints.
 - This channel is opt-in and lazy-loaded, so default web-first setups pay no Telegram startup cost.
 
 ## Disable
 
-Unset `PICLAW_TELEGRAM_ENABLED` (or set to `0` / `false`).
+Disable the channel in **Settings → Telegram**, then reload Piclaw. Unsetting `PICLAW_TELEGRAM_ENABLED` disables environment-based enablement but does not override an enabled value saved through Settings.

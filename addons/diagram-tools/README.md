@@ -2,6 +2,8 @@
 
 Architecture diagram workflow for the portfolio site — JSON graph definitions → SVG rendering → colour palette management.
 
+Requires Piclaw `>=1.8.0`.
+
 ## How it works
 
 ![diagram-tools workflow](assets/workflow.svg)

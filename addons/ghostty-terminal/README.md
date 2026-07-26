@@ -1,6 +1,10 @@
 # Ghostty Terminal
 
-`@rcarmo/piclaw-addon-ghostty-terminal` provides the Ghostty-powered Piclaw terminal pane as an optional add-on.
+`@rcarmo/piclaw-addon-ghostty-terminal` provides the Ghostty-powered Piclaw terminal pane as an optional add-on. Requires Piclaw `>=2.5.5`.
+
+## Install
+
+Open **Settings → Add-Ons** and install **ghostty-terminal** from the catalog, then reload Piclaw.
 
 Piclaw core defaults to the xterm.js terminal renderer. This add-on is for users who want a more modern and functional Ghostty-web/WASM terminal experience on capable, high-end desktop browsers.
 
@@ -16,6 +20,7 @@ Piclaw core defaults to the xterm.js terminal renderer. This add-on is for users
   - `web/vendor/ghostty-vt.wasm`
   - `web/vendor/ghostty-web.meta.json`
 - Keeps Ghostty assets out of Piclaw core until this add-on is installed/enabled.
+- Registers no agent tools, commands, settings pane, or keychain entries.
 
 ## Notes
 

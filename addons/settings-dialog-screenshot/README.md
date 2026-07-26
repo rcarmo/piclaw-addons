@@ -2,6 +2,8 @@
 
 ## Install
 
+Requires Piclaw `>=2.0.0`.
+
 Open **Settings → Add-Ons** and install **settings-dialog-screenshot** from the catalog.
 
 Developer add-on for capturing screenshots of the Pi web settings dialog, cropped to the dialog window only.

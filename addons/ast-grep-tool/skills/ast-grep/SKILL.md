@@ -1,6 +1,7 @@
 ---
 name: ast-grep
 description: Use `code_search` and `code_rewrite` for syntax-aware code search and refactors when structure matters.
+distribution: public
 ---
 
 # AST Grep

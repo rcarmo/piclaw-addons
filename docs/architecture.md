@@ -10,10 +10,10 @@ Each entry:
 {
   "slug": "proxmox",
   "name": "@rcarmo/piclaw-addon-proxmox",
-  "version": "0.1.5",
+  "version": "0.1.8",
   "install": {
     "kind": "tarball",
-    "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-proxmox-0.1.5.tgz"
+    "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-proxmox-0.1.8.tgz"
   },
   "owner": { "login": "rcarmo", "url": "https://github.com/rcarmo" },
   "contributors": [],
@@ -35,7 +35,7 @@ Each entry:
 2. The user picks an add-on and clicks Install.
 3. The runtime downloads the public tarball URL from `install.spec` and installs it into `/workspace/.pi/extensions/node_modules/`.
 4. The local `.pi/extensions/package.json` dependency record is updated to keep the same public tarball URL for later upgrade/remove flows.
-5. Piclaw restarts to load the runtime entry (`pi.extensions`) and browser entry (`pi.web.entries`).
+5. The user reloads Piclaw to load the runtime entry (`pi.extensions`) and browser entry (`pi.web.entries`).
 
 First-party install/remove must remain **zero-auth**. Do not route these flows back through npmjs.org or authenticated GitHub Packages reads.
 
@@ -85,10 +85,10 @@ piclaw-addons/
 
 | Workflow | Trigger | What it does |
 |---|---|---|
-| `validate-metadata` | every push + PRs | Runs `check:catalog` and `bun pm pack --dry-run` |
-| `sync-catalog` | `addons/**` push | Regenerates `catalog.json`, commits if changed |
-| `build` | `catalog.json` / `build.ts` / `assets/**` / `addons/**` | Builds docs site + packs tarballs → deploys to gh-pages |
-| `publish` | `catalog.json` / `addons/**/package.json` | Publishes each addon to GitHub Packages (skips already-published versions) |
+| `validate-metadata` | pull requests and pushes to `main` | Runs catalog validation, Earendil type-check/tests, standalone imports, and `bun pm pack --dry-run` |
+| `sync-catalog` | relevant `addons/**` or catalog-script pushes to `main` | Regenerates `catalog.json` and root package metadata, then commits changes |
+| `build` | relevant catalog, build, asset, or `addons/**` pushes to `main` | Runs opted-in add-on UX tests, builds the docs site and tarballs, then deploys GitHub Pages |
+| `publish` | add-on manifest pushes to `main` | Publishes version-bumped add-ons to GitHub Packages and skips unchanged versions |
 | `triage-issues` | issue opened | Scores issue text against addon slugs/tags, posts comment + applies `addon:<slug>` label |
 
 ## Metadata commands

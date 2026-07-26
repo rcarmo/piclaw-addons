@@ -12,24 +12,24 @@ Export chat history through piclaw's internal localhost HTML export endpoint and
 
 1. Export the last 50 messages:
    ```bash
-   bun ../scripts/export-timeline-pdf.ts --chat web:default --last 50
+   bun ../../scripts/export-timeline-pdf.ts --chat web:default --last 50
    ```
 
 2. Export a date range:
    ```bash
-   bun ../scripts/export-timeline-pdf.ts --chat web:default \
+   bun ../../scripts/export-timeline-pdf.ts --chat web:default \
      --from "2026-03-01T00:00:00Z" --to "2026-03-05T23:59:59Z"
    ```
 
 3. Export a specific message range by row ID:
    ```bash
-   bun ../scripts/export-timeline-pdf.ts --chat web:default \
+   bun ../../scripts/export-timeline-pdf.ts --chat web:default \
      --from-row 1234 --to-row 1300
    ```
 
 4. Dark theme:
    ```bash
-   bun ../scripts/export-timeline-pdf.ts --chat web:default --last 20 --theme dark
+   bun ../../scripts/export-timeline-pdf.ts --chat web:default --last 20 --theme dark
    ```
 
 ## Options

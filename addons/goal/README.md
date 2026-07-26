@@ -2,6 +2,8 @@
 
 Codex-style persisted thread goals for Piclaw.
 
+Requires Piclaw `>=2.0.0`.
+
 This add-on replaces the older prompt-template goal loop with a high-fidelity port of Codex CLI's goal model: a per-chat/thread goal record, Codex-compatible model tools, `/goal` user controls, budget accounting, and continuation/budget-limit prompts derived from Codex's upstream logic.
 
 ## Install
@@ -34,8 +36,8 @@ Open **Settings → Add-Ons** and install **goal** from the catalog.
 
 - `/goal` or `/goal help` — print the command list as a visible table plus the current goal status (also `?`, `commands`)
 - `/goal status` — show the current goal state
-- `/goal <objective>` — create a new active goal, or replace the current one after confirmation
-- `/goal pause` or `/goal off` — pause the current goal
+- `/goal <objective>` — create a new active goal or immediately replace the current objective
+- `/goal pause`, `/goal off`, or `/goal stop` — pause the current goal
 - `/goal resume` or `/goal on` — resume a paused/blocked/usage-limited/budget-limited goal as active and queue continuation
 - `/goal clear` or `/goal reset` — clear the saved thread goal
 - `/goal edit` — points to the Settings pane or replacement flow
@@ -153,7 +155,9 @@ Open **Settings → Goal** to:
 - set or clear the token budget
 - pause, resume, mark blocked, mark complete, clear, or refresh the goal
 
-The prompt templates are intentionally no longer editable. The add-on embeds Codex's goal prompt policy so behavior stays faithful to the upstream goal logic.
+The pane uses `/agent/addons/api/goal/goal?chat_jid=...`. The add-on stores no secrets and does not use the keychain.
+
+The prompt templates are intentionally no longer editable. The add-on embeds Codex's goal prompt policy so behaviour stays faithful to the upstream goal logic.
 
 ## Storage model
 

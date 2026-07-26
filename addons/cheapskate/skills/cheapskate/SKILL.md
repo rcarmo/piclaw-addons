@@ -18,7 +18,7 @@ Select `cheapskate/auto` from the model picker. It transparently routes requests
 
 ## Setup
 
-Set API keys in **Settings → Cheapskate** or directly in the keychain. A runtime restart is needed after adding/changing a key so the provider environment picks it up.
+Set API keys in **Settings → Cheapskate** or directly in the keychain. Restart the runtime after changing a key so its injected environment is rebuilt. Cloudflare also requires `CLOUDFLARE_ACCOUNT_ID`, which the pane does not collect.
 
 | Provider | Env var / Keychain entry | Sign up |
 |---|---|---|

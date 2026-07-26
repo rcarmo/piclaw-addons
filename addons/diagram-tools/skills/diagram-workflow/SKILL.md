@@ -1,3 +1,9 @@
+---
+name: diagram-workflow
+description: Define, render, inject, and verify project architecture diagrams from JSON graph files.
+distribution: public
+---
+
 # Diagram Workflow
 
 End-to-end architecture diagram pipeline: define a JSON graph → render SVG → inject into project markdown → rebuild site.

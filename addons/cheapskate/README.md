@@ -2,6 +2,8 @@
 
 Free-tier provider auto-rotation for piclaw. Select `cheapskate/auto` as your model and requests are transparently routed to whichever free-tier backend is available, rotating on rate-limit errors.
 
+Requires Piclaw `>=1.8.0`.
+
 ## Install
 
 Open **Settings → Add-Ons** and install **cheapskate** from the catalog.
@@ -23,7 +25,7 @@ Context-length errors also trigger rotation, so long conversations don't get stu
 | OpenRouter | DeepSeek R1 (free) | 163K | ✅ | `openrouter/api-key` |
 | OpenCode Zen | GPT OSS 120B | 128K | ✅ | `opencode/api-key` |
 | NVIDIA NIM | Llama 3.3 70B | 131K | ❌ | `nvidia/api-key` |
-| Cloudflare Workers AI | Llama 3.3 70B | 131K | ❌ | `cloudflare/api-token` |
+| Cloudflare Workers AI | Llama 3.3 70B | 131K | ❌ | `cloudflare/api-token` plus `CLOUDFLARE_ACCOUNT_ID` |
 
 ## Settings pane
 
@@ -38,7 +40,7 @@ The pane reads/writes non-secret config through the direct backend add-on config
 
 ![Cheapskate settings pane on the microVM test instance](./assets/settings-pane-microvm.png)
 
-A restart is needed after adding or changing a key for the runtime to pick it up.
+A restart is needed after adding or changing a key for the runtime to pick it up. The settings pane stores the Cloudflare token but does not collect `CLOUDFLARE_ACCOUNT_ID`; set that non-secret account ID in the runtime environment.
 
 ## Storage model
 
@@ -49,5 +51,9 @@ A restart is needed after adding or changing a key for the runtime to pick it up
 | Safety cap toggles | **Runtime database** — same KV store as above |
 
 No config files are written to disk. Legacy `.pi/cheapskate.json` is auto-migrated to the runtime database on first load.
+
+## Management tool
+
+The `cheapskate` tool supports `status`, `list`, `usage`, and `rotate` actions for inspecting or changing the active backend.
 
 Outside piclaw, the extension still imports and runs in a vanilla Pi/Bun environment: piclaw-specific config hooks are optional, and KV storage falls back to an in-memory store.

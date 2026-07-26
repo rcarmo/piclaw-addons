@@ -1,4 +1,4 @@
-# Delegate 0.2.0 — Reference
+# Delegate 0.2.3 — Reference
 
 Delegate registers one Pi tool, `delegate`, that runs a self-contained task in a fresh child Pi process using a verified cheaper-model policy.
 
@@ -146,7 +146,6 @@ Representative arguments:
 --model <exact-provider/model>
 --tools <comma-separated-profile>
 [-e <mcp-adapter>]
-[-e <recognized-tool-provider-package> ...]
 --append-system-prompt <delegate hints>
 [@/workspace/image.png ...]
 ```
@@ -228,11 +227,13 @@ The category uses a Google-compatible string enum schema.
 
 Tool profiles:
 
-| Profile | Tools |
+| Profile | Built-in tools |
 |---|---|
-| `read_only` | `read,grep,find,ls,mcp` |
-| `standard` | `read,grep,find,ls,bash,mcp` |
-| `full` | `read,grep,find,ls,bash,edit,write,mcp` |
+| `read_only` | `read,grep,find,ls` |
+| `standard` | `read,grep,find,ls,bash` |
+| `full` | `read,grep,find,ls,bash,edit,write` |
+
+If the known MCP adapter is installed, Delegate adds the `mcp` tool and loads that adapter explicitly.
 
 ## 11. Result details
 

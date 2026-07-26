@@ -1,10 +1,12 @@
 # @rcarmo/piclaw-addon-whatsapp
 
-WhatsApp channel addon for PiClaw. Connects to WhatsApp Web via Baileys and routes messages through the agent.
+WhatsApp channel add-on for Piclaw. The current package is not self-contained for standalone catalog use: its runtime imports Baileys, `qrcode-terminal`, and shared Piclaw channel modules that its manifest does not supply.
+
+Requires Piclaw `>=2.0.0`.
 
 ## Configuration
 
-Use **Settings → WhatsApp** to store the phone number and enable the channel through the direct add-on config API. Environment overrides are also supported:
+Use **Settings → WhatsApp** to store the phone number and enable the channel through the direct add-on config API, then reload Piclaw. Environment overrides are also supported:
 
 | Env var | Description |
 |---|---|

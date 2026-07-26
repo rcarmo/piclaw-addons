@@ -1,6 +1,7 @@
 ---
 name: stealth-browse
-description: Use the stealth browser for human-like web automation against bot-protected sites. Handles login flows, scraping, and form filling with anti-detection bypass.
+description: Use the stealth browser for human-like web automation against bot-protected sites. Handles login flows, scraping, and form filling with anti-detection measures.
+distribution: public
 ---
 
 # Stealth Browse
@@ -20,7 +21,7 @@ Use the `stealth_browser` tool for web automation that requires anti-bot bypass 
 
 ## Session lifecycle
 
-A session persists across tool calls within a turn. The first `goto` call launches a headless Chromium; subsequent calls reuse it. The session auto-closes after 5 minutes of inactivity or when the turn ends.
+The first session-using action launches Chromium. Subsequent calls reuse the session. The add-on checks for five minutes of inactivity about five minutes after session creation; activity does not reset or reschedule that check. `close` and extension unload always stop Chromium.
 
 ## Actions
 
@@ -58,7 +59,7 @@ stealth_browser action=close
 
 ## Configuration
 
-Set via environment variables or the add-on settings pane:
+Set via environment variables:
 
 | Variable | Description | Default |
 |---|---|---|

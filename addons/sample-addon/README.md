@@ -2,6 +2,8 @@
 
 Starter template for piclaw add-on developers. Demonstrates the core patterns every settings-aware add-on needs.
 
+Requires Piclaw `>=2.0.0`.
+
 ## Install
 
 Open **Settings → Add-Ons** and install **sample-addon** from the catalog.

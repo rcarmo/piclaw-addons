@@ -1,10 +1,12 @@
 # YoloChat
 
+YoloChat is a skill package for unauthenticated inter-instance messaging over HTTP. It does not register a runtime extension or settings pane.
+
+Requires Piclaw `>=1.8.0`.
+
 ## Install
 
-Open **Settings → Add-Ons** and install **yolochat** from the catalog.
-
-Zero-guardrail inter-instance messaging for Pi.
+Open **Settings → Add-Ons** and install **yolochat** from the catalog. The shell examples below assume a source checkout of `piclaw-addons`; an installed skill must resolve the sender script from its add-on package root.
 
 ## What it does
 
@@ -49,7 +51,7 @@ Messages arrive as normal user messages in the target chat's timeline with the e
 ## Address format
 
 ```
-<chat_jid>@<hostname>:<port>
+<chat-name>@<hostname>:<port>
 ```
 
-Port defaults to 3000 if omitted.
+Port defaults to 3000 if omitted. The sender splits at the first `@`, so the chat portion cannot contain `@`.

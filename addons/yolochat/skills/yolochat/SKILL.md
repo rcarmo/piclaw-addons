@@ -1,3 +1,9 @@
+---
+name: yolochat
+description: Send unauthenticated best-effort messages to another reachable Piclaw instance over HTTP.
+distribution: public
+---
+
 # YoloChat Skill
 
 Use the `yolochat-send.ts` script to send messages to other Pi instances over HTTP.
@@ -5,12 +11,14 @@ Use the `yolochat-send.ts` script to send messages to other Pi instances over HT
 ## Address format
 
 ```
-<chat_jid>@<hostname>:<port>
+<chat-name>@<hostname>:<port>
 ```
 
 Examples:
 - `web:default@192.168.1.50:3000`
 - `web:lab@pi.local:3000`
+
+The sender splits at the first `@`; the chat portion therefore cannot contain `@`.
 
 ## Envelope format
 
@@ -30,13 +38,13 @@ The envelope is posted as the `content` field of a standard piclaw agent message
 Pipe the message body into the script via stdin:
 
 ```bash
-echo "Hello!" | bun /path/to/yolochat/scripts/yolochat-send.ts web:default@192.168.1.50:3000
+echo "Hello!" | bun ../../scripts/yolochat-send.ts web:default@192.168.1.50:3000
 ```
 
 Multiline messages:
 
 ```bash
-cat <<'EOF' | bun /path/to/yolochat/scripts/yolochat-send.ts web:default@192.168.1.50:3000
+cat <<'EOF' | bun ../../scripts/yolochat-send.ts web:default@192.168.1.50:3000
 First line
 Second line
 Third line
@@ -54,7 +62,7 @@ Parse the `From:` header to know who sent it and to reply back.
 Extract the `From:` address from the received envelope and use it as the target for your reply:
 
 ```bash
-echo "Got your message, thanks!" | bun /path/to/yolochat/scripts/yolochat-send.ts web:default@10.0.0.5:3000
+echo "Got your message, thanks!" | bun ../../scripts/yolochat-send.ts web:default@10.0.0.5:3000
 ```
 
 ## Constraints
