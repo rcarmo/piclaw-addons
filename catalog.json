@@ -133,7 +133,7 @@
     {
       "slug": "dev-tools",
       "name": "@rcarmo/piclaw-addon-dev-tools",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "type": "extension",
       "description": "Developer tools for workspace diagnostics and environment inspection",
       "path": "addons/dev-tools",
@@ -146,7 +146,7 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-dev-tools-0.1.2.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-dev-tools-0.1.3.tgz"
       },
       "updatedAt": "2026-07-17"
     },

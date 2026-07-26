@@ -1,5 +1,12 @@
 import { expect, test } from "bun:test";
-import { withDevToolProgress } from "./index.js";
+import { GitHistoryToolSchema, withDevToolProgress } from "./index.js";
+
+test("git history mode uses a Google-compatible string enum", () => {
+  expect(GitHistoryToolSchema.properties.mode).toMatchObject({
+    type: "string",
+    enum: ["log", "content_search", "message_search", "blame"],
+  });
+});
 
 function uiHarness(hasUI = true) {
   const calls: Array<[string, unknown]> = [];

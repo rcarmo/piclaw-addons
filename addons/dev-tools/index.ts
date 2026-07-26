@@ -250,6 +250,22 @@ function result(text: string) {
   return { content: [{ type: "text" as const, text }], details: {} };
 }
 
+export const GitHistoryToolSchema = Type.Object({
+  mode: Type.String({
+    enum: ["log", "content_search", "message_search", "blame"],
+    description: "log=recent commits, content_search=string-in-diff, message_search=commit message search, blame=file blame",
+  }),
+  query: Type.Optional(Type.String({ description: "Required for content_search and message_search" })),
+  file: Type.Optional(Type.String({ description: "File path (relative or absolute). Required for blame." })),
+  max_count: Type.Optional(Type.Number({ description: "Max commits (default 20)" })),
+  author: Type.Optional(Type.String({ description: "Author name/email pattern" })),
+  since: Type.Optional(Type.String({ description: "Git date filter, e.g. '2024-01-01'" })),
+  diff: Type.Optional(Type.Boolean({ description: "Include patch output (not in blame)" })),
+  lines: Type.Optional(Type.String({ description: "Line range for blame: '10', '10,20', '10:20'" })),
+  all: Type.Optional(Type.Boolean({ description: "Search all branches (cannot combine with ref)" })),
+  ref: Type.Optional(Type.String({ description: "Branch/tag/ref to search" })),
+});
+
 /* ── Extension entry point ─────────────────────────────────────── */
 
 export default function (pi: ExtensionAPI) {
@@ -294,20 +310,7 @@ export default function (pi: ExtensionAPI) {
     name: "git_history",
     label: "Git History",
     description: "Inspect git history: commits, code-history searches, commit-message searches, and blame. Prefer over raw git commands for structured history queries with truncation. Returns JSON envelope.",
-    parameters: Type.Object({
-      mode: Type.Union([Type.Literal("log"), Type.Literal("content_search"), Type.Literal("message_search"), Type.Literal("blame")], {
-        description: "log=recent commits, content_search=string-in-diff, message_search=commit message search, blame=file blame",
-      }),
-      query: Type.Optional(Type.String({ description: "Required for content_search and message_search" })),
-      file: Type.Optional(Type.String({ description: "File path (relative or absolute). Required for blame." })),
-      max_count: Type.Optional(Type.Number({ description: "Max commits (default 20)" })),
-      author: Type.Optional(Type.String({ description: "Author name/email pattern" })),
-      since: Type.Optional(Type.String({ description: "Git date filter, e.g. '2024-01-01'" })),
-      diff: Type.Optional(Type.Boolean({ description: "Include patch output (not in blame)" })),
-      lines: Type.Optional(Type.String({ description: "Line range for blame: '10', '10,20', '10:20'" })),
-      all: Type.Optional(Type.Boolean({ description: "Search all branches (cannot combine with ref)" })),
-      ref: Type.Optional(Type.String({ description: "Branch/tag/ref to search" })),
-    }),
+    parameters: GitHistoryToolSchema,
     async execute(_id, params, signal, _onUpdate, ctx) {
       type P = typeof params;
       const p = params as P;
