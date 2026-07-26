@@ -105,6 +105,7 @@ test("web defaults to eight visible sessions and follows sidebar surface variabl
   expect(source).toContain("const LIVE_REFRESH_DEBOUNCE_MS = 1000;");
   expect(source).toContain("const PREVIEW_REFRESH_INTERVAL_MS = 3000;");
   expect(source).toContain("previewByJid: new Map()");
+  expect(source).toContain("retainedLivePreviewByJid: new Map()");
   expect(source).toContain("refreshSessionPreviews");
   expect(source).toContain("/agent/status?chat_jid=");
   expect(source).not.toContain("session-dashboard-toggle-label");
@@ -150,6 +151,8 @@ test("web defaults to eight visible sessions and follows sidebar surface variabl
   expect(source).not.toContain("backdrop-filter");
   expect(source).not.toContain("box-shadow: 0 20px");
   expect(source).not.toContain("border-radius: 16px");
+  expect(source).toContain('previewText.classList.toggle("tool", preview.kind === "tool")');
+  expect(source).toContain(".session-dashboard-preview-text.tool { font-family: var(--font-mono");
 });
 
 test("web layout helper always resolves two rows with four to eight slots", () => {
@@ -242,6 +245,64 @@ test("web merge helper keeps active sessions visible and orders streaming sessio
 
   expect(merged.map((session: any) => session.chat_jid)).toEqual(["web:auditor", "web:addons"]);
   expect(__sessionDashboardTest.formatContext({ percent: 21.4 })).toBe("21% context");
+});
+
+test("web preview state retains live thoughts while tools run and after they finish", () => {
+  const thinking = __sessionDashboardTest.resolveStatusPreviewState({
+    status: "active",
+    thought: { text: "Planning the fix", totalLines: 1 },
+    data: { type: "thinking", turn_id: "turn-1" },
+  });
+  expect(thinking.preview).toMatchObject({ kind: "thinking", text: "Planning the fix" });
+  expect(thinking.retained).toMatchObject({ kind: "thinking", text: "Planning the fix", turnId: "turn-1" });
+
+  const tool = __sessionDashboardTest.resolveStatusPreviewState({
+    status: "active",
+    thought: { text: "", totalLines: 0 },
+    draft: { text: "", totalLines: 0 },
+    data: { type: "tool_status", title: "Reading files", status: "Streaming output...", turn_id: "turn-1" },
+  }, thinking.retained);
+  expect(tool.preview).toMatchObject({ kind: "tool", text: "Reading files — Streaming output..." });
+  expect(tool.retained).toEqual(thinking.retained);
+
+  const completed = __sessionDashboardTest.resolveStatusPreviewState({
+    status: "active",
+    thought: { text: "", totalLines: 0 },
+    draft: { text: "", totalLines: 0 },
+    data: { type: "tool_status", title: "Reading files", status: "Done", turn_id: "turn-1" },
+  }, tool.retained);
+  expect(completed.preview).toMatchObject({ kind: "thinking", text: "Planning the fix", turnId: "turn-1" });
+  expect(completed.retained).toEqual(thinking.retained);
+
+  const nextTurn = __sessionDashboardTest.resolveStatusPreviewState({
+    status: "active",
+    data: { type: "tool_call", title: "New work", turn_id: "turn-2" },
+  }, completed.retained);
+  expect(nextTurn.preview).toMatchObject({ kind: "tool", text: "New work" });
+  expect(nextTurn.retained).toBeNull();
+
+  expect(__sessionDashboardTest.resolveStatusPreviewState({ status: "idle" }, completed.retained)).toEqual({ preview: null, retained: null });
+});
+
+test("web live-state reconciliation preserves previews across transient fetch failures", () => {
+  const active = new Map([["web:addons", { chat_jid: "web:addons", is_active: true }]]);
+  expect(__sessionDashboardTest.reconcileActiveChats(active, null)).toBe(active);
+  expect(__sessionDashboardTest.reconcileActiveChats(active, { chats: [] })).toEqual(new Map());
+
+  const preview = { kind: "thinking", label: "thinking", text: "Planning the fix", totalLines: 1, turnId: "turn-1" };
+  const previews = new Map([["web:addons", preview]]);
+  const retained = new Map([["web:addons", preview]]);
+  const failed = __sessionDashboardTest.reconcileStatusPreviewResults(previews, retained, [
+    ["web:addons", { ok: false, status: null }],
+  ]);
+  expect(failed.previews).toEqual(previews);
+  expect(failed.retained).toEqual(retained);
+
+  const idle = __sessionDashboardTest.reconcileStatusPreviewResults(previews, retained, [
+    ["web:addons", { ok: true, status: { status: "idle" } }],
+  ]);
+  expect(idle.previews).toEqual(new Map());
+  expect(idle.retained).toEqual(new Map());
 });
 
 test("web preview helpers prefer agent output, then show active tool invocations", () => {

@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-session-dashboard",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Roll-down active session dashboard with recent work summaries and context indicators",
   "type": "module",
   "main": "index.ts",

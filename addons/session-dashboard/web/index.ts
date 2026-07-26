@@ -31,6 +31,7 @@ export function installSessionDashboard() {
     activeByJid: new Map(),
     contextByJid: new Map(),
     previewByJid: new Map(),
+    retainedLivePreviewByJid: new Map(),
     loading: false,
     previewLoading: false,
     error: "",
@@ -130,9 +131,9 @@ export function installSessionDashboard() {
     try {
       const [recentPayload, activePayload] = await Promise.all([
         apiJson(`${API}?limit=${encodeURIComponent(state.limit)}`),
-        apiJson("/agent/active-chats").catch(() => ({ chats: [] })),
+        apiJson("/agent/active-chats").catch(() => null),
       ]);
-      state.activeByJid = new Map((activePayload?.chats || []).filter((chat) => chat?.chat_jid).map((chat) => [chat.chat_jid, chat]));
+      state.activeByJid = reconcileActiveChats(state.activeByJid, activePayload);
       state.lastGeneratedAt = recentPayload?.generated_at || new Date().toISOString();
       state.sessions = mergeSessions(recentPayload?.sessions || [], [...state.activeByJid.values()], state.limit);
       render();
@@ -174,10 +175,15 @@ export function installSessionDashboard() {
     const visibleJids = new Set(visible.map((session) => session.chat_jid));
     const activeVisibleJids = new Set(activeVisible.map((session) => session.chat_jid));
     const next = new Map(state.previewByJid);
-    for (const jid of [...next.keys()]) {
-      if (!visibleJids.has(jid) || !activeVisibleJids.has(jid)) next.delete(jid);
+    const retained = new Map(state.retainedLivePreviewByJid);
+    for (const jid of new Set([...next.keys(), ...retained.keys()])) {
+      if (!visibleJids.has(jid) || !activeVisibleJids.has(jid)) {
+        next.delete(jid);
+        retained.delete(jid);
+      }
     }
     if (!activeVisible.length) {
+      state.retainedLivePreviewByJid = retained;
       if (!previewMapsEqual(state.previewByJid, next)) {
         state.previewByJid = next;
         if (options.renderOnChange !== false) render();
@@ -190,13 +196,15 @@ export function installSessionDashboard() {
       const entries = await Promise.all(activeVisible.map(async (session) => {
         try {
           const status = await apiJson(`/agent/status?chat_jid=${encodeURIComponent(session.chat_jid)}`);
-          return [session.chat_jid, resolveStatusPreview(status)];
+          return [session.chat_jid, { ok: true, status }];
         } catch {
-          return [session.chat_jid, null];
+          return [session.chat_jid, { ok: false, status: null }];
         }
       }));
-      for (const [jid, preview] of entries) {
-        if (preview) next.set(jid, preview);
+      const reconciled = reconcileStatusPreviewResults(next, retained, entries);
+      state.retainedLivePreviewByJid = reconciled.retained;
+      for (const jid of new Set([...next.keys(), ...reconciled.previews.keys()])) {
+        if (reconciled.previews.has(jid)) next.set(jid, reconciled.previews.get(jid));
         else next.delete(jid);
       }
       if (!previewMapsEqual(state.previewByJid, next)) {
@@ -292,6 +300,8 @@ export function installSessionDashboard() {
       previewLabel.className = "session-dashboard-preview-label";
       previewLabel.textContent = preview.label;
       const previewText = document.createElement("span");
+      previewText.className = "session-dashboard-preview-text";
+      previewText.classList.toggle("tool", preview.kind === "tool");
       previewText.textContent = preview.text;
       summary.append(previewLabel, previewText);
     } else {
@@ -478,6 +488,11 @@ function resolveDashboardLayout(width) {
   return { columns: 4, rows: 2, limit: DEFAULT_LIMIT };
 }
 
+function reconcileActiveChats(previous, payload) {
+  if (!Array.isArray(payload?.chats)) return previous;
+  return new Map(payload.chats.filter((chat) => chat?.chat_jid).map((chat) => [chat.chat_jid, chat]));
+}
+
 function activeStateScore(session, active) {
   if (!active) return 0;
   if (active.activity_status === "streaming") return 3;
@@ -518,10 +533,34 @@ function formatContext(context) {
 }
 
 function resolveStatusPreview(status) {
-  if (!status || status.status !== "active") return null;
-  return normalizePreview("draft", status.draft)
-    || normalizePreview("thinking", status.thought)
-    || normalizeToolPreview(status.data);
+  return resolveStatusPreviewState(status).preview;
+}
+
+function reconcileStatusPreviewResults(previews, retainedPreviews, entries) {
+  const next = new Map(previews);
+  const retained = new Map(retainedPreviews);
+  for (const [jid, result] of entries) {
+    if (!result?.ok) continue;
+    const resolved = resolveStatusPreviewState(result.status, retained.get(jid));
+    if (resolved.retained) retained.set(jid, resolved.retained);
+    else retained.delete(jid);
+    if (resolved.preview) next.set(jid, resolved.preview);
+    else next.delete(jid);
+  }
+  return { previews: next, retained };
+}
+
+function resolveStatusPreviewState(status, retainedPreview = null) {
+  if (!status || status.status !== "active") return { preview: null, retained: null };
+  const turnIdValue = status.data?.turn_id ?? status.data?.turnId;
+  const turnId = typeof turnIdValue === "string" ? turnIdValue.trim() : "";
+  const retained = turnId && retainedPreview?.turnId === turnId ? retainedPreview : null;
+  const live = normalizePreview("draft", status.draft) || normalizePreview("thinking", status.thought);
+  const nextRetained = live && turnId ? { ...live, turnId } : retained;
+  return {
+    preview: live || normalizeToolPreview(status.data) || nextRetained,
+    retained: nextRetained,
+  };
 }
 
 function normalizePreview(kind, value) {
@@ -859,6 +898,7 @@ function injectStyles() {
     .session-dashboard-meta { color: var(--text-secondary,#94a3b8); font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .session-dashboard-summary { color: var(--text-primary,#e5e7eb); font-size: 12px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
     .session-dashboard-preview-label { display: inline-flex; align-items: center; max-width: max-content; margin: 0 6px 2px 0; padding: 1px 5px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--accent-color,#2563eb) 38%, transparent); color: var(--accent-color,#60a5fa); font-size: 9px; line-height: 1.3; text-transform: uppercase; letter-spacing: .04em; }
+    .session-dashboard-preview-text.tool { font-family: var(--font-mono, var(--font-family-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace)); overflow-wrap: anywhere; }
     .session-dashboard-context { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--text-secondary,#94a3b8); font-size: 10px; }
     .session-dashboard-context-meter { flex: 1; height: 5px; max-width: 90px; border-radius: 999px; background: color-mix(in srgb, var(--border-color, rgba(148,163,184,.35)) 72%, transparent); overflow: hidden; }
     .session-dashboard-context-meter span { display: block; height: 100%; border-radius: inherit; background: var(--accent-color,#2563eb); }
@@ -872,6 +912,8 @@ function injectStyles() {
 
 export const __sessionDashboardTest = {
   mergeSessions,
+  reconcileActiveChats,
+  reconcileStatusPreviewResults,
   resolveDashboardLayout,
   activeFillPercent,
   isEditableTarget,
@@ -880,6 +922,7 @@ export const __sessionDashboardTest = {
   normalizePreview,
   normalizeToolPreview,
   resolveStatusPreview,
+  resolveStatusPreviewState,
   previewMapsEqual,
   buildSessionUrl,
   navigateToSession,
