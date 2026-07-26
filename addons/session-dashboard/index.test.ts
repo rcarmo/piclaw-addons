@@ -97,11 +97,29 @@ test("web defaults to eight visible sessions and follows sidebar surface variabl
   const source = readFileSync(join(import.meta.dir, "web", "index.ts"), "utf8");
 
   expect(source).toContain("const DEFAULT_LIMIT = 8;");
+  expect(source).toContain("const DASHBOARD_REFRESH_INTERVAL_MS = 15000;");
+  expect(source).toContain("const FOOTER_CLOCK_INTERVAL_MS = 1000;");
+  expect(source).toContain("const LIVE_REFRESH_DEBOUNCE_MS = 1000;");
   expect(source).toContain("const PREVIEW_REFRESH_INTERVAL_MS = 3000;");
   expect(source).toContain("previewByJid: new Map()");
   expect(source).toContain("refreshSessionPreviews");
   expect(source).toContain("/agent/status?chat_jid=");
   expect(source).not.toContain("session-dashboard-toggle-label");
+  expect(source).not.toContain("session-dashboard-header");
+  expect(source).not.toContain("session-dashboard-title");
+  expect(source).not.toContain("session-dashboard-subtitle");
+  expect(source).not.toContain("session-dashboard-close");
+  expect(source).not.toContain("Active sessions</div>");
+  expect(source).toContain("session-dashboard-footer-status");
+  expect(source).toContain("scheduleFooterClock");
+  expect(source).toContain("renderFooter");
+  expect(source).toContain("slots • ${activeCount} active • ${state.currentChatJid}");
+  expect(source).not.toContain("/agent/models");
+  expect(source).not.toContain("/agent/model");
+  expect(source).not.toContain("getModels");
+  expect(source).toContain("history.pushState(null, \"\", url)");
+  expect(source).toContain('new NavigationEvent("popstate"');
+  expect(source).not.toContain("window.location.href = url.toString()");
   expect(source).toContain("--session-dashboard-panel-height");
   expect(source).toContain("--session-dashboard-active-fill");
   expect(source).toContain("flex-direction: column;");
@@ -124,6 +142,41 @@ test("web defaults to eight visible sessions and follows sidebar surface variabl
   expect(source).not.toContain("backdrop-filter");
   expect(source).not.toContain("box-shadow: 0 20px");
   expect(source).not.toContain("border-radius: 16px");
+});
+
+test("web session tiles switch in-app and preserve modified-click new tabs", () => {
+  const calls: any[] = [];
+  class FakePopStateEvent {
+    type: string;
+    state: unknown;
+    constructor(type: string, options: { state?: unknown } = {}) {
+      this.type = type;
+      this.state = options.state;
+    }
+  }
+  const runtimeWindow = {
+    location: { href: "https://example.test/?chat_jid=web%3Adefault&pane_popout=1&pane_path=notes.md" },
+    history: { pushState: (...args: any[]) => calls.push(["push", ...args]) },
+    dispatchEvent: (event: any) => { calls.push(["event", event.type]); return true; },
+    open: (...args: any[]) => calls.push(["open", ...args]),
+    PopStateEvent: FakePopStateEvent,
+  };
+
+  expect(__sessionDashboardTest.navigateToSession("web:addons", {}, runtimeWindow)).toBe("in-app");
+  expect(calls[0][0]).toBe("push");
+  expect(calls[0][3]).toBe("https://example.test/?chat_jid=web%3Aaddons");
+  expect(calls[1]).toEqual(["event", "popstate"]);
+
+  calls.length = 0;
+  expect(__sessionDashboardTest.navigateToSession("web:auditor", { ctrlKey: true }, runtimeWindow)).toBe("new-tab");
+  expect(calls).toEqual([["open", "https://example.test/?chat_jid=web%3Aauditor", "_blank", "noopener"]]);
+});
+
+test("web relative-time footer age changes without a network refresh", () => {
+  const updatedAt = "2026-07-26T10:00:00.000Z";
+  expect(__sessionDashboardTest.formatRelativeTime(updatedAt, Date.parse("2026-07-26T10:00:00.500Z"))).toBe("just now");
+  expect(__sessionDashboardTest.formatRelativeTime(updatedAt, Date.parse("2026-07-26T10:00:07.000Z"))).toBe("7s ago");
+  expect(__sessionDashboardTest.formatRelativeTime(updatedAt, Date.parse("2026-07-26T10:02:00.000Z"))).toBe("2m ago");
 });
 
 test("web tab meter fill is proportional to visible active sessions", () => {

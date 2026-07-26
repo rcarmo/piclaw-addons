@@ -5,6 +5,9 @@ const STORAGE_OPEN = "piclaw:session-dashboard:open";
 const STORAGE_LIMIT = "piclaw:session-dashboard:limit";
 const DEFAULT_LIMIT = 8;
 const DEFAULT_CHAT_JID = "web:default";
+const DASHBOARD_REFRESH_INTERVAL_MS = 15000;
+const FOOTER_CLOCK_INTERVAL_MS = 1000;
+const LIVE_REFRESH_DEBOUNCE_MS = 1000;
 const PREVIEW_REFRESH_INTERVAL_MS = 3000;
 const PREVIEW_MAX_LENGTH = 220;
 
@@ -30,6 +33,8 @@ export function installSessionDashboard() {
     lastGeneratedAt: null,
     pollTimer: null,
     previewTimer: null,
+    footerClockTimer: null,
+    liveRefreshTimer: null,
     panelResizeObserver: null,
     refreshQueued: false,
   };
@@ -44,29 +49,20 @@ export function installSessionDashboard() {
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 6 8 10 12 6" /></svg>
     </button>
     <section class="session-dashboard-panel" aria-label="Recent active sessions">
-      <header class="session-dashboard-header">
-        <div>
-          <div class="session-dashboard-title">Active sessions</div>
-          <div class="session-dashboard-subtitle"></div>
-        </div>
-        <div class="session-dashboard-actions">
-          <button class="session-dashboard-refresh" type="button">Refresh</button>
-          <button class="session-dashboard-close" type="button" aria-label="Hide sessions">×</button>
-        </div>
-      </header>
       <div class="session-dashboard-grid" role="list"></div>
-      <footer class="session-dashboard-footer" aria-live="polite"></footer>
+      <footer class="session-dashboard-footer" aria-live="polite">
+        <span class="session-dashboard-footer-status"></span>
+        <button class="session-dashboard-refresh" type="button">Refresh</button>
+      </footer>
     </section>
   `;
   document.body.appendChild(root);
 
   const toggle = root.querySelector(".session-dashboard-toggle");
   const panel = root.querySelector(".session-dashboard-panel");
-  const subtitle = root.querySelector(".session-dashboard-subtitle");
   const grid = root.querySelector(".session-dashboard-grid");
-  const footer = root.querySelector(".session-dashboard-footer");
+  const footerStatus = root.querySelector(".session-dashboard-footer-status");
   const refreshButton = root.querySelector(".session-dashboard-refresh");
-  const closeButton = root.querySelector(".session-dashboard-close");
 
   function setOpen(next) {
     state.open = Boolean(next);
@@ -74,6 +70,7 @@ export function installSessionDashboard() {
     render();
     schedulePolling();
     schedulePreviewPolling();
+    scheduleFooterClock();
     if (state.open) void refreshNow("open");
   }
 
@@ -86,8 +83,21 @@ export function installSessionDashboard() {
     state.pollTimer = setTimeout(async () => {
       await refreshNow("poll").catch(() => undefined);
       schedulePolling();
-    }, 5000);
+    }, DASHBOARD_REFRESH_INTERVAL_MS);
     state.pollTimer.unref?.();
+  }
+
+  function scheduleFooterClock() {
+    if (state.footerClockTimer) {
+      clearTimeout(state.footerClockTimer);
+      state.footerClockTimer = null;
+    }
+    if (!state.open) return;
+    state.footerClockTimer = setTimeout(() => {
+      renderFooter();
+      scheduleFooterClock();
+    }, FOOTER_CLOCK_INTERVAL_MS);
+    state.footerClockTimer.unref?.();
   }
 
   function schedulePreviewPolling() {
@@ -209,6 +219,18 @@ export function installSessionDashboard() {
     root.style.setProperty("--session-dashboard-panel-height", `${Math.ceil(panel.getBoundingClientRect().height)}px`);
   }
 
+  function renderFooter() {
+    const activeCount = state.sessions.filter((session) => isSessionActive(session, state.activeByJid.get(session.chat_jid))).length;
+    if (state.error) {
+      footerStatus.textContent = state.error;
+      return;
+    }
+    const summary = `${state.sessions.length || state.limit} slots • ${activeCount} active • ${state.currentChatJid}`;
+    footerStatus.textContent = state.lastGeneratedAt
+      ? `${summary} • Updated ${formatRelativeTime(state.lastGeneratedAt)}`
+      : `${summary} • Waiting for session data…`;
+  }
+
   function render() {
     renderChrome();
     const activeCount = state.sessions.filter((session) => isSessionActive(session, state.activeByJid.get(session.chat_jid))).length;
@@ -216,12 +238,7 @@ export function installSessionDashboard() {
     root.style.setProperty("--session-dashboard-active-fill", `${activeFill}%`);
     toggle.title = state.open ? `Hide sessions (${activeCount} active)` : `Show recent sessions (${activeCount} active)`;
     toggle.setAttribute("aria-label", toggle.title);
-    subtitle.textContent = state.error
-      ? "Unable to load sessions"
-      : `${state.sessions.length || state.limit} slots • ${activeCount} active • ${state.currentChatJid}`;
-    footer.textContent = state.error
-      ? state.error
-      : state.lastGeneratedAt ? `Updated ${formatRelativeTime(state.lastGeneratedAt)}` : "Waiting for session data…";
+    renderFooter();
     grid.textContent = "";
     if (!state.sessions.length) {
       const empty = document.createElement("div");
@@ -298,12 +315,21 @@ export function installSessionDashboard() {
       render();
       return;
     }
-    setTimeout(() => void refreshNow("event"), 100);
+    if (state.liveRefreshTimer) clearTimeout(state.liveRefreshTimer);
+    state.liveRefreshTimer = setTimeout(() => {
+      state.liveRefreshTimer = null;
+      void refreshNow("event");
+    }, LIVE_REFRESH_DEBOUNCE_MS);
+    state.liveRefreshTimer.unref?.();
   }
 
   function handleCurrentChatChanged() {
     state.currentChatJid = getCurrentChatJid();
     render();
+  }
+
+  function handleWindowFocus() {
+    if (state.open) void refreshNow("focus");
   }
 
   function handleKeydown(event) {
@@ -323,13 +349,12 @@ export function installSessionDashboard() {
   }
 
   toggle.addEventListener("click", () => setOpen(!state.open));
-  closeButton.addEventListener("click", () => setOpen(false));
   refreshButton.addEventListener("click", () => void refreshNow("manual"));
   window.addEventListener("piclaw:current-chat-changed", handleCurrentChatChanged);
   window.addEventListener("popstate", handleCurrentChatChanged);
   window.addEventListener("piclaw-extension-ui", handleLiveEvent);
   window.addEventListener("piclaw-extension-ui:status", handleLiveEvent);
-  window.addEventListener("focus", () => { if (state.open) void refreshNow("focus"); });
+  window.addEventListener("focus", handleWindowFocus);
   document.addEventListener("keydown", handleKeydown, true);
   if (typeof ResizeObserver !== "undefined") {
     state.panelResizeObserver = new ResizeObserver(updatePanelHeight);
@@ -340,8 +365,9 @@ export function installSessionDashboard() {
   updatePanelHeight();
   schedulePolling();
   schedulePreviewPolling();
+  scheduleFooterClock();
   if (state.open) void refreshNow("startup");
-  return { root, refreshNow, refreshSessionPreviews, destroy: () => { if (state.pollTimer) clearTimeout(state.pollTimer); if (state.previewTimer) clearTimeout(state.previewTimer); state.panelResizeObserver?.disconnect?.(); document.removeEventListener("keydown", handleKeydown, true); window.removeEventListener("piclaw:current-chat-changed", handleCurrentChatChanged); window.removeEventListener("popstate", handleCurrentChatChanged); window.removeEventListener("piclaw-extension-ui", handleLiveEvent); window.removeEventListener("piclaw-extension-ui:status", handleLiveEvent); root.remove(); } };
+  return { root, refreshNow, refreshSessionPreviews, destroy: () => { if (state.pollTimer) clearTimeout(state.pollTimer); if (state.previewTimer) clearTimeout(state.previewTimer); if (state.footerClockTimer) clearTimeout(state.footerClockTimer); if (state.liveRefreshTimer) clearTimeout(state.liveRefreshTimer); state.panelResizeObserver?.disconnect?.(); document.removeEventListener("keydown", handleKeydown, true); window.removeEventListener("piclaw:current-chat-changed", handleCurrentChatChanged); window.removeEventListener("popstate", handleCurrentChatChanged); window.removeEventListener("piclaw-extension-ui", handleLiveEvent); window.removeEventListener("piclaw-extension-ui:status", handleLiveEvent); window.removeEventListener("focus", handleWindowFocus); root.remove(); } };
 }
 
 const EDITABLE_SHORTCUT_SELECTOR = [
@@ -507,16 +533,31 @@ function previewMapsEqual(left, right) {
   return true;
 }
 
-function navigateToSession(chatJid, event) {
-  const url = new URL(globalThis.location?.href || "http://localhost/");
+function buildSessionUrl(chatJid, href = globalThis.location?.href || "http://localhost/") {
+  const url = new URL(href);
   url.searchParams.set("chat_jid", chatJid);
   url.searchParams.delete("branch_loader");
+  url.searchParams.delete("branch_source_chat_jid");
   url.searchParams.delete("pane_popout");
+  url.searchParams.delete("pane_path");
+  url.searchParams.delete("pane_label");
+  return url.toString();
+}
+
+function navigateToSession(chatJid, event, runtimeWindow = globalThis.window) {
+  const url = buildSessionUrl(chatJid, runtimeWindow?.location?.href);
   if (event?.metaKey || event?.ctrlKey || event?.button === 1) {
-    window.open(url.toString(), "_blank", "noopener");
-    return;
+    runtimeWindow?.open?.(url, "_blank", "noopener");
+    return "new-tab";
   }
-  window.location.href = url.toString();
+  if (typeof runtimeWindow?.history?.pushState === "function" && typeof runtimeWindow?.dispatchEvent === "function") {
+    runtimeWindow.history.pushState(null, "", url);
+    const NavigationEvent = runtimeWindow.PopStateEvent || globalThis.PopStateEvent || globalThis.Event;
+    runtimeWindow.dispatchEvent(new NavigationEvent("popstate", { state: null }));
+    return "in-app";
+  }
+  if (runtimeWindow?.location) runtimeWindow.location.href = url;
+  return "reload";
 }
 
 async function apiJson(url, options) {
@@ -549,11 +590,12 @@ function agentNameFromChatJid(chatJid) {
   return suffix.replace(/[^a-zA-Z0-9._-]+/g, "-") || "session";
 }
 
-function formatRelativeTime(value) {
+function formatRelativeTime(value, now = Date.now()) {
   const time = Date.parse(value || "");
   if (!Number.isFinite(time)) return "never";
-  const delta = Date.now() - time;
-  if (delta < 30_000) return "just now";
+  const delta = Math.max(0, now - time);
+  if (delta < 1_000) return "just now";
+  if (delta < 60_000) return `${Math.floor(delta / 1_000)}s ago`;
   const minutes = Math.round(delta / 60_000);
   if (minutes < 60) return `${minutes}m ago`;
   const hours = Math.round(minutes / 60);
@@ -674,34 +716,17 @@ function injectStyles() {
     }
     .session-dashboard-root.open .session-dashboard-panel { transform: translateY(0); }
     .session-dashboard-root.open .session-dashboard-panel::after { opacity: 1; }
-    .session-dashboard-header {
-      min-height: 34px;
-      margin: 0 auto 10px;
-      max-width: var(--session-dashboard-max-width);
-      padding: 5px 10px;
-      box-sizing: border-box;
-      border: 1px solid var(--border-color, rgba(148,163,184,.25));
-      border-radius: var(--radius-md, 8px);
-      background: var(--bg-secondary,#111827);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-    }
-    .session-dashboard-title { font-weight: 650; font-size: 12px; letter-spacing: .01em; }
-    .session-dashboard-subtitle, .session-dashboard-footer { color: var(--text-secondary,#94a3b8); font-size: 10px; }
-    .session-dashboard-actions { display: flex; gap: 8px; align-items: center; }
-    .session-dashboard-actions button {
+    .session-dashboard-refresh {
       border: 1px solid var(--border-color, rgba(148,163,184,.28));
-      border-radius: 8px;
-      padding: 6px 10px;
-      background: var(--bg-primary,#0b1020);
-      color: var(--text-primary,#e5e7eb);
+      border-radius: 6px;
+      padding: 3px 8px;
+      background: var(--bg-secondary,#111827);
+      color: var(--text-secondary,#94a3b8);
       cursor: pointer;
-      font-size: 12px;
+      font-size: 10px;
     }
-    .session-dashboard-actions button:disabled { opacity: .45; cursor: default; }
-    .session-dashboard-close { font-size: 18px; line-height: 1; min-width: 32px; padding: 4px 8px !important; }
+    .session-dashboard-refresh:hover { color: var(--text-primary,#e5e7eb); border-color: var(--accent-color,#2563eb); }
+    .session-dashboard-refresh:disabled { opacity: .45; cursor: default; }
     .session-dashboard-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(min(230px, 100%), 1fr));
@@ -736,9 +761,10 @@ function injectStyles() {
     .session-dashboard-context { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--text-secondary,#94a3b8); font-size: 10px; }
     .session-dashboard-context-meter { flex: 1; height: 5px; max-width: 90px; border-radius: 999px; background: color-mix(in srgb, var(--border-color, rgba(148,163,184,.35)) 72%, transparent); overflow: hidden; }
     .session-dashboard-context-meter span { display: block; height: 100%; border-radius: inherit; background: var(--accent-color,#2563eb); }
-    .session-dashboard-footer { max-width: var(--session-dashboard-max-width); margin: 10px auto 0; min-height: 16px; }
+    .session-dashboard-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; max-width: var(--session-dashboard-max-width); margin: 10px auto 0; min-height: 22px; color: var(--text-secondary,#94a3b8); font-size: 10px; }
+    .session-dashboard-footer-status { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .session-dashboard-empty { grid-column: 1 / -1; border: 1px dashed var(--border-color, rgba(148,163,184,.35)); border-radius: var(--radius-md, 8px); padding: 18px; text-align: center; color: var(--text-secondary,#94a3b8); }
-    @media (max-width: 720px) { .session-dashboard-panel { max-height: 72vh; } .session-dashboard-grid { grid-template-columns: 1fr; } .session-dashboard-header { align-items: flex-start; } }
+    @media (max-width: 720px) { .session-dashboard-panel { max-height: 72vh; } .session-dashboard-grid { grid-template-columns: 1fr; } .session-dashboard-footer-status { white-space: normal; } }
   `;
   document.head.appendChild(style);
 }
@@ -752,6 +778,8 @@ export const __sessionDashboardTest = {
   normalizePreview,
   resolveStatusPreview,
   previewMapsEqual,
+  buildSessionUrl,
+  navigateToSession,
   formatRelativeTime,
   agentNameFromChatJid,
 };
