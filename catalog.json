@@ -20,7 +20,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-ast-grep-0.1.6.tgz"
       },
-      "updatedAt": "2026-07-17"
+      "updatedAt": "2026-07-26"
     },
     {
       "slug": "autoresearch",
@@ -295,7 +295,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-git-query-tools-0.1.4.tgz"
       },
-      "updatedAt": "2026-07-17"
+      "updatedAt": "2026-07-26"
     },
     {
       "slug": "goal",
@@ -772,7 +772,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-telegram-0.1.1.tgz"
       },
-      "updatedAt": "2026-05-23"
+      "updatedAt": "2026-07-26"
     },
     {
       "slug": "vent",
@@ -858,7 +858,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-whatsapp-0.1.1.tgz"
       },
-      "updatedAt": "2026-05-23"
+      "updatedAt": "2026-07-26"
     },
     {
       "slug": "win-ui",
