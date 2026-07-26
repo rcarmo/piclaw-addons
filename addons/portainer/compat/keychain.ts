@@ -4,9 +4,9 @@
  * Reads API tokens from environment variables injected by piclaw's keychain
  * auto-injection (names sanitized: / - . → _ and uppercased).
  *
- * Falls back to reading from piclaw's keychain SQLite DB if available.
- * Provides the same function signatures as piclaw's secure/keychain.ts
- * and secure/shell-secrets.ts so client code can import unchanged.
+ * Uses the live piclaw runtime keychain bridge when available, then the piclaw
+ * CLI as a standalone fallback. Provides the same function signatures as the
+ * runtime keychain helpers so client code can import unchanged.
  */
 
 import { existsSync } from "node:fs";
@@ -89,6 +89,23 @@ export interface KeychainEntryMetadata {
   updatedAt?: string;
 }
 
+function normalizeKeychainMetadata(value: unknown): KeychainEntryMetadata[] {
+  if (!Array.isArray(value)) return [];
+  const entries = value.flatMap((candidate) => {
+    if (!candidate || typeof candidate !== "object") return [];
+    const record = candidate as Record<string, unknown>;
+    const name = typeof record.name === "string" ? record.name.trim() : "";
+    if (!name) return [];
+    return [{
+      name,
+      type: typeof record.type === "string" && record.type.trim() ? record.type.trim() : "secret",
+      ...(typeof record.createdAt === "string" ? { createdAt: record.createdAt } : {}),
+      ...(typeof record.updatedAt === "string" ? { updatedAt: record.updatedAt } : {}),
+    }];
+  });
+  return entries.filter((entry, index) => entries.findIndex((candidate) => candidate.name === entry.name) === index);
+}
+
 // ── Primary: env-var-based resolution ────────────────────────────
 
 function resolveFromEnv(name: string): KeychainEntry | null {
@@ -129,17 +146,6 @@ export async function getKeychainEntry(name: string): Promise<KeychainEntry> {
       if (normalized) return normalized;
     }
   } catch {
-    // continue to module fallback
-  }
-
-  try {
-    const mod = require("piclaw/runtime/src/secure/keychain.js");
-    if (typeof mod?.getKeychainEntry === "function") {
-      const entry = await mod.getKeychainEntry(name);
-      const normalized = normalizeKeychainEntry(name, entry || {});
-      if (normalized) return normalized;
-    }
-  } catch {
     // Not running inside piclaw runtime — continue to CLI fallback.
   }
 
@@ -168,16 +174,40 @@ export async function getKeychainEntry(name: string): Promise<KeychainEntry> {
 
 /**
  * List all keychain entries (metadata only).
+ * Sanitized environment names cannot be reversed safely (for example,
+ * PORTAINER_RELAY may represent portainer/relay), so prefer an explicit
+ * runtime metadata bridge and then the metadata-only Piclaw CLI command.
  */
 export function listKeychainEntries(): KeychainEntryMetadata[] {
-  // Return entries visible as env vars with the keychain naming pattern
-  const entries: KeychainEntryMetadata[] = [];
-  for (const [key, _value] of Object.entries(process.env)) {
-    if (key && _value) {
-      entries.push({ name: key, type: "secret" });
+  try {
+    const interop = (globalThis as {
+      __piclawRuntimeInterop?: {
+        listKeychainEntries?: () => unknown;
+      };
+    }).__piclawRuntimeInterop;
+    if (typeof interop?.listKeychainEntries === "function") {
+      const entries = normalizeKeychainMetadata(interop.listKeychainEntries());
+      if (entries.length) return entries;
     }
+  } catch {
+    // Continue to CLI fallback.
   }
-  return entries;
+
+  try {
+    const proc = Bun.spawnSync(["piclaw", "keychain", "list"], {
+      stdout: "pipe",
+      stderr: "pipe",
+      env: process.env,
+    });
+    if (proc.exitCode === 0 && proc.stdout) {
+      const entries = normalizeKeychainMetadata(parseJsonFromMixedOutput(proc.stdout.toString()));
+      if (entries.length) return entries;
+    }
+  } catch {
+    // CLI not available.
+  }
+
+  return [];
 }
 
 /**

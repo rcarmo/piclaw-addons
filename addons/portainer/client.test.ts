@@ -5,6 +5,7 @@ import {
   resolvePortainerAuth,
   setPortainerRequestExecutorForTests,
 } from "./client.js";
+import { listKeychainEntries } from "./compat/keychain.js";
 
 afterEach(() => {
   setPortainerRequestExecutorForTests(null);
@@ -12,6 +13,21 @@ afterEach(() => {
 });
 
 describe("portainer client auth", () => {
+  test("listKeychainEntries preserves canonical names from runtime metadata", () => {
+    (globalThis as { __piclawRuntimeInterop?: { listKeychainEntries?: () => unknown } }).__piclawRuntimeInterop = {
+      listKeychainEntries: () => [
+        { name: "portainer/relay", type: "token" },
+        { name: "portainer/relay", type: "token" },
+        { name: "other/service", type: "secret" },
+      ],
+    };
+
+    expect(listKeychainEntries()).toEqual([
+      { name: "portainer/relay", type: "token" },
+      { name: "other/service", type: "secret" },
+    ]);
+  });
+
   test("resolvePortainerAuth reads the token secret from keychain", async () => {
     (globalThis as { __piclawRuntimeInterop?: { getKeychainEntry?: (name: string) => Promise<unknown> } }).__piclawRuntimeInterop = {
       getKeychainEntry: async (name: string) => ({
