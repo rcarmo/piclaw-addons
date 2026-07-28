@@ -23,7 +23,9 @@ test("startup registers the bang transport and signed external route", async () 
   roots.push(root);
   const transports: any[] = [];
   const routes: any[] = [];
+  const statusPanels: any[] = [];
   (globalThis as any).__piclaw_runtime = {
+    registerStatusPanelProvider: (provider: any) => { statusPanels.push(provider); return () => {}; },
     messaging: {
       version: 1,
       getAddonDataDir: () => root,
@@ -50,6 +52,9 @@ test("startup registers the bang transport and signed external route", async () 
     maxBodyBytes: 32 * 1024,
   });
   expect(typeof routes[0].handler).toBe("function");
+  expect(statusPanels).toHaveLength(1);
+  expect(statusPanels[0].key).toBe("remote-peer");
+  expect(await statusPanels[0].getPayload("web:test")).toMatchObject({ database: "ok", paired: 0, pending: 0 });
 });
 
 test("startup attaches messaging when the session extension initialized pairing first", async () => {

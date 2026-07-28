@@ -1,11 +1,12 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   createRemotePeerIdentity,
   deriveInstanceId,
   loadOrCreateRemotePeerIdentity,
+  rotateRemotePeerIdentity,
   validateRemotePeerIdentity,
 } from "./identity.js";
 
@@ -36,6 +37,18 @@ describe("remote-peer identity", () => {
     if (process.platform !== "win32") {
       expect(statSync(join(root, "identity.json")).mode & 0o777).toBe(0o600);
     }
+  });
+
+  test("rotates through a mode-0600 backup and writes a fresh identity", () => {
+    const root = tempRoot();
+    const first = loadOrCreateRemotePeerIdentity(root);
+    const second = rotateRemotePeerIdentity(root, new Date("2026-01-02T00:00:00.000Z"));
+    expect(second.instance_id).not.toBe(first.instance_id);
+    expect(loadOrCreateRemotePeerIdentity(root).instance_id).toBe(second.instance_id);
+    const backups = readdirSync(join(root, "backups")).filter(name => name.startsWith("identity-"));
+    expect(backups).toHaveLength(1);
+    expect(JSON.parse(readFileSync(join(root, "backups", backups[0]), "utf8")).instance_id).toBe(first.instance_id);
+    if (process.platform !== "win32") expect(statSync(join(root, "backups", backups[0])).mode & 0o777).toBe(0o600);
   });
 
   test("rejects tampered identity data", () => {

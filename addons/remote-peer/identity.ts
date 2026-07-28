@@ -1,4 +1,4 @@
-import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { createHash, createPublicKey, generateKeyPairSync } from "node:crypto";
 
@@ -62,18 +62,36 @@ export function validateRemotePeerIdentity(value: unknown): RemotePeerIdentity {
   return identity as unknown as RemotePeerIdentity;
 }
 
-export function loadOrCreateRemotePeerIdentity(dataDir: string): RemotePeerIdentity {
-  const path = join(dataDir, "identity.json");
-  if (existsSync(path)) {
-    return validateRemotePeerIdentity(JSON.parse(readFileSync(path, "utf8")));
-  }
-
+function writeIdentity(path: string, identity: RemotePeerIdentity): void {
   mkdirSync(dirname(path), { recursive: true });
-  const identity = createRemotePeerIdentity();
   const temporary = `${path}.${process.pid}.${Date.now()}.tmp`;
   writeFileSync(temporary, `${JSON.stringify(identity, null, 2)}\n`, { mode: 0o600 });
   if (process.platform !== "win32") chmodSync(temporary, 0o600);
   renameSync(temporary, path);
   if (process.platform !== "win32") chmodSync(path, 0o600);
+}
+
+export function loadOrCreateRemotePeerIdentity(dataDir: string): RemotePeerIdentity {
+  const path = join(dataDir, "identity.json");
+  if (existsSync(path)) {
+    return validateRemotePeerIdentity(JSON.parse(readFileSync(path, "utf8")));
+  }
+  const identity = createRemotePeerIdentity();
+  writeIdentity(path, identity);
   return identity;
+}
+
+export function rotateRemotePeerIdentity(dataDir: string, now = new Date()): RemotePeerIdentity {
+  const path = join(dataDir, "identity.json");
+  if (!existsSync(path)) throw new Error("Remote-peer identity file not found.");
+  const previous = validateRemotePeerIdentity(JSON.parse(readFileSync(path, "utf8")));
+  const backups = join(dataDir, "backups");
+  mkdirSync(backups, { recursive: true });
+  const stamp = now.toISOString().replace(/[:.]/g, "-");
+  const backup = join(backups, `identity-${stamp}-${previous.fingerprint}.json`);
+  copyFileSync(path, backup);
+  if (process.platform !== "win32") chmodSync(backup, 0o600);
+  const next = createRemotePeerIdentity(now);
+  writeIdentity(path, next);
+  return next;
 }

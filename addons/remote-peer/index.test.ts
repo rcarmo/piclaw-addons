@@ -3,6 +3,9 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { resetRemotePeerFoundationForTests } from "./foundation.js";
+import { resetPairingServiceForTests } from "./pairing/runtime-service.js";
+import { resetMessagingServiceForTests } from "./messaging/runtime-service.js";
+import { resetRosterServiceForTests } from "./messaging/runtime-roster.js";
 
 const roots: string[] = [];
 let registrations: unknown[][] = [];
@@ -15,6 +18,10 @@ beforeEach(() => {
     messaging: {
       version: 1,
       getAddonDataDir: () => root,
+      listAdvertisableAgents: async () => [],
+      resolveLocalTarget: async () => ({ status: "not_found" }),
+      deliverPeerMessage: async () => { throw new Error("not used"); },
+      registerChatTransport: () => () => {},
     },
     externalRoutes: { version: 1, register: () => () => {} },
   };
@@ -25,6 +32,9 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  resetPairingServiceForTests();
+  resetMessagingServiceForTests();
+  resetRosterServiceForTests();
   resetRemotePeerFoundationForTests();
   delete (globalThis as any).__piclaw_runtime;
   delete (globalThis as any).__piclaw_registerAddonConfigApi;
@@ -57,8 +67,8 @@ function fakeApi() {
 describe("remote-peer extension foundation", () => {
   test("registers config API and never exposes the private key", async () => {
     const mod = await import(`./index.ts?test=${Date.now()}`);
-    expect(registrations).toHaveLength(1);
-    const handlers = registrations[0][2] as any;
+    expect(registrations).toHaveLength(2);
+    const handlers = registrations.find(args => args[1] === "config")?.[2] as any;
     const state = await handlers.get();
     expect(state.identity.fingerprint).toHaveLength(20);
     expect(state.identity.private_key).toBeUndefined();
@@ -69,6 +79,20 @@ describe("remote-peer extension foundation", () => {
     expect(saved.config).toMatchObject({ enabled: true, instanceName: "Lab" });
     expect(saved.identity.private_key).toBeUndefined();
     expect(typeof mod.default).toBe("function");
+  });
+
+  test("dashboard API is redacted and requires immutable/risk confirmations", async () => {
+    await import(`./index.ts?dashboard=${Date.now()}`);
+    const dashboard = registrations.find(args => args[1] === "dashboard")?.[2] as any;
+    const state = await dashboard.get();
+    expect(state.health.database).toBe("ok");
+    expect(state.peers).toEqual([]);
+    expect(state.pending).toEqual([]);
+    expect(JSON.stringify(state)).not.toContain("private_key");
+    expect(JSON.stringify(state)).not.toContain("target_chat_jid");
+    expect(JSON.stringify(state)).not.toContain("reply_token");
+    await expect(dashboard.set({ action: "revoke", peer: "missing", confirmation: "wrong" })).rejects.toThrow("Revocation requires");
+    await expect(dashboard.set({ action: "set_policy", peer: "missing", scope: "all-advertised", confirmation: "wrong" })).rejects.toThrow("Peer not found");
   });
 
   test("registers remote_peer status/identity tool and skill discovery", async () => {

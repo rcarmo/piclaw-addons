@@ -66,19 +66,21 @@ The add-on persists outbound/inbound ledgers, signs the exact request body, veri
 
 Pairing defaults to `inbox-only` and `queue`. Operators must explicitly advertise local aliases, grant each peer `named-agents` or `all-advertised` scope, and raise the mode ceiling before `auto` or `steer` can pass. Both the peer ceiling and advertised alias modes are enforced by the receiver.
 
-See [PROTOCOL.md](PROTOCOL.md) for the signed protocol and [SECURITY.md](SECURITY.md) for trust boundaries and deployment guidance.
+See [PROTOCOL.md](PROTOCOL.md) for the signed protocol, [SECURITY.md](SECURITY.md) for trust boundaries, and [OPERATOR-GUIDE.md](OPERATOR-GUIDE.md) for pairing, policy, health, recovery, and revocation procedures.
 
 ## Settings
 
-The initial Settings pane exposes:
+The **Remote Peer** Settings pane provides:
 
-- enabled state;
-- instance display name;
-- external URL;
-- explicit HTTP/private-network development overrides;
-- public fingerprint and schema version.
+- health, public identity, endpoint configuration, peer/pending/failure counts;
+- immutable fingerprint/origin review for inbound pairing;
+- peer aliases, messaging scopes, mode ceilings, revocation, and risk confirmations;
+- operator-selected advertised local agents;
+- pending requests, last-seen state, and failed-receipt status.
 
-Runtime changes require a Piclaw restart.
+Fingerprint confirmation is required for acceptance and revocation. `all-advertised` and `steer` require the typed phrase `ALLOW REMOTE ACCESS`. Key rotation requires `ROTATE <current fingerprint>`, archives the old identity, revokes existing trust, and requires restart/re-pair. Runtime endpoint changes require a Piclaw restart. Browser payloads are redacted and never contain private keys, raw chat JIDs, reply capabilities, internal database paths, or unselected local agents.
+
+![Remote Peer Settings pane](assets/settings-pane-microvm.png)
 
 ## Current scope
 
