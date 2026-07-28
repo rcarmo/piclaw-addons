@@ -1,6 +1,6 @@
 # Remote Peer
 
-`@rcarmo/piclaw-addon-remote-peer` owns cross-instance Piclaw identity, state, pairing and messaging. The foundation release creates a fresh Ed25519 identity and dedicated SQLite database. Pairing and bang-address messaging are added in subsequent focused releases.
+`@rcarmo/piclaw-addon-remote-peer` owns cross-instance Piclaw identity, state, pairing and messaging. It creates a fresh Ed25519 identity and dedicated SQLite database, then establishes operator-approved peer trust through signed pairing. Bang-address messaging is added in a subsequent focused release.
 
 ## Requirements
 
@@ -29,14 +29,24 @@ Peer, message, proposal, receipt and audit ledgers are relational tables in `sta
 
 Normal add-on uninstall preserves the scoped data directory. Destructive identity/database reset will be an explicit confirmed Settings action in a later release.
 
-## Foundation tool
+## Pairing and management
 
 ```text
 remote_peer({ action: "status" })
 remote_peer({ action: "identity" })
+remote_peer({ action: "list_peers" })
+remote_peer({ action: "pending" })
+remote_peer({ action: "pair_request", url: "https://peer.example" })
+remote_peer({ action: "accept_pair", request_id: "pair_..." })
+remote_peer({ action: "deny_pair", request_id: "pair_..." })
+remote_peer({ action: "ping", peer: "peer-alias" })
+remote_peer({ action: "set_alias", peer: "peer-alias", alias: "new-alias" })
+remote_peer({ action: "revoke", peer: "peer-alias" })
 ```
 
-Only public identity metadata is returned. The private key is never returned through tools or the Settings API.
+The `/pair` command provides equivalent operator actions. Only public identity metadata is returned. The private key is never returned through tools, commands, external routes, or the Settings API.
+
+See [PROTOCOL.md](PROTOCOL.md) for the signed protocol and [SECURITY.md](SECURITY.md) for trust boundaries and deployment guidance.
 
 ## Settings
 
@@ -52,4 +62,4 @@ Runtime changes require a Piclaw restart.
 
 ## Current scope
 
-This foundation release does not register transport endpoints or the bang-address chat transport. Those arrive after signed pairing and peer-management work is complete.
+This release registers only pairing, signed ping, and revoke endpoints. It does not yet register the bang-address chat transport, advertised-agent routing, or mediated remote work.

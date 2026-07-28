@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type Database from "bun:sqlite";
 import { INITIAL_SCHEMA_SQL } from "./migrations/0001-initial.js";
+import { PAIR_TRUST_EPOCHS_SQL } from "./migrations/0002-pair-trust-epochs.js";
 
 export interface StoreMigration {
   version: number;
@@ -19,6 +20,12 @@ export const STORE_MIGRATIONS: readonly StoreMigration[] = Object.freeze([
     name: "initial",
     checksum: checksum(INITIAL_SCHEMA_SQL),
     sql: INITIAL_SCHEMA_SQL,
+  }),
+  Object.freeze({
+    version: 2,
+    name: "pair-trust-epochs",
+    checksum: checksum(PAIR_TRUST_EPOCHS_SQL),
+    sql: PAIR_TRUST_EPOCHS_SQL,
   }),
 ]);
 
