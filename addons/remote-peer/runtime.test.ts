@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { resetRemotePeerFoundationForTests } from "./foundation.js";
 import { resetMessagingServiceForTests } from "./messaging/runtime-service.js";
+import { resetRosterServiceForTests } from "./messaging/runtime-roster.js";
 import { resetPairingServiceForTests } from "./pairing/runtime-service.js";
 
 const roots: string[] = [];
@@ -11,6 +12,7 @@ const roots: string[] = [];
 afterEach(() => {
   resetPairingServiceForTests();
   resetMessagingServiceForTests();
+  resetRosterServiceForTests();
   resetRemotePeerFoundationForTests();
   delete (globalThis as any).__piclaw_runtime;
   roots.splice(0).forEach(root => rmSync(root, { recursive: true, force: true }));
@@ -77,9 +79,14 @@ test("startup attaches messaging when the session extension initialized pairing 
 
   await import(`./runtime.ts?order=${Date.now()}`);
   expect(routes).toHaveLength(1);
-  const response = await routes[0].handler(
+  const messageResponse = await routes[0].handler(
     new Request("http://local.test/api/addons/remote-peer/v1/message", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }),
     "/api/addons/remote-peer/v1/message",
   );
-  expect(response.status).not.toBe(503);
+  expect(messageResponse.status).not.toBe(503);
+  const rosterResponse = await routes[0].handler(
+    new Request("http://local.test/api/addons/remote-peer/v1/roster", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }),
+    "/api/addons/remote-peer/v1/roster",
+  );
+  expect(rosterResponse.status).not.toBe(503);
 });

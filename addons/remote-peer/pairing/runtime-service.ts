@@ -9,6 +9,7 @@ export function getPairingService(
 ): PairingService {
   if (pairingService) {
     if (options.messaging) pairingService.attachMessaging(options.messaging);
+    if (options.roster) pairingService.attachRoster(options.roster);
     return pairingService;
   }
   pairingService = new PairingService({ foundation, ...options });

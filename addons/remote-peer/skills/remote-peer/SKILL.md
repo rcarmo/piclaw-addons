@@ -18,6 +18,10 @@ remote_peer({ action: "accept_pair", request_id: "pair_..." })
 remote_peer({ action: "deny_pair", request_id: "pair_..." })
 remote_peer({ action: "ping", peer: "peer-alias" })
 remote_peer({ action: "set_alias", peer: "peer-alias", alias: "new-alias" })
+remote_peer({ action: "roster" })
+remote_peer({ action: "roster", peer: "peer-alias" })
+remote_peer({ action: "advertise_agent", local_agent: "research", alias: "research", modes: ["queue", "auto"] })
+remote_peer({ action: "set_policy", peer: "peer-alias", scope: "named-agents", mode_ceiling: "queue-auto", agents: ["research"] })
 remote_peer({ action: "message_status", message_id: "rmsg_..." })
 remote_peer({ action: "message_failures" })
 remote_peer({ action: "revoke", peer: "peer-alias" })
@@ -33,6 +37,8 @@ Send a durable inbox message with Piclaw's existing chat tool:
 chat({ target_address: "lab!inbox", content: "Please review this finding.", mode: "queue", idempotency_key: "stable-key" })
 ```
 
-Use `@alias` for local agents and `peer!inbox` for a paired remote instance. Bang addresses are one hop only. This release permits only the remote inbox and `queue`; advertised `peer!@alias` targets, replies, `auto`, and `steer` arrive later. Prefer a stable idempotency key when retrying uncertain deliveries.
+Use `@alias` for local agents, `peer!inbox` for a paired remote inbox, and `peer!@alias` only when that alias appears in the peer's signed roster. Bang addresses are one hop only. Use opaque `peer!reply.<capability>` addresses exactly as supplied when replying; never inspect or rewrite them.
+
+Pair trust does not imply agent or mode access. Operators advertise aliases and set per-peer scope/ceilings. `steer` requires both a `queue-auto-steer` peer ceiling and an advertised alias that allows `steer`. Prefer a stable idempotency key when retrying uncertain deliveries.
 
 Do not use removed core `/pair`, `/ask`, or `/api/remote/*` surfaces.
