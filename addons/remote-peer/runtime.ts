@@ -18,6 +18,24 @@ runtime.messaging.registerChatTransport({
   kind: "bang",
   send: request => messaging.send(request),
 });
+runtime.registerStatusPanelProvider?.({
+  key: ADDON_ID,
+  getPayload: () => {
+    foundation.store.integrityCheck();
+    const peers = pairing.repository.listPeers();
+    return {
+      enabled: foundation.loadConfig().enabled,
+      database: "ok",
+      schema_version: foundation.store.db.query("SELECT MAX(version) AS version FROM schema_migrations").get()?.version ?? 0,
+      paired: peers.filter(peer => peer.status === "paired").length,
+      pending: pairing.repository.listInbound().length,
+      failed_receipts: messaging.listOutbound().filter(message => message.status === "failed").length
+        + messaging.listInbound().filter(message => message.status === "failed").length,
+      fingerprint: foundation.identity.fingerprint,
+      generated_at: new Date().toISOString(),
+    };
+  },
+});
 runtime.externalRoutes.register({
   addonId: ADDON_ID,
   prefix: "/api/addons/remote-peer/v1",

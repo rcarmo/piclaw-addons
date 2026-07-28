@@ -38,6 +38,11 @@ export type ExternalRouteRegistration = {
 };
 
 export type PiclawRuntimeApi = {
+  registerStatusPanelProvider?: (provider: {
+    key: string;
+    getPayload(chatJid: string): unknown | Promise<unknown>;
+    runAction?(action: string, payload: Record<string, unknown>): unknown | Promise<unknown>;
+  }) => () => void;
   messaging?: {
     version: number;
     registerChatTransport(transport: ChatTransport): () => void;
@@ -72,9 +77,9 @@ export function getPiclawRuntimeApi(): PiclawRuntimeApi | null {
   return ((globalThis as typeof globalThis & { __piclaw_runtime?: PiclawRuntimeApi }).__piclaw_runtime) ?? null;
 }
 
-export function requirePiclawRuntimeApi(): Required<Pick<PiclawRuntimeApi, "messaging" | "externalRoutes">> {
+export function requirePiclawRuntimeApi(): PiclawRuntimeApi & Required<Pick<PiclawRuntimeApi, "messaging" | "externalRoutes">> {
   const api = getPiclawRuntimeApi();
   if (api?.messaging?.version !== 1) throw new Error("Remote Peer requires Piclaw messaging API v1.");
   if (api?.externalRoutes?.version !== 1) throw new Error("Remote Peer requires Piclaw external routes API v1.");
-  return { messaging: api.messaging, externalRoutes: api.externalRoutes };
+  return api as PiclawRuntimeApi & Required<Pick<PiclawRuntimeApi, "messaging" | "externalRoutes">>;
 }
