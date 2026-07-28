@@ -174,11 +174,11 @@ describe("remote-peer signed inbox messaging", () => {
     expect(setup.remoteMessages.repository.listInbound()).toHaveLength(1);
   });
 
-  test("rejects aliases, higher modes, idempotency collisions, and spoofed unsigned identity", async () => {
+  test("rejects unadvertised aliases, higher modes, idempotency collisions, and spoofed unsigned identity", async () => {
     const setup = await pairedServices();
     const service = new MessagingService({ foundation: setup.local, messaging: runtimeMessaging(setup.localDeliveries), fetch: setup.dispatch, now: () => now });
-    await expect(service.send(request({ address: { kind: "bang", raw: "remote!@research", peer: "remote", target: "@research" } }))).rejects.toThrow("only peer!inbox");
-    await expect(service.send(request({ mode: "auto" }))).rejects.toThrow("queue mode only");
+    await expect(service.send(request({ idempotency_key: "alias-attempt", address: { kind: "bang", raw: "remote!@research", peer: "remote", target: "@research" } }))).rejects.toThrow("not advertised");
+    await expect(service.send(request({ idempotency_key: "auto-attempt", mode: "auto" }))).rejects.toThrow("not allowed");
     await service.send(request());
     await expect(service.send(request({ content: "different" }))).rejects.toThrow("different message");
 
@@ -198,6 +198,67 @@ describe("remote-peer signed inbox messaging", () => {
     });
     expect(unsigned.status).toBe(401);
     expect(setup.remoteDeliveries).toHaveLength(1);
+  });
+
+  test("routes only advertised aliases and enforces peer plus alias mode ceilings", async () => {
+    const setup = await pairedServices();
+    const localService = new MessagingService({ foundation: setup.local, messaging: runtimeMessaging(setup.localDeliveries), fetch: setup.dispatch, now: () => now });
+    setup.remoteMessages.policy.upsertAdvertisedAgent("research", "research-local", ["queue", "auto"], now.toISOString());
+    const remotePeer = new (await import("../pairing/repository.js")).PairingRepository(setup.remote.store.db).getPeer(setup.local.identity.instance_id)!;
+    setup.remoteMessages.policy.updatePeerPolicy(remotePeer.instance_id, "named-agents", "queue-auto-steer", now.toISOString());
+    setup.remoteMessages.policy.setPeerAgents(remotePeer.instance_id, ["research"], now.toISOString());
+    const localPeer = new (await import("../pairing/repository.js")).PairingRepository(setup.local.store.db).getPeer(setup.remote.identity.instance_id)!;
+    localService.policy.updatePeerPolicy(localPeer.instance_id, "all-advertised", "queue-auto-steer", now.toISOString());
+
+    const delivered = await localService.send(request({
+      idempotency_key: "agent-queue",
+      address: { kind: "bang", raw: "remote!@research", peer: "remote", target: "@research" },
+    }));
+    expect((delivered.receipt as any).target_agent_name).toBe("research");
+    expect(setup.remoteDeliveries.at(-1)).toMatchObject({ target_agent_name: "research-local", mode: "queue" });
+
+    await expect(localService.send(request({
+      idempotency_key: "agent-steer",
+      mode: "steer",
+      address: { kind: "bang", raw: "remote!@research", peer: "remote", target: "@research" },
+    }))).rejects.toThrow("not allowed");
+    setup.remoteMessages.policy.upsertAdvertisedAgent("research", "research-local", ["queue", "auto", "steer"], now.toISOString());
+    const steered = await localService.send(request({
+      idempotency_key: "agent-steer-approved",
+      mode: "steer",
+      address: { kind: "bang", raw: "remote!@research", peer: "remote", target: "@research" },
+    }));
+    expect((steered.receipt as any).status).toBe("queued");
+    expect(setup.remoteDeliveries.at(-1).mode).toBe("steer");
+  });
+
+  test("opaque reply addresses return to the original source chat without exposing its JID", async () => {
+    const setup = await pairedServices();
+    const localService = new MessagingService({ foundation: setup.local, messaging: runtimeMessaging(setup.localDeliveries), fetch: setup.dispatch, now: () => now });
+    const remoteService = new MessagingService({ foundation: setup.remote, messaging: runtimeMessaging(setup.remoteDeliveries), fetch: setup.dispatch, now: () => now });
+    const first = await localService.send(request({ source_chat_jid: "web:secret-source", idempotency_key: "reply-origin" }));
+    expect((first.receipt as any).status).toBe("queued");
+    const replyAddress = setup.remoteDeliveries.at(-1).source.reply_address as string;
+    expect(replyAddress).toContain("!reply.");
+    expect(replyAddress).not.toContain("web:secret-source");
+
+    const [peerAlias, target] = replyAddress.split("!", 2);
+    expect(peerAlias).toBe("local");
+    const reply = await remoteService.send(request({
+      source_chat_jid: "web:remote-agent",
+      idempotency_key: "reply-return",
+      content: "Reply received.",
+      address: { kind: "bang", raw: replyAddress, peer: peerAlias, target },
+      in_reply_to: String(first.message_id),
+    }));
+    expect((reply.receipt as any).target_agent_name).toBe("reply");
+    expect(setup.localDeliveries.at(-1)).toMatchObject({
+      target_chat_jid: "web:secret-source",
+      content: "Reply received.",
+      source: { in_reply_to: String(first.message_id) },
+    });
+    expect(localService.listInbound().at(-1)?.target_agent_name).toBe("reply");
+    expect(JSON.stringify(localService.listInbound())).not.toContain("web:secret-source");
   });
 
   test("uses authenticated peer identity and ignores spoofable body source fields", async () => {

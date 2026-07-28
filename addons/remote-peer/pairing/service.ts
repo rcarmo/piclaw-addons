@@ -13,6 +13,7 @@ import { NonceReplayCache } from "../protocol/nonce-cache.js";
 import { baseUrl, validatePeerUrl, type ResolveHost } from "./ssrf.js";
 import { PairingRepository, type InboundPairRecord, type PeerRecord } from "./repository.js";
 import type { MessagingService } from "../messaging/service.js";
+import type { RosterService } from "../messaging/roster.js";
 
 const MAX_BODY_BYTES = 32 * 1024;
 const PAIR_TTL_MS = 60 * 60_000;
@@ -43,6 +44,7 @@ export interface PairingServiceOptions {
   resolveHost?: ResolveHost;
   now?: () => Date;
   messaging?: MessagingService;
+  roster?: RosterService;
 }
 
 function json(body: unknown, status = 200): Response {
@@ -88,6 +90,7 @@ export class PairingService {
   private readonly fetchFn: typeof fetch;
   private readonly now: () => Date;
   private messaging: MessagingService | undefined;
+  private roster: RosterService | undefined;
   private readonly pairLimiter = new SlidingLimiter(3, 10 * 60_000);
   private readonly signedLimiter = new SlidingLimiter(60, 60_000);
 
@@ -96,11 +99,17 @@ export class PairingService {
     this.fetchFn = options.fetch ?? fetch;
     this.now = options.now ?? (() => new Date());
     this.messaging = options.messaging;
+    this.roster = options.roster;
   }
 
   attachMessaging(service: MessagingService): void {
     if (this.messaging && this.messaging !== service) throw new Error("Remote-peer messaging service is already attached.");
     this.messaging = service;
+  }
+
+  attachRoster(service: RosterService): void {
+    if (this.roster && this.roster !== service) throw new Error("Remote-peer roster service is already attached.");
+    this.roster = service;
   }
 
   private uniqueAlias(preferred: string, instanceId: string): string {
@@ -314,6 +323,7 @@ export class PairingService {
     if (route === `${prefix}/pair-confirm`) return await this.handlePairConfirm(req);
     if (route === `${prefix}/ping`) return await this.handlePing(req);
     if (route === `${prefix}/message`) return await this.handleMessage(req);
+    if (route === `${prefix}/roster`) return await this.handleRoster(req);
     if (route === `${prefix}/revoke`) return await this.handleRevoke(req);
     return json({ error: "Not found." }, 404);
   }
@@ -407,6 +417,12 @@ export class PairingService {
     this.options.foundation.store.db.transaction(() => { this.repository.upsertPeer(peer); this.repository.updateOutbound(requestId, "accepted"); }).immediate();
     this.repository.audit(peer.instance_id, "pair_confirm_inbound", "paired", undefined, { request_id: requestId });
     return json({ status: "paired", peer_instance_id: peer.instance_id, peer_fingerprint: peer.fingerprint });
+  }
+
+  private async handleRoster(req: Request): Promise<Response> {
+    const verified = await this.signedBody(req); if (verified instanceof Response) return verified;
+    if (!this.roster) return json({ error: "Roster service is unavailable." }, 503);
+    return await this.roster.receive(verified.peer);
   }
 
   private async handleMessage(req: Request): Promise<Response> {

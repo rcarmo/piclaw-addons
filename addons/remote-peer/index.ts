@@ -6,6 +6,8 @@ import { getRemotePeerFoundation } from "./foundation.js";
 import { normalizeRemotePeerConfig, type RemotePeerConfig } from "./config.js";
 import { getPairingService } from "./pairing/runtime-service.js";
 import { getMessagingService } from "./messaging/runtime-service.js";
+import { getRosterService } from "./messaging/runtime-roster.js";
+import type { DeliveryMode, MessagingScope, ModeCeiling } from "./messaging/policy.js";
 
 const ADDON_ID = "remote-peer";
 const baseDir = dirname(fileURLToPath(import.meta.url));
@@ -65,7 +67,19 @@ export default function remotePeerAddon(pi: ExtensionAPI): void {
     skillPaths: [join(baseDir, "skills", "remote-peer", "SKILL.md")],
   }));
 
-  async function runAction(params: { action?: string; peer?: string; url?: string; request_id?: string; alias?: string; message_id?: string }) {
+  async function runAction(params: {
+    action?: string;
+    peer?: string;
+    url?: string;
+    request_id?: string;
+    alias?: string;
+    message_id?: string;
+    local_agent?: string;
+    modes?: string[];
+    scope?: MessagingScope;
+    mode_ceiling?: ModeCeiling;
+    agents?: string[];
+  }) {
     const current = foundation();
     const runtime = getPiclawRuntimeApi();
     if (runtime?.messaging?.version !== 1) throw new Error("Remote Peer requires Piclaw messaging API v1.");
@@ -87,6 +101,35 @@ export default function remotePeerAddon(pi: ExtensionAPI): void {
       if (!outbound && !inbound) throw new Error("Remote message not found.");
       return { direction: outbound ? "outbound" : "inbound", message: outbound ?? inbound };
     }
+    if (action === "roster") {
+      const roster = getRosterService(current, runtime.messaging);
+      if (params.peer) {
+        const peer = pairing.repository.resolvePeer(params.peer);
+        if (!peer) throw new Error("Peer not found.");
+        return { roster: await roster.fetchPeerRoster(peer) };
+      }
+      return { roster: await roster.signedRoster() };
+    }
+    if (action === "advertise_agent") {
+      const roster = getRosterService(current, runtime.messaging);
+      const known = await runtime.messaging.listAdvertisableAgents();
+      const local = String(params.local_agent || "").trim().replace(/^@+/, "");
+      if (!known.some(agent => agent.agent_name.toLowerCase() === local.toLowerCase())) throw new Error("Local agent is not advertisable.");
+      return { agent: roster.policy.upsertAdvertisedAgent(params.alias || local, local, (params.modes || ["queue"]) as DeliveryMode[], new Date().toISOString()) };
+    }
+    if (action === "unadvertise_agent") {
+      const roster = getRosterService(current, runtime.messaging);
+      roster.policy.disableAdvertisedAgent(params.alias || "", new Date().toISOString());
+      return { status: "disabled", alias: params.alias };
+    }
+    if (action === "set_policy") {
+      const roster = getRosterService(current, runtime.messaging);
+      const peer = pairing.repository.resolvePeer(params.peer || "");
+      if (!peer) throw new Error("Peer not found.");
+      const updated = roster.policy.updatePeerPolicy(peer.instance_id, params.scope || peer.messaging_scope, params.mode_ceiling || peer.mode_ceiling, new Date().toISOString());
+      const agents = params.agents ? roster.policy.setPeerAgents(peer.instance_id, params.agents, new Date().toISOString()) : roster.policy.listPeerAgents(peer.instance_id);
+      return { peer: updated, agents };
+    }
     if (action === "message_failures") {
       const messaging = getMessagingService(current, runtime.messaging);
       return {
@@ -105,17 +148,22 @@ export default function remotePeerAddon(pi: ExtensionAPI): void {
     parameters: {
       type: "object",
       properties: {
-        action: { type: "string", enum: ["status", "identity", "list_peers", "pending", "pair_request", "accept_pair", "deny_pair", "ping", "set_alias", "message_status", "message_failures", "revoke"] },
+        action: { type: "string", enum: ["status", "identity", "list_peers", "pending", "pair_request", "accept_pair", "deny_pair", "ping", "set_alias", "roster", "advertise_agent", "unadvertise_agent", "set_policy", "message_status", "message_failures", "revoke"] },
         peer: { type: "string", description: "Exact peer alias, fingerprint, or instance ID." },
         url: { type: "string", description: "Target Piclaw base URL for pair_request." },
         request_id: { type: "string", description: "Inbound pairing request ID for accept_pair or deny_pair." },
         alias: { type: "string", description: "Unique local peer alias for set_alias." },
         message_id: { type: "string", description: "Remote message ID for message_status." },
+        local_agent: { type: "string", description: "Local agent name for advertise_agent." },
+        modes: { type: "array", items: { type: "string", enum: ["queue", "auto", "steer"] }, description: "Allowed advertised-agent modes." },
+        scope: { type: "string", enum: ["none", "inbox-only", "named-agents", "all-advertised"] },
+        mode_ceiling: { type: "string", enum: ["queue", "queue-auto", "queue-auto-steer"] },
+        agents: { type: "array", items: { type: "string" }, description: "Advertised aliases allowed for named-agents scope." },
       },
       required: ["action"],
       additionalProperties: false,
     },
-    async execute(_toolCallId, params: { action?: string; peer?: string; url?: string; request_id?: string; alias?: string; message_id?: string }) {
+    async execute(_toolCallId, params: Parameters<typeof runAction>[0]) {
       try {
         const details = await runAction(params);
         return { content: [{ type: "text", text: JSON.stringify(details, null, 2) }], details };

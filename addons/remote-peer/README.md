@@ -41,6 +41,10 @@ remote_peer({ action: "accept_pair", request_id: "pair_..." })
 remote_peer({ action: "deny_pair", request_id: "pair_..." })
 remote_peer({ action: "ping", peer: "peer-alias" })
 remote_peer({ action: "set_alias", peer: "peer-alias", alias: "new-alias" })
+remote_peer({ action: "roster" })
+remote_peer({ action: "roster", peer: "peer-alias" })
+remote_peer({ action: "advertise_agent", local_agent: "research", alias: "research", modes: ["queue", "auto"] })
+remote_peer({ action: "set_policy", peer: "peer-alias", scope: "named-agents", mode_ceiling: "queue-auto", agents: ["research"] })
 remote_peer({ action: "message_status", message_id: "rmsg_..." })
 remote_peer({ action: "message_failures" })
 remote_peer({ action: "revoke", peer: "peer-alias" })
@@ -56,7 +60,11 @@ Use Piclaw's built-in `chat` tool with the paired peer's local alias, fingerprin
 chat({ target_address: "lab!inbox", content: "Please review this finding.", mode: "queue" })
 ```
 
-This release accepts exactly `peer!inbox` and `queue`. It persists outbound/inbound ledgers, signs the exact request body, verifies the authenticated peer, calls core's safe peer-delivery ABI, and returns a signed durable receipt. Supplying an `idempotency_key` makes safe retries return the original receipt without a second timeline row.
+Use `peer!inbox` for the default inbox or `peer!@alias` for an operator-advertised agent. Replies use an opaque `peer!reply.<capability>` address embedded in the authenticated peer-message block; it routes back to the original source context without disclosing a raw chat JID.
+
+The add-on persists outbound/inbound ledgers, signs the exact request body, verifies the authenticated peer, calls core's safe peer-delivery ABI, and returns a signed durable receipt. Supplying an `idempotency_key` makes safe retries return the original receipt without a second timeline row.
+
+Pairing defaults to `inbox-only` and `queue`. Operators must explicitly advertise local aliases, grant each peer `named-agents` or `all-advertised` scope, and raise the mode ceiling before `auto` or `steer` can pass. Both the peer ceiling and advertised alias modes are enforced by the receiver.
 
 See [PROTOCOL.md](PROTOCOL.md) for the signed protocol and [SECURITY.md](SECURITY.md) for trust boundaries and deployment guidance.
 
@@ -74,4 +82,4 @@ Runtime changes require a Piclaw restart.
 
 ## Current scope
 
-This release registers pairing, signed ping/revoke/message endpoints and the one-hop bang-address chat transport for `peer!inbox`. It does not yet expose advertised-agent routing, opaque replies, higher delivery modes, or mediated remote work.
+This release registers pairing, signed ping/revoke/message/roster endpoints and the one-hop bang-address transport for inboxes, advertised agents, and opaque replies. It does not grant remote tool execution or mediated remote work.

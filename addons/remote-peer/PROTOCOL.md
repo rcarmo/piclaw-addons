@@ -67,6 +67,16 @@ The receiver reserves the inbound ledger row before core delivery, then calls Pi
 
 The sender verifies the receipt against the paired public key before marking its outbound ledger delivered. Failed or malformed receipts remain visible through `remote_peer` message status/failure actions.
 
+## Signed roster and agent addressing
+
+`POST /api/addons/remote-peer/v1/roster` returns the instance identity, inbox address, version, operator-selected aliases, and allowed modes under an Ed25519 roster signature. It never returns local chat JIDs or undisclosed local agents. Roster access requires a peer scope above `inbox-only`.
+
+A `{ "kind": "agent", "name": "alias" }` message is accepted only when the alias is enabled and the authenticated peer has `named-agents` permission for it or `all-advertised` scope. Delivery uses the private local mapping while receipts expose only the remote alias. Both the peer mode ceiling and alias mode set must permit the requested mode.
+
+## Opaque replies
+
+Each outbound message carries a random, signed, expiring reply capability. The receiver converts it to a one-hop `peer!reply.<token>` address using its local alias for the authenticated peer. The token is stored only as a SHA-256 hash beside the source chat JID on the issuing instance. Returning that address lets the issuer resolve a reply to the original source context; the remote peer never receives the JID. Tampered, expired, unknown, or wrong-peer capabilities are rejected.
+
 ## URL and network policy
 
 HTTPS and public DNS destinations are required by default. URLs containing credentials and hosts resolving to loopback, link-local, private, carrier-grade NAT, or benchmark ranges are rejected. If any resolved address is private, the URL is rejected.
