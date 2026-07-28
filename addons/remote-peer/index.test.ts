@@ -63,7 +63,7 @@ describe("remote-peer extension foundation", () => {
     expect(state.identity.fingerprint).toHaveLength(20);
     expect(state.identity.private_key).toBeUndefined();
     expect(JSON.stringify(state)).not.toContain("private_key");
-    expect(state.database.schema_version).toBe(2);
+    expect(state.database.schema_version).toBe(3);
 
     const saved = await handlers.set({ enabled: true, instanceName: "Lab" });
     expect(saved.config).toMatchObject({ enabled: true, instanceName: "Lab" });

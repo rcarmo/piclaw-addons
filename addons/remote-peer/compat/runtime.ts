@@ -7,10 +7,26 @@ export type RuntimeAgentMessageResult = {
   created: boolean;
 };
 
+export type BangChatAddress = {
+  kind: "bang";
+  raw: string;
+  peer: string;
+  target: string;
+};
+
+export type ChatTransportRequest = {
+  source_chat_jid: string;
+  address: BangChatAddress;
+  content: string;
+  mode: "auto" | "queue" | "steer";
+  idempotency_key?: string;
+  in_reply_to?: string;
+};
+
 export type ChatTransport = {
   id: string;
   kind: "bang";
-  send(request: unknown): Promise<Record<string, unknown>>;
+  send(request: ChatTransportRequest): Promise<Record<string, unknown>>;
 };
 
 export type ExternalRouteRegistration = {
@@ -28,7 +44,23 @@ export type PiclawRuntimeApi = {
     getAddonDataDir(addonId: string): string;
     listAdvertisableAgents(): Promise<Array<{ agent_name: string; active: boolean }>>;
     resolveLocalTarget(input: { target_agent_name?: string; target_chat_jid?: string }): Promise<Record<string, unknown>>;
-    deliverPeerMessage(input: Record<string, unknown>): Promise<RuntimeAgentMessageResult>;
+    deliverPeerMessage(input: {
+      target_agent_name?: string;
+      target_chat_jid?: string;
+      content: string;
+      mode?: "auto" | "queue" | "steer";
+      thread_id?: number | null;
+      source: {
+        peer_instance_id: string;
+        peer_fingerprint: string;
+        peer_alias?: string;
+        agent_name?: string;
+        agent_display_name?: string;
+        reply_address?: string;
+        message_id: string;
+        in_reply_to?: string;
+      };
+    }): Promise<RuntimeAgentMessageResult>;
   };
   externalRoutes?: {
     version: number;

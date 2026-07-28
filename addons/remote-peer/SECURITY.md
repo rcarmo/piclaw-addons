@@ -14,9 +14,11 @@ An operator must review and accept every inbound pairing request. Display names 
 - Public-key validation and deterministic instance IDs.
 - URL ownership proof before trust is activated.
 - HTTPS/public-network policy by default, with explicit development overrides.
-- Exact-body request signatures, timestamp skew checks, bounded nonce replay protection, trust epochs, and endpoint rate limits.
+- Exact-body request signatures, signed delivery receipts, timestamp skew checks, bounded nonce replay protection, trust epochs, and endpoint rate limits.
 - Pairing disabled globally when the add-on is disabled.
 - Local aliases are unique and operator-controlled.
+- The message source peer is derived from signature authentication; spoofable body labels cannot replace it.
+- Inbox delivery is queue-only by default, and duplicate IDs/idempotency keys return one stored receipt and one timeline delivery.
 - Revocation is fail-closed locally even if remote notification fails.
 - Security-relevant transitions are recorded in `transport_audit` without private key material.
 

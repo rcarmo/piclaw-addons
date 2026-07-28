@@ -26,7 +26,7 @@ Pending requests expire after one hour. A failed URL proof is terminal. A failed
 
 ## Signed requests
 
-`pair-confirm`, `ping`, and `revoke` use these headers:
+`pair-confirm`, `ping`, `message`, and `revoke` use these headers:
 
 - `X-Instance-Id`
 - `X-Timestamp`
@@ -58,6 +58,14 @@ Verification requires:
 - a nonce not previously accepted for that peer.
 
 Accepted nonces are held in a bounded five-minute replay cache. Signed endpoints have a per-peer rate limit. Revocation increments the trust epoch so previously signed traffic cannot regain trust. Re-pairing negotiates one new epoch that advances beyond the revoked records on both peers.
+
+## Inbox messages and receipts
+
+`POST /api/addons/remote-peer/v1/message` accepts a signed protocol-v1 envelope with a `rmsg_...` message ID, optional idempotency key, `{ "kind": "inbox" }` target, UTF-8 content, and `queue` mode. The receiver derives the source peer only from the verified signature; source labels in the body do not determine peer identity.
+
+The receiver reserves the inbound ledger row before core delivery, then calls Piclaw's authenticated peer-message ABI. The receipt contains message ID, status, logical target, local row ID, receive time, optional error, and an Ed25519 signature over the exact unsigned receipt JSON. A duplicate message ID or idempotency key with identical content returns the stored receipt without another delivery. Reuse with different content is rejected.
+
+The sender verifies the receipt against the paired public key before marking its outbound ledger delivered. Failed or malformed receipts remain visible through `remote_peer` message status/failure actions.
 
 ## URL and network policy
 
