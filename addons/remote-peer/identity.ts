@@ -1,6 +1,6 @@
 import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { createHash, generateKeyPairSync } from "node:crypto";
+import { createHash, createPublicKey, generateKeyPairSync } from "node:crypto";
 
 export interface RemotePeerIdentity {
   version: 1;
@@ -21,6 +21,15 @@ export function deriveInstanceId(publicKey: string): string {
 
 export function formatFingerprint(instanceId: string): string {
   return `${instanceId.slice(0, 6)}-${instanceId.slice(6, 12)}-${instanceId.slice(12, 18)}`;
+}
+
+export function isValidRemotePeerPublicKey(publicKey: string): boolean {
+  try {
+    const key = createPublicKey({ key: Buffer.from(publicKey, "base64url"), format: "der", type: "spki" });
+    return key.asymmetricKeyType === "ed25519";
+  } catch {
+    return false;
+  }
 }
 
 export function createRemotePeerIdentity(now = new Date()): RemotePeerIdentity {

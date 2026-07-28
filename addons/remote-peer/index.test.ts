@@ -33,12 +33,18 @@ afterEach(() => {
 
 function fakeApi() {
   const tools = new Map<string, any>();
+  const commands = new Map<string, any>();
   const handlers = new Map<string, Function[]>();
+  const messages: any[] = [];
   return {
     tools,
+    commands,
     handlers,
+    messages,
     api: {
       registerTool(tool: any) { tools.set(tool.name, tool); },
+      registerCommand(name: string, command: any) { commands.set(name, command); },
+      sendMessage(message: any) { messages.push(message); },
       on(name: string, handler: Function) {
         const list = handlers.get(name) ?? [];
         list.push(handler);
@@ -57,7 +63,7 @@ describe("remote-peer extension foundation", () => {
     expect(state.identity.fingerprint).toHaveLength(20);
     expect(state.identity.private_key).toBeUndefined();
     expect(JSON.stringify(state)).not.toContain("private_key");
-    expect(state.database.schema_version).toBe(1);
+    expect(state.database.schema_version).toBe(2);
 
     const saved = await handlers.set({ enabled: true, instanceName: "Lab" });
     expect(saved.config).toMatchObject({ enabled: true, instanceName: "Lab" });
@@ -76,6 +82,9 @@ describe("remote-peer extension foundation", () => {
     expect(status.details.identity.private_key).toBeUndefined();
     const identity = await tool.execute("call", { action: "identity" });
     expect(identity.details.identity.fingerprint).toHaveLength(20);
+    expect(fake.commands.get("pair")).toBeDefined();
+    await fake.commands.get("pair").handler("list");
+    expect(fake.messages.at(-1).content).toContain('"peers": []');
 
     const discovery = await fake.handlers.get("resources_discover")?.[0]?.();
     expect(discovery.skillPaths[0]).toEndWith("skills/remote-peer/SKILL.md");

@@ -74,20 +74,20 @@ describe("remote-peer store", () => {
     const initial = openRemotePeerStore(root);
     initial.close();
     const sql = "CREATE TABLE migration_probe (id INTEGER PRIMARY KEY, value TEXT NOT NULL);";
-    const v2: StoreMigration = {
-      version: 2,
+    const v3: StoreMigration = {
+      version: 3,
       name: "probe",
       checksum: createHash("sha256").update(sql).digest("hex"),
       sql,
     };
-    const upgraded = openRemotePeerStore(root, { migrations: [...STORE_MIGRATIONS, v2] });
-    expect((upgraded.db.query("SELECT MAX(version) AS version FROM schema_migrations").get() as any).version).toBe(2);
+    const upgraded = openRemotePeerStore(root, { migrations: [...STORE_MIGRATIONS, v3] });
+    expect((upgraded.db.query("SELECT MAX(version) AS version FROM schema_migrations").get() as any).version).toBe(3);
     expect((upgraded.db.query("SELECT name FROM sqlite_master WHERE type='table' AND name='migration_probe'").get() as any).name).toBe("migration_probe");
     upgraded.close();
     const backups = readdirSync(join(root, "backups")).filter(name => name.endsWith(".db"));
     expect(backups).toHaveLength(1);
     const backup = new Database(join(root, "backups", backups[0]), { readonly: true });
-    expect((backup.query("SELECT MAX(version) AS version FROM schema_migrations").get() as any).version).toBe(1);
+    expect((backup.query("SELECT MAX(version) AS version FROM schema_migrations").get() as any).version).toBe(2);
     expect(backup.query("SELECT name FROM sqlite_master WHERE type='table' AND name='migration_probe'").get()).toBeNull();
     backup.close();
   });
