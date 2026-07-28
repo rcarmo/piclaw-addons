@@ -6,6 +6,7 @@ import { resetRemotePeerFoundationForTests } from "./foundation.js";
 import { resetPairingServiceForTests } from "./pairing/runtime-service.js";
 import { resetMessagingServiceForTests } from "./messaging/runtime-service.js";
 import { resetRosterServiceForTests } from "./messaging/runtime-roster.js";
+import { resetWorkServiceForTests } from "./work/runtime-service.js";
 
 const roots: string[] = [];
 let registrations: unknown[][] = [];
@@ -35,6 +36,7 @@ afterEach(() => {
   resetPairingServiceForTests();
   resetMessagingServiceForTests();
   resetRosterServiceForTests();
+  resetWorkServiceForTests();
   resetRemotePeerFoundationForTests();
   delete (globalThis as any).__piclaw_runtime;
   delete (globalThis as any).__piclaw_registerAddonConfigApi;
@@ -73,7 +75,7 @@ describe("remote-peer extension foundation", () => {
     expect(state.identity.fingerprint).toHaveLength(20);
     expect(state.identity.private_key).toBeUndefined();
     expect(JSON.stringify(state)).not.toContain("private_key");
-    expect(state.database.schema_version).toBe(4);
+    expect(state.database.schema_version).toBe(5);
 
     const saved = await handlers.set({ enabled: true, instanceName: "Lab" });
     expect(saved.config).toMatchObject({ enabled: true, instanceName: "Lab" });

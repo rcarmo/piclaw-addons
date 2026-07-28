@@ -38,6 +38,14 @@ export type ExternalRouteRegistration = {
 };
 
 export type PiclawRuntimeApi = {
+  enqueueAgentMessage?: (request: {
+    chatJid: string;
+    content: string;
+    mode?: "auto" | "queue" | "steer";
+    threadId?: number | string | null;
+    source?: string;
+    queuedBy?: { kind: "client" | "peer" | "system"; clientId?: string; displayName?: string };
+  }) => Promise<RuntimeAgentMessageResult>;
   registerStatusPanelProvider?: (provider: {
     key: string;
     getPayload(chatJid: string): unknown | Promise<unknown>;

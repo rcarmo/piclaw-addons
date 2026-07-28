@@ -41,4 +41,6 @@ Use `@alias` for local agents, `peer!inbox` for a paired remote inbox, and `peer
 
 Pair trust does not imply agent or mode access. Operators advertise aliases and set per-peer scope/ceilings. `steer` requires both a `queue-auto-steer` peer ceiling and an advertised alias that allows `steer`. Prefer a stable idempotency key when retrying uncertain deliveries.
 
+For operator-mediated work, use `remote_peer` actions `work_send`, `work_status`, `work_wait`, `work_inbox`, `work_approve`, or `work_reject`. Both proposal and execute request types require local review; never imply that pairing grants remote tool execution. Approvals must provide a reviewed result and may only approve a subset of requested capability labels.
+
 Do not use removed core `/pair`, `/ask`, or `/api/remote/*` surfaces.
