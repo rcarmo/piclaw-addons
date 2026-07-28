@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 620" role="img" aria-labelledby="title desc">
+  <title id="title">Remote Peer add-on architecture</title>
+  <desc id="desc">Two Piclaw instances exchange signed pairing, messages, rosters, opaque replies, and operator-mediated work through add-on-owned routes and state. Core provides only generic chat transport, safe delivery, external routes, and origin result queueing.</desc>
+  <defs>
+    <style>
+      :root{color-scheme:light dark}.bg{fill:#f8fafc}.group{fill:#fff;stroke:#94a3b8;stroke-width:1.4}.core{fill:#e2e8f0;stroke:#64748b}.addon{fill:#ccfbf1;stroke:#0f766e}.state{fill:#fef3c7;stroke:#b45309}.operator{fill:#dbeafe;stroke:#2563eb}.label{fill:#0f172a;font:600 16px system-ui,sans-serif}.sub{fill:#475569;font:13px system-ui,sans-serif}.title{fill:#0f172a;font:700 24px system-ui,sans-serif}.edge{fill:none;stroke:#64748b;stroke-width:2;marker-end:url(#arrow)}.signed{stroke:#0f766e}.review{stroke:#2563eb;stroke-dasharray:6 5}@media(prefers-color-scheme:dark){.bg{fill:#0f172a}.group{fill:#111827;stroke:#475569}.core{fill:#1e293b;stroke:#94a3b8}.addon{fill:#123c38;stroke:#2dd4bf}.state{fill:#3b2f13;stroke:#f59e0b}.operator{fill:#172554;stroke:#60a5fa}.label,.title{fill:#f8fafc}.sub{fill:#cbd5e1}.edge{stroke:#94a3b8}.signed{stroke:#2dd4bf}.review{stroke:#60a5fa}}
+    </style>
+    <marker id="arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0 0L9 4.5L0 9Z" fill="context-stroke"/></marker>
+  </defs>
+  <rect class="bg" width="1120" height="620" rx="12"/>
+  <text class="title" x="40" y="45">Remote Peer — add-on-owned trust and transport</text>
+  <text class="sub" x="40" y="70">No legacy state migration · one-hop addresses · operator-mediated work · generic core seams only</text>
+
+  <rect class="group" x="35" y="100" width="500" height="470" rx="12"/>
+  <text class="label" x="60" y="132">Piclaw instance A</text>
+  <rect class="core" x="65" y="160" width="185" height="82" rx="8"/>
+  <text class="label" x="87" y="190">Generic core ABI</text><text class="sub" x="87" y="214">chat transport · safe delivery</text><text class="sub" x="87" y="232">external routes · result queue</text>
+  <rect class="addon" x="285" y="150" width="210" height="110" rx="8"/>
+  <text class="label" x="312" y="180">Remote Peer add-on</text><text class="sub" x="312" y="204">Ed25519 identity + trust epoch</text><text class="sub" x="312" y="222">pair · message · roster · work</text><text class="sub" x="312" y="240">replay/rate/policy enforcement</text>
+  <rect class="state" x="285" y="305" width="210" height="105" rx="8"/>
+  <text class="label" x="335" y="337">Scoped state.db</text><text class="sub" x="315" y="360">peers · ledgers · receipts</text><text class="sub" x="315" y="379">capabilities · retries · audit</text><text class="sub" x="315" y="398">checksummed migrations + WAL</text>
+  <rect class="operator" x="65" y="455" width="430" height="78" rx="8"/>
+  <text class="label" x="170" y="485">Operator review boundary</text><text class="sub" x="100" y="510">fingerprints · policy ceilings · advertised agents · mediated work approval</text>
+
+  <rect class="group" x="585" y="100" width="500" height="470" rx="12"/>
+  <text class="label" x="610" y="132">Piclaw instance B</text>
+  <rect class="addon" x="625" y="150" width="210" height="110" rx="8"/>
+  <text class="label" x="652" y="180">Remote Peer add-on</text><text class="sub" x="652" y="204">authenticated peer identity</text><text class="sub" x="652" y="222">exact-body signatures + nonce</text><text class="sub" x="652" y="240">receiver-owned permissions</text>
+  <rect class="core" x="870" y="160" width="180" height="82" rx="8"/>
+  <text class="label" x="895" y="190">Generic core ABI</text><text class="sub" x="895" y="214">local target resolution</text><text class="sub" x="895" y="232">normal queue/timeline</text>
+  <rect class="state" x="625" y="305" width="210" height="105" rx="8"/>
+  <text class="label" x="675" y="337">Scoped state.db</text><text class="sub" x="655" y="360">pending/complete work</text><text class="sub" x="655" y="379">opaque reply-token hashes</text><text class="sub" x="655" y="398">retention + redaction</text>
+  <rect class="operator" x="625" y="455" width="425" height="78" rx="8"/>
+  <text class="label" x="725" y="485">Operator review boundary</text><text class="sub" x="655" y="510">pair acceptance · work result/rejection · capability subset · revoke</text>
+
+  <path class="edge" d="M250 201H275Q285 201 285 191"/>
+  <path class="edge" d="M390 260V295Q390 305 400 305"/>
+  <path class="edge review" d="M285 494H260Q250 494 250 484V270Q250 260 260 260H285"/>
+  <path class="edge" d="M835 201H860Q870 201 870 211"/>
+  <path class="edge" d="M730 260V295Q730 305 740 305"/>
+  <path class="edge review" d="M835 494H860Q870 494 870 484V270Q870 260 860 260H835"/>
+
+  <path class="edge signed" d="M495 178H575Q585 178 585 188H625"/>
+  <text class="sub" x="505" y="164">signed pair / roster / message / proposal</text>
+  <path class="edge signed" d="M625 235H595Q585 235 585 245H505Q495 245 495 235"/>
+  <text class="sub" x="515" y="270">signed receipt / result / revoke</text>
+
+  <text class="sub" x="40" y="602">Opaque replies reveal no chat JID. Pair trust does not grant agent access or execution. “execute” requests remain operator mediated.</text>
+</svg>

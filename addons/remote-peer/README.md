@@ -66,7 +66,15 @@ The add-on persists outbound/inbound ledgers, signs the exact request body, veri
 
 Pairing defaults to `inbox-only` and `queue`. Operators must explicitly advertise local aliases, grant each peer `named-agents` or `all-advertised` scope, and raise the mode ceiling before `auto` or `steer` can pass. Both the peer ceiling and advertised alias modes are enforced by the receiver.
 
-See [PROTOCOL.md](PROTOCOL.md) for the signed protocol, [SECURITY.md](SECURITY.md) for trust boundaries, [MEDIATED-WORK.md](MEDIATED-WORK.md) for durable work review/callback policy, and [OPERATOR-GUIDE.md](OPERATOR-GUIDE.md) for pairing, policy, health, recovery, and revocation procedures.
+Detailed documentation:
+
+- [Protocol](docs/protocol.md)
+- [Security model](docs/security.md)
+- [Mediated work](docs/mediated-work.md)
+- [Operator guide](docs/operator-guide.md)
+- [Troubleshooting](docs/troubleshooting.md)
+- [Architecture diagram](docs/architecture.svg)
+- [0.1.0 two-instance E2E matrix](docs/e2e-matrix.md)
 
 ## Settings
 
@@ -78,7 +86,7 @@ The **Remote Peer** Settings pane provides:
 - operator-selected advertised local agents;
 - pending requests, last-seen state, and failed-receipt status.
 
-Fingerprint confirmation is required for acceptance and revocation. `all-advertised` and `steer` require the typed phrase `ALLOW REMOTE ACCESS`. Key rotation requires `ROTATE <current fingerprint>`, archives the old identity, revokes existing trust, and requires restart/re-pair. Runtime endpoint changes require a Piclaw restart. Browser payloads are redacted and never contain private keys, raw chat JIDs, reply capabilities, internal database paths, or unselected local agents.
+Fingerprint confirmation is required for acceptance and revocation. `all-advertised` and `steer` require the typed phrase `ALLOW REMOTE ACCESS`. Key rotation requires every peer be revoked first, then `ROTATE <current fingerprint>`; it archives the old identity and requires restart/re-pair. Runtime endpoint changes require a Piclaw restart. Browser payloads are redacted and never contain private keys, raw chat JIDs, reply capabilities, internal database paths, or unselected local agents.
 
 ![Remote Peer Settings pane](assets/settings-pane-microvm.png)
 

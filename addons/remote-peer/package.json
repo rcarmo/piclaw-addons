@@ -1,7 +1,7 @@
 {
   "name": "@rcarmo/piclaw-addon-remote-peer",
-  "version": "0.1.0-dev.1",
-  "description": "Paired Piclaw peer identity, storage, management, and bang-address transport foundation",
+  "version": "0.1.0",
+  "description": "Signed pairing, one-hop peer messaging, advertised agents, opaque replies, and mediated remote work for Piclaw",
   "type": "module",
   "main": "index.ts",
   "piclaw": {

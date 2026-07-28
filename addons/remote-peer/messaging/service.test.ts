@@ -103,7 +103,7 @@ describe("remote-peer signed inbox messaging", () => {
     expect((result.receipt as any).status).toBe("queued");
     expect(setup.remoteDeliveries).toHaveLength(1);
     expect(setup.remoteDeliveries[0]).toMatchObject({
-      target_agent_name: "inbox",
+      target_agent_name: "default",
       content: "Please review this finding.",
       mode: "queue",
       source: {
