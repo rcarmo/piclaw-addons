@@ -50,6 +50,7 @@
       "addons/plan-sidebar/index.ts",
       "addons/portainer/index.ts",
       "addons/proxmox/index.ts",
+      "addons/remote-peer/index.ts",
       "addons/sample-addon/index.ts",
       "addons/session-dashboard/index.ts",
       "addons/session-tree/index.ts",
@@ -67,13 +68,15 @@
     ],
     "runtime": {
       "entries": [
-        "addons/autoresearch/runtime.ts"
+        "addons/autoresearch/runtime.ts",
+        "addons/remote-peer/runtime.ts"
       ]
     },
     "skills": [
       "addons/autoresearch/skills",
       "addons/delegate/skills",
       "addons/editable-table/skills",
+      "addons/remote-peer/skills",
       "addons/settings-dialog-screenshot/skills",
       "addons/stealth-browser/skills"
     ]
@@ -91,6 +94,10 @@
       {
         "name": "editable-table",
         "path": "./addons/editable-table/skills/editable-table"
+      },
+      {
+        "name": "remote-peer",
+        "path": "./addons/remote-peer/skills/remote-peer"
       },
       {
         "name": "settings-dialog-screenshot",

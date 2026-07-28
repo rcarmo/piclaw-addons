@@ -1,0 +1,60 @@
+{
+  "name": "@rcarmo/piclaw-addon-remote-peer",
+  "version": "0.1.0-dev.1",
+  "description": "Paired Piclaw peer identity, storage, management, and bang-address transport foundation",
+  "type": "module",
+  "main": "index.ts",
+  "piclaw": {
+    "type": "extension",
+    "compatibleVersions": ">=2.12.0",
+    "tags": [
+      "remote",
+      "agents",
+      "messaging",
+      "interop"
+    ],
+    "skills": [
+      "skills/remote-peer"
+    ]
+  },
+  "pi": {
+    "extensions": [
+      "index.ts"
+    ],
+    "runtime": {
+      "entries": [
+        "runtime.ts"
+      ],
+      "load": "startup"
+    },
+    "web": {
+      "entries": [
+        "web/index.ts"
+      ]
+    },
+    "skills": [
+      "skills"
+    ]
+  },
+  "agents": {
+    "skills": [
+      {
+        "name": "remote-peer",
+        "path": "./skills/remote-peer"
+      }
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "keywords": [
+    "pi-package",
+    "piclaw",
+    "piclaw-addon",
+    "remote-peer",
+    "messaging",
+    "interop"
+  ],
+  "license": "MIT",
+  "homepage": "https://rcarmo.github.io/piclaw-addons/addons/remote-peer/"
+}
