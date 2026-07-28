@@ -4,6 +4,7 @@ import { INITIAL_SCHEMA_SQL } from "./migrations/0001-initial.js";
 import { PAIR_TRUST_EPOCHS_SQL } from "./migrations/0002-pair-trust-epochs.js";
 import { MESSAGE_RECEIPTS_SQL } from "./migrations/0003-message-receipts.js";
 import { ROSTER_REPLIES_SQL } from "./migrations/0004-roster-replies.js";
+import { MEDIATED_WORK_SQL } from "./migrations/0005-mediated-work.js";
 
 export interface StoreMigration {
   version: number;
@@ -40,6 +41,12 @@ export const STORE_MIGRATIONS: readonly StoreMigration[] = Object.freeze([
     name: "roster-replies",
     checksum: checksum(ROSTER_REPLIES_SQL),
     sql: ROSTER_REPLIES_SQL,
+  }),
+  Object.freeze({
+    version: 5,
+    name: "mediated-work",
+    checksum: checksum(MEDIATED_WORK_SQL),
+    sql: MEDIATED_WORK_SQL,
   }),
 ]);
 

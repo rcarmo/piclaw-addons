@@ -1,5 +1,5 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { getPiclawRuntimeApi } from "./compat/runtime.js";
 import { getRemotePeerFoundation } from "./foundation.js";
@@ -9,9 +9,17 @@ import { getPairingService } from "./pairing/runtime-service.js";
 import { getMessagingService } from "./messaging/runtime-service.js";
 import { getRosterService } from "./messaging/runtime-roster.js";
 import type { DeliveryMode, MessagingScope, ModeCeiling } from "./messaging/policy.js";
+import { getWorkService } from "./work/runtime-service.js";
 
 const ADDON_ID = "remote-peer";
 const baseDir = dirname(fileURLToPath(import.meta.url));
+
+function chatJidFromContext(ctx: any): string | null {
+  const leaf = basename(String(ctx?.sessionManager?.getSessionDir?.() || "")).trim();
+  if (leaf === "web_default") return "web:default";
+  if (leaf.startsWith("web_") && !leaf.includes("__")) return `web:${leaf.slice(4)}`;
+  return null;
+}
 
 function foundation() {
   const runtime = getPiclawRuntimeApi();
@@ -54,6 +62,7 @@ function browserServices() {
     pairing: getPairingService(current),
     messaging: getMessagingService(current, runtime.messaging),
     roster: getRosterService(current, runtime.messaging),
+    work: getWorkService(current, runtime),
   };
 }
 
@@ -90,7 +99,7 @@ function publicPairRequest(request: any) {
 }
 
 async function dashboardState() {
-  const { current, runtime, pairing, messaging, roster } = browserServices();
+  const { current, runtime, pairing, messaging, roster, work } = browserServices();
   current.store.integrityCheck();
   const peers = pairing.repository.listPeers().map(peer => publicPeer(peer, roster.policy.listPeerAgents(peer.instance_id)));
   const pending = pairing.repository.listInbound().map(publicPairRequest);
@@ -109,6 +118,8 @@ async function dashboardState() {
       paired: peers.filter(peer => peer.status === "paired").length,
       pending: pending.length,
       failed_receipts: failures.outbound.length + failures.inbound.length,
+      pending_work: work.listInbox().length,
+      callback_retries: work.repository.listDueCallbacks(new Date().toISOString()).length,
     },
     peers,
     pending,
@@ -121,6 +132,16 @@ async function dashboardState() {
     })),
     local_agents: await runtime.messaging.listAdvertisableAgents(),
     failures,
+    work: {
+      pending: work.listInbox(),
+      recent: work.repository.list(undefined, undefined, 25).map(record => work.status(record.id)),
+      capability_profiles: work.repository.listProfiles().map(profile => ({
+        name: profile.name,
+        capabilities: JSON.parse(profile.allowed_capabilities_json),
+        max_chain_hops: profile.max_chain_hops,
+        enabled: profile.enabled === 1,
+      })),
+    },
   };
 }
 
@@ -203,7 +224,20 @@ export default function remotePeerAddon(pi: ExtensionAPI): void {
     scope?: MessagingScope;
     mode_ceiling?: ModeCeiling;
     agents?: string[];
-  }) {
+    prompt?: string;
+    request_type?: "proposal" | "execute";
+    capability_profile?: string;
+    capabilities?: string[];
+    chain_id?: string;
+    chain_hop?: number;
+    result?: string;
+    reason?: string;
+    timeout_ms?: number;
+    max_chain_hops?: number;
+    enabled?: boolean;
+    origin_chat_jid?: string;
+    origin_thread_id?: string;
+  }, ctx?: any, signal?: AbortSignal) {
     const current = foundation();
     const runtime = getPiclawRuntimeApi();
     if (runtime?.messaging?.version !== 1) throw new Error("Remote Peer requires Piclaw messaging API v1.");
@@ -254,6 +288,34 @@ export default function remotePeerAddon(pi: ExtensionAPI): void {
       const agents = params.agents ? roster.policy.setPeerAgents(peer.instance_id, params.agents, new Date().toISOString()) : roster.policy.listPeerAgents(peer.instance_id);
       return { peer: updated, agents };
     }
+    if (action === "work_send") {
+      const work = getWorkService(current, runtime);
+      const peer = pairing.repository.resolvePeer(params.peer || "");
+      if (!peer) throw new Error("Peer not found.");
+      return { work: await work.send({
+        peer,
+        prompt: params.prompt || "",
+        requestType: params.request_type,
+        capabilityProfile: params.capability_profile,
+        capabilities: params.capabilities,
+        chainId: params.chain_id,
+        chainHop: params.chain_hop,
+        originChatJid: params.origin_chat_jid || chatJidFromContext(ctx) || undefined,
+        originThreadId: params.origin_thread_id,
+      }) };
+    }
+    if (action === "work_status") return { work: getWorkService(current, runtime).status(params.request_id || "") };
+    if (action === "work_wait") return { work: await getWorkService(current, runtime).wait(params.request_id || "", params.timeout_ms, signal) };
+    if (action === "work_inbox") return { pending: getWorkService(current, runtime).listInbox() };
+    if (action === "work_approve") return { work: await getWorkService(current, runtime).approve(params.request_id || "", params.result || "", params.capabilities || []) };
+    if (action === "work_reject") return { work: await getWorkService(current, runtime).reject(params.request_id || "", params.reason || "") };
+    if (action === "work_retry_callbacks") return { delivered: await getWorkService(current, runtime).retryDueCallbacks() };
+    if (action === "work_profiles") return { profiles: getWorkService(current, runtime).repository.listProfiles() };
+    if (action === "work_set_profile") {
+      const name = String(params.capability_profile || "").trim();
+      if (!/^[a-z0-9][a-z0-9_-]{0,63}$/.test(name)) throw new Error("Invalid capability profile name.");
+      return { profile: getWorkService(current, runtime).repository.upsertProfile(name, params.capabilities || [], params.max_chain_hops ?? 3, params.enabled !== false, new Date().toISOString()) };
+    }
     if (action === "message_failures") {
       const messaging = getMessagingService(current, runtime.messaging);
       return {
@@ -272,7 +334,7 @@ export default function remotePeerAddon(pi: ExtensionAPI): void {
     parameters: {
       type: "object",
       properties: {
-        action: { type: "string", enum: ["status", "identity", "list_peers", "pending", "pair_request", "accept_pair", "deny_pair", "ping", "set_alias", "roster", "advertise_agent", "unadvertise_agent", "set_policy", "message_status", "message_failures", "revoke"] },
+        action: { type: "string", enum: ["status", "identity", "list_peers", "pending", "pair_request", "accept_pair", "deny_pair", "ping", "set_alias", "roster", "advertise_agent", "unadvertise_agent", "set_policy", "message_status", "message_failures", "work_send", "work_status", "work_wait", "work_inbox", "work_approve", "work_reject", "work_retry_callbacks", "work_profiles", "work_set_profile", "revoke"] },
         peer: { type: "string", description: "Exact peer alias, fingerprint, or instance ID." },
         url: { type: "string", description: "Target Piclaw base URL for pair_request." },
         request_id: { type: "string", description: "Inbound pairing request ID for accept_pair or deny_pair." },
@@ -283,13 +345,26 @@ export default function remotePeerAddon(pi: ExtensionAPI): void {
         scope: { type: "string", enum: ["none", "inbox-only", "named-agents", "all-advertised"] },
         mode_ceiling: { type: "string", enum: ["queue", "queue-auto", "queue-auto-steer"] },
         agents: { type: "array", items: { type: "string" }, description: "Advertised aliases allowed for named-agents scope." },
+        prompt: { type: "string", description: "Mediated work prompt." },
+        request_type: { type: "string", enum: ["proposal", "execute"], description: "Both types remain operator mediated." },
+        capability_profile: { type: "string", description: "Named local capability allowlist profile." },
+        capabilities: { type: "array", items: { type: "string" }, description: "Requested or approved capability identifiers." },
+        chain_id: { type: "string" },
+        chain_hop: { type: "integer", minimum: 0, maximum: 8 },
+        result: { type: "string", description: "Reviewed result supplied on work_approve." },
+        reason: { type: "string", description: "Rejection reason." },
+        timeout_ms: { type: "integer", minimum: 0, maximum: 120000 },
+        max_chain_hops: { type: "integer", minimum: 0, maximum: 8 },
+        enabled: { type: "boolean" },
+        origin_chat_jid: { type: "string", description: "Optional explicit result destination when context derivation is unavailable." },
+        origin_thread_id: { type: "string" },
       },
       required: ["action"],
       additionalProperties: false,
     },
-    async execute(_toolCallId, params: Parameters<typeof runAction>[0]) {
+    async execute(_toolCallId, params: Parameters<typeof runAction>[0], signal, _onUpdate, ctx) {
       try {
-        const details = await runAction(params);
+        const details = await runAction(params, ctx, signal);
         return { content: [{ type: "text", text: JSON.stringify(details, null, 2) }], details };
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);

@@ -3,6 +3,7 @@ import { getRemotePeerFoundation } from "./foundation.js";
 import { getPairingService } from "./pairing/runtime-service.js";
 import { getMessagingService } from "./messaging/runtime-service.js";
 import { getRosterService } from "./messaging/runtime-roster.js";
+import { getWorkService, startWorkCallbackRetry } from "./work/runtime-service.js";
 
 const ADDON_ID = "remote-peer";
 const runtime = requirePiclawRuntimeApi();
@@ -10,9 +11,11 @@ const dataDir = runtime.messaging.getAddonDataDir(ADDON_ID);
 const foundation = getRemotePeerFoundation(dataDir);
 const messaging = getMessagingService(foundation, runtime.messaging);
 const roster = getRosterService(foundation, runtime.messaging);
-const pairing = getPairingService(foundation, { messaging, roster });
+const work = getWorkService(foundation, runtime);
+const pairing = getPairingService(foundation, { messaging, roster, work });
 
 foundation.store.integrityCheck();
+startWorkCallbackRetry(work);
 runtime.messaging.registerChatTransport({
   id: ADDON_ID,
   kind: "bang",
@@ -31,6 +34,8 @@ runtime.registerStatusPanelProvider?.({
       pending: pairing.repository.listInbound().length,
       failed_receipts: messaging.listOutbound().filter(message => message.status === "failed").length
         + messaging.listInbound().filter(message => message.status === "failed").length,
+      pending_work: work.listInbox().length,
+      callback_retries: work.repository.listDueCallbacks(new Date().toISOString()).length,
       fingerprint: foundation.identity.fingerprint,
       generated_at: new Date().toISOString(),
     };

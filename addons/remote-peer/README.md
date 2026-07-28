@@ -66,7 +66,7 @@ The add-on persists outbound/inbound ledgers, signs the exact request body, veri
 
 Pairing defaults to `inbox-only` and `queue`. Operators must explicitly advertise local aliases, grant each peer `named-agents` or `all-advertised` scope, and raise the mode ceiling before `auto` or `steer` can pass. Both the peer ceiling and advertised alias modes are enforced by the receiver.
 
-See [PROTOCOL.md](PROTOCOL.md) for the signed protocol, [SECURITY.md](SECURITY.md) for trust boundaries, and [OPERATOR-GUIDE.md](OPERATOR-GUIDE.md) for pairing, policy, health, recovery, and revocation procedures.
+See [PROTOCOL.md](PROTOCOL.md) for the signed protocol, [SECURITY.md](SECURITY.md) for trust boundaries, [MEDIATED-WORK.md](MEDIATED-WORK.md) for durable work review/callback policy, and [OPERATOR-GUIDE.md](OPERATOR-GUIDE.md) for pairing, policy, health, recovery, and revocation procedures.
 
 ## Settings
 
@@ -82,6 +82,10 @@ Fingerprint confirmation is required for acceptance and revocation. `all-adverti
 
 ![Remote Peer Settings pane](assets/settings-pane-microvm.png)
 
+## Mediated remote work
+
+Use `work_send`, `work_status`, `work_wait`, `work_inbox`, `work_approve`, and `work_reject` through `remote_peer` for durable operator-reviewed requests. Both proposal and execute request shapes remain mediated; the add-on never grants direct remote tool execution. Signed one-time result callbacks route completed work back to the origin chat and persist failed delivery attempts for retry.
+
 ## Current scope
 
-This release registers pairing, signed ping/revoke/message/roster endpoints and the one-hop bang-address transport for inboxes, advertised agents, and opaque replies. It does not grant remote tool execution or mediated remote work.
+This release registers pairing, signed ping/revoke/message/roster/proposal/execute/result endpoints, the one-hop bang-address transport, and mediated work review. It does not grant a remote peer direct Piclaw tool execution.

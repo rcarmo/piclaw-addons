@@ -34,6 +34,10 @@ An operator must review and accept every inbound pairing request. Display names 
 - Revoke and re-pair after suspected key compromise. There is no compatibility fallback or identity import.
 - Back up the scoped add-on data directory as one unit. Restoring only `state.db` or only `identity.json` can invalidate trust relationships.
 
+## Mediated work boundary
+
+Remote work is authorization by local human review, not by pairing alone. Inbound proposal and execute shapes both remain pending until an operator supplies the reviewed result or rejection. Capability profiles are declarative allowlists used to constrain review; they cannot invoke Piclaw tools. Approval can only reduce the requested capability set. Chain hop and live-chain checks prevent recursive loops, and signed callbacks complete an outbound request only once.
+
 ## Current non-goals
 
-Pairing v1 does not yet provide message confidentiality, forward secrecy, certificate pinning, key rotation, distributed revocation, advertised-agent policy, or remote-work authorization. HTTPS protects transport confidentiality; Ed25519 signatures authenticate requests and detect mutation.
+The protocol does not provide message confidentiality, forward secrecy, certificate pinning, distributed revocation, multi-hop work execution, or direct remote tool access. HTTPS protects transport confidentiality; Ed25519 signatures authenticate requests and detect mutation.

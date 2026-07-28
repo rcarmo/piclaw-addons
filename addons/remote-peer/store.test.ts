@@ -33,6 +33,10 @@ describe("remote-peer store", () => {
     expect(advertisedColumns).toContain("local_agent_name");
     expect(tables).toContain("reply_tokens");
     expect(tables).toContain("peer_agent_permissions");
+    expect(tables).toContain("capability_profiles");
+    const proposalColumns = (store.db.query("PRAGMA table_info(proposal_requests)").all() as Array<{ name: string }>).map(column => column.name);
+    expect(proposalColumns).toContain("origin_chat_jid");
+    expect(proposalColumns).toContain("callback_payload_sha256");
     expect((store.db.query("PRAGMA journal_mode").get() as any).journal_mode).toBe("wal");
     expect((store.db.query("PRAGMA foreign_keys").get() as any).foreign_keys).toBe(1);
     store.integrityCheck();
@@ -80,20 +84,20 @@ describe("remote-peer store", () => {
     const initial = openRemotePeerStore(root);
     initial.close();
     const sql = "CREATE TABLE migration_probe (id INTEGER PRIMARY KEY, value TEXT NOT NULL);";
-    const v5: StoreMigration = {
-      version: 5,
+    const v6: StoreMigration = {
+      version: 6,
       name: "probe",
       checksum: createHash("sha256").update(sql).digest("hex"),
       sql,
     };
-    const upgraded = openRemotePeerStore(root, { migrations: [...STORE_MIGRATIONS, v5] });
-    expect((upgraded.db.query("SELECT MAX(version) AS version FROM schema_migrations").get() as any).version).toBe(5);
+    const upgraded = openRemotePeerStore(root, { migrations: [...STORE_MIGRATIONS, v6] });
+    expect((upgraded.db.query("SELECT MAX(version) AS version FROM schema_migrations").get() as any).version).toBe(6);
     expect((upgraded.db.query("SELECT name FROM sqlite_master WHERE type='table' AND name='migration_probe'").get() as any).name).toBe("migration_probe");
     upgraded.close();
     const backups = readdirSync(join(root, "backups")).filter(name => name.endsWith(".db"));
     expect(backups).toHaveLength(1);
     const backup = new Database(join(root, "backups", backups[0]), { readonly: true });
-    expect((backup.query("SELECT MAX(version) AS version FROM schema_migrations").get() as any).version).toBe(4);
+    expect((backup.query("SELECT MAX(version) AS version FROM schema_migrations").get() as any).version).toBe(5);
     expect(backup.query("SELECT name FROM sqlite_master WHERE type='table' AND name='migration_probe'").get()).toBeNull();
     backup.close();
   });
