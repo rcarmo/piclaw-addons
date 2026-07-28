@@ -605,6 +605,34 @@
       "updatedAt": "2026-07-26"
     },
     {
+      "slug": "remote-peer",
+      "name": "@rcarmo/piclaw-addon-remote-peer",
+      "version": "0.1.0-dev.1",
+      "type": "extension",
+      "description": "Paired Piclaw peer identity, storage, management, and bang-address transport foundation",
+      "path": "addons/remote-peer",
+      "homepage": "https://rcarmo.github.io/piclaw-addons/addons/remote-peer/",
+      "tags": [
+        "agents",
+        "interop",
+        "messaging",
+        "remote"
+      ],
+      "skills": [
+        "remote-peer"
+      ],
+      "install": {
+        "kind": "tarball",
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-remote-peer-0.1.0-dev.1.tgz"
+      },
+      "updatedAt": "2026-07-28",
+      "owner": {
+        "login": "rcarmo",
+        "url": "https://github.com/rcarmo"
+      },
+      "contributors": []
+    },
+    {
       "slug": "sample-addon",
       "name": "@rcarmo/piclaw-addon-sample-addon",
       "version": "0.1.10",
