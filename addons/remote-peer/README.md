@@ -1,6 +1,6 @@
 # Remote Peer
 
-`@rcarmo/piclaw-addon-remote-peer` owns cross-instance Piclaw identity, state, pairing and messaging. It creates a fresh Ed25519 identity and dedicated SQLite database, then establishes operator-approved peer trust through signed pairing. Bang-address messaging is added in a subsequent focused release.
+`@rcarmo/piclaw-addon-remote-peer` owns cross-instance Piclaw identity, state, pairing and messaging. It creates a fresh Ed25519 identity and dedicated SQLite database, establishes operator-approved peer trust through signed pairing, and delivers durable signed `peer!inbox` messages through Piclaw's existing `chat` tool.
 
 ## Requirements
 
@@ -41,10 +41,22 @@ remote_peer({ action: "accept_pair", request_id: "pair_..." })
 remote_peer({ action: "deny_pair", request_id: "pair_..." })
 remote_peer({ action: "ping", peer: "peer-alias" })
 remote_peer({ action: "set_alias", peer: "peer-alias", alias: "new-alias" })
+remote_peer({ action: "message_status", message_id: "rmsg_..." })
+remote_peer({ action: "message_failures" })
 remote_peer({ action: "revoke", peer: "peer-alias" })
 ```
 
-The `/pair` command provides equivalent operator actions. Only public identity metadata is returned. The private key is never returned through tools, commands, external routes, or the Settings API.
+The `/pair` command provides equivalent pairing actions. Only public identity metadata is returned. The private key is never returned through tools, commands, external routes, or the Settings API.
+
+## Send to a peer inbox
+
+Use Piclaw's built-in `chat` tool with the paired peer's local alias, fingerprint, or instance ID:
+
+```text
+chat({ target_address: "lab!inbox", content: "Please review this finding.", mode: "queue" })
+```
+
+This release accepts exactly `peer!inbox` and `queue`. It persists outbound/inbound ledgers, signs the exact request body, verifies the authenticated peer, calls core's safe peer-delivery ABI, and returns a signed durable receipt. Supplying an `idempotency_key` makes safe retries return the original receipt without a second timeline row.
 
 See [PROTOCOL.md](PROTOCOL.md) for the signed protocol and [SECURITY.md](SECURITY.md) for trust boundaries and deployment guidance.
 
@@ -62,4 +74,4 @@ Runtime changes require a Piclaw restart.
 
 ## Current scope
 
-This release registers only pairing, signed ping, and revoke endpoints. It does not yet register the bang-address chat transport, advertised-agent routing, or mediated remote work.
+This release registers pairing, signed ping/revoke/message endpoints and the one-hop bang-address chat transport for `peer!inbox`. It does not yet expose advertised-agent routing, opaque replies, higher delivery modes, or mediated remote work.
