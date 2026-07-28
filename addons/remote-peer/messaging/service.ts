@@ -280,7 +280,7 @@ export class MessagingService {
     let advertised: AdvertisedAgentRecord | null = null;
     if (target.kind === "inbox") {
       if (peer.messaging_scope !== "inbox-only" && peer.messaging_scope !== "named-agents" && peer.messaging_scope !== "all-advertised") return responseJson({ error: "Inbox access is not allowed." }, 403);
-      targetAgentName = "inbox";
+      targetAgentName = "default";
     } else if (target.kind === "agent") {
       const alias = parseAgentAlias(String(target.name || ""));
       if (!alias) return responseJson({ error: "Invalid agent alias." }, 400);

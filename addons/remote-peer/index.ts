@@ -147,7 +147,7 @@ async function dashboardState() {
 
 async function dashboardMutation(payload: unknown) {
   const input = payload && typeof payload === "object" ? payload as Record<string, any> : {};
-  const { pairing, roster } = browserServices();
+  const { current, pairing, roster } = browserServices();
   const action = String(input.action || "");
   if (action === "pair_request") await pairing.initiatePairing(String(input.url || ""));
   else if (action === "accept_pair") {
@@ -162,13 +162,7 @@ async function dashboardMutation(payload: unknown) {
   } else if (action === "rotate_identity") {
     const fingerprint = current.identity.fingerprint;
     if (input.confirmation !== `ROTATE ${fingerprint}`) throw new Error(`Key rotation requires typed confirmation: ROTATE ${fingerprint}`);
-    const timestamp = new Date().toISOString();
-    current.store.db.transaction(() => {
-      for (const peer of pairing.repository.listPeers("paired")) {
-        pairing.repository.updatePeer(peer.instance_id, { ...peer, status: "revoked", trust_epoch: peer.trust_epoch + 1, updated_at: timestamp, last_seen_at: peer.last_seen_at, blocked_reason: "identity-rotated" });
-        pairing.repository.audit(peer.instance_id, "identity_rotation", "revoked");
-      }
-    }).immediate();
+    if (pairing.repository.listPeers("paired").length > 0) throw new Error("Revoke every paired peer before rotating the local identity so each remote can reject the old key.");
     const next = rotateRemotePeerIdentity(current.dataDir);
     return { ...await dashboardState(), restart_required: true, old_fingerprint: fingerprint, new_fingerprint: next.fingerprint };
   } else if (action === "set_alias") pairing.setAlias(String(input.peer || ""), String(input.alias || ""));

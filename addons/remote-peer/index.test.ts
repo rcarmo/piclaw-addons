@@ -94,6 +94,7 @@ describe("remote-peer extension foundation", () => {
     expect(JSON.stringify(state)).not.toContain("target_chat_jid");
     expect(JSON.stringify(state)).not.toContain("reply_token");
     await expect(dashboard.set({ action: "revoke", peer: "missing", confirmation: "wrong" })).rejects.toThrow("Revocation requires");
+    await expect(dashboard.set({ action: "rotate_identity", confirmation: "wrong" })).rejects.toThrow("Key rotation requires");
     await expect(dashboard.set({ action: "set_policy", peer: "missing", scope: "all-advertised", confirmation: "wrong" })).rejects.toThrow("Peer not found");
   });
 

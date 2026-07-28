@@ -4,6 +4,7 @@ import { getPairingService } from "./pairing/runtime-service.js";
 import { getMessagingService } from "./messaging/runtime-service.js";
 import { getRosterService } from "./messaging/runtime-roster.js";
 import { getWorkService, startWorkCallbackRetry } from "./work/runtime-service.js";
+import { runRemotePeerMaintenance } from "./store/maintenance.js";
 
 const ADDON_ID = "remote-peer";
 const runtime = requirePiclawRuntimeApi();
@@ -15,6 +16,7 @@ const work = getWorkService(foundation, runtime);
 const pairing = getPairingService(foundation, { messaging, roster, work });
 
 foundation.store.integrityCheck();
+runRemotePeerMaintenance(foundation.store.db);
 startWorkCallbackRetry(work);
 runtime.messaging.registerChatTransport({
   id: ADDON_ID,

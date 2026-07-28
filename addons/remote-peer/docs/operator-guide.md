@@ -33,7 +33,7 @@ Select **Revoke** and type the immutable fingerprint. Revocation is immediate lo
 
 ## Rotate the local identity
 
-Select **Rotate key** and type `ROTATE <current fingerprint>`. The add-on creates a mode-0600 identity backup, writes a fresh Ed25519 identity atomically, revokes every locally paired peer, and requires a Piclaw restart. Re-pair every peer after restart. Rotation never carries old trust into the new identity.
+First revoke every paired peer while the old key is still active, so each remote instance records the revocation. The **Rotate key** control remains disabled while any peer is paired. Then type `ROTATE <current fingerprint>`. The add-on creates a mode-0600 identity backup, writes a fresh Ed25519 identity atomically, and requires a Piclaw restart. Re-pair every peer after restart. Rotation never carries old trust into the new identity.
 
 ## Health and failures
 
