@@ -196,7 +196,7 @@ function DelegateSettings() {
 
       <h4 style=${H}>Excluded model patterns</h4>
       <div style=${{ fontSize: "0.78rem", color: "var(--text-secondary)", marginBottom: "0.45rem" }}>
-        Optional automatic-selection exclusions, one per line or comma-separated. Supports exact ids, substrings, or <code>*</code> wildcards. Exact explicit overrides bypass these policy exclusions but must be executable. Effective provider exclusions: ${effectiveExclusions.providers?.join(", ") || "none"}.
+        Hard model exclusions, one per line or comma-separated. Supports exact ids, substrings, or <code>*</code> wildcards. Matching models are blocked from automatic selection, fallback, and explicit overrides. Effective provider exclusions: ${effectiveExclusions.providers?.join(", ") || "none"}.
       </div>
       <textarea style=${{ ...I, minHeight: "74px", resize: "vertical", fontFamily: "var(--font-mono, monospace)" }} value=${excludedModelsText} disabled=${saving} placeholder="gpt-4o\n*/experimental-*" onInput=${(e) => setExcludedModelsText(e.target.value)} />
       <div style=${{ display: "flex", justifyContent: "flex-end", marginTop: "0.4rem" }}>

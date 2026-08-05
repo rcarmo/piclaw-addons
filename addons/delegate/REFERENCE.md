@@ -98,7 +98,8 @@ When a native raster attachment is present, every automatic or explicit candidat
 - It must exactly match a model in the current child CLI catalog.
 - A runtime-only match reports that it is visible to Piclaw but not executable by child Pi.
 - Any other mismatch reports that the model is absent and asks for an exact Settings catalog ID.
-- It bypasses automatic current-tier, category-tier, provider, and model-exclusion policy.
+- It bypasses automatic current-tier, category-tier, and provider policy.
+- Configured model-exclusion patterns remain a hard deny-list for explicit calls.
 - It does **not** bypass executable-catalog validation or image-capability validation.
 - Explicit calls do not use automatic model fallback.
 

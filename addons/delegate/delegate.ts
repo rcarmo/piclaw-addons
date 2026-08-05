@@ -507,8 +507,16 @@ export function validateExplicitDelegateModel(
   requestedModel: string,
   executableModels: AvailableModel[],
   runtimeModels: AvailableModel[],
+  config: DelegateConfig = DEFAULT_CONFIG,
 ): ExplicitModelValidation {
   const model = executableModels.find((candidate) => candidate.fullId === requestedModel) ?? null;
+  if (model && isExcludedModel(model, normalizeConfig(config))) {
+    return {
+      model: null,
+      policyBypass: true,
+      error: `Delegate model ${requestedModel} matches a configured model exclusion and cannot be used, even as an explicit override.`,
+    };
+  }
   if (model) return { model, policyBypass: true, error: null };
   const runtimeOnly = runtimeModels.some((candidate) => candidate.fullId === requestedModel);
   return {
@@ -1194,7 +1202,7 @@ export default function (pi: any) {
     "Automatic selection uses only models verified by the child Pi CLI and never selects above the current model's verified tier.",
     "The child receives the requested tool profile (read-only, standard, full, or an explicit list); do not assume every installed Piclaw add-on tool is available.",
     "Pass workspace text files or content-sniffed JPEG, PNG, GIF, WebP, and BMP images in `files`; extract or convert PDF, SVG, archives, audio, video, and other binaries first.",
-    "An explicit `model` must be an exact executable provider/model ID; it bypasses automatic tier/exclusion policy but not executable or image-capability validation.",
+    "An explicit `model` must be an exact executable provider/model ID; it bypasses automatic tier and provider policy, but not configured model exclusions, executability, or image-capability validation.",
     "Proactively delegate when a task is self-contained and does not need conversation history.",
     "When you call delegate, produce a visible one-sentence timeline update that says what you are delegating and why; do not leave the user with zero feedback while the delegated process runs.",
     "When the user asks to double-check, verify, or review your answer, use `task_category: judge`; it selects another family when a valid tier-safe executable alternative exists.",
@@ -1234,7 +1242,7 @@ export default function (pi: any) {
         },
         model: {
           type: "string",
-          description: "Exact executable provider/model override. Bypasses automatic tier and provider/model exclusion policy, but must exist in the child Pi CLI catalog.",
+          description: "Exact executable provider/model override. Bypasses automatic tier and provider policy, but configured model exclusions still apply and the model must exist in the child Pi CLI catalog.",
         },
         files: {
           type: "array",
@@ -1282,7 +1290,7 @@ export default function (pi: any) {
       const maxTier = getCurrentTier(ctx);
       const requestedModel = typeof params.model === "string" ? params.model.trim() : "";
       const explicitValidation = requestedModel
-        ? validateExplicitDelegateModel(requestedModel, discoveredModels, runtimeCatalogSnapshot.models)
+        ? validateExplicitDelegateModel(requestedModel, discoveredModels, runtimeCatalogSnapshot.models, config)
         : null;
       const explicitModel = explicitValidation?.model ?? null;
 
@@ -1296,8 +1304,9 @@ export default function (pi: any) {
         delegateFailure(`No classified executable Delegate model candidates remain after provider/model exclusions.${discoveryNote}`);
       }
 
-      // Explicit overrides intentionally bypass automatic tier and exclusion policy,
-      // but must be exact models that the child Pi CLI can execute.
+      // Explicit overrides bypass automatic tier and provider-selection policy, but
+      // configured model exclusions are a hard deny-list. Overrides must also be
+      // exact models that the child Pi CLI can execute.
       const model = requestedModel || selectModel(category, maxTier!, currentModelId, discoveredCandidates);
       if (!model) delegateFailure("Delegate could not select an executable model within the current model tier.");
 
