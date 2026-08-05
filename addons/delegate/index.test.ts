@@ -141,6 +141,7 @@ anthropic       claude-sonnet-4.6  200K     32K      yes       yes
 
   test("provider and model exclusions are configurable", () => {
     const models = [
+      { provider: "github-copilot", id: "gpt-5-mini", fullId: "github-copilot/gpt-5-mini" },
       { provider: "github-copilot", id: "gpt-5.4-mini", fullId: "github-copilot/gpt-5.4-mini" },
       { provider: "openai", id: "gpt-5.4-mini", fullId: "openai/gpt-5.4-mini" },
       { provider: "azure-openai", id: "gpt-5.4-mini", fullId: "azure-openai/gpt-5.4-mini" },
@@ -152,9 +153,11 @@ anthropic       claude-sonnet-4.6  200K     32K      yes       yes
     const excludeOpenAi = buildModelCandidates(models, { searchable_providers: null, excluded_providers: ["openai"], excluded_models: [] });
     expect(excludeOpenAi.some((candidate) => candidate.provider === "openai")).toBe(false);
 
-    const excludeMini = buildModelCandidates(models, { searchable_providers: null, excluded_providers: [], excluded_models: ["*-mini"] });
-    expect(excludeMini.some((candidate) => candidate.modelId.endsWith("mini"))).toBe(false);
+    const excludeMini = buildModelCandidates(models, { searchable_providers: null, excluded_providers: [], excluded_models: ["*mini*"] });
+    expect(excludeMini.some((candidate) => candidate.modelId.includes("mini"))).toBe(false);
     expect(excludeMini.some((candidate) => candidate.id === "openai-codex/gpt-5.4")).toBe(true);
+    const chain = buildDelegateModelChain("code", 3, "github-copilot/gpt-5.5", excludeMini);
+    expect(chain.every((id) => !id.includes("mini"))).toBe(true);
   });
 
   test("provider toggles constrain matching and preserve configured preference order", () => {
@@ -340,16 +343,25 @@ anthropic       claude-sonnet-4.6  200K     32K      yes       yes
     expect(describeImageCapability({ id: "provider/vision", supportsImages: true })).toBeNull();
   });
 
-  test("explicit overrides require exact executable models and bypass automatic policy only", () => {
-    const executable = [{ provider: "openai-codex", id: "gpt-5.4", fullId: "openai-codex/gpt-5.4" }];
+  test("explicit overrides require exact executable models and obey hard model exclusions", () => {
+    const executable = [
+      { provider: "openai-codex", id: "gpt-5.4", fullId: "openai-codex/gpt-5.4" },
+      { provider: "github-copilot", id: "gpt-5-mini", fullId: "github-copilot/gpt-5-mini" },
+      { provider: "github-copilot", id: "gpt-5.4-mini", fullId: "github-copilot/gpt-5.4-mini" },
+    ];
     const runtime = [
       ...executable,
       { provider: "github-copilot", id: "gpt-5.6-sol", fullId: "github-copilot/gpt-5.6-sol" },
     ];
-    expect(validateExplicitDelegateModel("openai-codex/gpt-5.4", executable, runtime)).toMatchObject({ model: executable[0], policyBypass: true, error: null });
-    expect(validateExplicitDelegateModel("github-copilot/gpt-5.6-sol", executable, runtime).error).toContain("available in Piclaw but not executable");
-    expect(validateExplicitDelegateModel("unknown/missing", executable, runtime).error).toContain("not available in the child Pi CLI catalog");
-    expect(validateExplicitDelegateModel("GPT-5.4", executable, runtime).error).toContain("exact provider/model ID");
+    const hardExclusions = { searchable_providers: null, excluded_providers: [], excluded_models: ["*mini*"] };
+    expect(validateExplicitDelegateModel("openai-codex/gpt-5.4", executable, runtime, hardExclusions)).toMatchObject({ model: executable[0], policyBypass: true, error: null });
+    for (const model of ["github-copilot/gpt-5-mini", "github-copilot/gpt-5.4-mini"]) {
+      expect(validateExplicitDelegateModel(model, executable, runtime, hardExclusions)).toMatchObject({ model: null, policyBypass: true });
+      expect(validateExplicitDelegateModel(model, executable, runtime, hardExclusions).error).toContain("matches a configured model exclusion");
+    }
+    expect(validateExplicitDelegateModel("github-copilot/gpt-5.6-sol", executable, runtime, hardExclusions).error).toContain("available in Piclaw but not executable");
+    expect(validateExplicitDelegateModel("unknown/missing", executable, runtime, hardExclusions).error).toContain("not available in the child Pi CLI catalog");
+    expect(validateExplicitDelegateModel("GPT-5.4", executable, runtime, hardExclusions).error).toContain("exact provider/model ID");
   });
 
   test("judge selection crosses families only when a valid candidate exists", () => {
@@ -404,6 +416,8 @@ anthropic       claude-sonnet-4.6  200K     32K      yes       yes
     expect(source).toContain("type=\"checkbox\"");
     expect(source).toContain("Filter providers");
     expect(source).toContain("Excluded model patterns");
+    expect(source).toContain("Hard model exclusions");
+    expect(source).toContain("explicit overrides");
     expect(source).toContain("Save exclusions");
     expect(source).toContain("Refresh");
     expect(source).toContain("models");

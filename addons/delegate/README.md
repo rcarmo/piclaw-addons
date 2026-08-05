@@ -9,7 +9,7 @@ Requires Piclaw `>=1.8.0`.
 - **Verified model catalogs** — Piclaw's runtime registry supplies capability metadata; only exact models returned by child `pi --list-models` are executable.
 - **Deterministic policy** — every recognized model has one family, one tier, one ordered rule, and a classification reason. Unknown current models fail closed.
 - **Tier-safe automatic selection** — automatic delegation never selects above the verified current-model tier.
-- **Exact explicit overrides** — `model` must be an executable `provider/model` ID. Overrides bypass automatic tier and exclusion policy, but never executability or image-capability checks.
+- **Exact explicit overrides** — `model` must be an executable `provider/model` ID. Overrides bypass automatic tier and provider policy, but never configured model exclusions, executability, or image-capability checks.
 - **Capability filtering** — image input requires catalog-confirmed image support. Reasoning, context-window, and output-limit metadata are retained for diagnostics.
 - **Ephemeral structured execution** — the child runs with `--mode json --no-session --no-extensions`; Delegate parses structured messages, tool progress, usage, model, stop reason, and errors.
 - **Bounded lifecycle** — one total deadline covers all fallback attempts; cancellation terminates the process tree, output buffers are bounded, and no child session is persisted.
@@ -74,7 +74,7 @@ delegate({
 })
 ```
 
-The ID must exactly match the child CLI catalog. An explicit override bypasses automatic tier, provider, and model-exclusion policy, but it must still be executable and support any attached image.
+The ID must exactly match the child CLI catalog. An explicit override bypasses automatic tier and provider policy, but a configured model exclusion still blocks it. The model must also support any attached image.
 
 ## Files
 

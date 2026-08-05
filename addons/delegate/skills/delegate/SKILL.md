@@ -44,7 +44,7 @@ Automatic selection is capped at the verified tier of the current model. If the 
 
 ## Explicit overrides
 
-Use `model: "provider/model"` only when an exact executable child-CLI model is required. Overrides bypass automatic tier and configured provider/model exclusions, but they do not bypass executability or image-capability checks. A model visible only to Piclaw runtime is not enough.
+Use `model: "provider/model"` only when an exact executable child-CLI model is required. Overrides bypass automatic tier and provider policy, but configured model exclusions remain a hard deny-list. They also do not bypass executability or image-capability checks. A model visible only to Piclaw runtime is not enough.
 
 ## Tool profiles
 
