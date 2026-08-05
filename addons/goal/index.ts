@@ -682,7 +682,7 @@ function goalHelpMessage(goal: ThreadGoal | null, chatJidInput: unknown): string
     "| `/goal <objective>` | Start a goal (or replace the existing one) and begin the autonomous loop |",
     "| `/goal pause` (`off`, `stop`) | Pause the goal — halts auto-continuation, keeps state |",
     "| `/goal resume` (`on`) | Resume a paused goal and queue a continuation |",
-    "| `/goal clear` (`reset`) | Delete the goal entirely |",
+    "| `/goal reset` (`clear`) | Delete the goal entirely |",
     "| `/goal edit` | How to change the objective (use `/goal <objective>` or Settings → Goal) |",
     "",
     goalStatusSummary(goal, chat_jid),

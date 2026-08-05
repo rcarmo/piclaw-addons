@@ -39,7 +39,7 @@ Open **Settings → Add-Ons** and install **goal** from the catalog.
 - `/goal <objective>` — create a new active goal or immediately replace the current objective
 - `/goal pause`, `/goal off`, or `/goal stop` — pause the current goal
 - `/goal resume` or `/goal on` — resume a paused/blocked/usage-limited/budget-limited goal as active and queue continuation
-- `/goal clear` or `/goal reset` — clear the saved thread goal
+- `/goal reset` or `/goal clear` — clear the saved thread goal (`clear` is an exact synonym for `reset`)
 - `/goal edit` — points to the Settings pane or replacement flow
 
 ## Tool contract

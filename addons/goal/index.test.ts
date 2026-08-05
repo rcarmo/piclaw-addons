@@ -359,11 +359,11 @@ describe("/goal command and runtime loop", () => {
     expect(body).toContain("/goal commands");
     expect(body).toContain("| Command | Action |");
     expect(body).toContain("`/goal pause`");
-    expect(body).toContain("`/goal clear`");
+    expect(body).toContain("`/goal reset` (`clear`)");
     expect(body).toContain("No goal is currently set for web:goal.");
   });
 
-  test("/goal pause, resume, and clear are user-controlled", async () => {
+  test("/goal pause and resume are user-controlled", async () => {
     const { commands, sentUserMessages, ctx } = createHarness();
     await withChatContext("web:goal", "web", async () => {
       await commands.get("goal").handler("Finish docs", ctx);
@@ -371,10 +371,22 @@ describe("/goal command and runtime loop", () => {
       expect(loadThreadGoal("web:goal")?.status).toBe("paused");
       await commands.get("goal").handler("resume", ctx);
       expect(loadThreadGoal("web:goal")?.status).toBe("active");
-      await commands.get("goal").handler("clear", ctx);
-      expect(loadThreadGoal("web:goal")).toBeNull();
     });
     expect(sentUserMessages.length).toBeGreaterThanOrEqual(2);
+  });
+
+  test("/goal clear is an exact synonym for /goal reset", async () => {
+    for (const alias of ["reset", "clear"]) {
+      resetGoalAddonForTests();
+      const { commands, notifications, ctx } = createHarness();
+      await withChatContext("web:goal", "web", async () => {
+        await commands.get("goal").handler("Finish docs", ctx);
+        expect(loadThreadGoal("web:goal")?.objective).toBe("Finish docs");
+        await commands.get("goal").handler(alias, ctx);
+        expect(loadThreadGoal("web:goal")).toBeNull();
+      });
+      expect(notifications.at(-1)?.message).toBe("Goal cleared");
+    }
   });
 
   test("queued goal prompts are swallowed after /goal stop regardless of queue", async () => {
