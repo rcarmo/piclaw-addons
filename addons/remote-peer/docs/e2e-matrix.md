@@ -47,4 +47,4 @@ Each instance used a separate fresh scoped identity and `state.db`. HTTP/private
 
 ## Fixture cleanup
 
-VM 900's original portable service command and Cheapskate fixture were restored after the Settings screenshot test. The final two-instance release test uses reversible source-run systemd drop-ins. VM 901 is disposable and must be destroyed after release verification. Neither peer is the production Smith instance.
+VM 900's original portable service command and Cheapskate fixture were restored after the Settings screenshot test. The final two-instance release test used reversible source-run systemd drop-ins. VM 901 was destroyed after release verification. Neither peer was the production Smith instance.
