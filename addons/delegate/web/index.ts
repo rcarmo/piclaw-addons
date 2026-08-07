@@ -40,6 +40,28 @@ function compactTokens(value) {
   return String(value);
 }
 
+export function resolveProviderMode(provider, searchableProviders, excludedProviders) {
+  if (excludedProviders.has(provider)) return "exclude";
+  if (searchableProviders.has(provider)) return "search";
+  return "ignore";
+}
+
+export function buildProviderModePatch(provider, mode, searchableProviders, excludedProviders) {
+  const searchableSource = [...searchableProviders];
+  const searchable = searchableSource.filter((item) => item !== provider);
+  const excluded = [...excludedProviders].filter((item) => item !== provider);
+  if (mode === "search") {
+    const originalIndex = searchableSource.indexOf(provider);
+    if (originalIndex >= 0) searchable.splice(Math.min(originalIndex, searchable.length), 0, provider);
+    else searchable.push(provider);
+  }
+  if (mode === "exclude") excluded.push(provider);
+  return {
+    searchable_providers: searchable,
+    excluded_providers: excluded,
+  };
+}
+
 function DelegateSettings() {
   if (!HAS_RUNTIME) return null;
   const [config, setConfig] = useState(null);
@@ -59,7 +81,7 @@ function DelegateSettings() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
-  const load = useCallback(async (refresh = false) => {
+  const load = useCallback(async (refresh = false, throwOnError = false) => {
     setSaving(true);
     setMessage(refresh ? "Refreshing models…" : "");
     try {
@@ -84,6 +106,7 @@ function DelegateSettings() {
       if (refresh) setTimeout(() => setMessage(""), 2500);
     } catch (error) {
       setMessage(error?.message || "Failed to load delegate settings.");
+      if (throwOnError) throw error;
     } finally {
       setSaving(false);
     }
@@ -92,29 +115,44 @@ function DelegateSettings() {
   useEffect(() => { load(false); }, [load]);
 
   const saveConfigPatch = useCallback(async (patch, successMessage = "Saved delegate settings.") => {
+    const previousConfig = config;
+    const optimisticConfig = { ...config, ...patch };
+    setConfig(optimisticConfig);
     setSaving(true);
     setMessage("");
+    let nextConfig;
     try {
       const payload = await apiJson("config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(patch),
       });
-      const nextConfig = payload.config || { ...config, ...patch };
+      nextConfig = payload.config || optimisticConfig;
       setConfig(nextConfig);
       setExcludedModelsText(Array.isArray(nextConfig.excluded_models) ? nextConfig.excluded_models.join("\n") : "");
-      await load(false);
+    } catch (error) {
+      setConfig(previousConfig);
+      setExcludedModelsText(Array.isArray(previousConfig?.excluded_models) ? previousConfig.excluded_models.join("\n") : "");
+      setMessage(error?.message || "Failed to save delegate settings.");
+      setSaving(false);
+      return;
+    }
+    try {
+      await load(false, true);
       setMessage(successMessage);
       setTimeout(() => setMessage(""), 2200);
     } catch (error) {
-      setMessage(error?.message || "Failed to save delegate settings.");
+      setConfig(nextConfig);
+      setMessage(`${successMessage} Refresh failed: ${error?.message || "unknown error"}`);
     } finally {
       setSaving(false);
     }
   }, [config, load]);
 
-  const saveProviders = useCallback((nextProviders) => saveConfigPatch({ searchable_providers: nextProviders }, "Saved provider list."), [saveConfigPatch]);
-  const saveExcludedProviders = useCallback((nextProviders) => saveConfigPatch({ excluded_providers: nextProviders }, "Saved exclusion list."), [saveConfigPatch]);
+  const saveProviderMode = useCallback((provider, mode, searchableProviders, excludedProviders) => {
+    const patch = buildProviderModePatch(provider, mode, searchableProviders, excludedProviders);
+    saveConfigPatch(patch, `Set ${provider} to ${mode}.`);
+  }, [saveConfigPatch]);
   const saveExcludedModels = useCallback(() => {
     const patterns = excludedModelsText.split(/[\n,]+/).map((item) => item.trim()).filter(Boolean).sort();
     saveConfigPatch({ excluded_models: patterns }, "Saved model exclusions.");
@@ -164,32 +202,20 @@ function DelegateSettings() {
       </div>
       <div style=${{ display: "grid", gap: "0.35rem" }}>
         ${visibleProviders.map((provider) => {
-          const excluded = excludedSet.has(provider.provider);
-          const checked = enabledSet.has(provider.provider) && !excluded;
+          const mode = resolveProviderMode(provider.provider, enabledSet, excludedSet);
+          const radioName = `delegate-provider-mode-${provider.provider}`;
           return html`
-            <div key=${provider.provider} style=${{ ...S, opacity: excluded ? 0.58 : 1 }}>
-              <label style=${{ display: "flex", alignItems: "center", gap: "0.4rem", minWidth: "5.4rem" }}>
-                <input type="checkbox" checked=${checked} disabled=${saving || excluded}
-                  onChange=${(e) => {
-                    const next = new Set(enabledSet);
-                    if (e.target.checked) next.add(provider.provider);
-                    else next.delete(provider.provider);
-                    saveProviders([...next]);
-                  }} />
-                <span>Search</span>
-              </label>
-              <label style=${{ display: "flex", alignItems: "center", gap: "0.4rem", minWidth: "5.6rem" }}>
-                <input type="checkbox" checked=${excluded} disabled=${saving}
-                  onChange=${(e) => {
-                    const next = new Set(excludedSet);
-                    if (e.target.checked) next.add(provider.provider);
-                    else next.delete(provider.provider);
-                    saveExcludedProviders([...next]);
-                  }} />
-                <span>Exclude</span>
-              </label>
+            <div key=${provider.provider} style=${S}>
+              <div role="radiogroup" aria-label=${`${provider.provider} mode`} style=${{ display: "flex", alignItems: "center", gap: "0.65rem", minWidth: "14.8rem" }}>
+                ${["search", "ignore", "exclude"].map((option) => html`
+                  <label key=${option} style=${{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
+                    <input type="radio" name=${radioName} value=${option} checked=${mode === option} disabled=${saving}
+                      onChange=${() => saveProviderMode(provider.provider, option, enabledSet, excludedSet)} />
+                    <span>${option[0].toUpperCase()}${option.slice(1)}</span>
+                  </label>`)}
+              </div>
               <span style=${{ minWidth: "150px", fontFamily: "var(--font-mono, monospace)", fontSize: "0.82rem" }}>${provider.provider}</span>
-              <span style=${{ color: "var(--text-secondary)", fontSize: "0.76rem" }}>${provider.modelCount} models${excluded ? (provider.defaultExcluded ? " · default excluded" : " · excluded") : ""}</span>
+              <span style=${{ color: "var(--text-secondary)", fontSize: "0.76rem" }}>${provider.modelCount} models${mode === "exclude" ? (provider.defaultExcluded ? " · default excluded" : " · excluded") : mode === "ignore" ? " · ignored" : ""}</span>
             </div>`;
         })}
       </div>
