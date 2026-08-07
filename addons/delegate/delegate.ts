@@ -77,10 +77,15 @@ function normalizeModelExclusionList(values: unknown): string[] {
   return normalizeStringList(values) ?? [];
 }
 
-function normalizeConfig(config: Partial<DelegateConfig> | null | undefined): DelegateConfig {
+export function normalizeConfig(config: Partial<DelegateConfig> | null | undefined): DelegateConfig {
+  const searchableProviders = normalizeProviderList(config?.searchable_providers);
+  const excludedProviders = normalizeProviderList(config?.excluded_providers);
+  const excludedSet = new Set(excludedProviders ?? []);
   return {
-    searchable_providers: normalizeProviderList(config?.searchable_providers),
-    excluded_providers: normalizeProviderList(config?.excluded_providers),
+    searchable_providers: searchableProviders === null
+      ? null
+      : searchableProviders.filter((provider) => !excludedSet.has(provider)),
+    excluded_providers: excludedProviders,
     excluded_models: normalizeModelExclusionList(config?.excluded_models),
   };
 }
@@ -1088,7 +1093,7 @@ type AddonConfigApiRegistrar = (
   extensionPath?: string,
 ) => "created" | "updated";
 
-function providerSummaries(models: AvailableModel[], config: DelegateConfig) {
+export function providerSummaries(models: AvailableModel[], config: DelegateConfig) {
   const enabled = new Set(getAllowedProviders(models, config));
   const excluded = new Set(getExcludedProviders(models, config));
   const providers = getDiscoveredProviders(models);
@@ -1099,7 +1104,19 @@ function providerSummaries(models: AvailableModel[], config: DelegateConfig) {
     blacklisted: excluded.has(provider),
     defaultExcluded: config.excluded_providers === null && AZURE_PROVIDER_RE.test(provider),
     modelCount: models.filter((model) => model.provider === provider).length,
-  }));
+  })).sort((left, right) => {
+    const configured = config.searchable_providers;
+    if (configured !== null) {
+      const leftIndex = configured.indexOf(left.provider);
+      const rightIndex = configured.indexOf(right.provider);
+      const leftConfigured = leftIndex >= 0;
+      const rightConfigured = rightIndex >= 0;
+      if (leftConfigured !== rightConfigured) return leftConfigured ? -1 : 1;
+      if (leftConfigured && rightConfigured && leftIndex !== rightIndex) return leftIndex - rightIndex;
+    }
+    return providerPreference(left.provider, null) - providerPreference(right.provider, null)
+      || left.provider.localeCompare(right.provider);
+  });
 }
 
 async function handleGetModels(refresh = false) {

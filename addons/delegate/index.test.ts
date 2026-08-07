@@ -4,7 +4,8 @@ import { dirname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 
-import delegateAddon, { buildDelegateModelChain, buildDelegateStatusUpdate, buildModelCandidates, captureRuntimeCatalog, classifyDelegateFailure, classifyModel, delegateProcessFailure, delegateStatusModelHint, describeImageCapability, delegateTaskPreview, getCurrentTier, getDelegateWorkspaceRoot, getExecutableCatalog, inspectDelegateFile, invalidateExecutableCatalog, isProviderAuthError, isRetryableDelegateFailure, mergeExecutableRuntimeMetadata, parseDelegateJsonOutput, parsePiListModelsOutput, prepareDelegateFile, resolveDelegateCliCommand, runDelegateProcess, runtimeModelToAvailable, selectModel, validateExplicitDelegateModel } from "./delegate.ts";
+import delegateAddon, { buildDelegateModelChain, buildDelegateStatusUpdate, buildModelCandidates, captureRuntimeCatalog, classifyDelegateFailure, classifyModel, delegateProcessFailure, delegateStatusModelHint, describeImageCapability, delegateTaskPreview, getCurrentTier, getDelegateWorkspaceRoot, getExecutableCatalog, inspectDelegateFile, invalidateExecutableCatalog, isProviderAuthError, isRetryableDelegateFailure, mergeExecutableRuntimeMetadata, normalizeConfig, parseDelegateJsonOutput, parsePiListModelsOutput, prepareDelegateFile, providerSummaries, resolveDelegateCliCommand, runDelegateProcess, runtimeModelToAvailable, selectModel, validateExplicitDelegateModel } from "./delegate.ts";
+import { buildProviderModePatch, resolveProviderMode } from "./web/index.ts";
 
 const addonDir = dirname(fileURLToPath(import.meta.url));
 
@@ -411,9 +412,67 @@ anthropic       claude-sonnet-4.6  200K     32K      yes       yes
     expect(cli.argsPrefix).toEqual([]);
   });
 
-  test("delegate settings pane exposes provider/model exclusions and model refresh", () => {
+  test("provider mode transitions are mutually exclusive and can re-enable excluded providers", () => {
+    const searchable = new Set(["github-copilot", "openai-codex"]);
+    const excluded = new Set(["github-copilot", "ollama"]);
+    expect(resolveProviderMode("github-copilot", searchable, excluded)).toBe("exclude");
+
+    const searchPatch = buildProviderModePatch("github-copilot", "search", searchable, excluded);
+    expect(searchPatch).toEqual({
+      searchable_providers: ["github-copilot", "openai-codex"],
+      excluded_providers: ["ollama"],
+    });
+    expect(resolveProviderMode("github-copilot", new Set(searchPatch.searchable_providers), new Set(searchPatch.excluded_providers))).toBe("search");
+
+    const ignorePatch = buildProviderModePatch("github-copilot", "ignore", searchable, excluded);
+    expect(ignorePatch).toEqual({ searchable_providers: ["openai-codex"], excluded_providers: ["ollama"] });
+    const excludePatch = buildProviderModePatch("openai-codex", "exclude", searchable, excluded);
+    expect(excludePatch).toEqual({ searchable_providers: ["github-copilot"], excluded_providers: ["github-copilot", "ollama", "openai-codex"] });
+    const preserveOrder = buildProviderModePatch("github-copilot", "search", new Set(["openai", "github-copilot"]), new Set(["github-copilot"]));
+    expect(preserveOrder.searchable_providers).toEqual(["openai", "github-copilot"]);
+  });
+
+  test("provider config normalization removes legacy overlaps and summaries preserve preference order", () => {
+    expect(normalizeConfig({
+      searchable_providers: ["openai", "github-copilot", "ollama"],
+      excluded_providers: ["github-copilot"],
+      excluded_models: [],
+    })).toMatchObject({
+      searchable_providers: ["openai", "ollama"],
+      excluded_providers: ["github-copilot"],
+    });
+
+    const models = [
+      { provider: "github-copilot", id: "gpt-5.4", fullId: "github-copilot/gpt-5.4" },
+      { provider: "openai", id: "gpt-5.4", fullId: "openai/gpt-5.4" },
+      { provider: "ollama", id: "qwen3", fullId: "ollama/qwen3" },
+      { provider: "anthropic", id: "claude-sonnet-5", fullId: "anthropic/claude-sonnet-5" },
+    ];
+    expect(providerSummaries(models, {
+      searchable_providers: ["openai", "github-copilot"],
+      excluded_providers: [],
+      excluded_models: [],
+    }).map((provider) => provider.provider)).toEqual(["openai", "github-copilot", "anthropic", "ollama"]);
+    expect(providerSummaries(models, {
+      searchable_providers: null,
+      excluded_providers: [],
+      excluded_models: [],
+    }).map((provider) => provider.provider)).toEqual(["github-copilot", "anthropic", "openai", "ollama"]);
+  });
+
+  test("delegate settings pane uses provider radio modes and exposes model exclusions and refresh", () => {
     const source = readFileSync(resolve(addonDir, "web/index.ts"), "utf8");
-    expect(source).toContain("type=\"checkbox\"");
+    expect(source).toContain('role="radiogroup"');
+    expect(source).toContain('type="radio"');
+    expect(source).not.toContain('type="checkbox"');
+    expect(source).toContain('["search", "ignore", "exclude"]');
+    expect(source).toContain("buildProviderModePatch");
+    expect(source).toContain("const optimisticConfig = { ...config, ...patch }");
+    expect(source).toContain("setConfig(optimisticConfig)");
+    expect(source).toContain("setConfig(previousConfig)");
+    expect(source).toContain("await load(false, true)");
+    expect(source).toContain("setConfig(nextConfig)");
+    expect(source).toContain("Refresh failed:");
     expect(source).toContain("Filter providers");
     expect(source).toContain("Excluded model patterns");
     expect(source).toContain("Hard model exclusions");
