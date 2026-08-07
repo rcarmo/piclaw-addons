@@ -412,24 +412,27 @@ anthropic       claude-sonnet-4.6  200K     32K      yes       yes
     expect(cli.argsPrefix).toEqual([]);
   });
 
-  test("provider mode transitions are mutually exclusive and can re-enable excluded providers", () => {
+  test("provider modes partition discovered providers into Search or Exclude", () => {
+    const discovered = ["github-copilot", "openai-codex", "ollama"];
     const searchable = new Set(["github-copilot", "openai-codex"]);
-    const excluded = new Set(["github-copilot", "ollama"]);
-    expect(resolveProviderMode("github-copilot", searchable, excluded)).toBe("exclude");
+    expect(resolveProviderMode("github-copilot", searchable)).toBe("search");
+    expect(resolveProviderMode("ollama", searchable)).toBe("exclude");
 
-    const searchPatch = buildProviderModePatch("github-copilot", "search", searchable, excluded);
+    const searchPatch = buildProviderModePatch("ollama", "search", discovered, searchable);
     expect(searchPatch).toEqual({
-      searchable_providers: ["github-copilot", "openai-codex"],
-      excluded_providers: ["ollama"],
+      searchable_providers: ["github-copilot", "openai-codex", "ollama"],
+      excluded_providers: [],
     });
-    expect(resolveProviderMode("github-copilot", new Set(searchPatch.searchable_providers), new Set(searchPatch.excluded_providers))).toBe("search");
+    expect(resolveProviderMode("ollama", new Set(searchPatch.searchable_providers))).toBe("search");
 
-    const ignorePatch = buildProviderModePatch("github-copilot", "ignore", searchable, excluded);
-    expect(ignorePatch).toEqual({ searchable_providers: ["openai-codex"], excluded_providers: ["ollama"] });
-    const excludePatch = buildProviderModePatch("openai-codex", "exclude", searchable, excluded);
-    expect(excludePatch).toEqual({ searchable_providers: ["github-copilot"], excluded_providers: ["github-copilot", "ollama", "openai-codex"] });
-    const preserveOrder = buildProviderModePatch("github-copilot", "search", new Set(["openai", "github-copilot"]), new Set(["github-copilot"]));
+    const excludePatch = buildProviderModePatch("openai-codex", "exclude", discovered, searchable);
+    expect(excludePatch).toEqual({
+      searchable_providers: ["github-copilot"],
+      excluded_providers: ["openai-codex", "ollama"],
+    });
+    const preserveOrder = buildProviderModePatch("github-copilot", "search", ["openai", "github-copilot", "ollama"], new Set(["openai", "github-copilot"]));
     expect(preserveOrder.searchable_providers).toEqual(["openai", "github-copilot"]);
+    expect(preserveOrder.excluded_providers).toEqual(["ollama"]);
   });
 
   test("provider config normalization removes legacy overlaps and summaries preserve preference order", () => {
@@ -465,7 +468,8 @@ anthropic       claude-sonnet-4.6  200K     32K      yes       yes
     expect(source).toContain('role="radiogroup"');
     expect(source).toContain('type="radio"');
     expect(source).not.toContain('type="checkbox"');
-    expect(source).toContain('["search", "ignore", "exclude"]');
+    expect(source).toContain('["search", "exclude"]');
+    expect(source).not.toContain('"ignore"');
     expect(source).toContain("buildProviderModePatch");
     expect(source).toContain("const optimisticConfig = { ...config, ...patch }");
     expect(source).toContain("setConfig(optimisticConfig)");

@@ -90,7 +90,7 @@ For a PDF or Office document, extract it with the appropriate Piclaw tool and de
 
 The browser pane reads configuration from `/agent/addons/api/delegate/config` and model diagnostics from `/agent/addons/api/delegate/models`. Both are authenticated local Piclaw endpoints; Delegate stores no secrets.
 
-Each provider has one mutually exclusive mode: **Search**, **Ignore**, or **Exclude**. Changing modes writes `searchable_providers` and `excluded_providers` together, so selecting Search also removes a prior exclusion.
+Each provider has one mutually exclusive mode: **Search** or **Exclude**. Changing modes writes a complete provider partition to `searchable_providers` and `excluded_providers`, so selecting Search removes a prior exclusion and every non-search provider is explicitly excluded.
 
 ## Model catalogs and caching
 

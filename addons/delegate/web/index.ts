@@ -40,25 +40,22 @@ function compactTokens(value) {
   return String(value);
 }
 
-export function resolveProviderMode(provider, searchableProviders, excludedProviders) {
-  if (excludedProviders.has(provider)) return "exclude";
-  if (searchableProviders.has(provider)) return "search";
-  return "ignore";
+export function resolveProviderMode(provider, searchableProviders) {
+  return searchableProviders.has(provider) ? "search" : "exclude";
 }
 
-export function buildProviderModePatch(provider, mode, searchableProviders, excludedProviders) {
+export function buildProviderModePatch(provider, mode, discoveredProviders, searchableProviders) {
   const searchableSource = [...searchableProviders];
   const searchable = searchableSource.filter((item) => item !== provider);
-  const excluded = [...excludedProviders].filter((item) => item !== provider);
   if (mode === "search") {
     const originalIndex = searchableSource.indexOf(provider);
     if (originalIndex >= 0) searchable.splice(Math.min(originalIndex, searchable.length), 0, provider);
     else searchable.push(provider);
   }
-  if (mode === "exclude") excluded.push(provider);
+  const searchableSet = new Set(searchable);
   return {
     searchable_providers: searchable,
-    excluded_providers: excluded,
+    excluded_providers: [...discoveredProviders].filter((item) => !searchableSet.has(item)),
   };
 }
 
@@ -149,8 +146,8 @@ function DelegateSettings() {
     }
   }, [config, load]);
 
-  const saveProviderMode = useCallback((provider, mode, searchableProviders, excludedProviders) => {
-    const patch = buildProviderModePatch(provider, mode, searchableProviders, excludedProviders);
+  const saveProviderMode = useCallback((provider, mode, discoveredProviders, searchableProviders) => {
+    const patch = buildProviderModePatch(provider, mode, discoveredProviders, searchableProviders);
     saveConfigPatch(patch, `Set ${provider} to ${mode}.`);
   }, [saveConfigPatch]);
   const saveExcludedModels = useCallback(() => {
@@ -202,20 +199,20 @@ function DelegateSettings() {
       </div>
       <div style=${{ display: "grid", gap: "0.35rem" }}>
         ${visibleProviders.map((provider) => {
-          const mode = resolveProviderMode(provider.provider, enabledSet, excludedSet);
+          const mode = resolveProviderMode(provider.provider, enabledSet);
           const radioName = `delegate-provider-mode-${provider.provider}`;
           return html`
             <div key=${provider.provider} style=${S}>
               <div role="radiogroup" aria-label=${`${provider.provider} mode`} style=${{ display: "flex", alignItems: "center", gap: "0.65rem", minWidth: "14.8rem" }}>
-                ${["search", "ignore", "exclude"].map((option) => html`
+                ${["search", "exclude"].map((option) => html`
                   <label key=${option} style=${{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
                     <input type="radio" name=${radioName} value=${option} checked=${mode === option} disabled=${saving}
-                      onChange=${() => saveProviderMode(provider.provider, option, enabledSet, excludedSet)} />
+                      onChange=${() => saveProviderMode(provider.provider, option, providers.map((item) => item.provider), enabledSet)} />
                     <span>${option[0].toUpperCase()}${option.slice(1)}</span>
                   </label>`)}
               </div>
               <span style=${{ minWidth: "150px", fontFamily: "var(--font-mono, monospace)", fontSize: "0.82rem" }}>${provider.provider}</span>
-              <span style=${{ color: "var(--text-secondary)", fontSize: "0.76rem" }}>${provider.modelCount} models${mode === "exclude" ? (provider.defaultExcluded ? " · default excluded" : " · excluded") : mode === "ignore" ? " · ignored" : ""}</span>
+              <span style=${{ color: "var(--text-secondary)", fontSize: "0.76rem" }}>${provider.modelCount} models${mode === "exclude" ? (provider.defaultExcluded ? " · default excluded" : " · excluded") : ""}</span>
             </div>`;
         })}
       </div>
