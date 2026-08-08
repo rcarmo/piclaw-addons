@@ -17,6 +17,7 @@ import goalAddon, {
   setGoalPromptSenderForTests,
 } from "./index.ts";
 import { withChatContext } from "./compat/chat-context.ts";
+import { goalDeadlineCheckpointProvider } from "./deadline-checkpoint.ts";
 
 const addonDir = import.meta.dir;
 
@@ -87,6 +88,7 @@ test("goal manifest declares the web entry", () => {
   const manifest = JSON.parse(readFileSync(resolve(addonDir, "package.json"), "utf8")) as any;
   expect(manifest.name).toBe("@rcarmo/piclaw-addon-goal");
   expect(manifest.pi?.web?.entries).toEqual(["web/index.ts"]);
+  expect(manifest.pi?.runtime).toEqual({ entries: ["runtime.ts"], load: "startup" });
 });
 
 test("goal compat storage avoids runtime source imports", () => {
@@ -427,6 +429,66 @@ describe("/goal command and runtime loop", () => {
       await agentEnd({}, ctx);
     });
     expect(loadThreadGoal("web:goal")?.tokens_used).toBe(123);
+    expect(sentUserMessages).toHaveLength(2);
+    expect(String(sentUserMessages[1]?.content)).toBe("🎯 Continue goal: Finish docs");
+  });
+
+  test("released checkpoint suppresses only the exact late agent_end turn", async () => {
+    const values = new Map<string, unknown>();
+    const storageKey = (extensionId: string, name: string, scope = "chat", scopeKey = "") => `${extensionId}:${scope}:${scopeKey}:${name}`;
+    (globalThis as any).__piclawRuntimeInterop = { getExtensionKvStore: () => ({
+      get: (extensionId: string, name: string, scope?: string, scopeKey?: string) => values.get(storageKey(extensionId, name, scope, scopeKey)) ?? null,
+      set: (extensionId: string, name: string, value: unknown, scope?: string, scopeKey?: string) => { values.set(storageKey(extensionId, name, scope, scopeKey), structuredClone(value)); },
+      delete: (extensionId: string, name: string, scope?: string, scopeKey?: string) => values.delete(storageKey(extensionId, name, scope, scopeKey)),
+      list: () => [],
+      clear: () => { const count = values.size; values.clear(); return count; },
+    }) };
+    const { commands, handlers, sentUserMessages, ctx } = createHarness();
+    const messageEnd = handlers.find((entry) => entry.event === "message_end")?.handler;
+    const agentEnd = handlers.find((entry) => entry.event === "agent_end")?.handler;
+    (globalThis as any).__piclaw_planSidebarApi = {
+      getPlan: () => ({ plan: [{ step: "Finish docs", status: "in_progress" }] }),
+    };
+    await withChatContext("web:goal", "web", async () => {
+      await commands.get("goal").handler("Finish docs", ctx);
+      await messageEnd({ message: { role: "assistant", stopReason: "aborted", usage: { totalTokens: 5 } } }, ctx);
+      const lease = goalDeadlineCheckpointProvider.tryLatch({
+        chatJid: "web:goal",
+        operationId: "op-1",
+        sourceSeq: 1,
+        operationGeneration: 1,
+        oldTurnId: "turn-old",
+        checkpointId: "checkpoint-1",
+        deadlineAt: new Date(Date.now() + 1_000).toISOString(),
+      });
+      expect(lease).not.toBeNull();
+      goalDeadlineCheckpointProvider.markScheduled(lease!, { generation: 2 });
+      await messageEnd({ message: { role: "assistant", stopReason: "aborted", usage: { totalTokens: 5 } } }, ctx);
+      expect(loadThreadGoal("web:goal")?.deadline_checkpoint).toMatchObject({
+        checkpoint_id: "checkpoint-1",
+        continuation_generation: 2,
+        status: "scheduled",
+      });
+      expect(goalDeadlineCheckpointProvider.resolveContinuation({
+        chatJid: "web:goal",
+        goalId: lease!.goalId,
+        checkpointId: "checkpoint-1",
+        generation: 2,
+      }).status).toBe("continue");
+      await messageEnd({ message: { role: "assistant", stopReason: "aborted", usage: { totalTokens: 5 } } }, ctx);
+      expect(loadThreadGoal("web:goal")?.deadline_checkpoint).toMatchObject({
+        checkpoint_id: "checkpoint-1",
+        continuation_generation: 2,
+        status: "claimed",
+      });
+      goalDeadlineCheckpointProvider.release(lease!);
+      await agentEnd({}, ctx);
+    }, { turnId: "turn-old" });
+    expect(sentUserMessages).toHaveLength(1);
+
+    await withChatContext("web:goal", "web", async () => {
+      await agentEnd({}, ctx);
+    }, { turnId: "turn-new" });
     expect(sentUserMessages).toHaveLength(2);
     expect(String(sentUserMessages[1]?.content)).toBe("🎯 Continue goal: Finish docs");
   });

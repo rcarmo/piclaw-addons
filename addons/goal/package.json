@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-goal",
-  "version": "0.1.42",
+  "version": "0.1.43",
   "description": "Codex-style persisted thread goals with a hardened autonomous continuation loop and visible completion/stop summaries",
   "type": "module",
   "main": "index.ts",
@@ -19,6 +19,12 @@
     "extensions": [
       "index.ts"
     ],
+    "runtime": {
+      "entries": [
+        "runtime.ts"
+      ],
+      "load": "startup"
+    },
     "web": {
       "entries": [
         "web/index.ts"

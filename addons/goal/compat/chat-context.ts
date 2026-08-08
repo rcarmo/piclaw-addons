@@ -13,11 +13,13 @@ import { AsyncLocalStorage } from "async_hooks";
 interface ChatContext {
   chatJid: string;
   channel: string;
+  turnId?: string;
 }
 
 interface RuntimeInteropBridge {
   getChatJid?: (defaultValue?: string) => string;
   getChatChannel?: (defaultValue?: string) => string;
+  getChatTurnId?: (defaultValue?: string) => string;
 }
 
 const storage = new AsyncLocalStorage<ChatContext>();
@@ -35,8 +37,9 @@ export async function withChatContext<T>(
   chatJid: string,
   channel: string,
   fn: () => Promise<T>,
+  options?: { turnId?: string },
 ): Promise<T> {
-  return storage.run({ chatJid, channel }, fn);
+  return storage.run({ chatJid, channel, ...(options?.turnId ? { turnId: options.turnId } : {}) }, fn);
 }
 
 export function getChatJid(defaultValue = "web:default"): string {
@@ -54,6 +57,16 @@ export function getChatChannel(defaultValue = "web"): string {
   if (local) return local;
   try {
     return nonEmptyString(runtimeInterop()?.getChatChannel?.(defaultValue)) || defaultValue;
+  } catch {
+    return defaultValue;
+  }
+}
+
+export function getChatTurnId(defaultValue = ""): string {
+  const local = nonEmptyString(storage.getStore()?.turnId);
+  if (local) return local;
+  try {
+    return nonEmptyString(runtimeInterop()?.getChatTurnId?.(defaultValue)) || defaultValue;
   } catch {
     return defaultValue;
   }
