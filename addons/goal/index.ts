@@ -2,7 +2,8 @@ import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext } from "@e
 import { basename } from "node:path";
 import { Type } from "@sinclair/typebox";
 import { createExtensionStorage, type ExtensionStorage } from "./compat/extension-kv.js";
-import { getChatJid } from "./compat/chat-context.js";
+import { getChatJid, getChatTurnId } from "./compat/chat-context.js";
+import { consumeGoalDeadlineAgentEndSuppression, resetGoalDeadlineCheckpointForTests } from "./deadline-checkpoint.js";
 
 const EXTENSION_ID = "goal";
 const GOAL_KEY = "thread-goal";
@@ -15,6 +16,17 @@ const MAX_COMPLETION_PROBES = 2;
 const MAX_NO_PROGRESS_TURNS = 3;
 
 export type ThreadGoalStatus = "active" | "paused" | "blocked" | "usage_limited" | "budget_limited" | "complete" | "stopped";
+
+export interface ThreadGoalDeadlineCheckpoint {
+  checkpoint_id: string;
+  operation_id: string;
+  source_seq: number;
+  operation_generation: number;
+  continuation_generation: number;
+  old_turn_id: string;
+  expires_at: string;
+  status: "scheduled" | "claimed";
+}
 
 export interface ThreadGoal {
   goal_id: string;
@@ -42,6 +54,7 @@ export interface ThreadGoal {
   completion_probe_count: number;
   last_auto_continue_fingerprint: string;
   no_progress_turns: number;
+  deadline_checkpoint?: ThreadGoalDeadlineCheckpoint | null;
 }
 
 export interface GoalToolResponse {
@@ -152,6 +165,34 @@ function normalizeIso(value: unknown): string | null {
   return text && Number.isFinite(Date.parse(text)) ? text : null;
 }
 
+function normalizeDeadlineCheckpoint(value: unknown): ThreadGoalDeadlineCheckpoint | null {
+  if (!value || typeof value !== "object") return null;
+  const candidate = value as Record<string, unknown>;
+  const checkpoint_id = normalizeText(candidate.checkpoint_id);
+  const operation_id = normalizeText(candidate.operation_id);
+  const old_turn_id = normalizeText(candidate.old_turn_id);
+  const expires_at = normalizeIso(candidate.expires_at);
+  const source_seq = candidate.source_seq;
+  const operation_generation = candidate.operation_generation;
+  const continuation_generation = candidate.continuation_generation;
+  const status = candidate.status;
+  if (!checkpoint_id || !operation_id || !old_turn_id || !expires_at
+    || !Number.isSafeInteger(source_seq) || Number(source_seq) < 1
+    || !Number.isSafeInteger(operation_generation) || Number(operation_generation) < 0
+    || !Number.isSafeInteger(continuation_generation) || Number(continuation_generation) < 1
+    || (status !== "scheduled" && status !== "claimed")) return null;
+  return {
+    checkpoint_id,
+    operation_id,
+    source_seq: Number(source_seq),
+    operation_generation: Number(operation_generation),
+    continuation_generation: Number(continuation_generation),
+    old_turn_id,
+    expires_at,
+    status,
+  };
+}
+
 export function normalizeChatJid(value: unknown): string {
   const trimmed = typeof value === "string" ? value.trim() : "";
   return trimmed || getChatJid("web:default");
@@ -212,6 +253,7 @@ export function resetGoalAddonForTests(): void {
   lastAssistantOutcomeByChat.clear();
   turnToolActivityByChat.clear();
   compactionSeenByChat.clear();
+  resetGoalDeadlineCheckpointForTests();
 }
 
 function recordTurnToolActivity(chatJidInput: unknown, toolName: unknown): void {
@@ -261,6 +303,7 @@ export function loadThreadGoal(chatJidInput?: unknown): ThreadGoal | null {
     completion_probe_count: normalizeNonNegativeInt(saved?.completion_probe_count),
     last_auto_continue_fingerprint: normalizeText(saved?.last_auto_continue_fingerprint),
     no_progress_turns: normalizeNonNegativeInt(saved?.no_progress_turns),
+    deadline_checkpoint: normalizeDeadlineCheckpoint(saved?.deadline_checkpoint),
   };
 }
 
@@ -1349,6 +1392,11 @@ export default function goalAddon(pi: ExtensionAPI): void {
 
   pi.on("agent_end", async (_event, ctx) => {
     const chatJid = resolveActiveChatJid(ctx);
+    const turnId = getChatTurnId("");
+    if (consumeGoalDeadlineAgentEndSuppression(chatJid, turnId)) {
+      logGoalDebug("agent_end suppressed for pre-deadline checkpoint", { chatJid, turnId });
+      return;
+    }
     const goal = accountGoalProgress(chatJid, 0);
     if (!goal) return;
     if (goal.status === "budget_limited" && !goal.budget_limit_reported) {
