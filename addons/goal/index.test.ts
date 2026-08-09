@@ -177,6 +177,50 @@ test("goal continuation requests include internal auth only for loopback agent U
   expect(buildLocalAgentMessageHeaders("https://example.invalid")).toEqual({ "Content-Type": "application/json" });
 });
 
+test("goal continuations fall back deterministically when an older core has no enqueue API", async () => {
+  const originalFetch = globalThis.fetch;
+  const requests: Array<{ url: string; init?: RequestInit }> = [];
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    requests.push({ url: String(input), init });
+    return new Response(null, { status: 202 });
+  }) as typeof fetch;
+  (globalThis as { __piclaw_runtime?: unknown }).__piclaw_runtime = {};
+  try {
+    const { commands, sentUserMessages, ctx } = createHarness({ mockPromptSender: false });
+    await withChatContext("web:goal", "web", async () => {
+      await commands.get("goal").handler("Ship through the compatibility path", ctx);
+    });
+    expect(sentUserMessages).toHaveLength(0);
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.url).toContain("/agent/default/message?chat_jid=web%3Agoal");
+    expect(requests[0]?.init?.method).toBe("POST");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("goal continuations fail closed when the Piclaw runtime enqueue API throws", async () => {
+  const originalFetch = globalThis.fetch;
+  const requests: string[] = [];
+  globalThis.fetch = (async (input: string | URL | Request) => {
+    requests.push(String(input));
+    return new Response(null, { status: 202 });
+  }) as typeof fetch;
+  (globalThis as { __piclaw_runtime?: unknown }).__piclaw_runtime = {
+    enqueueAgentMessage: async () => { throw new Error("runtime queue unavailable"); },
+  };
+  try {
+    const { commands, notifications, ctx } = createHarness({ mockPromptSender: false });
+    await withChatContext("web:goal", "web", async () => {
+      await commands.get("goal").handler("Ship through the throwing runtime path", ctx);
+    });
+    expect(requests).toHaveLength(0);
+    expect(notifications.at(-1)?.level).toBe("warning");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("goal continuations prefer the first-class Piclaw runtime enqueue API over localhost HTTP", async () => {
   const enqueued: unknown[] = [];
   (globalThis as { __piclaw_runtime?: unknown }).__piclaw_runtime = {
@@ -577,16 +621,17 @@ describe("/goal command and runtime loop", () => {
         checkpointId: "checkpoint-1",
         generation: 2,
       }).status).toBe("continue");
+      expect(goalDeadlineCheckpointProvider.resolveContinuation({
+        chatJid: "web:goal",
+        goalId: lease!.goalId,
+        checkpointId: "checkpoint-1",
+        generation: 2,
+      }).status).toBe("continue");
       await messageEnd({ message: { role: "assistant", stopReason: "aborted", usage: { totalTokens: 5 } } }, ctx);
       expect(loadThreadGoal("web:goal")).toMatchObject({
         lifecycle_generation: 1,
         tokens_used: 15,
-        deadline_checkpoint: {
-          checkpoint_id: "checkpoint-1",
-          continuation_generation: 2,
-          lifecycle_generation: 1,
-          status: "claimed",
-        },
+        deadline_checkpoint: { checkpoint_id: "checkpoint-1", status: "claimed" },
       });
       expect(goalDeadlineCheckpointProvider.resolveContinuation({
         chatJid: "web:goal",
@@ -598,12 +643,124 @@ describe("/goal command and runtime loop", () => {
       await agentEnd({}, ctx);
     }, { turnId: "turn-old" });
     expect(sentUserMessages).toHaveLength(1);
+    expect(loadThreadGoal("web:goal")?.deadline_checkpoint).toMatchObject({ checkpoint_id: "checkpoint-1", status: "claimed" });
 
     await withChatContext("web:goal", "web", async () => {
       await agentEnd({}, ctx);
     }, { turnId: "turn-new" });
     expect(sentUserMessages).toHaveLength(2);
     expect(String(sentUserMessages[1]?.content)).toBe("🎯 Continue goal: Finish docs");
+    expect(loadThreadGoal("web:goal")?.deadline_checkpoint).toBeNull();
+  });
+
+  test("a hard-error successor retains claimed checkpoint evidence for exact retry", async () => {
+    installRuntimeKvStore();
+    const { commands, handlers, sentUserMessages, ctx } = createHarness();
+    const messageEnd = handlers.find((entry) => entry.event === "message_end")?.handler;
+    const agentEnd = handlers.find((entry) => entry.event === "agent_end")?.handler;
+    (globalThis as any).__piclaw_planSidebarApi = {
+      getPlan: () => ({ plan: [{ step: "Finish docs", status: "in_progress" }] }),
+    };
+    let goalId = "";
+    await withChatContext("web:goal", "web", async () => {
+      await commands.get("goal").handler("Finish docs", ctx);
+      const lease = goalDeadlineCheckpointProvider.tryLatch({
+        chatJid: "web:goal",
+        operationId: "op-error",
+        sourceSeq: 2,
+        operationGeneration: 1,
+        oldTurnId: "turn-old",
+        checkpointId: "checkpoint-error",
+        deadlineAt: new Date(Date.now() + 60_000).toISOString(),
+      });
+      expect(lease).not.toBeNull();
+      goalId = lease!.goalId;
+      goalDeadlineCheckpointProvider.markScheduled(lease!, { generation: 4 });
+      expect(goalDeadlineCheckpointProvider.resolveContinuation({
+        chatJid: "web:goal",
+        goalId,
+        checkpointId: "checkpoint-error",
+        generation: 4,
+      }).status).toBe("continue");
+      goalDeadlineCheckpointProvider.release(lease!);
+      await messageEnd({ message: { role: "assistant", stopReason: "error", errorMessage: "retry", usage: { totalTokens: 5 } } }, ctx);
+    }, { turnId: "turn-old" });
+
+    await withChatContext("web:goal", "web", async () => {
+      await agentEnd({}, ctx);
+    }, { turnId: "turn-new" });
+    expect(sentUserMessages).toHaveLength(1);
+    expect(loadThreadGoal("web:goal")?.deadline_checkpoint).toMatchObject({ checkpoint_id: "checkpoint-error", status: "claimed" });
+    expect(goalDeadlineCheckpointProvider.resolveContinuation({
+      chatJid: "web:goal",
+      goalId,
+      checkpointId: "checkpoint-error",
+      generation: 4,
+    }).status).toBe("continue");
+  });
+
+  test("ordinary accounting invalidates malformed persisted lifecycle and checkpoint identities", async () => {
+    installRuntimeKvStore();
+    const { commands, handlers, ctx } = createHarness();
+    const messageEnd = handlers.find((entry) => entry.event === "message_end")?.handler;
+    await withChatContext("web:goal", "web", async () => {
+      await commands.get("goal").handler("Finish docs", ctx);
+    });
+    const runtimeStore = (globalThis as any).__piclawRuntimeInterop.getExtensionKvStore();
+    const checkpoint = {
+      checkpoint_id: "checkpoint-malformed",
+      operation_id: "op-malformed",
+      source_seq: 2,
+      operation_generation: 1,
+      continuation_generation: 4,
+      lifecycle_generation: 1,
+      old_turn_id: "turn-malformed",
+      expires_at: new Date(Date.now() + 60_000).toISOString(),
+      status: "claimed",
+    };
+    const readRawGoal = () => runtimeStore.get("goal", "thread-goal", "chat", "web:goal");
+    const writeRawGoal = (goal: unknown) => runtimeStore.set("goal", "thread-goal", goal, "chat", "web:goal");
+
+    const initial = readRawGoal();
+    writeRawGoal({ ...initial, lifecycle_generation: Number.MAX_SAFE_INTEGER + 1, deadline_checkpoint: checkpoint });
+    await withChatContext("web:goal", "web", async () => {
+      await messageEnd({ message: { role: "assistant", stopReason: "stop", usage: { totalTokens: 1 } } }, ctx);
+    });
+    expect(readRawGoal()).toMatchObject({ lifecycle_generation: 1, deadline_checkpoint: null });
+
+    for (const checkpointId of [" checkpoint-malformed", "x".repeat(513)]) {
+      const repaired = readRawGoal();
+      writeRawGoal({ ...repaired, deadline_checkpoint: { ...checkpoint, checkpoint_id: checkpointId } });
+      await withChatContext("web:goal", "web", async () => {
+        await messageEnd({ message: { role: "assistant", stopReason: "stop", usage: { totalTokens: 1 } } }, ctx);
+      });
+      expect(readRawGoal()).toMatchObject({ lifecycle_generation: 1, deadline_checkpoint: null });
+    }
+
+    const beforeMalformedGoalId = readRawGoal();
+    writeRawGoal({
+      ...beforeMalformedGoalId,
+      goal_id: ` ${(beforeMalformedGoalId as any).goal_id}`,
+      deadline_checkpoint: checkpoint,
+    });
+    await withChatContext("web:goal", "web", async () => {
+      await messageEnd({ message: { role: "assistant", stopReason: "stop", usage: { totalTokens: 1 } } }, ctx);
+    });
+    expect(readRawGoal()).toMatchObject({ lifecycle_generation: 1, deadline_checkpoint: null });
+    expect((readRawGoal() as any).goal_id).not.toBe(` ${(beforeMalformedGoalId as any).goal_id}`);
+
+    const beforeMalformedStatus = readRawGoal();
+    writeRawGoal({ ...beforeMalformedStatus, status: "unknown", deadline_checkpoint: checkpoint });
+    await withChatContext("web:goal", "web", async () => {
+      await messageEnd({ message: { role: "assistant", stopReason: "stop", usage: { totalTokens: 1 } } }, ctx);
+    });
+    expect(readRawGoal()).toMatchObject({ status: "active", lifecycle_generation: 1, deadline_checkpoint: null });
+    expect(goalDeadlineCheckpointProvider.resolveContinuation({
+      chatJid: "web:goal",
+      goalId: String((readRawGoal() as any).goal_id),
+      checkpointId: "checkpoint-malformed",
+      generation: 4,
+    })).toEqual({ status: "suppress" });
   });
 
   test("agent_end treats an all-completed plan as a finalization candidate instead of normal continuation", async () => {
@@ -712,6 +869,65 @@ describe("/goal command and runtime loop", () => {
     });
     expect(sentUserMessages).toHaveLength(2);
     expect(String(sentUserMessages[1]?.content)).toBe("🎯 Continue goal: Finish docs");
+  });
+
+  test("non-Goal assistant outcomes cannot continue a later Goal", async () => {
+    const { commands, handlers, sentUserMessages, ctx } = createHarness();
+    const messageEnd = handlers.find((entry) => entry.event === "message_end")?.handler;
+    const agentEnd = handlers.find((entry) => entry.event === "agent_end")?.handler;
+    await withChatContext("web:goal", "web", async () => {
+      await messageEnd({ message: { role: "assistant", stopReason: "stop", usage: { totalTokens: 5 } } }, ctx);
+      await commands.get("goal").handler("Finish docs", ctx);
+      await agentEnd({}, ctx);
+    });
+    expect(sentUserMessages).toHaveLength(1);
+  });
+
+  test("assistant outcomes are one-shot at agent_end", async () => {
+    const { commands, handlers, sentUserMessages, ctx } = createHarness();
+    const messageEnd = handlers.find((entry) => entry.event === "message_end")?.handler;
+    const agentEnd = handlers.find((entry) => entry.event === "agent_end")?.handler;
+    await withChatContext("web:goal", "web", async () => {
+      await commands.get("goal").handler("Finish docs", ctx);
+      await messageEnd({ message: { role: "assistant", stopReason: "stop", usage: { totalTokens: 5 } } }, ctx);
+      await agentEnd({}, ctx);
+      await agentEnd({}, ctx);
+    });
+    expect(sentUserMessages).toHaveLength(2);
+  });
+
+  test("assistant outcomes expire before a delayed agent_end can continue", async () => {
+    const now = Date.now();
+    const originalNow = Date.now;
+    Date.now = () => now;
+    try {
+      const { commands, handlers, sentUserMessages, ctx } = createHarness();
+      const messageEnd = handlers.find((entry) => entry.event === "message_end")?.handler;
+      const agentEnd = handlers.find((entry) => entry.event === "agent_end")?.handler;
+      await withChatContext("web:goal", "web", async () => {
+        await commands.get("goal").handler("Finish docs", ctx);
+        await messageEnd({ message: { role: "assistant", stopReason: "stop", usage: { totalTokens: 5 } } }, ctx);
+        Date.now = () => now + 60 * 60_000;
+        await agentEnd({}, ctx);
+      });
+      expect(sentUserMessages).toHaveLength(1);
+    } finally {
+      Date.now = originalNow;
+    }
+  });
+
+  test("terminal lifecycle changes evict the prior assistant outcome", async () => {
+    const { commands, handlers, sentUserMessages, ctx } = createHarness();
+    const messageEnd = handlers.find((entry) => entry.event === "message_end")?.handler;
+    const agentEnd = handlers.find((entry) => entry.event === "agent_end")?.handler;
+    await withChatContext("web:goal", "web", async () => {
+      await commands.get("goal").handler("Finish docs", ctx);
+      await messageEnd({ message: { role: "assistant", stopReason: "stop", usage: { totalTokens: 5 } } }, ctx);
+      await commands.get("goal").handler("pause", ctx);
+      await commands.get("goal").handler("resume", ctx);
+      await agentEnd({}, ctx);
+    });
+    expect(sentUserMessages).toHaveLength(2);
   });
 
   test("a failing continuation dispatch does not throw out of agent_end", async () => {

@@ -16,24 +16,28 @@ const store = {
   clear: () => 0,
 };
 
-function saveGoal(overrides: Record<string, unknown> = {}) {
+function saveGoalForChat(targetChatJid: string, overrides: Record<string, unknown> = {}) {
   store.set("goal", "thread-goal", {
     goal_id: "goal-1",
     lifecycle_generation: 7,
-    chat_jid: chatJid,
+    chat_jid: targetChatJid,
     objective: "Ship issue 917",
     status: "active",
     token_budget: 10_000,
     tokens_used: 100,
     ...overrides,
-  }, "chat", chatJid);
+  }, "chat", targetChatJid);
+}
+
+function saveGoal(overrides: Record<string, unknown> = {}) {
+  saveGoalForChat(chatJid, overrides);
 }
 
 function resolve(generation = 3) {
   return provider.resolveContinuation({ chatJid, goalId: "goal-1", checkpointId: "checkpoint-1", generation });
 }
 
-function latch() {
+function latch(overrides: Partial<Parameters<typeof provider.tryLatch>[0]> = {}) {
   return provider.tryLatch({
     chatJid,
     operationId: "op-1",
@@ -42,6 +46,7 @@ function latch() {
     oldTurnId: "turn-1",
     checkpointId: "checkpoint-1",
     deadlineAt: new Date(Date.now() + 100).toISOString(),
+    ...overrides,
   });
 }
 
@@ -120,6 +125,18 @@ test("scheduled checkpoint persists exact ownership and only resolves exact repl
   expect(provider.resolveContinuation({ chatJid, goalId: "goal-1", checkpointId: "checkpoint-1", generation: 3 }).status).toBe("continue");
 });
 
+test("markScheduled retries preserve claimed evidence and validate the full owner", () => {
+  saveGoal();
+  const lease = latch()!;
+  provider.markScheduled(lease, { generation: 3 });
+  expect(resolve().status).toBe("continue");
+  provider.markScheduled(lease, { generation: 3 });
+  expect((store.get("goal", "thread-goal", "chat", chatJid) as any).deadline_checkpoint.status).toBe("claimed");
+  expect(resolve().status).toBe("continue");
+  expect(() => provider.markScheduled({ ...lease, operationId: "op-other" }, { generation: 3 }))
+    .toThrow("Another Goal deadline checkpoint is still recoverable");
+});
+
 test("agent_end suppression is exact-turn, single-use, and survives provider release", () => {
   saveGoal();
   const lease = latch()!;
@@ -132,6 +149,39 @@ test("agent_end suppression is exact-turn, single-use, and survives provider rel
   expect(consumeGoalDeadlineAgentEndSuppression(chatJid, "turn-1")).toBe(true);
   expect(consumeGoalDeadlineAgentEndSuppression(chatJid, "turn-1")).toBe(false);
   provider.release(lease);
+});
+
+test("a live exact-turn suppression cannot be replaced after latch release", () => {
+  saveGoal();
+  const lease = latch()!;
+  provider.release(lease);
+  expect(latch({ checkpointId: "checkpoint-other" })).toBeNull();
+  expect(consumeGoalDeadlineAgentEndSuppression(chatJid, "turn-1")).toBe(true);
+});
+
+test("runtime capacity rejects a new latch without evicting live suppressions", () => {
+  const leases = [];
+  for (let index = 0; index < 1_024; index += 1) {
+    const targetChatJid = `web:capacity-${index}`;
+    saveGoalForChat(targetChatJid);
+    const lease = latch({
+      chatJid: targetChatJid,
+      operationId: `op-${index}`,
+      oldTurnId: `turn-${index}`,
+      checkpointId: `checkpoint-${index}`,
+    });
+    expect(lease).not.toBeNull();
+    leases.push(lease!);
+  }
+  saveGoalForChat("web:capacity-overflow");
+  expect(latch({
+    chatJid: "web:capacity-overflow",
+    operationId: "op-overflow",
+    oldTurnId: "turn-overflow",
+    checkpointId: "checkpoint-overflow",
+  })).toBeNull();
+  provider.release(leases[0]!);
+  expect(consumeGoalDeadlineAgentEndSuppression("web:capacity-0", "turn-0")).toBe(true);
 });
 
 test("continuation is suppressed after cancellation, Plan clear, or Goal replacement", () => {
@@ -217,6 +267,108 @@ test("continuation expiry is inclusive and invalid or implausibly future clocks 
   }
 });
 
+test("invalid latch identities and unsafe numeric ownership fields fail closed", () => {
+  saveGoal();
+  for (const overrides of [
+    { chatJid: "" },
+    { operationId: " " },
+    { oldTurnId: "" },
+    { checkpointId: "\n" },
+    { operationId: "x".repeat(513) },
+    { sourceSeq: Number.NaN },
+    { sourceSeq: Number.MAX_SAFE_INTEGER + 1 },
+    { operationGeneration: -1 },
+    { operationGeneration: 1.5 },
+  ]) {
+    expect(latch(overrides)).toBeNull();
+  }
+});
+
+test("malformed Plan runtime APIs fail closed instead of escaping the provider", () => {
+  saveGoal();
+  (globalThis as any).__piclaw_planSidebarApi = { getPlan: () => { throw new Error("plan unavailable"); } };
+  expect(() => latch()).not.toThrow();
+  expect(latch()).toBeNull();
+});
+
+test("unexpired persisted checkpoint evidence survives restart and blocks replacement", () => {
+  saveGoal();
+  const lease = latch()!;
+  provider.markScheduled(lease, { generation: 3 });
+  const scheduled = structuredClone(store.get("goal", "thread-goal", "chat", chatJid) as any);
+  resetGoalDeadlineCheckpointForTests();
+  expect(latch()).toBeNull();
+  expect(store.get("goal", "thread-goal", "chat", chatJid)).toEqual(scheduled);
+});
+
+test("expired and malformed persisted checkpoint evidence is cleared at safe invalidation", () => {
+  const now = Date.now();
+  const validCheckpoint = {
+    checkpoint_id: "checkpoint-1",
+    operation_id: "op-1",
+    source_seq: 41,
+    operation_generation: 2,
+    continuation_generation: 3,
+    lifecycle_generation: 7,
+    old_turn_id: "turn-1",
+    expires_at: new Date(now + 60_000).toISOString(),
+    status: "scheduled",
+  };
+  const invalidPatches = [
+    { expires_at: new Date(now).toISOString() },
+    { expires_at: "not-a-clock" },
+    { expires_at: ` ${validCheckpoint.expires_at}` },
+    { expires_at: new Date(now + 86_400_000).toISOString() },
+    { checkpoint_id: " " },
+    { operation_id: "" },
+    { old_turn_id: "\n" },
+    { checkpoint_id: "x".repeat(513) },
+    { source_seq: Number.NaN },
+    { source_seq: Number.MAX_SAFE_INTEGER + 1 },
+    { operation_generation: -1 },
+    { operation_generation: 1.5 },
+    { continuation_generation: 0 },
+    { continuation_generation: Number.POSITIVE_INFINITY },
+    { lifecycle_generation: Number.MAX_SAFE_INTEGER + 1 },
+    { status: "unknown" },
+  ];
+
+  for (const patch of invalidPatches) {
+    saveGoal({ deadline_checkpoint: { ...validCheckpoint, ...patch } });
+    expect(resolve()).toEqual({ status: "suppress" });
+    expect((store.get("goal", "thread-goal", "chat", chatJid) as any).deadline_checkpoint).toBeNull();
+  }
+});
+
+test("malformed persisted Goal lifecycle generations cannot latch or resolve", () => {
+  for (const lifecycle_generation of [Number.NaN, 0, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
+    saveGoal({ lifecycle_generation });
+    expect(latch()).toBeNull();
+    expect(resolve()).toEqual({ status: "suppress" });
+  }
+});
+
+test("expired exact-turn suppression does not affect a newer turn", () => {
+  const now = Date.now();
+  const originalNow = Date.now;
+  Date.now = () => now;
+  try {
+    saveGoal();
+    const expiredLease = latch()!;
+    provider.release(expiredLease);
+    Date.now = () => now + 6 * 60_000;
+    expect(consumeGoalDeadlineAgentEndSuppression(chatJid, "turn-1")).toBe(false);
+
+    saveGoal();
+    const currentLease = latch({ oldTurnId: "turn-2", checkpointId: "checkpoint-2" })!;
+    provider.release(currentLease);
+    expect(consumeGoalDeadlineAgentEndSuppression(chatJid, "turn-1")).toBe(false);
+    expect(consumeGoalDeadlineAgentEndSuppression(chatJid, "turn-2")).toBe(true);
+  } finally {
+    Date.now = originalNow;
+  }
+});
+
 test("invalid or far-future deadline clocks do not create a latch", () => {
   saveGoal();
   expect(provider.tryLatch({
@@ -246,4 +398,30 @@ test("invalid or far-future deadline clocks do not create a latch", () => {
     checkpointId: "checkpoint-stale",
     deadlineAt: new Date(Date.now() - 86_400_000).toISOString(),
   })).toBeNull();
+
+  const originalNow = Date.now;
+  const finiteDeadline = new Date(originalNow() + 1_000).toISOString();
+  Date.now = () => Number.NaN;
+  try {
+    expect(() => provider.tryLatch({
+      chatJid,
+      operationId: "op-nan-clock",
+      sourceSeq: 45,
+      operationGeneration: 2,
+      oldTurnId: "turn-nan-clock",
+      checkpointId: "checkpoint-nan-clock",
+      deadlineAt: finiteDeadline,
+    })).not.toThrow();
+    expect(provider.tryLatch({
+      chatJid,
+      operationId: "op-nan-clock",
+      sourceSeq: 45,
+      operationGeneration: 2,
+      oldTurnId: "turn-nan-clock",
+      checkpointId: "checkpoint-nan-clock",
+      deadlineAt: finiteDeadline,
+    })).toBeNull();
+  } finally {
+    Date.now = originalNow;
+  }
 });
