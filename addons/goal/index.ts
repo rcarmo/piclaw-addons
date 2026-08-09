@@ -3,7 +3,7 @@ import { basename } from "node:path";
 import { Type } from "@sinclair/typebox";
 import { createExtensionStorage, type ExtensionStorage } from "./compat/extension-kv.js";
 import { getChatJid, getChatTurnId } from "./compat/chat-context.js";
-import { consumeGoalDeadlineAgentEndSuppression, resetGoalDeadlineCheckpointForTests } from "./deadline-checkpoint.js";
+import { consumeClaimedGoalDeadlineCheckpoint, consumeGoalDeadlineAgentEndSuppression, resetGoalDeadlineCheckpointForTests } from "./deadline-checkpoint.js";
 
 const EXTENSION_ID = "goal";
 const GOAL_KEY = "thread-goal";
@@ -14,6 +14,10 @@ const GOAL_VISIBLE_BUDGET_PREFIX = "🎯 Goal budget reached:";
 const GOAL_VISIBLE_FINALIZE_PREFIX = "🎯 Finalize goal:";
 const MAX_COMPLETION_PROBES = 2;
 const MAX_NO_PROGRESS_TURNS = 3;
+const MAX_ASSISTANT_OUTCOME_AGE_MS = 10 * 60_000;
+const MAX_ASSISTANT_OUTCOMES = 1_024;
+const MAX_CHECKPOINT_AGE_MS = 5 * 60_000;
+const MAX_CHECKPOINT_ID_LENGTH = 512;
 
 export type ThreadGoalStatus = "active" | "paused" | "blocked" | "usage_limited" | "budget_limited" | "complete" | "stopped";
 
@@ -159,6 +163,16 @@ function normalizeNonNegativeInt(value: unknown, fallback = 0): number {
   return Number.isFinite(numeric) && numeric >= 0 ? Math.trunc(numeric) : fallback;
 }
 
+function normalizePersistedLifecycleGeneration(value: unknown): { value: number; valid: boolean } {
+  if (value === undefined || value === null) return { value: 1, valid: true };
+  if (Number.isSafeInteger(value) && Number(value) >= 1) return { value: Number(value), valid: true };
+  return { value: 1, valid: false };
+}
+
+function normalizeSafePositiveInt(value: unknown, fallback = 1): number {
+  return Number.isSafeInteger(value) && Number(value) >= 1 ? Number(value) : fallback;
+}
+
 function normalizeBoolean(value: unknown, fallback = false): boolean {
   return typeof value === "boolean" ? value : fallback;
 }
@@ -168,13 +182,26 @@ function normalizeIso(value: unknown): string | null {
   return text && Number.isFinite(Date.parse(text)) ? text : null;
 }
 
-function normalizeDeadlineCheckpoint(value: unknown): ThreadGoalDeadlineCheckpoint | null {
+function normalizeCheckpointId(value: unknown): string {
+  if (typeof value !== "string") return "";
+  const trimmed = value.trim();
+  return trimmed && trimmed === value && trimmed.length <= MAX_CHECKPOINT_ID_LENGTH ? trimmed : "";
+}
+
+function normalizeCheckpointExpiry(value: unknown, now = Date.now()): string | null {
+  if (typeof value !== "string" || value.length > 64 || value.trim() !== value || !Number.isFinite(now)) return null;
+  const expiresAt = Date.parse(value);
+  return Number.isFinite(expiresAt) && new Date(expiresAt).toISOString() === value
+    && expiresAt > now && expiresAt <= now + MAX_CHECKPOINT_AGE_MS ? value : null;
+}
+
+function normalizeDeadlineCheckpoint(value: unknown, expectedLifecycleGeneration: number): ThreadGoalDeadlineCheckpoint | null {
   if (!value || typeof value !== "object") return null;
   const candidate = value as Record<string, unknown>;
-  const checkpoint_id = normalizeText(candidate.checkpoint_id);
-  const operation_id = normalizeText(candidate.operation_id);
-  const old_turn_id = normalizeText(candidate.old_turn_id);
-  const expires_at = normalizeIso(candidate.expires_at);
+  const checkpoint_id = normalizeCheckpointId(candidate.checkpoint_id);
+  const operation_id = normalizeCheckpointId(candidate.operation_id);
+  const old_turn_id = normalizeCheckpointId(candidate.old_turn_id);
+  const expires_at = normalizeCheckpointExpiry(candidate.expires_at);
   const source_seq = candidate.source_seq;
   const operation_generation = candidate.operation_generation;
   const continuation_generation = candidate.continuation_generation;
@@ -185,6 +212,7 @@ function normalizeDeadlineCheckpoint(value: unknown): ThreadGoalDeadlineCheckpoi
     || !Number.isSafeInteger(operation_generation) || Number(operation_generation) < 0
     || !Number.isSafeInteger(continuation_generation) || Number(continuation_generation) < 1
     || !Number.isSafeInteger(lifecycle_generation) || Number(lifecycle_generation) < 1
+    || Number(lifecycle_generation) !== expectedLifecycleGeneration
     || (status !== "scheduled" && status !== "claimed")) return null;
   return {
     checkpoint_id,
@@ -243,9 +271,13 @@ function validateGoalObjective(value: unknown): string {
   return objective;
 }
 
+function isThreadGoalStatus(value: unknown): value is ThreadGoalStatus {
+  return value === "active" || value === "paused" || value === "blocked" || value === "usage_limited"
+    || value === "budget_limited" || value === "complete" || value === "stopped";
+}
+
 function normalizeStatus(value: unknown, fallback: ThreadGoalStatus = "active"): ThreadGoalStatus {
-  if (value === "active" || value === "paused" || value === "blocked" || value === "usage_limited" || value === "budget_limited" || value === "complete" || value === "stopped") return value;
-  return fallback;
+  return isThreadGoalStatus(value) ? value : fallback;
 }
 
 function normalizeStringArray(value: unknown): string[] {
@@ -283,9 +315,12 @@ export function loadThreadGoal(chatJidInput?: unknown): ThreadGoal | null {
   const objective = normalizePlanText(saved?.objective);
   if (!objective) return null;
   const now = nowIso();
+  const persistedGoalId = normalizeCheckpointId(saved?.goal_id);
+  const persistedStatusValid = isThreadGoalStatus(saved?.status);
+  const lifecycleGeneration = normalizePersistedLifecycleGeneration(saved?.lifecycle_generation);
   return {
-    goal_id: normalizeText(saved?.goal_id) || newGoalId(),
-    lifecycle_generation: normalizeNonNegativeInt(saved?.lifecycle_generation, 1) || 1,
+    goal_id: persistedGoalId || newGoalId(),
+    lifecycle_generation: lifecycleGeneration.value,
     chat_jid,
     objective,
     status: normalizeStatus(saved?.status),
@@ -310,7 +345,9 @@ export function loadThreadGoal(chatJidInput?: unknown): ThreadGoal | null {
     completion_probe_count: normalizeNonNegativeInt(saved?.completion_probe_count),
     last_auto_continue_fingerprint: normalizeText(saved?.last_auto_continue_fingerprint),
     no_progress_turns: normalizeNonNegativeInt(saved?.no_progress_turns),
-    deadline_checkpoint: normalizeDeadlineCheckpoint(saved?.deadline_checkpoint),
+    deadline_checkpoint: lifecycleGeneration.valid && Boolean(persistedGoalId) && persistedStatusValid
+      ? normalizeDeadlineCheckpoint(saved?.deadline_checkpoint, lifecycleGeneration.value)
+      : null,
   };
 }
 
@@ -319,9 +356,13 @@ function saveThreadGoal(goal: ThreadGoal): ThreadGoal {
   const lifecycleChanged = Boolean(current
     && current.goal_id === goal.goal_id
     && current.status !== goal.status);
+  if (lifecycleChanged) lastAssistantOutcomeByChat.delete(goal.chat_jid);
+  if (lifecycleChanged && current!.lifecycle_generation === Number.MAX_SAFE_INTEGER) {
+    throw new Error("Goal lifecycle generation exhausted");
+  }
   const next = {
     ...goal,
-    lifecycle_generation: lifecycleChanged ? current!.lifecycle_generation + 1 : goal.lifecycle_generation,
+    lifecycle_generation: lifecycleChanged ? current!.lifecycle_generation + 1 : normalizeSafePositiveInt(goal.lifecycle_generation),
     deadline_checkpoint: lifecycleChanged ? null : goal.deadline_checkpoint,
     updated_at: nowIso(),
   };
@@ -331,6 +372,9 @@ function saveThreadGoal(goal: ThreadGoal): ThreadGoal {
 
 export function clearThreadGoal(chatJidInput?: unknown): boolean {
   const chat_jid = normalizeChatJid(chatJidInput);
+  lastAssistantOutcomeByChat.delete(chat_jid);
+  turnToolActivityByChat.delete(chat_jid);
+  compactionSeenByChat.delete(chat_jid);
   return kv().delete(GOAL_KEY, "chat", chat_jid);
 }
 
@@ -750,8 +794,26 @@ function goalHelpMessage(goal: ThreadGoal | null, chatJidInput: unknown): string
   ].join("\n");
 }
 
+function pruneAssistantOutcomes(now = Date.now()): void {
+  for (const [chatJid, outcome] of lastAssistantOutcomeByChat) {
+    const age = now - outcome.recordedAt;
+    if (!Number.isFinite(age) || age < 0 || age >= MAX_ASSISTANT_OUTCOME_AGE_MS) lastAssistantOutcomeByChat.delete(chatJid);
+  }
+  while (lastAssistantOutcomeByChat.size > MAX_ASSISTANT_OUTCOMES) {
+    const oldestChatJid = lastAssistantOutcomeByChat.keys().next().value as string | undefined;
+    if (!oldestChatJid) break;
+    lastAssistantOutcomeByChat.delete(oldestChatJid);
+  }
+}
+
 function recordAssistantOutcome(chatJidInput: unknown, message: unknown): void {
   const chatJid = normalizeChatJid(chatJidInput);
+  pruneAssistantOutcomes();
+  const goal = loadThreadGoal(chatJid);
+  if (!goal || goal.status !== "active") {
+    lastAssistantOutcomeByChat.delete(chatJid);
+    return;
+  }
   const stopReason = normalizeText(message && typeof message === "object" ? (message as { stopReason?: unknown }).stopReason : undefined);
   const errorMessage = normalizeText(message && typeof message === "object" ? (message as { errorMessage?: unknown }).errorMessage : undefined);
   // A turn that ends on a tool call (stopReason "toolUse") is not a failure: the
@@ -768,7 +830,9 @@ function recordAssistantOutcome(chatJidInput: unknown, message: unknown): void {
   const aborted = stopReason === "aborted";
   const errored = !aborted && (stopReason === "error" || Boolean(errorMessage));
   const ok = !errored && !aborted;
+  lastAssistantOutcomeByChat.delete(chatJid);
   lastAssistantOutcomeByChat.set(chatJid, { ok, stopReason, errored, recordedAt: Date.now() });
+  pruneAssistantOutcomes();
 }
 
 // Decide whether the autonomous goal loop should continue after this turn. A
@@ -800,8 +864,12 @@ function recordAssistantOutcome(chatJidInput: unknown, message: unknown): void {
 // no-progress guard, so erring toward continuation is correct here.
 function shouldContinueAfterTurn(chatJidInput: unknown): boolean {
   const chatJid = normalizeChatJid(chatJidInput);
+  pruneAssistantOutcomes();
   const outcome = lastAssistantOutcomeByChat.get(chatJid);
+  lastAssistantOutcomeByChat.delete(chatJid);
   if (!outcome) return false;
+  const age = Date.now() - outcome.recordedAt;
+  if (!Number.isFinite(age) || age < 0 || age >= MAX_ASSISTANT_OUTCOME_AGE_MS) return false;
   if (outcome.errored) return false;
   return true;
 }
@@ -1423,7 +1491,7 @@ export default function goalAddon(pi: ExtensionAPI): void {
       logGoalDebug("agent_end suppressed for pre-deadline checkpoint", { chatJid, turnId });
       return;
     }
-    const goal = accountGoalProgress(chatJid, 0);
+    let goal = accountGoalProgress(chatJid, 0);
     if (!goal) return;
     if (goal.status === "budget_limited" && !goal.budget_limit_reported) {
       const reported = saveThreadGoal({ ...goal, budget_limit_reported: true, last_accounted_at: null });
@@ -1437,6 +1505,10 @@ export default function goalAddon(pi: ExtensionAPI): void {
     // diagnosed from the next occurrence without another blind investigation round.
     const outcome = lastAssistantOutcomeByChat.get(normalizeChatJid(chatJid));
     const willContinue = shouldContinueAfterTurn(chatJid);
+    if (willContinue && consumeClaimedGoalDeadlineCheckpoint(chatJid)) {
+      // Do not let later Plan bookkeeping write the stale claimed snapshot back.
+      goal = loadThreadGoal(chatJid) ?? goal;
+    }
     const pending = Boolean(ctx.hasPendingMessages?.());
     if (!willContinue || pending) {
       logGoalDebug("agent_end skipped continuation", {
