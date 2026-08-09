@@ -23,6 +23,7 @@ export interface ThreadGoalDeadlineCheckpoint {
   source_seq: number;
   operation_generation: number;
   continuation_generation: number;
+  lifecycle_generation: number;
   old_turn_id: string;
   expires_at: string;
   status: "scheduled" | "claimed";
@@ -30,6 +31,7 @@ export interface ThreadGoalDeadlineCheckpoint {
 
 export interface ThreadGoal {
   goal_id: string;
+  lifecycle_generation: number;
   chat_jid: string;
   objective: string;
   status: ThreadGoalStatus;
@@ -61,6 +63,7 @@ export interface GoalToolResponse {
   goal: null | {
     threadId: string;
     goalId: string;
+    lifecycleGeneration: number;
     objective: string;
     status: ThreadGoalStatus;
     tokenBudget: number | null;
@@ -175,11 +178,13 @@ function normalizeDeadlineCheckpoint(value: unknown): ThreadGoalDeadlineCheckpoi
   const source_seq = candidate.source_seq;
   const operation_generation = candidate.operation_generation;
   const continuation_generation = candidate.continuation_generation;
+  const lifecycle_generation = candidate.lifecycle_generation;
   const status = candidate.status;
   if (!checkpoint_id || !operation_id || !old_turn_id || !expires_at
     || !Number.isSafeInteger(source_seq) || Number(source_seq) < 1
     || !Number.isSafeInteger(operation_generation) || Number(operation_generation) < 0
     || !Number.isSafeInteger(continuation_generation) || Number(continuation_generation) < 1
+    || !Number.isSafeInteger(lifecycle_generation) || Number(lifecycle_generation) < 1
     || (status !== "scheduled" && status !== "claimed")) return null;
   return {
     checkpoint_id,
@@ -187,6 +192,7 @@ function normalizeDeadlineCheckpoint(value: unknown): ThreadGoalDeadlineCheckpoi
     source_seq: Number(source_seq),
     operation_generation: Number(operation_generation),
     continuation_generation: Number(continuation_generation),
+    lifecycle_generation: Number(lifecycle_generation),
     old_turn_id,
     expires_at,
     status,
@@ -279,6 +285,7 @@ export function loadThreadGoal(chatJidInput?: unknown): ThreadGoal | null {
   const now = nowIso();
   return {
     goal_id: normalizeText(saved?.goal_id) || newGoalId(),
+    lifecycle_generation: normalizeNonNegativeInt(saved?.lifecycle_generation, 1) || 1,
     chat_jid,
     objective,
     status: normalizeStatus(saved?.status),
@@ -308,7 +315,16 @@ export function loadThreadGoal(chatJidInput?: unknown): ThreadGoal | null {
 }
 
 function saveThreadGoal(goal: ThreadGoal): ThreadGoal {
-  const next = { ...goal, updated_at: nowIso() };
+  const current = loadThreadGoal(goal.chat_jid);
+  const lifecycleChanged = Boolean(current
+    && current.goal_id === goal.goal_id
+    && current.status !== goal.status);
+  const next = {
+    ...goal,
+    lifecycle_generation: lifecycleChanged ? current!.lifecycle_generation + 1 : goal.lifecycle_generation,
+    deadline_checkpoint: lifecycleChanged ? null : goal.deadline_checkpoint,
+    updated_at: nowIso(),
+  };
   kv().set(GOAL_KEY, next, "chat", next.chat_jid);
   return next;
 }
@@ -326,6 +342,7 @@ export function createThreadGoal(chatJidInput: unknown, objectiveInput: unknown,
   const now = nowIso();
   return saveThreadGoal({
     goal_id: newGoalId(),
+    lifecycle_generation: 1,
     chat_jid,
     objective: validateGoalObjective(objectiveInput),
     status: "active",
@@ -380,6 +397,7 @@ export function protocolGoal(goal: ThreadGoal | null): GoalToolResponse["goal"] 
   return {
     threadId: goal.chat_jid,
     goalId: goal.goal_id,
+    lifecycleGeneration: goal.lifecycle_generation,
     objective: goal.objective,
     status: goal.status,
     tokenBudget: goal.token_budget,
@@ -1081,12 +1099,16 @@ if (typeof registerAddonConfigApi === "function") {
       const current = loadThreadGoal(chatJid);
       const goal = body.objective !== undefined
         ? replaceThreadGoal(chatJid, body.objective, body.token_budget)
-        : patchThreadGoal(chatJid, { status: normalizeStatus(body.status), token_budget: normalizePositiveIntOrNull(body.token_budget) });
-      const action: GoalMutationAction = body.objective !== undefined ? (current ? "update" : "create") : goal.status === "active" ? "resume" : "update";
+        : patchThreadGoal(chatJid, {
+            status: normalizeStatus(body.status, current?.status ?? "active"),
+            token_budget: body.token_budget === undefined ? current?.token_budget : normalizePositiveIntOrNull(body.token_budget),
+          });
+      const resumed = body.objective === undefined && current?.status !== "active" && goal.status === "active";
+      const action: GoalMutationAction = body.objective !== undefined ? (current ? "update" : "create") : resumed ? "resume" : "update";
       broadcastGoalUpdated(goal, chatJid, "api", action);
       const reason: GoalPromptReason | null = body.objective !== undefined
         ? (current ? "objective_updated" : "start")
-        : goal.status === "active" ? "resume" : null;
+        : resumed ? "resume" : null;
       const continuationQueued = reason ? await enqueueGoalPrompt(goal, reason === "objective_updated" ? objectiveUpdatedPrompt(goal) : buildGoalContinuationPrompt(goal), reason) : false;
       return { ok: true, ...goalResponse(goal), continuationQueued, continuationReason: reason };
     },
@@ -1359,6 +1381,10 @@ export default function goalAddon(pi: ExtensionAPI): void {
         return;
       }
       if (parsed.mode === "resume") {
+        if (current?.status === "active") {
+          ctx.ui.notify("Goal is already active", "info");
+          return;
+        }
         const goal = patchThreadGoal(chatJid, { status: "active", last_accounted_at: nowIso(), blocked_turns: 0, last_blocker: "" });
         broadcastGoalUpdated(goal, chatJid, "command", "resume");
         const queued = await enqueueGoalPrompt(goal, buildGoalContinuationPrompt(goal), "resume");
