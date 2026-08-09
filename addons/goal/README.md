@@ -22,6 +22,7 @@ Open **Settings → Add-Ons** and install **goal** from the catalog.
 - adds `/goal` user controls for summary, create/replace, pause, resume, clear, and status
 - tracks goal status, objective, token budget, tokens used, elapsed wall-clock time, created/updated timestamps, and goal id
 - auto-continues active goals when the agent is idle and no user input is pending
+- binds pre-deadline checkpoints to a durable Goal lifecycle generation so pause, terminal transitions, replacement, and reactivation cannot revive obsolete work
 - marks goals `budget_limited` when the configured token budget is exhausted and emits a Codex-style wrap-up prompt
 - uses Codex's strict completion and blocked-audit prompt language
 - injects a compact active-goal context block into ordinary user turns so agents know the current goal and terminal actions, not only during auto-continuation turns
@@ -166,9 +167,14 @@ The prompt templates are intentionally no longer editable. The add-on embeds Cod
 | Current thread goal | Extension KV (`goal`, chat scope, key `thread-goal`) |
 | Settings pane state | Browser state only |
 
+Each goal has a durable `lifecycle_generation`. Every status transition advances it and clears any prior deadline checkpoint; replacement creates a new goal identity, while ordinary accounting and bookkeeping saves preserve both the current lifecycle identity and checkpoint. This invalidates checkpoints across pause/resume, complete/stop/reactivation, blocked, usage-limited, and budget-limited transitions without preventing an idempotent retry of the same already-claimed successor.
+
+Deadline checkpoint expiry is fail-closed. A checkpoint is valid only while `expires_at` is strictly later than the current clock; equality is expired. Generated leases live for at least one minute and at most five minutes. Malformed timestamps, deadline values more than five minutes ahead of or behind the current clock, and expiry values more than five minutes ahead are treated as invalid clock skew and suppressed. A claimed successor may be retried with the same exact identity only within that lifecycle and expiry window.
+
 ## Notes
 
 - Goal state is scoped to the current Piclaw chat/session (`chat_jid`).
+- Deadline checkpoint provider registration is optional, so older Piclaw cores continue using the legacy Goal loop; non-Goal sessions are unaffected.
 - Token accounting uses assistant message usage from Piclaw events, then applies Codex-style budget-limit behavior.
 - The continuation prompt and active-goal system prompt treat the objective as untrusted user-provided task context and XML-escape it before embedding.
 - Ordinary user turns receive a compact `## Active Goal` system-prompt block with current status/budget and explicit terminal action guidance. This closes the gap where an agent could achieve a goal on a user-triggered turn but lack the goal context or completion instructions needed to stop.

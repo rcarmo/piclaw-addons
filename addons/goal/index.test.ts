@@ -30,6 +30,7 @@ afterEach(async () => {
   delete (globalThis as { __piclaw_runtime?: unknown }).__piclaw_runtime;
   delete (globalThis as { __PICLAW_BROADCAST_EVENT__?: unknown }).__PICLAW_BROADCAST_EVENT__;
   delete (globalThis as { __piclaw_planSidebarApi?: unknown }).__piclaw_planSidebarApi;
+  delete (globalThis as { __piclaw_registerAddonConfigApi?: unknown }).__piclaw_registerAddonConfigApi;
 });
 
 function createHarness(options: { confirm?: boolean; pending?: boolean; idle?: boolean; mockPromptSender?: boolean } = {}) {
@@ -67,6 +68,18 @@ function createHarness(options: { confirm?: boolean; pending?: boolean; idle?: b
 
   goalAddon(api);
   return { api, commands, tools, handlers, sentUserMessages, sentMessages, notifications, confirmations, ctx };
+}
+
+function installRuntimeKvStore(): void {
+  const values = new Map<string, unknown>();
+  const storageKey = (extensionId: string, name: string, scope = "chat", scopeKey = "") => `${extensionId}:${scope}:${scopeKey}:${name}`;
+  (globalThis as any).__piclawRuntimeInterop = { getExtensionKvStore: () => ({
+    get: (extensionId: string, name: string, scope?: string, scopeKey?: string) => values.get(storageKey(extensionId, name, scope, scopeKey)) ?? null,
+    set: (extensionId: string, name: string, value: unknown, scope?: string, scopeKey?: string) => { values.set(storageKey(extensionId, name, scope, scopeKey), structuredClone(value)); },
+    delete: (extensionId: string, name: string, scope?: string, scopeKey?: string) => values.delete(storageKey(extensionId, name, scope, scopeKey)),
+    list: () => [],
+    clear: () => { const count = values.size; values.clear(); return count; },
+  }) };
 }
 
 function customMessageText(message: unknown): string {
@@ -128,6 +141,29 @@ test("goal web pane targets the thread-goal addon API", () => {
   expect(source).toContain("update_goal");
   expect(source).not.toContain("`${API}/config`");
   expect(source).not.toContain("`${API}/session`");
+});
+
+test("partial config saves preserve status and do not duplicate resume continuations", async () => {
+  installRuntimeKvStore();
+  let configSet: ((payload: unknown, req: Request) => Promise<any>) | undefined;
+  (globalThis as any).__piclaw_registerAddonConfigApi = (_addonId: string, _action: string, handlers: any) => {
+    configSet = handlers.set;
+    return "created";
+  };
+  await import(`./index.ts?config-lifecycle=${Date.now()}`);
+  expect(configSet).toBeDefined();
+
+  const { commands, sentUserMessages, ctx } = createHarness();
+  await withChatContext("web:goal", "web", async () => {
+    await commands.get("goal").handler("Finish docs", ctx);
+    await commands.get("goal").handler("pause", ctx);
+  });
+  const paused = loadThreadGoal("web:goal")!;
+  expect(paused).toMatchObject({ status: "paused", lifecycle_generation: 2 });
+
+  await configSet!({ token_budget: 500 }, new Request("http://localhost/agent/addons/api/goal/goal?chat_jid=web%3Agoal"));
+  expect(loadThreadGoal("web:goal")).toMatchObject({ status: "paused", lifecycle_generation: 2, token_budget: 500 });
+  expect(sentUserMessages).toHaveLength(1);
 });
 
 test("goal continuation requests include internal auth only for loopback agent URLs", () => {
@@ -365,16 +401,78 @@ describe("/goal command and runtime loop", () => {
     expect(body).toContain("No goal is currently set for web:goal.");
   });
 
-  test("/goal pause and resume are user-controlled", async () => {
+  test("/goal pause and resume advance lifecycle identity, invalidate checkpoints, and queue only once", async () => {
+    installRuntimeKvStore();
     const { commands, sentUserMessages, ctx } = createHarness();
+    (globalThis as any).__piclaw_planSidebarApi = {
+      getPlan: () => ({ plan: [{ step: "Finish docs", status: "in_progress" }] }),
+    };
     await withChatContext("web:goal", "web", async () => {
       await commands.get("goal").handler("Finish docs", ctx);
+      const started = loadThreadGoal("web:goal")!;
+      expect(started.lifecycle_generation).toBe(1);
+      const lease = goalDeadlineCheckpointProvider.tryLatch({
+        chatJid: "web:goal",
+        operationId: "op-pause",
+        sourceSeq: 1,
+        operationGeneration: 1,
+        oldTurnId: "turn-pause",
+        checkpointId: "checkpoint-pause",
+        deadlineAt: new Date(Date.now() + 1_000).toISOString(),
+      })!;
+      goalDeadlineCheckpointProvider.markScheduled(lease, { generation: 2 });
+
       await commands.get("goal").handler("pause", ctx);
-      expect(loadThreadGoal("web:goal")?.status).toBe("paused");
+      expect(loadThreadGoal("web:goal")).toMatchObject({ status: "paused", lifecycle_generation: 2, deadline_checkpoint: null });
       await commands.get("goal").handler("resume", ctx);
-      expect(loadThreadGoal("web:goal")?.status).toBe("active");
+      expect(loadThreadGoal("web:goal")).toMatchObject({ status: "active", lifecycle_generation: 3, deadline_checkpoint: null });
+      expect(goalDeadlineCheckpointProvider.resolveContinuation({
+        chatJid: "web:goal",
+        goalId: started.goal_id,
+        checkpointId: "checkpoint-pause",
+        generation: 2,
+      })).toEqual({ status: "suppress" });
+      await commands.get("goal").handler("resume", ctx);
     });
-    expect(sentUserMessages.length).toBeGreaterThanOrEqual(2);
+    expect(sentUserMessages).toHaveLength(2);
+  });
+
+  test("complete and stop transitions invalidate checkpoints before reactivation", async () => {
+    for (const terminalTool of ["goal_complete", "goal_stop"] as const) {
+      resetGoalAddonForTests();
+      installRuntimeKvStore();
+      const { commands, tools, ctx } = createHarness();
+      (globalThis as any).__piclaw_planSidebarApi = {
+        getPlan: () => ({ plan: [{ step: "Finish docs", status: "in_progress" }] }),
+      };
+      await withChatContext("web:goal", "web", async () => {
+        await commands.get("goal").handler("Finish docs", ctx);
+        const lease = goalDeadlineCheckpointProvider.tryLatch({
+          chatJid: "web:goal",
+          operationId: `op-${terminalTool}`,
+          sourceSeq: 1,
+          operationGeneration: 1,
+          oldTurnId: `turn-${terminalTool}`,
+          checkpointId: `checkpoint-${terminalTool}`,
+          deadlineAt: new Date(Date.now() + 1_000).toISOString(),
+        })!;
+        goalDeadlineCheckpointProvider.markScheduled(lease, { generation: 2 });
+        if (terminalTool === "goal_complete") {
+          await tools.get(terminalTool).execute("call-terminal", { summary: "Done", evidence: ["verified"] }, undefined, undefined, ctx);
+        } else {
+          await tools.get(terminalTool).execute("call-terminal", { reason: "other", summary: "Stopped" }, undefined, undefined, ctx);
+        }
+        expect(loadThreadGoal("web:goal")).toMatchObject({ lifecycle_generation: 2, deadline_checkpoint: null });
+        await commands.get("goal").handler("resume", ctx);
+        expect(loadThreadGoal("web:goal")).toMatchObject({ status: "active", lifecycle_generation: 3, deadline_checkpoint: null });
+        expect(goalDeadlineCheckpointProvider.resolveContinuation({
+          chatJid: "web:goal",
+          goalId: lease.goalId,
+          checkpointId: lease.checkpointId,
+          generation: 2,
+        })).toEqual({ status: "suppress" });
+      });
+    }
   });
 
   test("/goal clear is an exact synonym for /goal reset", async () => {
@@ -464,10 +562,14 @@ describe("/goal command and runtime loop", () => {
       expect(lease).not.toBeNull();
       goalDeadlineCheckpointProvider.markScheduled(lease!, { generation: 2 });
       await messageEnd({ message: { role: "assistant", stopReason: "aborted", usage: { totalTokens: 5 } } }, ctx);
-      expect(loadThreadGoal("web:goal")?.deadline_checkpoint).toMatchObject({
-        checkpoint_id: "checkpoint-1",
-        continuation_generation: 2,
-        status: "scheduled",
+      expect(loadThreadGoal("web:goal")).toMatchObject({
+        lifecycle_generation: 1,
+        deadline_checkpoint: {
+          checkpoint_id: "checkpoint-1",
+          continuation_generation: 2,
+          lifecycle_generation: 1,
+          status: "scheduled",
+        },
       });
       expect(goalDeadlineCheckpointProvider.resolveContinuation({
         chatJid: "web:goal",
@@ -476,11 +578,22 @@ describe("/goal command and runtime loop", () => {
         generation: 2,
       }).status).toBe("continue");
       await messageEnd({ message: { role: "assistant", stopReason: "aborted", usage: { totalTokens: 5 } } }, ctx);
-      expect(loadThreadGoal("web:goal")?.deadline_checkpoint).toMatchObject({
-        checkpoint_id: "checkpoint-1",
-        continuation_generation: 2,
-        status: "claimed",
+      expect(loadThreadGoal("web:goal")).toMatchObject({
+        lifecycle_generation: 1,
+        tokens_used: 15,
+        deadline_checkpoint: {
+          checkpoint_id: "checkpoint-1",
+          continuation_generation: 2,
+          lifecycle_generation: 1,
+          status: "claimed",
+        },
       });
+      expect(goalDeadlineCheckpointProvider.resolveContinuation({
+        chatJid: "web:goal",
+        goalId: lease!.goalId,
+        checkpointId: "checkpoint-1",
+        generation: 2,
+      }).status).toBe("continue");
       goalDeadlineCheckpointProvider.release(lease!);
       await agentEnd({}, ctx);
     }, { turnId: "turn-old" });

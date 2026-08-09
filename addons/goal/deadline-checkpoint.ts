@@ -2,6 +2,8 @@ import { createExtensionStorage } from "./compat/extension-kv.js";
 
 const EXTENSION_ID = "goal";
 const GOAL_KEY = "thread-goal";
+const MIN_CHECKPOINT_LIFETIME_MS = 60_000;
+const MAX_CHECKPOINT_LIFETIME_MS = 5 * 60_000;
 let storageInstance: ReturnType<typeof createExtensionStorage> | null = null;
 const storage = () => storageInstance ??= createExtensionStorage(EXTENSION_ID);
 
@@ -26,6 +28,7 @@ interface PlanApi { getPlan(chatJid?: unknown): { plan?: unknown } }
 export interface GoalDeadlineLease {
   chatJid: string;
   goalId: string;
+  lifecycleGeneration: number;
   objective: string;
   planFingerprint: string;
   operationId: string;
@@ -63,6 +66,28 @@ function text(value: unknown): string {
 
 function stringList(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && Boolean(item.trim())).map((item) => item.trim()) : [];
+}
+
+function lifecycleGeneration(value: unknown): number {
+  return Number.isSafeInteger(value) && Number(value) >= 1 ? Number(value) : 1;
+}
+
+function checkpointExpiry(deadlineAt: unknown, now = Date.now()): string | null {
+  const deadline = typeof deadlineAt === "string" ? Date.parse(deadlineAt) : NaN;
+  if (!Number.isFinite(deadline)
+    || deadline < now - MAX_CHECKPOINT_LIFETIME_MS
+    || deadline > now + MAX_CHECKPOINT_LIFETIME_MS) return null;
+  return new Date(Math.min(
+    now + MAX_CHECKPOINT_LIFETIME_MS,
+    Math.max(now + MIN_CHECKPOINT_LIFETIME_MS, deadline + MIN_CHECKPOINT_LIFETIME_MS),
+  )).toISOString();
+}
+
+function isCurrentCheckpointExpiry(value: unknown, now = Date.now()): boolean {
+  const expiresAt = typeof value === "string" ? Date.parse(value) : NaN;
+  return Number.isFinite(expiresAt)
+    && expiresAt > now
+    && expiresAt <= now + MAX_CHECKPOINT_LIFETIME_MS;
 }
 
 function loadGoal(chatJid: string): PersistedGoal | null {
@@ -116,18 +141,21 @@ export const goalDeadlineCheckpointProvider = {
     checkpointId: string;
     deadlineAt: string;
   }): GoalDeadlineLease | null {
+    const now = Date.now();
     for (const [key, suppression] of agentEndSuppressions) {
-      if (Date.parse(suppression.expiresAt) <= Date.now()) agentEndSuppressions.delete(key);
+      if (!isCurrentCheckpointExpiry(suppression.expiresAt, now)) agentEndSuppressions.delete(key);
     }
     const existing = latches.get(input.chatJid);
-    if (existing && Date.parse(existing.expiresAt) > Date.now()) return null;
+    if (existing && isCurrentCheckpointExpiry(existing.expiresAt, now)) return null;
     if (existing) latches.delete(input.chatJid);
     const goal = loadGoal(input.chatJid);
     const plan = currentPlan(input.chatJid);
-    if (!goal || text(goal.status) !== "active" || !plan) return null;
+    const expiresAt = checkpointExpiry(input.deadlineAt, now);
+    if (!goal || text(goal.status) !== "active" || !plan || !expiresAt) return null;
     const lease: GoalDeadlineLease = {
       chatJid: input.chatJid,
       goalId: text(goal.goal_id),
+      lifecycleGeneration: lifecycleGeneration(goal.lifecycle_generation),
       objective: text(goal.objective),
       planFingerprint: plan.fingerprint,
       operationId: input.operationId,
@@ -135,7 +163,7 @@ export const goalDeadlineCheckpointProvider = {
       operationGeneration: input.operationGeneration,
       oldTurnId: input.oldTurnId,
       checkpointId: input.checkpointId,
-      expiresAt: new Date(Math.max(Date.now() + 60_000, Date.parse(input.deadlineAt) + 60_000)).toISOString(),
+      expiresAt,
     };
     latches.set(input.chatJid, lease);
     agentEndSuppressions.set(suppressionKey(input.chatJid, input.oldTurnId), lease);
@@ -143,11 +171,14 @@ export const goalDeadlineCheckpointProvider = {
   },
 
   revalidate(lease: GoalDeadlineLease): GoalDeadlineResolution {
+    if (!isCurrentCheckpointExpiry(lease.expiresAt)) {
+      return { action: "suppress", goalId: lease.goalId, objective: lease.objective, planFingerprint: "", visibleText: "" };
+    }
     const goal = loadGoal(lease.chatJid);
     const goalId = text(goal?.goal_id);
     const objective = text(goal?.objective);
     const plan = currentPlan(lease.chatJid);
-    if (!goal || goalId !== lease.goalId) {
+    if (!goal || goalId !== lease.goalId || lifecycleGeneration(goal.lifecycle_generation) !== lease.lifecycleGeneration) {
       return { action: "suppress", goalId: lease.goalId, objective: lease.objective, planFingerprint: "", visibleText: "" };
     }
     if (goal.status === "complete") {
@@ -182,8 +213,10 @@ export const goalDeadlineCheckpointProvider = {
       throw new Error("Invalid Goal deadline continuation generation");
     }
     const goal = loadGoal(lease.chatJid);
-    if (!goal || text(goal.goal_id) !== lease.goalId || text(goal.status) !== "active") {
-      throw new Error("Goal changed before deadline checkpoint scheduling");
+    if (!goal || text(goal.goal_id) !== lease.goalId || text(goal.status) !== "active"
+      || lifecycleGeneration(goal.lifecycle_generation) !== lease.lifecycleGeneration
+      || !isCurrentCheckpointExpiry(lease.expiresAt)) {
+      throw new Error("Goal changed or checkpoint expired before deadline checkpoint scheduling");
     }
     storage().set(GOAL_KEY, {
       ...goal,
@@ -193,6 +226,7 @@ export const goalDeadlineCheckpointProvider = {
         source_seq: lease.sourceSeq,
         operation_generation: lease.operationGeneration,
         continuation_generation: continuation.generation,
+        lifecycle_generation: lease.lifecycleGeneration,
         old_turn_id: lease.oldTurnId,
         expires_at: lease.expiresAt,
         status: "scheduled",
@@ -213,10 +247,13 @@ export const goalDeadlineCheckpointProvider = {
     const plan = currentPlan(input.chatJid);
     if (!goal || text(goal.goal_id) !== input.goalId || text(goal.status) !== "active" || !plan) return { status: "suppress" };
     const checkpoint = goal.deadline_checkpoint && typeof goal.deadline_checkpoint === "object"
-      ? goal.deadline_checkpoint as { checkpoint_id?: unknown; continuation_generation?: unknown; status?: unknown }
+      ? goal.deadline_checkpoint as { checkpoint_id?: unknown; continuation_generation?: unknown; lifecycle_generation?: unknown; expires_at?: unknown; status?: unknown }
       : null;
     if (!checkpoint || text(checkpoint.checkpoint_id) !== input.checkpointId
-      || checkpoint.continuation_generation !== input.generation) return { status: "suppress" };
+      || checkpoint.continuation_generation !== input.generation
+      || lifecycleGeneration(goal.lifecycle_generation) !== checkpoint.lifecycle_generation
+      || (checkpoint.status !== "scheduled" && checkpoint.status !== "claimed")
+      || !isCurrentCheckpointExpiry(checkpoint.expires_at)) return { status: "suppress" };
     storage().set(GOAL_KEY, {
       ...goal,
       deadline_checkpoint: { ...checkpoint, status: "claimed" },
@@ -234,7 +271,7 @@ export function consumeGoalDeadlineAgentEndSuppression(chatJid: string, turnId: 
   agentEndSuppressions.delete(key);
   const current = latches.get(chatJid);
   if (current?.checkpointId === lease.checkpointId) latches.delete(chatJid);
-  return Date.parse(lease.expiresAt) > Date.now();
+  return isCurrentCheckpointExpiry(lease.expiresAt);
 }
 
 export function resetGoalDeadlineCheckpointForTests(): void {
