@@ -5,6 +5,24 @@ const STORAGE_OPEN = "piclaw:plan-sidebar:open";
 const STORAGE_WIDTH = "piclaw:plan-sidebar:width";
 const DEFAULT_CHAT_JID = "web:default";
 
+export function beginPlanRequest(state) {
+  return { epoch: ++state.requestEpoch, chatJid: state.chatJid, editRevision: state.editRevision };
+}
+
+export function invalidatePlanRequests(state) {
+  state.requestEpoch += 1;
+}
+
+export function isCurrentPlanRequest(state, request) {
+  return request.epoch === state.requestEpoch && request.chatJid === state.chatJid;
+}
+
+export function canApplyPlanResponse(state, request, preserveDirty = false) {
+  return isCurrentPlanRequest(state, request)
+    && request.editRevision === state.editRevision
+    && (!preserveDirty || !state.dirty);
+}
+
 if (!globalThis.__piclawPlanSidebarInstalled) {
   globalThis.__piclawPlanSidebarInstalled = true;
   installPlanSidebar();
@@ -30,6 +48,10 @@ function installPlanSidebar() {
     livePreviewHost: null,
     resizeStart: null,
     pendingRemoteRefresh: false,
+    pendingRemoteLabel: "remote",
+    requestEpoch: 0,
+    editRevision: 0,
+    applyingEditorValue: false,
   };
 
   injectStyles();
@@ -131,7 +153,7 @@ function installPlanSidebar() {
   }
 
   async function closeSidebar({ autosave = false } = {}) {
-    if (!state.open || state.loading) return;
+    if (!state.open) return;
     if (autosave && state.dirty) {
       try {
         await savePlan();
@@ -153,7 +175,12 @@ function installPlanSidebar() {
     if (state.editorView) {
       const current = state.editorView.state.doc.toString();
       if (current !== next) {
-        state.editorView.dispatch({ changes: { from: 0, to: current.length, insert: next } });
+        state.applyingEditorValue = true;
+        try {
+          state.editorView.dispatch({ changes: { from: 0, to: current.length, insert: next } });
+        } finally {
+          state.applyingEditorValue = false;
+        }
       }
     } else if (state.fallbackTextarea && state.fallbackTextarea.value !== next) {
       state.fallbackTextarea.value = next;
@@ -195,8 +222,9 @@ function installPlanSidebar() {
       state.editorThemeCompartment.of(buildEditorThemeExtensions(cm)),
       buildPlanDecorationsExtension(cm),
       cm.EditorView.updateListener.of((update) => {
-        if (!update.docChanged) return;
+        if (!update.docChanged || state.applyingEditorValue) return;
         state.markdown = update.state.doc.toString();
+        state.editRevision += 1;
         markDirty(true);
       }),
     ];
@@ -217,6 +245,7 @@ function installPlanSidebar() {
     textarea.value = state.markdown || "";
     textarea.addEventListener("input", () => {
       state.markdown = textarea.value;
+      state.editRevision += 1;
       markDirty(true);
     });
     editorHost.appendChild(textarea);
@@ -334,23 +363,62 @@ function installPlanSidebar() {
     return payload;
   }
 
-  function planUrl() {
-    return `${API}?chat_jid=${encodeURIComponent(state.chatJid)}`;
+  function planUrl(chatJid = state.chatJid) {
+    return `${API}?chat_jid=${encodeURIComponent(chatJid)}`;
+  }
+
+  function beginRequest() {
+    const request = beginPlanRequest(state);
+    state.loading = true;
+    renderChrome();
+    return request;
+  }
+
+  function isCurrentRequest(request) {
+    return isCurrentPlanRequest(state, request);
+  }
+
+  function drainPendingRemoteRefresh() {
+    const hadPendingRemoteRefresh = state.pendingRemoteRefresh;
+    const remoteLabel = state.pendingRemoteLabel;
+    state.pendingRemoteRefresh = false;
+    state.pendingRemoteLabel = "remote";
+    if (hadPendingRemoteRefresh && state.dirty) {
+      setStatus("Plan changed remotely; save or refresh to update.", "warning");
+    }
+    renderChrome();
+    if (hadPendingRemoteRefresh && !state.dirty) {
+      void loadPlan({ preserveDirty: true, remote: true, remoteLabel });
+    }
+  }
+
+  function finishRequest(request, { drainPending = true } = {}) {
+    if (!isCurrentRequest(request)) return false;
+    state.loading = false;
+    if (drainPending) drainPendingRemoteRefresh();
+    else renderChrome();
+    return true;
   }
 
   async function loadPlan({ preserveDirty = false, remote = false, remoteLabel = "remote" } = {}) {
     if (state.loading) {
-      if (remote) state.pendingRemoteRefresh = true;
+      if (remote) {
+        state.pendingRemoteRefresh = true;
+        state.pendingRemoteLabel = remoteLabel;
+      }
       return;
     }
     if (preserveDirty && state.dirty) {
       if (remote) setStatus("Plan changed remotely; save or refresh to update.", "warning");
       return;
     }
-    state.loading = true;
-    renderChrome();
+    const request = beginRequest();
     try {
-      const plan = await apiJson(planUrl());
+      const plan = await apiJson(planUrl(request.chatJid));
+      if (!canApplyPlanResponse(state, request, preserveDirty)) {
+        if (isCurrentRequest(request) && remote) setStatus("Plan changed remotely; save or refresh to update.", "warning");
+        return;
+      }
       state.updatedAt = plan.updated_at || null;
       setEditorValue(plan.markdown || "");
       markDirty(false);
@@ -359,13 +427,9 @@ function installPlanSidebar() {
         ? `Updated from ${remoteLabel}${loadedAt ? ` ${loadedAt}` : ""}`
         : state.updatedAt ? `Loaded ${loadedAt}` : "Loaded default plan");
     } catch (error) {
-      setStatus(String(error?.message || error), "error");
+      if (isCurrentRequest(request)) setStatus(String(error?.message || error), "error");
     } finally {
-      state.loading = false;
-      const shouldRefreshAgain = state.pendingRemoteRefresh && state.open && !state.dirty;
-      state.pendingRemoteRefresh = false;
-      renderChrome();
-      if (shouldRefreshAgain) void loadPlan({ preserveDirty: true, remote: true, remoteLabel });
+      finishRequest(request);
     }
   }
 
@@ -381,50 +445,57 @@ function installPlanSidebar() {
 
   async function resetPlan() {
     if (!confirm("Reset this chat plan to the default checklist?")) return null;
-    state.loading = true;
-    renderChrome();
+    const request = beginRequest();
     try {
-      const payload = await apiJson(planUrl(), {
+      const payload = await apiJson(planUrl(request.chatJid), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chat_jid: state.chatJid, action: "reset" }),
+        body: JSON.stringify({ chat_jid: request.chatJid, action: "reset" }),
       });
+      if (!isCurrentRequest(request)) return null;
       const plan = payload.plan || payload;
       state.updatedAt = plan.updated_at || null;
-      setEditorValue(plan.markdown || "");
-      markDirty(false);
-      setStatus(`Reset ${formatTime(state.updatedAt)}`, "ok");
+      if (canApplyPlanResponse(state, request)) {
+        setEditorValue(plan.markdown || "");
+        markDirty(false);
+        setStatus(`Reset ${formatTime(state.updatedAt)}`, "ok");
+      } else {
+        setStatus("Reset completed; newer edits are unsaved.", "warning");
+      }
       return plan;
     } catch (error) {
-      setStatus(String(error?.message || error), "error");
+      if (isCurrentRequest(request)) setStatus(String(error?.message || error), "error");
       throw error;
     } finally {
-      state.loading = false;
-      renderChrome();
+      finishRequest(request);
     }
   }
 
-  async function savePlan() {
-    state.loading = true;
-    renderChrome();
+  async function savePlan({ drainPending = true } = {}) {
+    const markdown = getEditorValue();
+    const request = beginRequest();
     try {
-      const payload = await apiJson(planUrl(), {
+      const payload = await apiJson(planUrl(request.chatJid), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chat_jid: state.chatJid, markdown: getEditorValue() }),
+        body: JSON.stringify({ chat_jid: request.chatJid, markdown }),
       });
+      if (!isCurrentRequest(request)) return null;
       const plan = payload.plan || payload;
       state.updatedAt = plan.updated_at || null;
-      setEditorValue(plan.markdown || getEditorValue());
-      markDirty(false);
-      setStatus(`Saved ${formatTime(state.updatedAt)}`, "ok");
+      if (getEditorValue() === markdown) {
+        setEditorValue(plan.markdown || markdown);
+        markDirty(false);
+        setStatus(`Saved ${formatTime(state.updatedAt)}`, "ok");
+      } else {
+        setStatus("Saved previous edits; newer changes are unsaved.", "warning");
+      }
       return plan;
     } catch (error) {
-      setStatus(String(error?.message || error), "error");
+      if (isCurrentRequest(request)) setStatus(String(error?.message || error), "error");
       throw error;
     } finally {
-      state.loading = false;
-      renderChrome();
+      finishRequest(request, { drainPending });
     }
   }
 
@@ -447,38 +518,52 @@ function installPlanSidebar() {
   }
 
   async function submitToModel() {
-    const plan = await savePlan();
+    const chatJid = state.chatJid;
+    let plan;
+    try {
+      plan = await savePlan({ drainPending: false });
+    } catch (error) {
+      drainPendingRemoteRefresh();
+      throw error;
+    }
+    if (!plan || chatJid !== state.chatJid) {
+      drainPendingRemoteRefresh();
+      return;
+    }
     const markdown = plan.markdown || "";
     if (!markdown.trim()) {
+      drainPendingRemoteRefresh();
       setStatus("Plan is empty; nothing to submit.", "error");
       return;
     }
-    state.loading = true;
-    renderChrome();
+    const request = beginRequest();
     try {
       const content = buildPlanSubmissionPrompt(markdown);
-      await apiJson(`/agent/default/message?chat_jid=${encodeURIComponent(state.chatJid)}`, {
+      await apiJson(`/agent/default/message?chat_jid=${encodeURIComponent(request.chatJid)}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content, mode: "auto" }),
       });
-      setStatus("Submitted to model.", "ok");
+      if (isCurrentRequest(request)) setStatus("Submitted to model.", "ok");
     } catch (error) {
-      setStatus(String(error?.message || error), "error");
+      if (isCurrentRequest(request)) setStatus(String(error?.message || error), "error");
     } finally {
-      state.loading = false;
-      renderChrome();
+      finishRequest(request);
     }
   }
 
   function updateChatJid() {
     const next = getCurrentChatJid();
     if (next === state.chatJid) return;
+    invalidatePlanRequests(state);
     state.chatJid = next;
     state.dirty = false;
+    state.loading = false;
+    state.pendingRemoteRefresh = false;
+    state.pendingRemoteLabel = "remote";
     clearDisplayedPlan();
     renderChrome();
-    loadPlan();
+    loadPlan({ preserveDirty: true });
   }
 
   toggle.addEventListener("click", () => {
@@ -518,7 +603,7 @@ function installPlanSidebar() {
 
   renderChrome();
   if (state.open) setOpen(true);
-  else loadPlan();
+  else loadPlan({ preserveDirty: true });
 }
 
 function getPlanProgress(markdown) {

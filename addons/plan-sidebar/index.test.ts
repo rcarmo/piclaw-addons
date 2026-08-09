@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import planSidebarAddon, { applyPlanEdits, applyPlanPatches, buildPlanSystemPrompt, buildPlanTurnMessage, getStructuredSessionPlan, loadSessionPlan, normalizeStoredPlanMarkdown, normalizeUpdatePlanArgs, parsePlanMarkdown, resetPlanSidebarAddonForTests, resetSessionPlan, saveSessionPlan, updatePlanArgsToMarkdown } from "./index";
+import { beginPlanRequest, canApplyPlanResponse, invalidatePlanRequests, isCurrentPlanRequest } from "./web/index";
 
 const addonDir = import.meta.dir;
 
@@ -368,33 +369,42 @@ test("web sidebar uses a real wrapped Markdown editor with checklist decorations
 
 test("sidebar listens for plan.changes events and refreshes without clobbering dirty edits", () => {
   const source = readFileSync(resolve(addonDir, "web", "index.ts"), "utf8");
+  const handlerSource = source.slice(source.indexOf("function handleRemotePlanUpdate"), source.indexOf("async function resetPlan"));
   expect(source).toContain('window.addEventListener("piclaw-extension-ui:status", handleRemotePlanUpdate);');
   expect(source).toContain('key !== "plan.changes" && key !== "plan-sidebar.plan-updated"');
-  expect(source).not.toContain("if (!state.open) return;");
+  expect(handlerSource).not.toContain("if (!state.open) return;");
+  expect(source).toContain("const hadPendingRemoteRefresh = state.pendingRemoteRefresh;");
+  expect(source).toContain("if (hadPendingRemoteRefresh && !state.dirty)");
+  expect(source).not.toContain("state.pendingRemoteRefresh && state.open");
   expect(source).toContain("void loadPlan({ preserveDirty: true, remote: true, remoteLabel });");
   expect(source).toContain("Plan changed remotely; save or refresh to update.");
 });
 
-test("collapsed progress meter loads the current chat plan", () => {
+test("collapsed progress meter loads the current chat plan without overwriting edits made while opening", () => {
   const source = readFileSync(resolve(addonDir, "web", "index.ts"), "utf8");
-  expect(source).toContain("else loadPlan();");
+  expect(source).toContain("else loadPlan({ preserveDirty: true });");
+  expect(source).not.toContain("else loadPlan();");
   expect(source).toContain("clearDisplayedPlan();");
-  expect(source).toContain("loadPlan();\n  }");
+  expect(source).toContain("loadPlan({ preserveDirty: true });\n  }");
 });
 
-test("web sidebar exposes a reset button backed by the plan API", () => {
+test("web sidebar exposes a reset button backed by the plan API without overwriting newer edits", () => {
   const source = readFileSync(resolve(addonDir, "web", "index.ts"), "utf8");
+  const resetSource = source.slice(source.indexOf("async function resetPlan"), source.indexOf("async function savePlan"));
   expect(source).toContain("plan-sidebar-reset");
   expect(source).toContain("async function resetPlan()");
   expect(source).toContain('action: "reset"');
   expect(source).toContain('resetButton.addEventListener("click"');
-  expect(source).toContain("setEditorValue(plan.markdown || \"\")");
+  expect(resetSource).toContain("canApplyPlanResponse(state, request)");
+  expect(resetSource).toContain("Reset completed; newer edits are unsaved.");
 });
 
 test("submit-to-model prompt is concise and action oriented", () => {
   const source = readFileSync(resolve(addonDir, "web", "index.ts"), "utf8");
   expect(source).toContain("Use this `plan` tool checklist as the working plan.");
   expect(source).toContain("Report periodically on progress and next steps.");
+  expect(source).toContain("savePlan({ drainPending: false })");
+  expect(source).toContain("finishRequest(request, { drainPending });");
   expect(source).not.toContain("editable shared state, not a static user note");
 });
 
@@ -409,10 +419,52 @@ test("sidebar border and open tab use only a subtle open-state gradient hint", (
   expect(source).not.toContain("-18px 0 42px");
 });
 
-test("sidebar can close with Esc and autosaves dirty contents", () => {
+test("sidebar can close during loading and autosaves dirty contents", () => {
   const source = readFileSync(resolve(addonDir, "web", "index.ts"), "utf8");
   expect(source).toContain('event.key !== "Escape"');
   expect(source).toContain("closeSidebar({ autosave: true })");
+  expect(source).toContain("if (!state.open) return;");
+  expect(source).not.toContain("if (!state.open || state.loading) return;");
   expect(source).toContain("if (autosave && state.dirty)");
   expect(source).toContain("await savePlan();");
+});
+
+test("sidebar invalidates stale plan requests when the active chat changes", () => {
+  const source = readFileSync(resolve(addonDir, "web", "index.ts"), "utf8");
+  const state = { requestEpoch: 0, chatJid: "web:first", dirty: false, editRevision: 0 };
+  const staleRequest = beginPlanRequest(state);
+
+  invalidatePlanRequests(state);
+  state.chatJid = "web:second";
+  const currentRequest = beginPlanRequest(state);
+
+  expect(isCurrentPlanRequest(state, staleRequest)).toBeFalse();
+  expect(canApplyPlanResponse(state, staleRequest, true)).toBeFalse();
+  expect(isCurrentPlanRequest(state, currentRequest)).toBeTrue();
+  expect(canApplyPlanResponse(state, currentRequest, true)).toBeTrue();
+  expect(source).toContain("requestEpoch: 0");
+  expect(source).toContain("apiJson(planUrl(request.chatJid))");
+  expect(source).toContain("invalidatePlanRequests(state);");
+  expect(source).toContain("state.pendingRemoteRefresh = false;");
+  expect(source).toContain("loadPlan({ preserveDirty: true });");
+});
+
+test("plan loads preserve edits typed after the request starts", () => {
+  const state = { requestEpoch: 0, chatJid: "web:second", dirty: false, editRevision: 0 };
+  const request = beginPlanRequest(state);
+
+  state.dirty = true;
+  state.editRevision += 1;
+
+  expect(isCurrentPlanRequest(state, request)).toBeTrue();
+  expect(canApplyPlanResponse(state, request, true)).toBeFalse();
+  expect(canApplyPlanResponse(state, request, false)).toBeFalse();
+});
+
+test("programmatic editor updates do not become dirty user edits", () => {
+  const source = readFileSync(resolve(addonDir, "web", "index.ts"), "utf8");
+  expect(source).toContain("applyingEditorValue: false");
+  expect(source).toContain("state.applyingEditorValue = true;");
+  expect(source).toContain("if (!update.docChanged || state.applyingEditorValue) return;");
+  expect(source).toContain("state.applyingEditorValue = false;");
 });
