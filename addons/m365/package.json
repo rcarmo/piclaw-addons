@@ -1,0 +1,105 @@
+{
+  "name": "@rcarmo/piclaw-addon-m365",
+  "version": "0.1.0",
+  "description": "Experimental Microsoft 365 tools for Teams, Graph, Outlook, OneDrive, SharePoint, Calendar, and To Do",
+  "type": "module",
+  "main": "index.ts",
+  "piclaw": {
+    "type": "extension",
+    "compatibleVersions": ">=2.13.3",
+    "tags": [
+      "m365",
+      "microsoft-365",
+      "teams",
+      "graph",
+      "outlook",
+      "onedrive",
+      "sharepoint",
+      "productivity"
+    ],
+    "skills": [
+      "skills/m365-document-link-metadata",
+      "skills/m365-graph-query",
+      "skills/m365-mail",
+      "skills/m365-onedrive-share-local-file",
+      "skills/m365-profile",
+      "skills/m365-spo-browse",
+      "skills/m365-spo-download",
+      "skills/m365-spo-search",
+      "skills/m365-teams-chats",
+      "skills/m365-teams-messages",
+      "skills/m365-teams-send"
+    ]
+  },
+  "pi": {
+    "extensions": [
+      "index.ts"
+    ],
+    "skills": [
+      "skills"
+    ]
+  },
+  "agents": {
+    "skills": [
+      {
+        "name": "m365-document-link-metadata",
+        "path": "./skills/m365-document-link-metadata"
+      },
+      {
+        "name": "m365-graph-query",
+        "path": "./skills/m365-graph-query"
+      },
+      {
+        "name": "m365-mail",
+        "path": "./skills/m365-mail"
+      },
+      {
+        "name": "m365-onedrive-share-local-file",
+        "path": "./skills/m365-onedrive-share-local-file"
+      },
+      {
+        "name": "m365-profile",
+        "path": "./skills/m365-profile"
+      },
+      {
+        "name": "m365-spo-browse",
+        "path": "./skills/m365-spo-browse"
+      },
+      {
+        "name": "m365-spo-download",
+        "path": "./skills/m365-spo-download"
+      },
+      {
+        "name": "m365-spo-search",
+        "path": "./skills/m365-spo-search"
+      },
+      {
+        "name": "m365-teams-chats",
+        "path": "./skills/m365-teams-chats"
+      },
+      {
+        "name": "m365-teams-messages",
+        "path": "./skills/m365-teams-messages"
+      },
+      {
+        "name": "m365-teams-send",
+        "path": "./skills/m365-teams-send"
+      }
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@sinclair/typebox": "*"
+  },
+  "keywords": [
+    "pi-package",
+    "piclaw",
+    "piclaw-addon",
+    "m365",
+    "microsoft-365",
+    "teams",
+    "graph"
+  ],
+  "license": "MIT",
+  "homepage": "https://rcarmo.github.io/piclaw-addons/addons/m365/"
+}
