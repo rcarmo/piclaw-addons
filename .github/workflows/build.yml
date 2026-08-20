@@ -28,7 +28,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.14
@@ -42,7 +42,7 @@ jobs:
           fi
       - name: Checkout Piclaw runtime for add-on UX tests
         if: steps.addon_tests.outputs.present == 'true'
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: rcarmo/piclaw
           ref: main
