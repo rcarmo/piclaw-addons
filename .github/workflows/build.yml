@@ -57,7 +57,7 @@ jobs:
         working-directory: .piclaw-runtime
       - name: Install add-on UX test dependencies
         if: steps.addon_tests.outputs.present == 'true'
-        run: bun install
+        run: bun install --frozen-lockfile
         working-directory: tests/addon-e2e
       - name: Install Playwright browser for add-on UX tests
         if: steps.addon_tests.outputs.present == 'true'
