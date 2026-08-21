@@ -2,6 +2,8 @@
 import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { basename, join, relative, resolve } from 'node:path';
 
+import { resolveRequestedAddon } from './generate-specs-args';
+
 interface Scenario { name: string; steps: string[]; line: number; }
 interface Feature { name: string; background: string[]; scenarios: Scenario[]; }
 
@@ -22,7 +24,7 @@ function walk(dir: string, predicate: (path: string) => boolean): string[] {
 }
 
 function discoverAddons(): string[] {
-  const requested = process.env.PICLAW_ADDON || process.argv.find((arg) => !arg.startsWith('-'));
+  const requested = resolveRequestedAddon(process.argv, process.env.PICLAW_ADDON);
   if (requested && requested !== 'all') return requested.split(',').map((s) => s.trim()).filter(Boolean);
   return readdirSync(addonsDir, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
