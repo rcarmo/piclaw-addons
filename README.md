@@ -2,6 +2,8 @@
 
 Community extensions and add-ons for [piclaw](https://github.com/rcarmo/piclaw). Browse the full catalog at **[rcarmo.github.io/piclaw-addons](https://rcarmo.github.io/piclaw-addons/)**.
 
+Repository development and package generation require Bun 1.4.0 or newer. The version 2 lockfiles are not readable by Bun 1.3; rolling the repository tooling back below Bun 1.4 requires reverting the lockfile migration too.
+
 > **For agents:** see [AGENTS.md](AGENTS.md) for how to add, modify, and test addons.
 
 ---
