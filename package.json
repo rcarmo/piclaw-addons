@@ -178,7 +178,7 @@
     "@earendil-works/pi-coding-agent": "0.84.2",
     "@earendil-works/pi-tui": "0.84.2",
     "bun-types": "1.4.0",
-    "marked": "^18.0.9",
+    "marked": "^18.0.10",
     "typescript": "7.0.2",
     "@sinclair/typebox": "0.34.52"
   }
