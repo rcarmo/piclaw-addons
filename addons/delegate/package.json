@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-delegate",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "description": "Delegate tasks to verified cheaper/faster child-Pi models with deterministic tier-safe selection",
   "type": "module",
   "main": "index.ts",
@@ -10,7 +10,8 @@
     "tags": [
       "delegation",
       "multi-model",
-      "cost-optimization"
+      "cost-optimization",
+      "core"
     ],
     "skills": [
       "skills/delegate"

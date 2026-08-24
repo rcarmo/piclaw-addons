@@ -1,4 +1,4 @@
-# Delegate 0.2.6 — Reference
+# Delegate 0.2.7 — Reference
 
 Delegate registers one Pi tool, `delegate`, that runs a self-contained task in a fresh child Pi process using a verified cheaper-model policy.
 
