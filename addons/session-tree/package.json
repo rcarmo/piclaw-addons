@@ -1,12 +1,12 @@
 {
   "name": "@rcarmo/piclaw-addon-session-tree",
-  "version": "0.1.0",
-  "description": "Interactive session tree timeline widget for Piclaw's /tree command",
+  "version": "0.2.0",
+  "description": "Snapshot-driven interactive session tree renderer for Piclaw's /tree command",
   "type": "module",
   "main": "index.ts",
   "piclaw": {
     "type": "extension",
-    "compatibleVersions": ">=1.8.0",
+    "compatibleVersions": ">=2.15.0",
     "tags": ["session", "tree", "navigation", "widget"]
   },
   "license": "MIT",
