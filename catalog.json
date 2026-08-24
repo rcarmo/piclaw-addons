@@ -129,7 +129,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-delegate-0.2.7.tgz"
       },
-      "updatedAt": "2026-08-07"
+      "updatedAt": "2026-08-24"
     },
     {
       "slug": "dev-tools",
@@ -319,7 +319,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-goal-0.1.46.tgz"
       },
-      "updatedAt": "2026-08-09"
+      "updatedAt": "2026-08-24"
     },
     {
       "slug": "image-processing",
@@ -600,7 +600,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-plan-sidebar-0.1.24.tgz"
       },
-      "updatedAt": "2026-08-09"
+      "updatedAt": "2026-08-24"
     },
     {
       "slug": "portainer",
@@ -712,7 +712,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-session-dashboard-0.2.4.tgz"
       },
-      "updatedAt": "2026-07-26"
+      "updatedAt": "2026-08-24"
     },
     {
       "slug": "session-tree",
