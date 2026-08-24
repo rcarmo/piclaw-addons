@@ -111,12 +111,13 @@
     {
       "slug": "delegate",
       "name": "@rcarmo/piclaw-addon-delegate",
-      "version": "0.2.6",
+      "version": "0.2.7",
       "type": "extension",
       "description": "Delegate tasks to verified cheaper/faster child-Pi models with deterministic tier-safe selection",
       "path": "addons/delegate",
       "homepage": "https://rcarmo.github.io/piclaw-addons/addons/delegate/",
       "tags": [
+        "core",
         "cost-optimization",
         "delegation",
         "multi-model"
@@ -126,7 +127,7 @@
       ],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-delegate-0.2.6.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-delegate-0.2.7.tgz"
       },
       "updatedAt": "2026-08-07"
     },
@@ -300,13 +301,14 @@
     {
       "slug": "goal",
       "name": "@rcarmo/piclaw-addon-goal",
-      "version": "0.1.45",
+      "version": "0.1.46",
       "type": "extension",
       "description": "Codex-style persisted thread goals with a hardened autonomous continuation loop and visible completion/stop summaries",
       "path": "addons/goal",
       "homepage": "https://rcarmo.github.io/piclaw-addons/addons/goal/",
       "tags": [
         "automation",
+        "core",
         "goal-seeking",
         "loop",
         "productivity",
@@ -315,7 +317,7 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-goal-0.1.45.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-goal-0.1.46.tgz"
       },
       "updatedAt": "2026-08-09"
     },
@@ -581,12 +583,13 @@
     {
       "slug": "plan-sidebar",
       "name": "@rcarmo/piclaw-addon-plan-sidebar",
-      "version": "0.1.23",
+      "version": "0.1.24",
       "type": "extension",
       "description": "Right-side session plan sidebar with canonical plan action=update and Markdown storage",
       "path": "addons/plan-sidebar",
       "homepage": "https://rcarmo.github.io/piclaw-addons/addons/plan-sidebar/",
       "tags": [
+        "core",
         "markdown",
         "planning",
         "session",
@@ -595,7 +598,7 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-plan-sidebar-0.1.23.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-plan-sidebar-0.1.24.tgz"
       },
       "updatedAt": "2026-08-09"
     },
@@ -692,12 +695,13 @@
     {
       "slug": "session-dashboard",
       "name": "@rcarmo/piclaw-addon-session-dashboard",
-      "version": "0.2.3",
+      "version": "0.2.4",
       "type": "extension",
       "description": "Roll-down active session dashboard with recent work summaries and context indicators",
       "path": "addons/session-dashboard",
       "homepage": "https://rcarmo.github.io/piclaw-addons/addons/session-dashboard/",
       "tags": [
+        "core",
         "dashboard",
         "navigation",
         "session",
@@ -706,7 +710,7 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-session-dashboard-0.2.3.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-session-dashboard-0.2.4.tgz"
       },
       "updatedAt": "2026-07-26"
     },

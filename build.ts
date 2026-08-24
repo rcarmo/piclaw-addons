@@ -235,6 +235,18 @@ function tagBadge(tag: string) {
   return `<span class="badge">${esc(tag)}</span>`;
 }
 
+function coreBookmark(addon: Addon): string {
+  if (!addon.tags.includes("core")) return "";
+  return `<span class="core-bookmark" role="img" aria-label="Core add-on" title="Core add-on — recommended for most Piclaw installations">
+    <svg viewBox="0 0 48 66" width="48" height="66" aria-hidden="true" focusable="false">
+      <path d="M0 0H48V66L24 51 0 66Z" fill="currentColor"/>
+      <path d="M0 0H48V5H0Z" class="core-bookmark-highlight"/>
+      <path d="m24 11.7 2.84 5.75 6.36.93-4.6 4.48 1.09 6.32L24 26.19l-5.69 2.99 1.09-6.32-4.6-4.48 6.36-.93Z" fill="#fff"/>
+      <text x="24" y="43" text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif" font-size="8" font-weight="800" letter-spacing="1">CORE</text>
+    </svg>
+  </span>`;
+}
+
 function personLink(p: Person, dim = false): string {
   return `<a href="${esc(p.url)}" target="_blank" rel="noopener" class="person-link${dim?' dim':''}">
     <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
@@ -417,11 +429,16 @@ html,body{min-height:100%;background:var(--bg);color:var(--ink);font-family:var(
 /* ── Grid ─── */
 .grid{max-width:var(--max-w);margin:0 auto 3rem;padding:0 1.25rem;display:grid;
   grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1.1rem}
-.card{display:flex;flex-direction:column;gap:.55rem;padding:1.25rem;
+.card{position:relative;display:flex;flex-direction:column;gap:.55rem;padding:1.25rem;
   background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
-  text-decoration:none;color:var(--ink);transition:box-shadow .15s,border-color .15s}
+  text-decoration:none;color:var(--ink);transition:box-shadow .15s,border-color .15s;overflow:hidden}
 .card:hover{box-shadow:var(--shadow);border-color:var(--accent)}
+.card-core .card-header{padding-right:3.65rem}
 .card-header{display:flex;align-items:center;gap:.85rem}
+.core-bookmark{position:absolute;z-index:1;top:-1px;right:16px;width:48px;height:66px;color:#c81e3a;filter:drop-shadow(0 3px 3px rgba(95,11,21,.3));pointer-events:none}
+.core-bookmark svg{display:block;width:48px;height:66px}
+.core-bookmark-highlight{fill:#ef4764;opacity:.9}
+@media(prefers-color-scheme:dark){.core-bookmark{color:#d52645}}
 .card-icon{width:48px;height:48px;object-fit:contain;flex-shrink:0}
 .card-name{font-family:var(--font-head);font-weight:700;font-size:1.05rem;letter-spacing:-.025em}
 .card-sub-row{display:flex;align-items:center;gap:.45rem;flex-wrap:wrap;margin-top:.18rem}
@@ -603,7 +620,8 @@ ${CLARITY_SCRIPT}
 </div>
 
 <main class="grid" id="grid">
-${addons.map(a => `  <a href="/piclaw-addons/addons/${esc(a.slug)}/" class="card" data-name="${esc(a.slug)} ${esc(a.description)} ${a.tags.join(" ")}">
+${addons.map(a => `  <a href="/piclaw-addons/addons/${esc(a.slug)}/" class="card${a.tags.includes("core") ? " card-core" : ""}" data-name="${esc(a.slug)} ${esc(a.description)} ${a.tags.join(" ")}">
+    ${coreBookmark(a)}
     <div class="card-header">
       <img class="card-icon" src="${iconSrc(a)}" alt="" loading="lazy">
       <div>
