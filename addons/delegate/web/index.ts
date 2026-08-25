@@ -178,7 +178,7 @@ function DelegateSettings() {
       <div style=${{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "0.45rem", marginBottom: "0.6rem" }}>
         <div style=${cardStyle}><div style="font-size:1.05rem;font-weight:600">${runtimeCatalog.model_count || 0}</div><div style="font-size:0.72rem;color:var(--text-secondary)">Runtime models</div></div>
         <div style=${cardStyle}><div style="font-size:1.05rem;font-weight:600">${executableCatalog.model_count || 0}</div><div style="font-size:0.72rem;color:var(--text-secondary)">Child CLI models</div></div>
-        <div style=${cardStyle}><div style="font-size:1.05rem;font-weight:600">${executableCatalog.candidate_count || 0}</div><div style="font-size:0.72rem;color:var(--text-secondary)">Eligible candidates</div></div>
+        <div style=${cardStyle}><div style="font-size:1.05rem;font-weight:600">${executableCatalog.candidate_count || 0}</div><div style="font-size:0.72rem;color:var(--text-secondary)">Approved models</div></div>
         <div style=${cardStyle}><div style="font-size:1.05rem;font-weight:600">${runtimeOnlyModels.length}</div><div style="font-size:0.72rem;color:var(--text-secondary)">Runtime-only</div></div>
         <div style=${cardStyle}><div style="font-size:1.05rem;font-weight:600">${unclassifiedModels.length}</div><div style="font-size:0.72rem;color:var(--text-secondary)">Unclassified CLI</div></div>
       </div>
@@ -189,9 +189,9 @@ function DelegateSettings() {
         ${discoveryError && html`<div style=${{ color: "var(--danger-color)" }}>Last refresh error: ${discoveryError} (last known-good catalog retained)</div>`}
       </div>
 
-      <h4 style=${H}>Searchable providers</h4>
+      <h4 style=${H}>Approved providers</h4>
       <div style=${{ fontSize: "0.78rem", color: "var(--text-secondary)", lineHeight: 1.45, marginBottom: "0.7rem" }}>
-        Delegate deterministically classifies exact child-CLI models from checked providers. Runtime-only Piclaw models are diagnostic only and cannot be selected. By default discovered <code>azure-*</code> providers are excluded.
+        No provider is approved by default. Delegate can launch models only from providers marked <strong>Approved</strong>. Runtime-only Piclaw models are diagnostic only and cannot be selected.
       </div>
       <div style=${{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "0.65rem" }}>
         <input style=${I} type="search" value=${filter} placeholder="Filter providers…" onInput=${(e) => setFilter(e.target.value)} />
@@ -204,10 +204,10 @@ function DelegateSettings() {
           return html`
             <div key=${provider.provider} style=${S}>
               <div role="radiogroup" aria-label=${`${provider.provider} mode`} style=${{ display: "flex", alignItems: "center", gap: "0.65rem", minWidth: "14.8rem" }}>
-                ${["search", "exclude"].map((option) => html`
+                ${["approved", "exclude"].map((option) => html`
                   <label key=${option} style=${{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
-                    <input type="radio" name=${radioName} value=${option} checked=${mode === option} disabled=${saving}
-                      onChange=${() => saveProviderMode(provider.provider, option, providers.map((item) => item.provider), enabledSet)} />
+                    <input type="radio" name=${radioName} value=${option} checked=${mode === (option === "approved" ? "search" : option)} disabled=${saving}
+                      onChange=${() => saveProviderMode(provider.provider, option === "approved" ? "search" : option, providers.map((item) => item.provider), enabledSet)} />
                     <span>${option[0].toUpperCase()}${option.slice(1)}</span>
                   </label>`)}
               </div>
@@ -219,16 +219,16 @@ function DelegateSettings() {
 
       <h4 style=${H}>Excluded model patterns</h4>
       <div style=${{ fontSize: "0.78rem", color: "var(--text-secondary)", marginBottom: "0.45rem" }}>
-        Hard model exclusions, one per line or comma-separated. Supports exact ids, substrings, or <code>*</code> wildcards. Matching models are blocked from automatic selection, fallback, and explicit overrides. Effective provider exclusions: ${effectiveExclusions.providers?.join(", ") || "none"}.
+        Hard model exclusions, one per line or comma-separated. Supports exact ids, substrings, or <code>*</code> wildcards. Matching models are blocked from automatic selection, fallback, and explicit model selection. Effective provider exclusions: ${effectiveExclusions.providers?.join(", ") || "none"}.
       </div>
       <textarea style=${{ ...I, minHeight: "74px", resize: "vertical", fontFamily: "var(--font-mono, monospace)" }} value=${excludedModelsText} disabled=${saving} placeholder="gpt-4o\n*/experimental-*" onInput=${(e) => setExcludedModelsText(e.target.value)} />
       <div style=${{ display: "flex", justifyContent: "flex-end", marginTop: "0.4rem" }}>
         <button type="button" style=${buttonStyle} disabled=${saving} onClick=${saveExcludedModels}>Save exclusions</button>
       </div>
 
-      <h4 style=${H}>Executable delegate candidates</h4>
+      <h4 style=${H}>Approved delegate models</h4>
       <div style=${{ fontSize: "0.78rem", color: "var(--text-secondary)", marginBottom: "0.45rem" }}>
-        ${candidates.length} uniquely classified child-CLI models remain after provider and model policy filters.
+        Delegate can launch only these ${candidates.length} models, whether selected automatically, requested explicitly by an agent, or used as a fallback. Each model is from an approved provider, matches the ordered model policy, exists in the child CLI catalog, and does not match an exclusion.
       </div>
       <div style=${{ maxHeight: "180px", overflow: "auto", border: "1px solid var(--border-color)", borderRadius: "6px" }}>
         ${candidates.slice(0, 80).map((candidate) => html`
@@ -244,7 +244,7 @@ function DelegateSettings() {
 
       <h4 style=${H}>Catalog differences and rejections</h4>
       <div style=${{ fontSize: "0.78rem", color: "var(--text-secondary)", marginBottom: "0.45rem" }}>
-        Runtime-only models are known to Piclaw but not executable by the child CLI. Rejected CLI models remain executable but are excluded or unclassified.
+        Runtime-only models are known to Piclaw but not executable by the child CLI. Rejected CLI models cannot be used by Delegate because their provider is unapproved, the model is excluded, or the model is unclassified.
       </div>
       <div style=${{ maxHeight: "190px", overflow: "auto", border: "1px solid var(--border-color)", borderRadius: "6px" }}>
         ${runtimeOnlyModels.length === 0 && rejectedModels.length === 0 && html`<div style="padding:0.5rem;font-size:0.76rem;color:var(--text-secondary)">No catalog differences or rejected models.</div>`}

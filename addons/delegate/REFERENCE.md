@@ -1,8 +1,14 @@
-# Delegate 0.2.7 — Reference
+# Delegate 0.2.8 — Reference
 
-Delegate registers one Pi tool, `delegate`, that runs a self-contained task in a fresh child Pi process using a verified cheaper-model policy.
+Delegate registers one Pi tool, `delegate`, that runs a self-contained task in a fresh child Pi process. Every child-model launch is restricted to the operator-approved candidate list.
 
-## 1. Catalog contract
+## 1. Enforcement invariant
+
+A model is approved only if its provider is explicitly approved, its ID matches one ordered classification rule, the child CLI lists the exact full ID, and no exclusion denies it. `buildModelCandidates` computes this list. `validateExplicitDelegateModel` applies it to an agent-supplied `model`, `assertApprovedDelegateModelAttempt` checks it again immediately before each child process launch, and `validateDelegateResponseModel` rejects a disclosed message or response model outside the list.
+
+No providers are approved by default. `searchable_providers: null` and `searchable_providers: []` both produce an empty approved list. Discovery of a new provider cannot grant access without an operator changing Delegate settings.
+
+## 2. Catalog contract
 
 Delegate deliberately distinguishes three model roles.
 
@@ -23,7 +29,7 @@ A runtime-only model is never assumed executable. Conversely, a child-CLI model 
 - A failed snapshot is marked stale, records `last_error`, and retries on the next request rather than caching failure for the full TTL.
 - Discovery with no prior good data fails the delegation request.
 
-## 2. Classification policy
+## 3. Classification policy
 
 `classifyModel` normalizes punctuation in the model ID, evaluates ordered rules, and returns exactly one result:
 
@@ -55,20 +61,20 @@ Rules are provider-independent after exact executable discovery, so direct, GitH
 
 An unclassified current model has no tier ceiling, so automatic delegation fails closed with a policy-update message.
 
-## 3. Candidate construction
+## 4. Candidate construction
 
 `buildModelCandidates`:
 
 1. Deduplicates by full `provider/model` ID.
-2. Applies effective provider selection and exclusion.
+2. Keeps only providers explicitly approved by the operator and applies provider exclusions.
 3. Applies exact, substring, or `*` model-exclusion patterns.
 4. Keeps only deterministic classified models.
 5. Retains image, reasoning, context-window, and maximum-output metadata.
 6. Sorts by tier, policy preference, configured provider preference, then full ID.
 
-Default provider behavior considers discovered providers but excludes names beginning with `azure-`. Settings may replace both searchable and excluded provider lists.
+The default provider policy approves none. Settings writes the approved and excluded provider partition. The persisted field remains `searchable_providers` for compatibility, but its entries are the operator-approved providers. Names beginning with `azure-` are also excluded when `excluded_providers` is unset.
 
-## 4. Automatic selection
+## 5. Automatic selection
 
 | Category | Target tier |
 |---|---:|
@@ -91,19 +97,18 @@ Judge selection first looks for an eligible model from a different family than t
 
 When a native raster attachment is present, every automatic or explicit candidate must have `supportsImages === true`. Otherwise it is rejected with a diagnostic that distinguishes missing runtime capability metadata from explicit non-support.
 
-## 5. Explicit overrides
+## 6. Explicit model selection
 
 `model` uses exact full-ID semantics:
 
-- It must exactly match a model in the current child CLI catalog.
-- A runtime-only match reports that it is visible to Piclaw but not executable by child Pi.
-- Any other mismatch reports that the model is absent and asks for an exact Settings catalog ID.
-- It bypasses automatic current-tier, category-tier, and provider policy.
-- Configured model-exclusion patterns remain a hard deny-list for explicit calls.
-- It does **not** bypass executable-catalog validation or image-capability validation.
+- It must exactly match an entry in **Settings → Delegate → Approved delegate models**.
+- It can bypass automatic current-tier and category-tier selection.
+- It cannot bypass provider approval, ordered classification, provider/model exclusions, child-CLI executability, or image-capability validation.
+- A runtime-only match reports that Piclaw can see it but child Pi cannot execute it.
+- Any other mismatch asks for an exact approved Settings candidate.
 - Explicit calls do not use automatic model fallback.
 
-## 6. File contract
+## 7. File contract
 
 All paths are lexically checked, canonicalized with `realpath`, and checked again under `/workspace`; traversal and symlink escapes are rejected. Non-regular files (directories, FIFOs, devices, and sockets) are rejected before content sniffing.
 
@@ -134,7 +139,7 @@ The resolved file is passed as a Pi `@/absolute/path` argument.
 - Audio/video: transcribe or extract text/frames first.
 - Unknown binary or extension/signature mismatch: inspect or convert before delegation.
 
-## 7. Child execution
+## 8. Child execution
 
 The executable is resolved from `PI_DELEGATE_CLI`, the current Bun runtime plus the installed Pi CLI script, or finally a `pi` executable on `PATH`.
 
@@ -174,7 +179,7 @@ It returns final assistant text plus provider/model, response model, stop reason
 
 Tool and message progress is surfaced through bounded `onUpdate` calls. A real process/protocol failure is thrown rather than returned as a successful tool result.
 
-## 8. Lifecycle bounds
+## 9. Lifecycle bounds
 
 | Bound | Value |
 |---|---:|
@@ -192,7 +197,7 @@ On timeout or cancellation Delegate sends `SIGTERM` to the detached child proces
 
 `--no-session` ensures the child does not create a persistent Pi session.
 
-## 9. Failure and fallback policy
+## 10. Failure and fallback policy
 
 Failures are classified as:
 
@@ -204,19 +209,19 @@ Failures are classified as:
 - `protocol`
 - `execution`
 
-Automatic fallback is permitted only for `auth`, `model-unavailable`, and `provider-setup`.
+Automatic fallback is permitted only for `auth`, `model-unavailable`, and `provider-setup`. Each fallback ID comes from the approved candidate list and is checked against that list again immediately before spawn.
 
 The following do not trigger retry: malformed/no JSON events, non-zero exit without a classified setup cause, timeout, cancellation, rate limit, tool error, and ordinary execution failure. Partial assistant text with a non-zero exit remains a failure.
 
 Every failure stores the attempted full model ID, classification, and message. The thrown final error includes the complete attempt chain and the actual final attempted model.
 
-## 10. Tool schema
+## 11. Tool schema
 
 ```ts
 {
   prompt: string,                 // required
   task_category?: "quick" | "summarize" | "code" | "analyze" | "reason" | "judge",
-  model?: string,                 // exact executable provider/model override
+  model?: string,                 // exact approved provider/model selection
   files?: string[],               // workspace text or native raster files
   tools?: "read_only" | "standard" | "full" | string,
   system_prompt?: string,
@@ -236,7 +241,7 @@ Tool profiles:
 
 If the known MCP adapter is installed, Delegate adds the `mcp` tool and loads that adapter explicitly.
 
-## 11. Result details
+## 12. Result details
 
 Successful calls include structured details similar to:
 
@@ -257,12 +262,12 @@ Successful calls include structured details similar to:
 }
 ```
 
-## 12. Settings diagnostics
+## 13. Settings diagnostics
 
 The Delegate Settings pane uses the direct add-on config API and reports:
 
 - Runtime model count and current model classification.
-- Child-CLI model count and eligible candidate count.
+- Child-CLI model count and approved candidate count.
 - Runtime-only models.
 - Unclassified and other rejected executable models with reasons.
 - Cache refresh timestamp, age, stale state, and last refresh error.
@@ -270,12 +275,12 @@ The Delegate Settings pane uses the direct add-on config API and reports:
 - Effective provider/model exclusions.
 - Manual refresh and provider/model policy controls.
 
-## 13. Limitations
+## 14. Limitations
 
 - Delegates have no conversation continuity; prompts must be self-contained.
 - The final answer is emitted after child exit, although bounded progress is streamed while running.
 - Policy updates are required for genuinely new model IDs; unknown current models intentionally fail closed.
-- Runtime-only models cannot be explicitly delegated.
+- Runtime-only, unapproved-provider, unclassified, and excluded models cannot be explicitly delegated.
 - Image support is fail-closed when runtime capability metadata is absent.
-- Child tool profiles restrict the tool list but are not a general filesystem sandbox.
+- Child tool profiles restrict the tool list but are not an operating-system sandbox. A child granted `bash` or external MCP services can execute capabilities outside Delegate's child-model launcher.
 - MCP is available only when its adapter can be discovered; other Piclaw add-on tools are not inherited by the child.

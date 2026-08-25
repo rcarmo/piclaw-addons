@@ -1,7 +1,7 @@
 {
   "name": "@rcarmo/piclaw-addon-delegate",
-  "version": "0.2.7",
-  "description": "Delegate tasks to verified cheaper/faster child-Pi models with deterministic tier-safe selection",
+  "version": "0.2.8",
+  "description": "Delegate tasks to operator-approved child-Pi models with fail-closed enforcement",
   "type": "module",
   "main": "index.ts",
   "piclaw": {

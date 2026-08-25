@@ -4,7 +4,7 @@ import { dirname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 
-import delegateAddon, { buildDelegateModelChain, buildDelegateStatusUpdate, buildModelCandidates, captureRuntimeCatalog, classifyDelegateFailure, classifyModel, delegateProcessFailure, delegateStatusModelHint, describeImageCapability, delegateTaskPreview, getCurrentTier, getDelegateWorkspaceRoot, getExecutableCatalog, inspectDelegateFile, invalidateExecutableCatalog, isProviderAuthError, isRetryableDelegateFailure, mergeExecutableRuntimeMetadata, normalizeConfig, parseDelegateJsonOutput, parsePiListModelsOutput, prepareDelegateFile, providerSummaries, resolveDelegateCliCommand, runDelegateProcess, runtimeModelToAvailable, selectModel, validateExplicitDelegateModel } from "./delegate.ts";
+import delegateAddon, { assertApprovedDelegateModelAttempt, buildDelegateModelChain, buildDelegateStatusUpdate, buildModelCandidates, captureRuntimeCatalog, classifyDelegateFailure, classifyModel, delegateProcessFailure, delegateStatusModelHint, describeImageCapability, delegateTaskPreview, getCurrentTier, getDelegateWorkspaceRoot, getExecutableCatalog, inspectDelegateFile, invalidateExecutableCatalog, isProviderAuthError, isRetryableDelegateFailure, mergeExecutableRuntimeMetadata, normalizeConfig, parseDelegateJsonOutput, parsePiListModelsOutput, prepareDelegateFile, providerSummaries, resolveDelegateCliCommand, runDelegateProcess, runtimeModelToAvailable, selectModel, validateDelegateResponseModel, validateExplicitDelegateModel } from "./delegate.ts";
 import { buildProviderModePatch, resolveProviderMode } from "./web/index.ts";
 
 const addonDir = dirname(fileURLToPath(import.meta.url));
@@ -125,7 +125,47 @@ anthropic       claude-sonnet-4.6  200K     32K      yes       yes
     }
   });
 
-  test("model matching picks up close direct-provider equivalents and excludes azure providers by default", () => {
+  test("tool execution rejects an explicit unapproved provider before child launch", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "delegate-unapproved-spawn-"));
+    const previousCli = process.env.PI_DELEGATE_CLI;
+    try {
+      const script = resolve(dir, "delegate-cli.ts");
+      const launchMarker = resolve(dir, "launched.txt");
+      writeFileSync(script, `
+        import { writeFileSync } from "node:fs";
+        if (process.argv.includes("--list-models")) {
+          console.log("provider model context max-out thinking images");
+          console.log("openai-codex gpt-5.4 272K 128K yes yes");
+          process.exit(0);
+        }
+        writeFileSync(${JSON.stringify(launchMarker)}, process.argv.join(" "));
+      `);
+      process.env.PI_DELEGATE_CLI = `${process.execPath} ${script}`;
+      invalidateExecutableCatalog();
+      let tool: any;
+      delegateAddon({
+        on() {},
+        getActiveTools() { return []; },
+        setActiveTools() {},
+        registerTool(candidate: any) { if (candidate.name === "delegate") tool = candidate; },
+      });
+      await expect(tool.execute("unapproved", {
+        prompt: "must not launch",
+        model: "openai-codex/gpt-5.4",
+      }, undefined, undefined, {
+        model: { provider: "github-copilot", id: "gpt-5.6-sol" },
+        modelRegistry: { getAvailable() { return [{ provider: "github-copilot", id: "gpt-5.6-sol" }]; } },
+      })).rejects.toThrow("not in the approved provider list");
+      expect(existsSync(launchMarker)).toBe(false);
+    } finally {
+      if (previousCli === undefined) delete process.env.PI_DELEGATE_CLI;
+      else process.env.PI_DELEGATE_CLI = previousCli;
+      invalidateExecutableCatalog();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("model candidates require operator-approved providers and still apply default azure exclusions", () => {
     const models = [
       { provider: "github-copilot", id: "gpt-5.4-mini", fullId: "github-copilot/gpt-5.4-mini" },
       { provider: "openai", id: "gpt-5.4-mini", fullId: "openai/gpt-5.4-mini" },
@@ -133,14 +173,15 @@ anthropic       claude-sonnet-4.6  200K     32K      yes       yes
       { provider: "anthropic", id: "claude-sonnet-4.6", fullId: "anthropic/claude-sonnet-4.6" },
       { provider: "azure-openai", id: "gpt-5.4-mini", fullId: "azure-openai/gpt-5.4-mini" },
     ];
-    const candidates = buildModelCandidates(models, { searchable_providers: null, excluded_providers: null, excluded_models: [] });
+    expect(buildModelCandidates(models, { searchable_providers: null, excluded_providers: null, excluded_models: [] })).toEqual([]);
+    const candidates = buildModelCandidates(models, { searchable_providers: ["github-copilot", "openai", "anthropic", "azure-openai"], excluded_providers: null, excluded_models: [] });
     expect(candidates.some((candidate) => candidate.id === "openai/gpt-5.4-mini" && candidate.tier === 2)).toBe(true);
     expect(candidates.some((candidate) => candidate.id === "anthropic/claude-fable-5" && candidate.tier === 3)).toBe(true);
     expect(candidates.some((candidate) => candidate.id === "anthropic/claude-sonnet-4.6" && candidate.tier === 3)).toBe(true);
     expect(candidates.some((candidate) => candidate.provider.startsWith("azure-"))).toBe(false);
   });
 
-  test("provider and model exclusions are configurable", () => {
+  test("provider and model exclusions constrain the approved candidate list", () => {
     const models = [
       { provider: "github-copilot", id: "gpt-5-mini", fullId: "github-copilot/gpt-5-mini" },
       { provider: "github-copilot", id: "gpt-5.4-mini", fullId: "github-copilot/gpt-5.4-mini" },
@@ -148,13 +189,14 @@ anthropic       claude-sonnet-4.6  200K     32K      yes       yes
       { provider: "azure-openai", id: "gpt-5.4-mini", fullId: "azure-openai/gpt-5.4-mini" },
       { provider: "openai-codex", id: "gpt-5.4", fullId: "openai-codex/gpt-5.4" },
     ];
-    const includeAzure = buildModelCandidates(models, { searchable_providers: null, excluded_providers: [], excluded_models: [] });
+    const allProviders = ["github-copilot", "openai", "azure-openai", "openai-codex"];
+    const includeAzure = buildModelCandidates(models, { searchable_providers: allProviders, excluded_providers: [], excluded_models: [] });
     expect(includeAzure.some((candidate) => candidate.id === "azure-openai/gpt-5.4-mini")).toBe(true);
 
-    const excludeOpenAi = buildModelCandidates(models, { searchable_providers: null, excluded_providers: ["openai"], excluded_models: [] });
+    const excludeOpenAi = buildModelCandidates(models, { searchable_providers: allProviders, excluded_providers: ["openai"], excluded_models: [] });
     expect(excludeOpenAi.some((candidate) => candidate.provider === "openai")).toBe(false);
 
-    const excludeMini = buildModelCandidates(models, { searchable_providers: null, excluded_providers: [], excluded_models: ["*mini*"] });
+    const excludeMini = buildModelCandidates(models, { searchable_providers: allProviders, excluded_providers: [], excluded_models: ["*mini*"] });
     expect(excludeMini.some((candidate) => candidate.modelId.includes("mini"))).toBe(false);
     expect(excludeMini.some((candidate) => candidate.id === "openai-codex/gpt-5.4")).toBe(true);
     const chain = buildDelegateModelChain("code", 3, "github-copilot/gpt-5.5", excludeMini);
@@ -181,7 +223,7 @@ anthropic       claude-sonnet-4.6  200K     32K      yes       yes
     expect(classifyModel("openai/mystery-9000")).toMatchObject({ status: "unclassified", tier: null, rule: null, confidence: "none" });
     const candidates = buildModelCandidates([
       { provider: "openai", id: "gpt-5.4", fullId: "openai/gpt-5.4" },
-    ], { searchable_providers: null, excluded_providers: null, excluded_models: [] });
+    ], { searchable_providers: ["openai"], excluded_providers: null, excluded_models: [] });
     expect(candidates).toHaveLength(1);
     expect(candidates[0]).toMatchObject({ id: "openai/gpt-5.4", tier: 3, sourceId: "gpt-5-4", matchScore: 100 });
   });
@@ -194,7 +236,7 @@ anthropic       claude-sonnet-4.6  200K     32K      yes       yes
     const runtimeClassifications = runtimeFixture.models.map((model) => classifyModel(model));
     expect(runtimeClassifications.filter((classification) => classification.status === "unclassified")).toEqual([]);
     const runtimeCandidates = buildModelCandidates(runtimeFixture.models.map((model) => ({ ...model, fullId: model.label })), {
-      searchable_providers: null,
+      searchable_providers: [...new Set(runtimeFixture.models.map((model) => model.provider))],
       excluded_providers: [],
       excluded_models: [],
     });
@@ -202,7 +244,7 @@ anthropic       claude-sonnet-4.6  200K     32K      yes       yes
     expect(new Set(runtimeCandidates.map((candidate) => candidate.id)).size).toBe(runtimeCandidates.length);
 
     const executableModels = parsePiListModelsOutput(readFileSync(resolve(addonDir, "fixtures/cli-models-29.txt"), "utf8"));
-    const executableCandidates = buildModelCandidates(executableModels, { searchable_providers: null, excluded_providers: [], excluded_models: [] });
+    const executableCandidates = buildModelCandidates(executableModels, { searchable_providers: [...new Set(executableModels.map((model) => model.provider))], excluded_providers: [], excluded_models: [] });
     expect(executableModels).toHaveLength(29);
     expect(executableCandidates).toHaveLength(29);
     expect(new Set(executableCandidates.map((candidate) => candidate.id)).size).toBe(29);
@@ -344,32 +386,55 @@ anthropic       claude-sonnet-4.6  200K     32K      yes       yes
     expect(describeImageCapability({ id: "provider/vision", supportsImages: true })).toBeNull();
   });
 
-  test("explicit overrides require exact executable models and obey hard model exclusions", () => {
+  test("explicit model selection cannot bypass the approved model list", () => {
     const executable = [
       { provider: "openai-codex", id: "gpt-5.4", fullId: "openai-codex/gpt-5.4" },
       { provider: "github-copilot", id: "gpt-5-mini", fullId: "github-copilot/gpt-5-mini" },
       { provider: "github-copilot", id: "gpt-5.4-mini", fullId: "github-copilot/gpt-5.4-mini" },
+      { provider: "custom", id: "mystery-9000", fullId: "custom/mystery-9000" },
     ];
     const runtime = [
       ...executable,
       { provider: "github-copilot", id: "gpt-5.6-sol", fullId: "github-copilot/gpt-5.6-sol" },
     ];
-    const hardExclusions = { searchable_providers: null, excluded_providers: [], excluded_models: ["*mini*"] };
-    expect(validateExplicitDelegateModel("openai-codex/gpt-5.4", executable, runtime, hardExclusions)).toMatchObject({ model: executable[0], policyBypass: true, error: null });
+    const policy = { searchable_providers: ["github-copilot", "custom"], excluded_providers: [], excluded_models: ["*mini*"] };
+
+    expect(validateExplicitDelegateModel("openai-codex/gpt-5.4", executable, runtime, policy)).toMatchObject({ model: null, approved: false });
+    expect(validateExplicitDelegateModel("openai-codex/gpt-5.4", executable, runtime, policy).error).toContain("not in the approved provider list");
     for (const model of ["github-copilot/gpt-5-mini", "github-copilot/gpt-5.4-mini"]) {
-      expect(validateExplicitDelegateModel(model, executable, runtime, hardExclusions)).toMatchObject({ model: null, policyBypass: true });
-      expect(validateExplicitDelegateModel(model, executable, runtime, hardExclusions).error).toContain("matches a configured model exclusion");
+      expect(validateExplicitDelegateModel(model, executable, runtime, policy)).toMatchObject({ model: null, approved: false });
+      expect(validateExplicitDelegateModel(model, executable, runtime, policy).error).toContain("matches a configured model exclusion");
     }
-    expect(validateExplicitDelegateModel("github-copilot/gpt-5.6-sol", executable, runtime, hardExclusions).error).toContain("available in Piclaw but not executable");
-    expect(validateExplicitDelegateModel("unknown/missing", executable, runtime, hardExclusions).error).toContain("not available in the child Pi CLI catalog");
-    expect(validateExplicitDelegateModel("GPT-5.4", executable, runtime, hardExclusions).error).toContain("exact provider/model ID");
+    expect(validateExplicitDelegateModel("custom/mystery-9000", executable, runtime, { ...policy, excluded_models: [] }).error).toContain("not in the ordered approved-model policy");
+    expect(validateExplicitDelegateModel("github-copilot/gpt-5.6-sol", executable, runtime, policy).error).toContain("available in Piclaw but not executable");
+    expect(validateExplicitDelegateModel("unknown/missing", executable, runtime, policy).error).toContain("not available in the child Pi CLI catalog");
+    expect(validateExplicitDelegateModel("GPT-5.4", executable, runtime, policy).error).toContain("exact approved provider/model ID");
+
+    const approvedPolicy = { searchable_providers: ["openai-codex"], excluded_providers: [], excluded_models: [] };
+    expect(validateExplicitDelegateModel("openai-codex/gpt-5.4", executable, runtime, approvedPolicy)).toEqual({ model: executable[0], approved: true, error: null });
+    const approvedCandidates = buildModelCandidates(executable, approvedPolicy);
+    expect(() => assertApprovedDelegateModelAttempt("openai-codex/gpt-5.4", approvedCandidates)).not.toThrow();
+    expect(() => assertApprovedDelegateModelAttempt("github-copilot/gpt-5-mini", approvedCandidates)).toThrow("refused unapproved model attempt");
+  });
+
+  test("disclosed provider response models must also be approved", () => {
+    const approved = buildModelCandidates([
+      { provider: "openrouter", id: "approved-model", fullId: "openrouter/approved-model" },
+      { provider: "openrouter", id: "gpt-5.4", fullId: "openrouter/gpt-5.4" },
+    ], { searchable_providers: ["openrouter"], excluded_providers: [], excluded_models: [] });
+    // The synthetic unclassified request is not itself a launch candidate; the
+    // helper is tested independently of pre-spawn enforcement here.
+    expect(validateDelegateResponseModel("openrouter/request-alias", "openrouter", null, approved)).toBeNull();
+    expect(validateDelegateResponseModel("openrouter/request-alias", "openrouter", "gpt-5.4", approved)).toBeNull();
+    expect(validateDelegateResponseModel("openrouter/request-alias", "openrouter", "blocked-model", approved)).toContain("not in the approved Delegate model list");
+    expect(validateDelegateResponseModel("openrouter/request-alias", "openrouter", "other/blocked-model", approved)).toContain("other/blocked-model");
   });
 
   test("judge selection crosses families only when a valid candidate exists", () => {
     const mixed = buildModelCandidates([
       { provider: "github-copilot", id: "gpt-5.4", fullId: "github-copilot/gpt-5.4" },
       { provider: "github-copilot", id: "claude-sonnet-4.6", fullId: "github-copilot/claude-sonnet-4.6" },
-    ], { searchable_providers: null, excluded_providers: [], excluded_models: [] });
+    ], { searchable_providers: ["github-copilot"], excluded_providers: [], excluded_models: [] });
     expect(selectModel("judge", 3, "github-copilot/gpt-5.5", mixed)).toBe("github-copilot/claude-sonnet-4.6");
     const sameFamily = mixed.filter((candidate) => candidate.family === "gpt");
     expect(selectModel("judge", 3, "github-copilot/gpt-5.5", sameFamily)).toBe("github-copilot/gpt-5.4");
@@ -468,7 +533,7 @@ anthropic       claude-sonnet-4.6  200K     32K      yes       yes
     expect(source).toContain('role="radiogroup"');
     expect(source).toContain('type="radio"');
     expect(source).not.toContain('type="checkbox"');
-    expect(source).toContain('["search", "exclude"]');
+    expect(source).toContain('["approved", "exclude"]');
     expect(source).not.toContain('"ignore"');
     expect(source).toContain("buildProviderModePatch");
     expect(source).toContain("const optimisticConfig = { ...config, ...patch }");
@@ -478,9 +543,13 @@ anthropic       claude-sonnet-4.6  200K     32K      yes       yes
     expect(source).toContain("setConfig(nextConfig)");
     expect(source).toContain("Refresh failed:");
     expect(source).toContain("Filter providers");
+    expect(source).toContain("Approved providers");
+    expect(source).toContain("No provider is approved by default");
+    expect(source).toContain("Approved delegate models");
+    expect(source).toContain("whether selected automatically, requested explicitly by an agent, or used as a fallback");
     expect(source).toContain("Excluded model patterns");
     expect(source).toContain("Hard model exclusions");
-    expect(source).toContain("explicit overrides");
+    expect(source).toContain("explicit model selection");
     expect(source).toContain("Save exclusions");
     expect(source).toContain("Refresh");
     expect(source).toContain("models");
@@ -494,7 +563,7 @@ anthropic       claude-sonnet-4.6  200K     32K      yes       yes
       { provider: "openai-codex", id: "gpt-5.4", fullId: "openai-codex/gpt-5.4" },
       { provider: "github-copilot", id: "gpt-5.4", fullId: "github-copilot/gpt-5.4" },
     ];
-    const candidates = buildModelCandidates(models, { searchable_providers: null, excluded_providers: null, excluded_models: [] });
+    const candidates = buildModelCandidates(models, { searchable_providers: ["github-copilot", "openai-codex"], excluded_providers: null, excluded_models: [] });
     const tier3 = candidates.filter((candidate) => candidate.tier === 3 && candidate.modelId === "gpt-5.4");
     expect(tier3[0]?.id).toBe("github-copilot/gpt-5.4");
   });
@@ -503,7 +572,7 @@ anthropic       claude-sonnet-4.6  200K     32K      yes       yes
     const candidates = buildModelCandidates([
       { provider: "github-copilot", id: "claude-sonnet-5", fullId: "github-copilot/claude-sonnet-5" },
       { provider: "github-copilot", id: "claude-opus-4.8", fullId: "github-copilot/claude-opus-4.8" },
-    ], { searchable_providers: null, excluded_providers: [], excluded_models: [] });
+    ], { searchable_providers: ["github-copilot"], excluded_providers: [], excluded_models: [] });
     expect(selectModel("quick", 5, "github-copilot/claude-opus-4.8", candidates)).toBeNull();
     expect(buildDelegateModelChain("quick", 5, "github-copilot/claude-opus-4.8", candidates)).toEqual([]);
   });
@@ -514,7 +583,7 @@ anthropic       claude-sonnet-4.6  200K     32K      yes       yes
       { provider: "github-copilot", id: "gpt-5.4", fullId: "github-copilot/gpt-5.4" },
       { provider: "github-copilot", id: "gpt-5.4-mini", fullId: "github-copilot/gpt-5.4-mini" },
     ];
-    const candidates = buildModelCandidates(models, { searchable_providers: null, excluded_providers: null, excluded_models: [] });
+    const candidates = buildModelCandidates(models, { searchable_providers: ["github-copilot", "openai-codex"], excluded_providers: null, excluded_models: [] });
     const chain = buildDelegateModelChain("code", 3, "github-copilot/gpt-5.5", candidates);
     expect(chain[0]).toBe("github-copilot/gpt-5.4");
     expect(chain).toContain("openai-codex/gpt-5.4");

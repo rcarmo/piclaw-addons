@@ -111,9 +111,9 @@
     {
       "slug": "delegate",
       "name": "@rcarmo/piclaw-addon-delegate",
-      "version": "0.2.7",
+      "version": "0.2.8",
       "type": "extension",
-      "description": "Delegate tasks to verified cheaper/faster child-Pi models with deterministic tier-safe selection",
+      "description": "Delegate tasks to operator-approved child-Pi models with fail-closed enforcement",
       "path": "addons/delegate",
       "homepage": "https://rcarmo.github.io/piclaw-addons/addons/delegate/",
       "tags": [
@@ -127,9 +127,9 @@
       ],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-delegate-0.2.7.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-delegate-0.2.8.tgz"
       },
-      "updatedAt": "2026-08-24"
+      "updatedAt": "2026-08-26"
     },
     {
       "slug": "dev-tools",
