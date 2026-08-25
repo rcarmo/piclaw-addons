@@ -35,7 +35,7 @@ test("only the selected foundational add-ons carry the core tag", () => {
   const catalogCoreSlugs = catalog.addons.filter((addon: any) => addon.tags?.includes("core")).map((addon: any) => addon.slug).sort();
   expect(catalogCoreSlugs).toEqual(coreSlugs);
   expect(Object.fromEntries(catalog.addons.filter((addon: any) => catalogCoreSlugs.includes(addon.slug)).map((addon: any) => [addon.slug, addon.version]))).toEqual({
-    delegate: "0.2.7",
+    delegate: "0.2.8",
     goal: "0.1.46",
     "plan-sidebar": "0.1.24",
     "session-dashboard": "0.2.4",

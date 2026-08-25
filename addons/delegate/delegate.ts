@@ -40,15 +40,16 @@ const AZURE_PROVIDER_RE = /^azure-/i;
 const DEFAULT_SEARCHABLE_PROVIDER_ORDER = ["github-copilot", "anthropic", "openai", "google", "openai-codex", "cerebras", "ollama"];
 
 export interface DelegateConfig {
+  /** Operator-approved providers. null and [] both mean approve none (fail closed). */
   searchable_providers: string[] | null;
-  /** null = default exclusions (currently discovered azure-* providers); [] = exclude nothing */
+  /** Additional explicit provider denials. null = default exclusions; [] = no extra denials. */
   excluded_providers: string[] | null;
   /** Model id/full-id exclusion patterns. Supports `*` wildcards and substring fallback. */
   excluded_models: string[];
 }
 
 const DEFAULT_CONFIG: DelegateConfig = {
-  searchable_providers: null, // null = all discovered, minus excluded providers; [] = intentionally disabled
+  searchable_providers: null, // fail closed until an operator approves providers in Settings
   excluded_providers: null,
   excluded_models: [],
 };
@@ -416,10 +417,9 @@ function getExcludedProviders(models: AvailableModel[], config: DelegateConfig):
 function getAllowedProviders(models: AvailableModel[], config: DelegateConfig): string[] {
   const discovered = getDiscoveredProviders(models);
   const excluded = new Set(getExcludedProviders(models, config));
-  const configured = normalizeProviderList(config.searchable_providers);
-  const providerPool = configured === null ? discovered : configured;
+  const configured = normalizeProviderList(config.searchable_providers) ?? [];
   const discoveredSet = new Set(discovered);
-  return providerPool.filter((provider) => discoveredSet.has(provider) && !excluded.has(provider));
+  return configured.filter((provider) => discoveredSet.has(provider) && !excluded.has(provider));
 }
 
 function modelExclusionMatches(pattern: string, model: AvailableModel): boolean {
@@ -504,10 +504,16 @@ export function getCurrentTier(ctx: any): ModelTierNumber | null {
 
 export interface ExplicitModelValidation {
   model: AvailableModel | null;
-  policyBypass: true;
+  approved: boolean;
   error: string | null;
 }
 
+/**
+ * Explicit model requests use the same fail-closed approval boundary as
+ * automatic selection. An exact executable model is still denied unless its
+ * provider is approved, its ID matches the ordered classification policy, and
+ * no provider/model exclusion applies.
+ */
 export function validateExplicitDelegateModel(
   requestedModel: string,
   executableModels: AvailableModel[],
@@ -515,22 +521,80 @@ export function validateExplicitDelegateModel(
   config: DelegateConfig = DEFAULT_CONFIG,
 ): ExplicitModelValidation {
   const model = executableModels.find((candidate) => candidate.fullId === requestedModel) ?? null;
-  if (model && isExcludedModel(model, normalizeConfig(config))) {
+  if (!model) {
+    const runtimeOnly = runtimeModels.some((candidate) => candidate.fullId === requestedModel);
     return {
       model: null,
-      policyBypass: true,
-      error: `Delegate model ${requestedModel} matches a configured model exclusion and cannot be used, even as an explicit override.`,
+      approved: false,
+      error: runtimeOnly
+        ? `Delegate model ${requestedModel} is available in Piclaw but not executable by the child Pi CLI.`
+        : `Delegate model ${requestedModel} is not available in the child Pi CLI catalog. Use an exact approved provider/model ID from Delegate settings.`,
     };
   }
-  if (model) return { model, policyBypass: true, error: null };
-  const runtimeOnly = runtimeModels.some((candidate) => candidate.fullId === requestedModel);
-  return {
-    model: null,
-    policyBypass: true,
-    error: runtimeOnly
-      ? `Delegate model ${requestedModel} is available in Piclaw but not executable by the child Pi CLI.`
-      : `Delegate model ${requestedModel} is not available in the child Pi CLI catalog. Use an exact provider/model ID from Delegate settings.`,
-  };
+
+  const normalizedConfig = normalizeConfig(config);
+  const allowedProviders = new Set(getAllowedProviders(executableModels, normalizedConfig));
+  if (!allowedProviders.has(model.provider)) {
+    return {
+      model: null,
+      approved: false,
+      error: `Delegate model ${requestedModel} uses provider ${model.provider}, which is not in the approved provider list. Explicit model selection cannot bypass Delegate model approval.`,
+    };
+  }
+  if (isExcludedModel(model, normalizedConfig)) {
+    return {
+      model: null,
+      approved: false,
+      error: `Delegate model ${requestedModel} matches a configured model exclusion and is not approved. Explicit model selection cannot bypass Delegate model approval.`,
+    };
+  }
+  const classification = classifyModel(model);
+  if (classification.status !== "classified") {
+    return {
+      model: null,
+      approved: false,
+      error: `Delegate model ${requestedModel} is not in the ordered approved-model policy. ${classification.reason}`,
+    };
+  }
+
+  const approved = buildModelCandidates(executableModels, normalizedConfig)
+    .some((candidate) => candidate.id === requestedModel);
+  return approved
+    ? { model, approved: true, error: null }
+    : {
+        model: null,
+        approved: false,
+        error: `Delegate model ${requestedModel} is not in the approved candidate list. Explicit model selection cannot bypass Delegate model approval.`,
+      };
+}
+
+/** Defensive last gate immediately before each child-model launch. */
+export function assertApprovedDelegateModelAttempt(model: string, approvedCandidates: ModelCandidate[]): void {
+  if (!approvedCandidates.some((candidate) => candidate.id === model)) {
+    throw new Error(`Delegate refused unapproved model attempt ${model}. The model is not in the approved candidate list.`);
+  }
+}
+
+/**
+ * Providers can disclose a response model that differs from the requested
+ * catalog model. Reject that response unless the disclosed model is also an
+ * exact approved candidate. Opaque provider-side routing cannot be prevented
+ * by a client, but a disclosed policy mismatch is never accepted as success.
+ */
+export function validateDelegateResponseModel(
+  requestedModel: string,
+  provider: string | null,
+  responseModel: string | null,
+  approvedCandidates: ModelCandidate[],
+): string | null {
+  const disclosed = String(responseModel || "").trim();
+  if (!disclosed) return null;
+  const requestedProvider = requestedModel.split("/", 1)[0] || "";
+  const fullId = disclosed.includes("/") ? disclosed : `${provider || requestedProvider}/${disclosed}`;
+  if (fullId === requestedModel) return null;
+  return approvedCandidates.some((candidate) => candidate.id === fullId)
+    ? null
+    : `Provider disclosed response model ${fullId}, which is not in the approved Delegate model list.`;
 }
 
 type TaskCategory = "quick" | "summarize" | "code" | "analyze" | "reason" | "judge";
@@ -1216,10 +1280,11 @@ export default function (pi: any) {
   const HINT = [
     "## Delegate tool",
     "Use `delegate` for self-contained work in a fresh ephemeral Pi context; it has no conversation history.",
-    "Automatic selection uses only models verified by the child Pi CLI and never selects above the current model's verified tier.",
+    "Delegate can launch only models in its Settings-approved candidate list: an operator-approved provider, an ordered classified model ID, an exact child-CLI executable entry, and no matching exclusion. No providers are approved by default.",
+    "Automatic selection never selects above the current model's verified tier.",
     "The child receives the requested tool profile (read-only, standard, full, or an explicit list); do not assume every installed Piclaw add-on tool is available.",
     "Pass workspace text files or content-sniffed JPEG, PNG, GIF, WebP, and BMP images in `files`; extract or convert PDF, SVG, archives, audio, video, and other binaries first.",
-    "An explicit `model` must be an exact executable provider/model ID; it bypasses automatic tier and provider policy, but not configured model exclusions, executability, or image-capability validation.",
+    "An explicit `model` must be an exact entry in the same approved candidate list; it can bypass automatic tier selection but cannot bypass provider approval, model classification, exclusions, executability, or image-capability validation.",
     "Proactively delegate when a task is self-contained and does not need conversation history.",
     "When you call delegate, produce a visible one-sentence timeline update that says what you are delegating and why; do not leave the user with zero feedback while the delegated process runs.",
     "When the user asks to double-check, verify, or review your answer, use `task_category: judge`; it selects another family when a valid tier-safe executable alternative exists.",
@@ -1243,7 +1308,8 @@ export default function (pi: any) {
       "The delegate has its own tool access (read, grep, bash, etc.) but no conversation history. " +
       "Use for: summarizing files, quick questions, code generation, data extraction, codebase exploration, " +
       "or any task that doesn't require the full conversation context. " +
-      "Automatic selection uses the verified child CLI catalog and never exceeds the current model's classified tier.",
+      "Every automatic, explicit, and fallback attempt is restricted to the Settings-approved candidate list; " +
+      "automatic selection also never exceeds the current model's classified tier.",
     parameters: {
       type: "object",
       required: ["prompt"],
@@ -1259,7 +1325,7 @@ export default function (pi: any) {
         },
         model: {
           type: "string",
-          description: "Exact executable provider/model override. Bypasses automatic tier and provider policy, but configured model exclusions still apply and the model must exist in the child Pi CLI catalog.",
+          description: "Exact approved provider/model selection. It must appear in Settings → Delegate → Approved delegate models. It can bypass automatic tier selection but cannot bypass provider approval, ordered model classification, exclusions, executability, or image-capability checks.",
         },
         files: {
           type: "array",
@@ -1314,16 +1380,16 @@ export default function (pi: any) {
       if (requestedModel && explicitValidation?.error) delegateFailure(explicitValidation.error);
       if (!requestedModel && maxTier === null) {
         const classification = getCurrentClassification(ctx);
-        delegateFailure(`Delegate cannot safely auto-select from unclassified current model ${currentModelId || "(none)"}. ${classification?.reason || "No current model metadata is available."} Use a verified explicit model override.`);
+        delegateFailure(`Delegate cannot safely auto-select from unclassified current model ${currentModelId || "(none)"}. ${classification?.reason || "No current model metadata is available."} Select an exact model from Settings → Delegate → Approved delegate models.`);
       }
       if (!requestedModel && discoveredCandidates.length === 0) {
         const discoveryNote = executableCatalog.lastError ? ` Discovery error: ${executableCatalog.lastError}` : "";
-        delegateFailure(`No classified executable Delegate model candidates remain after provider/model exclusions.${discoveryNote}`);
+        delegateFailure(`No approved executable Delegate model candidates remain. Approve at least one provider in Settings → Delegate and review model exclusions.${discoveryNote}`);
       }
 
-      // Explicit overrides bypass automatic tier and provider-selection policy, but
-      // configured model exclusions are a hard deny-list. Overrides must also be
-      // exact models that the child Pi CLI can execute.
+      // Explicit model selection can bypass automatic tier selection only. Provider
+      // approval, ordered classification, executable-catalog membership, and
+      // model exclusions define one shared approved candidate list.
       const model = requestedModel || selectModel(category, maxTier!, currentModelId, discoveredCandidates);
       if (!model) delegateFailure("Delegate could not select an executable model within the current model tier.");
 
@@ -1427,7 +1493,7 @@ export default function (pi: any) {
       if (params.system_prompt) staticArgs.push("--system-prompt", params.system_prompt);
       for (const att of attachmentArgs) staticArgs.push(att);
 
-      // Ordered models to attempt. An explicit override is used verbatim (no fallback);
+      // Ordered models to attempt. An explicit selection is used verbatim (no fallback);
       // auto-selection falls back across providers if a model has no usable credentials,
       // so a single keyless provider (e.g. openai-codex) cannot keep breaking delegation.
       const modelChain = requestedModel
@@ -1443,6 +1509,9 @@ export default function (pi: any) {
       try {
         for (let attempt = 0; attempt < modelChain.length; attempt += 1) {
           const attemptModel = modelChain[attempt];
+          // Keep a final fail-closed gate next to process creation so future
+          // selection/fallback changes cannot launch a model outside policy.
+          assertApprovedDelegateModelAttempt(attemptModel, eligibleCandidates);
           lastAttemptedModel = attemptModel;
           const remainingMs = deadlineAt - Date.now();
           if (remainingMs <= 0) throw new Error(`timed out after ${timeout}s`);
@@ -1460,7 +1529,20 @@ export default function (pi: any) {
             )),
           );
 
-          const failureMessage = delegateProcessFailure(processResult);
+          const processFailure = delegateProcessFailure(processResult);
+          const reportedModelFailure = validateDelegateResponseModel(
+            attemptModel,
+            processResult.provider,
+            processResult.model,
+            discoveredCandidates,
+          );
+          const responseModelFailure = validateDelegateResponseModel(
+            attemptModel,
+            processResult.provider,
+            processResult.responseModel,
+            discoveredCandidates,
+          );
+          const failureMessage = processFailure || reportedModelFailure || responseModelFailure;
           if (failureMessage) {
             const kind = classifyDelegateFailure(failureMessage);
             attemptFailures.push({ model: attemptModel, kind, message: failureMessage });

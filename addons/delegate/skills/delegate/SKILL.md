@@ -6,7 +6,13 @@ distribution: public
 
 # Delegate
 
-Use the `delegate` tool for self-contained work that does not need the conversation history. The child runs with a verified executable model, a bounded tool profile, and no persistent Pi session.
+Use the `delegate` tool for self-contained work that does not need the conversation history. The child runs with an operator-approved model, a bounded tool profile, and no persistent Pi session.
+
+## Model restriction
+
+Delegate can use only models listed under **Settings → Delegate → Approved delegate models**. No providers are approved by default. The approved list requires an operator-approved provider, an ordered classified model ID, exact child-CLI executability, and no matching exclusion.
+
+This restriction applies to automatic selection, explicit `model` arguments, fallback attempts, and disclosed provider response models. Delegate tool arguments and prompts cannot add models or bypass the list.
 
 ## Good delegation candidates
 
@@ -42,9 +48,9 @@ delegate({
 
 Automatic selection is capped at the verified tier of the current model. If the current model is unknown to Delegate policy, automatic selection fails closed.
 
-## Explicit overrides
+## Explicit model selection
 
-Use `model: "provider/model"` only when an exact executable child-CLI model is required. Overrides bypass automatic tier and provider policy, but configured model exclusions remain a hard deny-list. They also do not bypass executability or image-capability checks. A model visible only to Piclaw runtime is not enough.
+Use `model: "provider/model"` only to select an exact entry from **Approved delegate models**. Explicit selection can bypass the automatic tier choice. It cannot bypass provider approval, ordered classification, exclusions, child-CLI executability, or image-capability checks. A model visible only to Piclaw runtime is not enough.
 
 ## Tool profiles
 
@@ -54,7 +60,7 @@ Use `model: "provider/model"` only when an exact executable child-CLI model is r
 | `standard` (default) | `read,grep,find,ls,bash` |
 | `full` | `read,grep,find,ls,bash,edit,write` |
 
-If the known MCP adapter is installed, Delegate adds the `mcp` tool. A custom comma-separated list of Pi child built-ins is accepted; custom lists must name `mcp` explicitly when needed. Do not assume other Piclaw add-on tools are present.
+If the known MCP adapter is installed, Delegate adds the `mcp` tool. A custom comma-separated list of Pi child built-ins is accepted; custom lists must name `mcp` explicitly when needed. Do not assume other Piclaw add-on tools are present. Tool profiles are not an operating-system sandbox; prefer `read_only` when the child must not receive shell access.
 
 ## Files
 
