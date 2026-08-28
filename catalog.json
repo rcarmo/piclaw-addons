@@ -844,6 +844,29 @@
       "updatedAt": "2026-07-26"
     },
     {
+      "slug": "usage-telemetry",
+      "name": "@rcarmo/piclaw-addon-usage-telemetry",
+      "version": "0.1.0",
+      "type": "extension",
+      "description": "Export per-instance Piclaw token usage and estimated cost to Graphite Carbon",
+      "path": "addons/usage-telemetry",
+      "homepage": "https://rcarmo.github.io/piclaw-addons/addons/usage-telemetry/",
+      "tags": [
+        "core",
+        "cost",
+        "graphite",
+        "telemetry",
+        "usage"
+      ],
+      "skills": [
+        "usage-telemetry-chart"
+      ],
+      "install": {
+        "kind": "tarball",
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-usage-telemetry-0.1.0.tgz"
+      }
+    },
+    {
       "slug": "vent",
       "name": "@rcarmo/piclaw-addon-vent",
       "version": "0.1.2",

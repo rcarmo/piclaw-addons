@@ -59,6 +59,7 @@
       "addons/smart-compaction/index.ts",
       "addons/stealth-browser/index.ts",
       "addons/telegram/index.ts",
+      "addons/usage-telemetry/index.ts",
       "addons/vent/index.ts",
       "addons/voice-pipeline/index.ts",
       "addons/web-viewer/index.ts",
@@ -80,7 +81,8 @@
       "addons/m365/skills",
       "addons/remote-peer/skills",
       "addons/settings-dialog-screenshot/skills",
-      "addons/stealth-browser/skills"
+      "addons/stealth-browser/skills",
+      "addons/usage-telemetry/skills"
     ]
   },
   "agents": {
@@ -152,6 +154,10 @@
       {
         "name": "stealth-browse",
         "path": "./addons/stealth-browser/skills/stealth-browse"
+      },
+      {
+        "name": "usage-telemetry-chart",
+        "path": "./addons/usage-telemetry/skills/usage-telemetry-chart"
       }
     ]
   },

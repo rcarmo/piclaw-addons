@@ -1,0 +1,14 @@
+{
+  "name": "@rcarmo/piclaw-addon-usage-telemetry",
+  "version": "0.1.0",
+  "description": "Export per-instance Piclaw token usage and estimated cost to Graphite Carbon",
+  "type": "module",
+  "main": "index.ts",
+  "piclaw": { "type": "extension", "compatibleVersions": ">=2.0.0", "tags": ["core", "usage", "telemetry", "graphite", "cost"], "skills": ["skills/usage-telemetry-chart"] },
+  "agents": { "skills": [{ "name": "usage-telemetry-chart", "path": "./skills/usage-telemetry-chart" }] },
+  "pi": { "extensions": ["index.ts"], "web": { "entries": ["web/index.ts"] }, "skills": ["skills"] },
+  "peerDependencies": { "@earendil-works/pi-coding-agent": "*", "@sinclair/typebox": "*" },
+  "keywords": ["piclaw", "piclaw-addon", "usage", "graphite", "telemetry"],
+  "license": "MIT",
+  "homepage": "https://rcarmo.github.io/piclaw-addons/addons/usage-telemetry/"
+}
