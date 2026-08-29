@@ -1,4 +1,8 @@
-# Remote Peer 0.1.0 two-instance E2E matrix
+# Remote Peer end-to-end evidence
+
+The table below records the `0.1.0` two-instance release baseline. The completed `0.2.0` three-instance agent-chat run—including directory discovery, named-agent text/file conversations, opaque replies, retry, restart persistence and measured transfer integrity—is documented in [e2e-mvp-0.2.0.md](e2e-mvp-0.2.0.md).
+
+## 0.1.0 two-instance baseline
 
 Date: 2026-07-28
 

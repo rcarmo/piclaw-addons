@@ -15,6 +15,7 @@ import { PairingRepository, type InboundPairRecord, type PeerRecord } from "./re
 import type { MessagingService } from "../messaging/service.js";
 import type { RosterService } from "../messaging/roster.js";
 import type { WorkService } from "../work/service.js";
+import { ATTACHMENT_PATH } from "../messaging/attachments.js";
 
 const MAX_BODY_BYTES = 32 * 1024;
 const PAIR_TTL_MS = 60 * 60_000;
@@ -256,6 +257,7 @@ export class PairingService {
       throw new Error(`Peer pairing confirmation failed (${response.status}).`);
     }
     this.repository.audit(peer.instance_id, "pair_accept", "paired", undefined, { request_id: requestId });
+    if (this.roster && peer.messaging_scope !== "inbox-only" && peer.messaging_scope !== "none") void this.roster.refreshPeerRoster(peer);
     return peer;
   }
 
@@ -331,6 +333,7 @@ export class PairingService {
     if (route === `${prefix}/pair-callback`) return await this.handlePairCallback(req);
     if (route === `${prefix}/pair-confirm`) return await this.handlePairConfirm(req);
     if (route === `${prefix}/ping`) return await this.handlePing(req);
+    if (route === ATTACHMENT_PATH) return await this.handleAttachment(req);
     if (route === `${prefix}/message`) return await this.handleMessage(req);
     if (route === `${prefix}/roster`) return await this.handleRoster(req);
     if (route === `${prefix}/proposal`) return await this.handleWork(req, "proposal");
@@ -428,6 +431,7 @@ export class PairingService {
     });
     this.options.foundation.store.db.transaction(() => { this.repository.upsertPeer(peer); this.repository.updateOutbound(requestId, "accepted"); }).immediate();
     this.repository.audit(peer.instance_id, "pair_confirm_inbound", "paired", undefined, { request_id: requestId });
+    if (this.roster && peer.messaging_scope !== "inbox-only" && peer.messaging_scope !== "none") void this.roster.refreshPeerRoster(peer);
     return json({ status: "paired", peer_instance_id: peer.instance_id, peer_fingerprint: peer.fingerprint });
   }
 
@@ -447,6 +451,18 @@ export class PairingService {
     const verified = await this.signedBody(req); if (verified instanceof Response) return verified;
     if (!this.roster) return json({ error: "Roster service is unavailable." }, 503);
     return await this.roster.receive(verified.peer);
+  }
+
+  private async handleAttachment(req: Request): Promise<Response> {
+    const instanceId = req.headers.get("x-instance-id") || "";
+    const peer = this.repository.getPeer(instanceId);
+    if (!peer || peer.status !== "paired") return json({ error: "Peer not paired." }, 403);
+    if (peer.attachments_enabled !== 1) return json({ error: "File transfer is not enabled for this peer." }, 403);
+    const declaredSize = Number(new URL(req.url).searchParams.get("size"));
+    if (!Number.isSafeInteger(declaredSize) || declaredSize < 0 || declaredSize > Number(peer.max_attachment_bytes || 0)) return json({ error: "Attachment exceeds this peer's file limit." }, 413);
+    if (!this.signedLimiter.allow(instanceId)) return json({ error: "Signed endpoint rate limit exceeded." }, 429);
+    if (!this.messaging) return json({ error: "Messaging service is unavailable." }, 503);
+    return await this.messaging.attachments.receive(req, peer, this.nonceCache);
   }
 
   private async handleMessage(req: Request): Promise<Response> {

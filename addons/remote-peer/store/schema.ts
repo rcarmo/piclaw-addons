@@ -5,6 +5,7 @@ import { PAIR_TRUST_EPOCHS_SQL } from "./migrations/0002-pair-trust-epochs.js";
 import { MESSAGE_RECEIPTS_SQL } from "./migrations/0003-message-receipts.js";
 import { ROSTER_REPLIES_SQL } from "./migrations/0004-roster-replies.js";
 import { MEDIATED_WORK_SQL } from "./migrations/0005-mediated-work.js";
+import { CHAT_MVP_SQL } from "./migrations/0006-chat-mvp.js";
 
 export interface StoreMigration {
   version: number;
@@ -47,6 +48,12 @@ export const STORE_MIGRATIONS: readonly StoreMigration[] = Object.freeze([
     name: "mediated-work",
     checksum: checksum(MEDIATED_WORK_SQL),
     sql: MEDIATED_WORK_SQL,
+  }),
+  Object.freeze({
+    version: 6,
+    name: "chat-mvp",
+    checksum: checksum(CHAT_MVP_SQL),
+    sql: CHAT_MVP_SQL,
   }),
 ]);
 

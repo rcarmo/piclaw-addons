@@ -59,13 +59,15 @@ Verification requires:
 
 Accepted nonces are held in a bounded five-minute replay cache. Signed endpoints have a per-peer rate limit. Revocation increments the trust epoch so previously signed traffic cannot regain trust. Re-pairing negotiates one new epoch that advances beyond the revoked records on both peers.
 
-## Inbox messages and receipts
+## Inbox messages, files and receipts
 
-`POST /api/addons/remote-peer/v1/message` accepts a signed protocol-v1 envelope with a `rmsg_...` message ID, optional idempotency key, `{ "kind": "inbox" }` target, UTF-8 content, and `queue` mode. The receiver derives the source peer only from the verified signature; source labels in the body do not determine peer identity.
+`POST /api/addons/remote-peer/v1/message` accepts a signed protocol-v1 envelope with a `rmsg_...` message ID, optional idempotency key, target, UTF-8 content, queue/auto mode, and zero or more verified attachment descriptors. The receiver derives the source peer only from the verified signature; source labels in the body do not determine peer identity.
+
+Files are uploaded first with signed `application/octet-stream` requests to `/api/addons/remote-peer/v1/attachment?message_id=...`. Each request declares a transfer ID, filename, media type, exact byte count and SHA-256 digest in signed headers. Core enforces a 32 MiB streamed route bound; Remote Peer enforces at most four files, 16 MiB each and 32 MiB total, plus the receiver-owned per-peer limit. The receiver streams into a mode-0600 temporary file, verifies the full signed digest, stores the pending bytes, and returns a signed attachment receipt. The subsequent message atomically claims matching descriptors and hands verified bytes to Piclaw's media store. Completed or failed delivery removes staging rows; startup maintenance removes abandoned rows after 24 hours.
 
 The receiver reserves the inbound ledger row before core delivery, then calls Piclaw's authenticated peer-message ABI. The receipt contains message ID, status, logical target, local row ID, receive time, optional error, and an Ed25519 signature over the exact unsigned receipt JSON. A duplicate message ID or idempotency key with identical content returns the stored receipt without another delivery. Reuse with different content is rejected.
 
-The sender verifies the receipt against the paired public key before marking its outbound ledger delivered. Failed or malformed receipts remain visible through `remote_peer` message status/failure actions.
+The sender verifies attachment and message receipts against the paired public key before marking its outbound ledger delivered. Failed or malformed receipts remain visible through `remote_peer` message status/failure actions. Outbound attachment bytes and source context remain in the add-on ledger so an explicit retry can reuse the same message and transfer IDs.
 
 ## Signed roster and agent addressing
 

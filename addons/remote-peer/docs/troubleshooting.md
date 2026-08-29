@@ -14,6 +14,18 @@
 - Revoke stale peer records before re-pairing after identity rotation.
 - The receiver revokes provisional trust if signed confirmation fails; retry with a new request.
 
+## Address or mode is rejected
+
+Run `chat({ action: "directory" })` and use an exact listed address and mode. A missing named agent usually means its signed roster is stale, the alias is not advertised, or the peer lacks permission. Refresh/ping the peer from Settings.
+
+## File transfer is rejected or interrupted
+
+- Confirm the selected directory entry reports files enabled.
+- Respect its per-file and total byte limits.
+- Retry uncertain delivery with the same idempotency key; do not create a new key for the same logical message.
+- Inspect `message_status` or `message_failures`. Use `retry_message` only for a persisted failed outbound message.
+- SHA-256, byte-count, signature, policy or transfer-ID mismatches fail closed and never enter the target timeline.
+
 ## Message is queued but no timeline row appears yet
 
 Core preserves normal queue semantics. `queue` and `auto` can remain follow-ups while the target chat is active; `steer` enters the active lane only when explicitly allowed. The signed receipt and add-on ledgers remain durable even when `row_id` is null.

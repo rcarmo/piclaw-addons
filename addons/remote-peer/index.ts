@@ -1,4 +1,5 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { createHash } from "node:crypto";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { getPiclawRuntimeApi } from "./compat/runtime.js";
@@ -82,6 +83,8 @@ function publicPeer(peer: any, agents: string[] = []) {
     updated_at: peer.updated_at,
     last_seen_at: peer.last_seen_at,
     blocked_reason: peer.blocked_reason,
+    attachments_enabled: peer.attachments_enabled === 1,
+    max_attachment_bytes: peer.max_attachment_bytes ?? 0,
   };
 }
 
@@ -132,6 +135,7 @@ async function dashboardState() {
     })),
     local_agents: await runtime.messaging.listAdvertisableAgents(),
     failures,
+    directory: await messaging.directory(),
     work: {
       pending: work.listInbox(),
       recent: work.repository.list(undefined, undefined, 25).map(record => work.status(record.id)),
@@ -166,12 +170,49 @@ async function dashboardMutation(payload: unknown) {
     const next = rotateRemotePeerIdentity(current.dataDir);
     return { ...await dashboardState(), restart_required: true, old_fingerprint: fingerprint, new_fingerprint: next.fingerprint };
   } else if (action === "set_alias") pairing.setAlias(String(input.peer || ""), String(input.alias || ""));
+  else if (action === "endpoint_test") {
+    const config = current.loadConfig();
+    if (!config.externalUrl) throw new Error("Configure External URL first.");
+    const response = await fetch(`${config.externalUrl}/api/addons/remote-peer/v1/pair-request`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}", signal: AbortSignal.timeout(5000) });
+    if (response.status !== 400 && response.status !== 429) throw new Error(`External endpoint returned HTTP ${response.status}; expected the Remote Peer route.`);
+  }
+  else if (action === "ping") await pairing.ping(String(input.peer || ""));
+  else if (action === "refresh_roster") {
+    const peer = pairing.repository.resolvePeer(String(input.peer || ""));
+    if (!peer) throw new Error("Peer not found.");
+    await roster.refreshPeerRoster(peer);
+  }
+  else if (action === "retry_message") await messaging.retry(String(input.message_id || ""));
+  else if (action === "send_test") {
+    const address = String(input.address || "");
+    const separator = address.indexOf("!");
+    if (separator <= 0) throw new Error("Choose an available remote address.");
+    const mediaId = Number(input.media_id || 0);
+    const media = mediaId > 0 ? runtime.getMediaById?.(mediaId) : undefined;
+    if (mediaId > 0 && !media) throw new Error("Test attachment was not found.");
+    const attachment = media ? [{
+      filename: media.filename,
+      content_type: media.content_type,
+      size: media.data.byteLength,
+      sha256: createHash("sha256").update(media.data).digest("hex"),
+      data: media.data,
+      source_media_id: media.id,
+    }] : [];
+    await messaging.validate({ source_chat_jid: "web:default", address: { kind: "bang", raw: address, peer: address.slice(0, separator), target: address.slice(separator + 1) }, content: String(input.content || ""), mode: "queue", attachments: attachment });
+    await messaging.send({ source_chat_jid: "web:default", address: { kind: "bang", raw: address, peer: address.slice(0, separator), target: address.slice(separator + 1) }, content: String(input.content || ""), mode: "queue", attachments: attachment, idempotency_key: `settings-${Date.now()}` });
+  }
+  else if (action === "set_attachment_policy") {
+    const peer = pairing.repository.resolvePeer(String(input.peer || ""));
+    if (!peer) throw new Error("Peer not found.");
+    if (input.confirmation !== "ALLOW FILE TRANSFER") throw new Error("Attachment policy requires typed confirmation: ALLOW FILE TRANSFER");
+    pairing.repository.updatePeerAttachmentPolicy(peer.instance_id, input.enabled === true, Number(input.max_attachment_bytes ?? 16 * 1024 * 1024), new Date().toISOString());
+  }
   else if (action === "advertise_agent") roster.policy.upsertAdvertisedAgent(String(input.alias || input.local_agent || ""), String(input.local_agent || ""), input.modes || ["queue"], new Date().toISOString());
   else if (action === "unadvertise_agent") roster.policy.disableAdvertisedAgent(String(input.alias || ""), new Date().toISOString());
   else if (action === "set_policy") {
     const peer = pairing.repository.resolvePeer(String(input.peer || ""));
     if (!peer) throw new Error("Peer not found.");
-    const risky = input.scope === "all-advertised" || input.mode_ceiling === "queue-auto-steer";
+    const risky = input.scope === "named-agents" || input.scope === "all-advertised" || input.mode_ceiling === "queue-auto" || input.mode_ceiling === "queue-auto-steer";
     if (risky && input.confirmation !== "ALLOW REMOTE ACCESS") throw new Error("Risk-elevating policy requires typed confirmation: ALLOW REMOTE ACCESS");
     roster.policy.updatePeerPolicy(peer.instance_id, input.scope || peer.messaging_scope, input.mode_ceiling || peer.mode_ceiling, new Date().toISOString());
     if (Array.isArray(input.agents)) roster.policy.setPeerAgents(peer.instance_id, input.agents, new Date().toISOString());
@@ -229,6 +270,8 @@ export default function remotePeerAddon(pi: ExtensionAPI): void {
     timeout_ms?: number;
     max_chain_hops?: number;
     enabled?: boolean;
+    confirmation?: string;
+    max_attachment_bytes?: number;
     origin_chat_jid?: string;
     origin_thread_id?: string;
   }, ctx?: any, signal?: AbortSignal) {
@@ -242,10 +285,20 @@ export default function remotePeerAddon(pi: ExtensionAPI): void {
     if (action === "list_peers") return { peers: pairing.repository.listPeers() };
     if (action === "pending") return { pending: pairing.repository.listInbound() };
     if (action === "pair_request") return await pairing.initiatePairing(params.url || "");
-    if (action === "accept_pair") return { peer: await pairing.acceptInbound(params.request_id || "") };
+    if (action === "accept_pair") {
+      const request = pairing.repository.getInbound(params.request_id || "");
+      if (!request || request.fingerprint !== params.confirmation) throw new Error("Pair acceptance requires the immutable fingerprint confirmation.");
+      return { peer: await pairing.acceptInbound(params.request_id || "") };
+    }
     if (action === "deny_pair") { pairing.denyInbound(params.request_id || ""); return { status: "denied", request_id: params.request_id }; }
     if (action === "ping") return await pairing.ping(params.peer || "");
     if (action === "set_alias") return { peer: pairing.setAlias(params.peer || "", params.alias || "") };
+    if (action === "set_attachment_policy") {
+      const peer = pairing.repository.resolvePeer(params.peer || "");
+      if (!peer) throw new Error("Peer not found.");
+      if (params.confirmation !== "ALLOW FILE TRANSFER") throw new Error("Attachment policy requires typed confirmation: ALLOW FILE TRANSFER");
+      return { peer: pairing.repository.updatePeerAttachmentPolicy(peer.instance_id, params.enabled === true, params.max_attachment_bytes ?? 16 * 1024 * 1024, new Date().toISOString()) };
+    }
     if (action === "message_status") {
       const messaging = getMessagingService(current, runtime.messaging);
       const outbound = messaging.repository.findOutbound(params.message_id || "");
@@ -278,6 +331,8 @@ export default function remotePeerAddon(pi: ExtensionAPI): void {
       const roster = getRosterService(current, runtime.messaging);
       const peer = pairing.repository.resolvePeer(params.peer || "");
       if (!peer) throw new Error("Peer not found.");
+      const risky = params.scope === "named-agents" || params.scope === "all-advertised" || params.mode_ceiling === "queue-auto" || params.mode_ceiling === "queue-auto-steer";
+      if (risky && params.confirmation !== "ALLOW REMOTE ACCESS") throw new Error("Risk-elevating policy requires typed confirmation: ALLOW REMOTE ACCESS");
       const updated = roster.policy.updatePeerPolicy(peer.instance_id, params.scope || peer.messaging_scope, params.mode_ceiling || peer.mode_ceiling, new Date().toISOString());
       const agents = params.agents ? roster.policy.setPeerAgents(peer.instance_id, params.agents, new Date().toISOString()) : roster.policy.listPeerAgents(peer.instance_id);
       return { peer: updated, agents };
@@ -310,6 +365,8 @@ export default function remotePeerAddon(pi: ExtensionAPI): void {
       if (!/^[a-z0-9][a-z0-9_-]{0,63}$/.test(name)) throw new Error("Invalid capability profile name.");
       return { profile: getWorkService(current, runtime).repository.upsertProfile(name, params.capabilities || [], params.max_chain_hops ?? 3, params.enabled !== false, new Date().toISOString()) };
     }
+    if (action === "directory") return await getMessagingService(current, runtime.messaging).directory();
+    if (action === "retry_message") return await getMessagingService(current, runtime.messaging).retry(params.message_id || "");
     if (action === "message_failures") {
       const messaging = getMessagingService(current, runtime.messaging);
       return {
@@ -317,18 +374,22 @@ export default function remotePeerAddon(pi: ExtensionAPI): void {
         inbound: messaging.listInbound().filter(message => message.status === "failed"),
       };
     }
-    if (action === "revoke") return await pairing.revoke(params.peer || "");
+    if (action === "revoke") {
+      const peer = pairing.repository.resolvePeer(params.peer || "");
+      if (!peer || peer.fingerprint !== params.confirmation) throw new Error("Revocation requires the immutable fingerprint confirmation.");
+      return await pairing.revoke(params.peer || "");
+    }
     throw new Error(`Unsupported remote_peer action: ${action}`);
   }
 
   pi.registerTool({
     name: "remote_peer",
     label: "remote_peer",
-    description: "Inspect and manage paired Piclaw instances. Supports identity, peer listing, pairing approval, signed ping, unique aliases, and revocation.",
+    description: "Operator management for Remote Peer pairing, policy, delivery diagnostics, and retry. Agents should use chat(action='directory') and chat(target_address=...) for normal remote text/file conversations.",
     parameters: {
       type: "object",
       properties: {
-        action: { type: "string", enum: ["status", "identity", "list_peers", "pending", "pair_request", "accept_pair", "deny_pair", "ping", "set_alias", "roster", "advertise_agent", "unadvertise_agent", "set_policy", "message_status", "message_failures", "work_send", "work_status", "work_wait", "work_inbox", "work_approve", "work_reject", "work_retry_callbacks", "work_profiles", "work_set_profile", "revoke"] },
+        action: { type: "string", enum: ["status", "identity", "list_peers", "pending", "pair_request", "accept_pair", "deny_pair", "ping", "set_alias", "set_attachment_policy", "directory", "retry_message", "roster", "advertise_agent", "unadvertise_agent", "set_policy", "message_status", "message_failures", "work_send", "work_status", "work_wait", "work_inbox", "work_approve", "work_reject", "work_retry_callbacks", "work_profiles", "work_set_profile", "revoke"] },
         peer: { type: "string", description: "Exact peer alias, fingerprint, or instance ID." },
         url: { type: "string", description: "Target Piclaw base URL for pair_request." },
         request_id: { type: "string", description: "Inbound pairing request ID for accept_pair or deny_pair." },
@@ -350,6 +411,8 @@ export default function remotePeerAddon(pi: ExtensionAPI): void {
         timeout_ms: { type: "integer", minimum: 0, maximum: 120000 },
         max_chain_hops: { type: "integer", minimum: 0, maximum: 8 },
         enabled: { type: "boolean" },
+        confirmation: { type: "string", description: "Typed human confirmation required for trust/policy changes." },
+        max_attachment_bytes: { type: "integer", minimum: 0, maximum: 16777216 },
         origin_chat_jid: { type: "string", description: "Optional explicit result destination when context derivation is unavailable." },
         origin_thread_id: { type: "string" },
       },
@@ -370,7 +433,8 @@ export default function remotePeerAddon(pi: ExtensionAPI): void {
   pi.registerCommand("pair", {
     description: "Manage Remote Peer pairings: request, list, pending, accept, deny, ping, alias, revoke.",
     handler: async (args: string) => {
-      const [sub = "list", first = ""] = String(args || "").trim().split(/\s+/, 2);
+      const parts = String(args || "").trim().split(/\s+/);
+      const [sub = "list", first = ""] = parts;
       const action = sub === "request" ? "pair_request"
         : sub === "list" ? "list_peers"
         : sub === "pending" ? "pending"
@@ -381,15 +445,15 @@ export default function remotePeerAddon(pi: ExtensionAPI): void {
         : sub === "revoke" ? "revoke"
         : "";
       if (!action) {
-        pi.sendMessage({ customType: "remote-peer", content: "Usage: /pair request <url> | list | pending | accept <request_id> | deny <request_id> | ping <peer> | alias <peer> <alias> | revoke <peer>", display: true });
+        pi.sendMessage({ customType: "remote-peer", content: "Usage: /pair request <url> | list | pending | accept <request_id> <fingerprint> | deny <request_id> | ping <peer> | alias <peer> <alias> | revoke <peer> <fingerprint>", display: true });
         return;
       }
       try {
-        const parts = String(args || "").trim().split(/\s+/);
         const result = await runAction({
           action,
           ...(action === "pair_request" ? { url: first } : {}),
           ...(action === "accept_pair" || action === "deny_pair" ? { request_id: first } : {}),
+          ...(action === "accept_pair" || action === "revoke" ? { confirmation: parts[2] || "" } : {}),
           ...(action === "ping" || action === "revoke" ? { peer: first } : {}),
           ...(action === "set_alias" ? { peer: first, alias: parts[2] || "" } : {}),
         });

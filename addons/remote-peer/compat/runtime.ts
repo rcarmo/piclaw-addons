@@ -14,18 +14,44 @@ export type BangChatAddress = {
   target: string;
 };
 
+export type ChatTransportAttachment = {
+  filename: string;
+  content_type: string;
+  size: number;
+  sha256: string;
+  data: Uint8Array;
+  source_media_id?: number;
+};
+
 export type ChatTransportRequest = {
   source_chat_jid: string;
+  source_agent_name?: string;
+  source_agent_display_name?: string;
   address: BangChatAddress;
   content: string;
   mode: "auto" | "queue" | "steer";
+  attachments?: ChatTransportAttachment[];
   idempotency_key?: string;
   in_reply_to?: string;
+};
+
+export type ChatTransportDirectoryEntry = {
+  address: string;
+  label: string;
+  peer_alias?: string;
+  peer_fingerprint?: string;
+  target_kind: "inbox" | "agent" | "reply";
+  modes: Array<"auto" | "queue" | "steer">;
+  status: "ready" | "stale" | "unreachable";
+  last_seen_at?: string | null;
+  attachments?: { enabled: boolean; max_files: number; max_file_bytes: number; max_total_bytes: number };
 };
 
 export type ChatTransport = {
   id: string;
   kind: "bang";
+  directory?(): Promise<{ transport: string; generated_at: string; entries: ChatTransportDirectoryEntry[]; notes?: string[] }>;
+  validate?(request: ChatTransportRequest): Promise<void> | void;
   send(request: ChatTransportRequest): Promise<Record<string, unknown>>;
 };
 
@@ -34,6 +60,7 @@ export type ExternalRouteRegistration = {
   prefix: string;
   methods: string[];
   maxBodyBytes: number;
+  bodyMode?: "buffer" | "stream";
   handler(req: Request, pathname: string, context: Record<string, unknown>): Response | Promise<Response>;
 };
 
@@ -61,6 +88,7 @@ export type PiclawRuntimeApi = {
       target_agent_name?: string;
       target_chat_jid?: string;
       content: string;
+      attachments?: ChatTransportAttachment[];
       mode?: "auto" | "queue" | "steer";
       thread_id?: number | null;
       source: {
@@ -75,6 +103,8 @@ export type PiclawRuntimeApi = {
       };
     }): Promise<RuntimeAgentMessageResult>;
   };
+  createMedia?: (filename: string, contentType: string, data: Uint8Array, thumbnail: Uint8Array | null, metadata: Record<string, unknown> | null) => number;
+  getMediaById?: (id: number) => { id: number; filename: string; content_type: string; data: Uint8Array; metadata: Record<string, unknown> | null } | undefined;
   externalRoutes?: {
     version: number;
     register(registration: ExternalRouteRegistration): () => void;

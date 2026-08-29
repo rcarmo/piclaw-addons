@@ -31,11 +31,23 @@ test("maintenance expires capabilities, prunes old ledgers, and redacts terminal
   ) VALUES ('work-one', 'peer-one', 'outbound', 'completed', 'proposal', 'sha', 'sensitive prompt', ?, ?, ?)`)
     .run(old, old, old);
 
+  store.db.query(`INSERT INTO outbound_messages (peer_instance_id, message_id, target_address, mode, content_sha256, content, status, error, created_at, updated_at)
+    VALUES ('peer-one', 'rmsg_failed_file_1234', 'peer!inbox', 'queue', ?, 'failed file', 'failed', 'offline', ?, ?)`)
+    .run("b".repeat(64), old, old);
+  store.db.query(`INSERT INTO outbound_attachments (transfer_id, message_id, filename, content_type, size, sha256, data, created_at)
+    VALUES ('rfile_failed_file_1234', 'rmsg_failed_file_1234', 'failed.txt', 'text/plain', 3, ?, ?, ?)`)
+    .run("b".repeat(64), new TextEncoder().encode("old"), old);
+  store.db.query(`INSERT INTO inbound_attachments (transfer_id, peer_instance_id, message_id, filename, content_type, size, sha256, data, received_at)
+    VALUES ('rfile_old_attachment_1234', 'peer-one', 'rmsg_old_attachment_1234', 'old.txt', 'text/plain', 3, ?, ?, ?)`)
+    .run("a".repeat(64), new TextEncoder().encode("old"), old);
+
   expect(runRemotePeerMaintenance(store.db, now)).toEqual({
     expired_reply_tokens: 1,
     old_callback_attempts: 1,
     old_audit_rows: 1,
     redacted_work_prompts: 1,
+    orphaned_attachments: 1,
+    old_outbound_attachment_data: 1,
   });
   expect((store.db.query("SELECT prompt, prompt_sha256 FROM proposal_requests WHERE id = 'work-one'").get() as any)).toEqual({ prompt: null, prompt_sha256: "sha" });
   store.close();

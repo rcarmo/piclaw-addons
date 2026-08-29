@@ -55,19 +55,22 @@ export function buildSignedHeaders(
   trustEpoch = 1,
   timestamp = new Date().toISOString(),
   nonce = randomUUID(),
+  contentType = "application/json",
 ): Record<string, string> {
+  const bodyHash = hashBody(body);
   const canonical = buildCanonicalRequest({
     method: "POST",
     pathWithQuery,
-    contentType: "application/json",
-    bodyHash: hashBody(body),
+    contentType,
+    bodyHash,
     timestamp,
     nonce,
     instanceId: identity.instance_id,
     trustEpoch: String(trustEpoch),
   });
   return {
-    "Content-Type": "application/json",
+    "Content-Type": contentType,
+    "X-Content-SHA256": bodyHash,
     "X-Instance-Id": identity.instance_id,
     "X-Timestamp": timestamp,
     "X-Nonce": nonce,

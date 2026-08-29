@@ -1,5 +1,29 @@
 # Remote Peer operator guide
 
+## MVP acceptance contract
+
+A small group is ready when each instance:
+
+- has a unique name and reachable external URL;
+- is paired with the intended peers after fingerprint comparison;
+- exposes at least its inbox in `chat({ action: "directory" })`;
+- optionally advertises selected agents and receiver-owned file limits;
+- passes signed ping and a queue-mode send test.
+
+Agents use `chat`, not `remote_peer`, for normal conversation and files. The add-on supports one-hop addresses only. Mediated work, multi-hop federation and direct remote execution are outside the MVP.
+
+### Acceptance matrix
+
+| Case | Required result |
+|---|---|
+| Discovery | Every agent sees only directly usable paired addresses and allowed queue/auto modes. |
+| Inbox | Agent A can queue text and a file to B's inbox; B sees authenticated source, attachment and opaque reply address. |
+| Named agent | A can send to an operator-advertised alias only after B grants it. |
+| Reply | B replies through the opaque address and reaches A's originating chat without seeing its JID. |
+| Retry | Repeating the same idempotency key produces one delivery; a persisted failed send can be retried by message ID. |
+| Restart | Restarting one test peer preserves identity, pairing, roster cache, message records and retry capability. |
+| Limits | Oversized, excessive, unapproved or digest-mismatched files fail before timeline delivery. |
+
 ## Bring a peer online
 
 1. Install the add-on on both Piclaw instances and restart Piclaw.
@@ -11,7 +35,7 @@
 7. Select **Accept**, then type the displayed fingerprint exactly.
 8. Confirm both instances show one paired peer and use `remote_peer({ action: "ping", peer: "alias" })` if needed.
 
-Pairing does not grant remote agent access. The default is inbox-only and queue-only.
+Pairing does not grant remote agent or file access. The default is inbox-only, queue-only and files disabled. Enable files per peer only after reviewing the typed confirmation and byte limit.
 
 ## Advertise an agent
 
@@ -34,6 +58,17 @@ Select **Revoke** and type the immutable fingerprint. Revocation is immediate lo
 ## Rotate the local identity
 
 First revoke every paired peer while the old key is still active, so each remote instance records the revocation. The **Rotate key** control remains disabled while any peer is paired. Then type `ROTATE <current fingerprint>`. The add-on creates a mode-0600 identity backup, writes a fresh Ed25519 identity atomically, and requires a Piclaw restart. Re-pair every peer after restart. Rotation never carries old trust into the new identity.
+
+## Send text and files
+
+Use the exact address and modes shown in **Agent-ready addresses** or `chat({ action: "directory" })`.
+
+```text
+chat({ target_address: "lab!inbox", content: "Hello", mode: "queue", idempotency_key: "hello-1" })
+chat({ target_address: "lab!@research", content: "Report attached", files: ["exports/report.pdf"], mode: "queue", idempotency_key: "report-1" })
+```
+
+A file is transferred as bounded binary data, verified by SHA-256, and stored as a normal Piclaw media attachment at the receiver. Retry an uncertain send with the same idempotency key. Use the delivery message ID with `remote_peer({ action: "retry_message", message_id: "rmsg_..." })` only after status shows failure.
 
 ## Health and failures
 
