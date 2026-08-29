@@ -34,7 +34,7 @@ The pane loads/saves non-secret settings through the direct backend add-on confi
 | **Graphite enabled** | checkbox | off | Sub-toggle for Carbon plaintext push |
 | **Host** | text | — | Graphite/Carbon receiver host, e.g. `192.168.1.250` |
 | **Port** | number | 2003 | Carbon plaintext port |
-| **Metric prefix** | text | `piclaw` | Root prefix for all Graphite metric paths |
+| **Metric prefix** | fixed | `piclaw` | Root prefix for all Graphite metric paths |
 | **Export token usage** | checkbox | off | Export local `token_usage` aggregates by instance, provider, and model. Requires Graphite enabled. |
 | **Export interval** | number | 15 min | Token-ledger aggregation cadence (1–60 minutes). |
 | **Graphite render URL** | text | — | Optional endpoint used by the bundled `usage-telemetry-chart` SVG helper. |
