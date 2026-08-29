@@ -78,6 +78,7 @@
       "addons/delegate/skills",
       "addons/editable-table/skills",
       "addons/m365/skills",
+      "addons/observability/skills",
       "addons/remote-peer/skills",
       "addons/settings-dialog-screenshot/skills",
       "addons/stealth-browser/skills"
@@ -152,6 +153,10 @@
       {
         "name": "stealth-browse",
         "path": "./addons/stealth-browser/skills/stealth-browse"
+      },
+      {
+        "name": "usage-telemetry-chart",
+        "path": "./addons/observability/skills/usage-telemetry-chart"
       }
     ]
   },

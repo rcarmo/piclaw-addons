@@ -512,13 +512,14 @@
     {
       "slug": "observability",
       "name": "@rcarmo/piclaw-addon-observability",
-      "version": "0.1.10",
+      "version": "0.1.11",
       "type": "extension",
       "description": "OpenTelemetry observability — trace errors and agent turns across piclaw instances to Azure Application Insights (with Live Metrics) and local Graphite",
       "path": "addons/observability",
       "homepage": "https://rcarmo.github.io/piclaw-addons/addons/observability/",
       "tags": [
         "application-insights",
+        "core",
         "graphite",
         "live-metrics",
         "metrics",
@@ -527,12 +528,14 @@
         "otel",
         "tracing"
       ],
-      "skills": [],
+      "skills": [
+        "usage-telemetry-chart"
+      ],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-observability-0.1.10.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-observability-0.1.11.tgz"
       },
-      "updatedAt": "2026-08-21"
+      "updatedAt": "2026-08-29"
     },
     {
       "slug": "office-tools",

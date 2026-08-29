@@ -170,6 +170,13 @@ function ObservabilitySettings() {
       ${num("Port", "graphite_port", "2003")}
       ${text("Metric prefix", "graphite_prefix", "piclaw")}
 
+      <h4 style=${H}>Usage telemetry</h4>
+      ${check("Export token usage", "usage_telemetry_enabled")}
+      ${hint("Exports local token_usage aggregates by instance, provider, and model. Failed exports are retained in a bounded local spool.")}
+      ${num("Export interval (minutes)", "usage_telemetry_interval_minutes", "15")}
+      ${text("Graphite render URL", "graphite_render_url", "http://192.168.1.250:8086")}
+      ${hint("Optional; used by the bundled usage-telemetry-chart skill to render SVG charts.")}
+
       ${msg && html`<div style=${{ marginTop: "0.75rem", fontSize: "0.8rem", color: msg.includes("failed") || msg.includes("Failed") ? "var(--danger-color)" : "var(--accent-color)" }}>${msg}</div>`}
     </div>`;
 }
