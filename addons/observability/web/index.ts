@@ -168,7 +168,7 @@ function ObservabilitySettings() {
       ${check("Graphite enabled", "graphite_enabled")}
       ${text("Host", "graphite_host", "192.168.1.250")}
       ${num("Port", "graphite_port", "2003")}
-      ${text("Metric prefix", "graphite_prefix", "piclaw")}
+      <div style=${{ fontSize: "0.73rem", color: "var(--text-secondary)", margin: "-0.15rem 0 0.4rem 188px" }}>Metrics use the fixed <code>piclaw</code> prefix.</div>
 
       <h4 style=${H}>Usage telemetry</h4>
       ${check("Export token usage", "usage_telemetry_enabled")}

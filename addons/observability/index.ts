@@ -47,7 +47,6 @@ export interface ObservabilityConfig {
   graphite_enabled: boolean;
   graphite_host: string;
   graphite_port: number;
-  graphite_prefix: string;
   usage_telemetry_enabled: boolean;
   usage_telemetry_interval_minutes: number;
   graphite_render_url: string;
@@ -64,7 +63,6 @@ const DEFAULT_CONFIG: ObservabilityConfig = {
   graphite_enabled: false,
   graphite_host: "",
   graphite_port: 2003,
-  graphite_prefix: "piclaw",
   usage_telemetry_enabled: false,
   usage_telemetry_interval_minutes: 15,
   graphite_render_url: "",
@@ -387,7 +385,7 @@ function scheduleUsageTelemetry(config: ObservabilityConfig): void {
       await exportUsage({
         graphite_host: config.graphite_host,
         graphite_port: config.graphite_port,
-        graphite_prefix: config.graphite_prefix,
+        graphite_prefix: "piclaw",
         instance_name: config.instance_name,
       });
     } catch (error) {
@@ -421,7 +419,7 @@ export function buildRuntimeConfigKey(config: ObservabilityConfig): string {
     graphite_enabled: Boolean(config.graphite_enabled),
     graphite_host: config.graphite_host.trim(),
     graphite_port: config.graphite_port,
-    graphite_prefix: config.graphite_prefix.trim(),
+    graphite_prefix: "piclaw",
     usage_telemetry_enabled: Boolean(config.usage_telemetry_enabled),
     usage_telemetry_interval_minutes: Math.max(1, Math.min(60, Number(config.usage_telemetry_interval_minutes) || 15)),
     graphite_render_url: config.graphite_render_url?.trim() || "",
@@ -444,7 +442,7 @@ async function applyRuntimeConfig(config: ObservabilityConfig): Promise<void> {
 
   if (config.graphite_enabled && config.graphite_host) {
     teardownGraphite();
-    graphiteCfg = { host: config.graphite_host, port: config.graphite_port, prefix: config.graphite_prefix };
+    graphiteCfg = { host: config.graphite_host, port: config.graphite_port, prefix: "piclaw" };
     ensureGraphite();
   } else {
     teardownGraphite();
@@ -491,7 +489,6 @@ async function handleSetConfig(body: Partial<ObservabilityConfig>): Promise<{ ok
     graphite_enabled:            body.graphite_enabled ?? c.graphite_enabled,
     graphite_host:               typeof body.graphite_host === "string" ? body.graphite_host.trim() : c.graphite_host,
     graphite_port:               typeof body.graphite_port === "number" && body.graphite_port > 0 ? body.graphite_port : c.graphite_port,
-    graphite_prefix:             typeof body.graphite_prefix === "string" ? body.graphite_prefix.trim() : c.graphite_prefix,
     usage_telemetry_enabled:     body.usage_telemetry_enabled ?? c.usage_telemetry_enabled,
     usage_telemetry_interval_minutes: typeof body.usage_telemetry_interval_minutes === "number" ? Math.max(1, Math.min(60, Math.floor(body.usage_telemetry_interval_minutes))) : c.usage_telemetry_interval_minutes,
     graphite_render_url:         typeof body.graphite_render_url === "string" ? body.graphite_render_url.trim().replace(/\/$/, "") : c.graphite_render_url,
