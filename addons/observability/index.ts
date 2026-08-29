@@ -14,6 +14,8 @@
 import { existsSync } from "node:fs";
 import { createConnection, type Socket } from "node:net";
 import { hostname } from "node:os";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { trace, context, SpanKind, SpanStatusCode, type Tracer, type Span } from "@opentelemetry/api";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
@@ -21,8 +23,10 @@ import { addLogSink, removeLogSink, type LogSink as RuntimeLogSink, type LogReco
 
 import { createExtensionStorage, type ExtensionStorage } from "./compat/extension-kv.js";
 import { createLogger } from "./compat/logger.js";
+import { exportUsage } from "./usage-telemetry.js";
 
 const EXTENSION_ID = "observability";
+const baseDir = dirname(fileURLToPath(import.meta.url));
 const log = createLogger(EXTENSION_ID);
 
 // ── Config ───────────────────────────────────────────────────────
@@ -44,6 +48,9 @@ export interface ObservabilityConfig {
   graphite_host: string;
   graphite_port: number;
   graphite_prefix: string;
+  usage_telemetry_enabled: boolean;
+  usage_telemetry_interval_minutes: number;
+  graphite_render_url: string;
 }
 
 const DEFAULT_CONFIG: ObservabilityConfig = {
@@ -58,6 +65,9 @@ const DEFAULT_CONFIG: ObservabilityConfig = {
   graphite_host: "",
   graphite_port: 2003,
   graphite_prefix: "piclaw",
+  usage_telemetry_enabled: false,
+  usage_telemetry_interval_minutes: 15,
+  graphite_render_url: "",
 };
 
 // ── KV-backed config ─────────────────────────────────────────────
@@ -364,6 +374,30 @@ function teardownGraphite(): void {
   graphiteCfg = null;
 }
 
+let usageTelemetryTimer: ReturnType<typeof setInterval> | null = null;
+let usageTelemetryRunning = false;
+
+function scheduleUsageTelemetry(config: ObservabilityConfig): void {
+  if (usageTelemetryTimer) { clearInterval(usageTelemetryTimer); usageTelemetryTimer = null; }
+  if (!config.enabled || !config.graphite_enabled || !config.usage_telemetry_enabled || !config.graphite_host) return;
+  const run = async () => {
+    if (usageTelemetryRunning) return;
+    usageTelemetryRunning = true;
+    try {
+      await exportUsage({
+        graphite_host: config.graphite_host,
+        graphite_port: config.graphite_port,
+        graphite_prefix: config.graphite_prefix,
+        instance_name: config.instance_name,
+      });
+    } catch (error) {
+      log.warn("Usage telemetry export failed; pending data remains spooled", { operation: "usage_telemetry.export", error: formatError(error) });
+    } finally { usageTelemetryRunning = false; }
+  };
+  void run();
+  usageTelemetryTimer = setInterval(() => void run(), Math.max(1, Math.min(60, config.usage_telemetry_interval_minutes)) * 60_000);
+}
+
 export function recordMetric(name: string, value: number, timestampSec?: number): void {
   if (!graphiteCfg?.host) return;
   ensureGraphite();
@@ -388,6 +422,9 @@ export function buildRuntimeConfigKey(config: ObservabilityConfig): string {
     graphite_host: config.graphite_host.trim(),
     graphite_port: config.graphite_port,
     graphite_prefix: config.graphite_prefix.trim(),
+    usage_telemetry_enabled: Boolean(config.usage_telemetry_enabled),
+    usage_telemetry_interval_minutes: Math.max(1, Math.min(60, Number(config.usage_telemetry_interval_minutes) || 15)),
+    graphite_render_url: config.graphite_render_url?.trim() || "",
   });
 }
 
@@ -399,6 +436,7 @@ async function applyRuntimeConfig(config: ObservabilityConfig): Promise<void> {
     removeLogSinkBridge();
     await stopOtel();
     teardownGraphite();
+    scheduleUsageTelemetry(config);
     return;
   }
 
@@ -413,6 +451,7 @@ async function applyRuntimeConfig(config: ObservabilityConfig): Promise<void> {
   }
 
   installLogSinkBridge();
+  scheduleUsageTelemetry(config);
 }
 
 async function ensureProcessRuntimeConfig(config: ObservabilityConfig, options: { force?: boolean } = {}): Promise<void> {
@@ -453,6 +492,9 @@ async function handleSetConfig(body: Partial<ObservabilityConfig>): Promise<{ ok
     graphite_host:               typeof body.graphite_host === "string" ? body.graphite_host.trim() : c.graphite_host,
     graphite_port:               typeof body.graphite_port === "number" && body.graphite_port > 0 ? body.graphite_port : c.graphite_port,
     graphite_prefix:             typeof body.graphite_prefix === "string" ? body.graphite_prefix.trim() : c.graphite_prefix,
+    usage_telemetry_enabled:     body.usage_telemetry_enabled ?? c.usage_telemetry_enabled,
+    usage_telemetry_interval_minutes: typeof body.usage_telemetry_interval_minutes === "number" ? Math.max(1, Math.min(60, Math.floor(body.usage_telemetry_interval_minutes))) : c.usage_telemetry_interval_minutes,
+    graphite_render_url:         typeof body.graphite_render_url === "string" ? body.graphite_render_url.trim().replace(/\/$/, "") : c.graphite_render_url,
   };
   saveConfig(next);
   await ensureProcessRuntimeConfig(next, { force: true });
@@ -478,6 +520,7 @@ if (typeof registerAddonConfigApi === "function") {
 
 export default function observabilityExtension(pi: ExtensionAPI): void {
   void ensureProcessRuntimeConfig(loadConfig()).catch(() => undefined);
+  pi.on("resources_discover", () => ({ skillPaths: [join(baseDir, "skills", "usage-telemetry-chart", "SKILL.md")] }));
 
   pi.on("session_start", async () => {
     await ensureProcessRuntimeConfig(loadConfig()).catch(() => undefined);
