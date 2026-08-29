@@ -21,6 +21,8 @@ startWorkCallbackRetry(work);
 runtime.messaging.registerChatTransport({
   id: ADDON_ID,
   kind: "bang",
+  directory: () => messaging.directory(),
+  validate: request => messaging.validate(request),
   send: request => messaging.send(request),
 });
 runtime.registerStatusPanelProvider?.({
@@ -47,7 +49,8 @@ runtime.externalRoutes.register({
   addonId: ADDON_ID,
   prefix: "/api/addons/remote-peer/v1",
   methods: ["POST"],
-  maxBodyBytes: 32 * 1024,
+  maxBodyBytes: 32 * 1024 * 1024,
+  bodyMode: "stream",
   handler: (req, pathname) => pairing.handle(req, pathname),
 });
 

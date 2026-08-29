@@ -4,10 +4,14 @@ export interface OutboundMessageRecord {
   peer_instance_id: string;
   message_id: string;
   idempotency_key: string | null;
+  source_chat_jid: string;
   source_agent_name: string | null;
+  source_agent_display_name: string | null;
   target_address: string;
   mode: string;
   content_sha256: string;
+  content: string;
+  attachments_json: string;
   status: string;
   receipt_json: string | null;
   error: string | null;
@@ -22,6 +26,7 @@ export interface InboundMessageRecord {
   target_agent_name: string;
   mode: string;
   content_sha256: string;
+  attachments_json: string;
   status: string;
   local_row_id: number | null;
   receipt_json: string | null;
@@ -47,12 +52,21 @@ export class MessagingRepository {
 
   createOutbound(record: OutboundMessageRecord): void {
     this.db.query(`INSERT INTO outbound_messages (
-      peer_instance_id, message_id, idempotency_key, source_agent_name, target_address, mode,
-      content_sha256, status, receipt_json, error, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .run(record.peer_instance_id, record.message_id, record.idempotency_key, record.source_agent_name,
-        record.target_address, record.mode, record.content_sha256, record.status, record.receipt_json,
+      peer_instance_id, message_id, idempotency_key, source_chat_jid, source_agent_name, source_agent_display_name, target_address, mode,
+      content_sha256, content, attachments_json, status, receipt_json, error, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(record.peer_instance_id, record.message_id, record.idempotency_key, record.source_chat_jid, record.source_agent_name, record.source_agent_display_name,
+        record.target_address, record.mode, record.content_sha256, record.content, record.attachments_json, record.status, record.receipt_json,
         record.error, record.created_at, record.updated_at);
+  }
+
+  deleteOutboundAttachmentData(messageId: string): void {
+    this.db.query("DELETE FROM outbound_attachments WHERE message_id = ?").run(messageId);
+  }
+
+  resetOutboundForRetry(messageId: string, updatedAt: string): void {
+    this.db.query("UPDATE outbound_messages SET status = 'sending', receipt_json = NULL, error = NULL, updated_at = ? WHERE message_id = ?")
+      .run(updatedAt, messageId);
   }
 
   completeOutbound(messageId: string, status: string, receiptJson: string | null, error: string | null, updatedAt: string): void {
@@ -77,11 +91,11 @@ export class MessagingRepository {
 
   createInbound(record: InboundMessageRecord): void {
     this.db.query(`INSERT INTO inbound_messages (
-      peer_instance_id, message_id, idempotency_key, target_agent_name, mode, content_sha256,
+      peer_instance_id, message_id, idempotency_key, target_agent_name, mode, content_sha256, attachments_json,
       status, local_row_id, receipt_json, received_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .run(record.peer_instance_id, record.message_id, record.idempotency_key, record.target_agent_name,
-        record.mode, record.content_sha256, record.status, record.local_row_id, record.receipt_json,
+        record.mode, record.content_sha256, record.attachments_json, record.status, record.local_row_id, record.receipt_json,
         record.received_at, record.updated_at);
   }
 

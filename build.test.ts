@@ -29,7 +29,7 @@ test("only the selected foundational add-ons carry the core tag", () => {
     const manifest = JSON.parse(readFileSync(join(repoRoot, path), "utf8"));
     return manifest.piclaw?.tags?.includes("core") ? [path.split("/")[1]] : [];
   });
-  expect(coreSlugs).toEqual(["delegate", "goal", "plan-sidebar", "session-dashboard"]);
+  expect(coreSlugs).toEqual(["delegate", "goal", "observability", "plan-sidebar", "session-dashboard"]);
 
   const catalog = JSON.parse(readFileSync(join(repoRoot, "catalog.json"), "utf8"));
   const catalogCoreSlugs = catalog.addons.filter((addon: any) => addon.tags?.includes("core")).map((addon: any) => addon.slug).sort();
@@ -37,6 +37,7 @@ test("only the selected foundational add-ons carry the core tag", () => {
   expect(Object.fromEntries(catalog.addons.filter((addon: any) => catalogCoreSlugs.includes(addon.slug)).map((addon: any) => [addon.slug, addon.version]))).toEqual({
     delegate: "0.2.8",
     goal: "0.1.46",
+    observability: "0.1.12",
     "plan-sidebar": "0.1.24",
     "session-dashboard": "0.2.4",
   });

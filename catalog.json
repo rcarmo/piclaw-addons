@@ -650,9 +650,9 @@
     {
       "slug": "remote-peer",
       "name": "@rcarmo/piclaw-addon-remote-peer",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "type": "extension",
-      "description": "Signed pairing, one-hop peer messaging, advertised agents, opaque replies, and mediated remote work for Piclaw",
+      "description": "Agent-ready one-hop Piclaw chat with signed pairing, directory discovery, opaque replies, durable delivery, and verified files",
       "path": "addons/remote-peer",
       "homepage": "https://rcarmo.github.io/piclaw-addons/addons/remote-peer/",
       "tags": [
@@ -666,9 +666,9 @@
       ],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-remote-peer-0.1.0.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-remote-peer-0.2.0.tgz"
       },
-      "updatedAt": "2026-08-06",
+      "updatedAt": "2026-08-29",
       "owner": {
         "login": "rcarmo",
         "url": "https://github.com/rcarmo"

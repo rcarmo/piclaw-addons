@@ -1,6 +1,18 @@
 # Remote Peer
 
-`@rcarmo/piclaw-addon-remote-peer` owns cross-instance Piclaw identity, state, pairing and messaging. It creates a fresh Ed25519 identity and dedicated SQLite database, establishes operator-approved peer trust through signed pairing, and delivers durable signed `peer!inbox` messages through Piclaw's existing `chat` tool.
+`@rcarmo/piclaw-addon-remote-peer` makes Piclaw's existing `chat` tool work across a small trusted group of instances. Operators pair peers and choose which inboxes, agents, modes and file limits are exposed; agents discover exact usable addresses and send text or files without learning the pairing protocol.
+
+## Agent workflow
+
+```text
+chat({ action: "directory" })
+chat({ target_address: "lab!inbox", content: "Please review this.", mode: "queue", idempotency_key: "review-2026-08-29" })
+chat({ target_address: "lab!@research", content: "CSV attached.", files: ["exports/data.csv"], mode: "queue", idempotency_key: "csv-2026-08-29" })
+```
+
+The directory is the allowlist. It returns directly usable local addresses, allowed modes, reachability/roster freshness and receiver-owned file limits. Remote sends default to `queue`. Files use bounded raw binary transfer with SHA-256 verification and become ordinary Piclaw attachments at the receiver; binary data is never put in message text.
+
+Inbound messages identify the authenticated peer and source agent and include an opaque reply address. Reply to that address exactly as supplied.
 
 ## Requirements
 
@@ -52,9 +64,9 @@ remote_peer({ action: "revoke", peer: "peer-alias" })
 
 The `/pair` command provides equivalent pairing actions. Only public identity metadata is returned. The private key is never returned through tools, commands, external routes, or the Settings API.
 
-## Send to a peer inbox
+## Operator setup and pairing
 
-Use Piclaw's built-in `chat` tool with the paired peer's local alias, fingerprint, or instance ID:
+After setup, use Piclaw's built-in `chat` tool with an address returned by `chat({ action: "directory" })`:
 
 ```text
 chat({ target_address: "lab!inbox", content: "Please review this finding.", mode: "queue" })
@@ -64,7 +76,7 @@ Use `peer!inbox` for the default inbox or `peer!@alias` for an operator-advertis
 
 The add-on persists outbound/inbound ledgers, signs the exact request body, verifies the authenticated peer, calls core's safe peer-delivery ABI, and returns a signed durable receipt. Supplying an `idempotency_key` makes safe retries return the original receipt without a second timeline row.
 
-Pairing defaults to `inbox-only` and `queue`. Operators must explicitly advertise local aliases, grant each peer `named-agents` or `all-advertised` scope, and raise the mode ceiling before `auto` or `steer` can pass. Both the peer ceiling and advertised alias modes are enforced by the receiver.
+Pairing defaults to `inbox-only`, `queue`, and file transfer disabled. Operators must explicitly advertise local aliases, grant each peer `named-agents` or `all-advertised` scope, raise the mode ceiling, and enable a bounded file policy. Both sender-side directory validation and receiver-side policy enforcement apply.
 
 Detailed documentation:
 
@@ -74,7 +86,8 @@ Detailed documentation:
 - [Operator guide](docs/operator-guide.md)
 - [Troubleshooting](docs/troubleshooting.md)
 - [Architecture diagram](docs/architecture.svg)
-- [0.1.0 two-instance E2E matrix](docs/e2e-matrix.md)
+- [Release E2E matrix](docs/e2e-matrix.md)
+- [0.2.0 three-instance MVP evidence](docs/e2e-mvp-0.2.0.md)
 
 ## Settings
 
@@ -90,9 +103,9 @@ Fingerprint confirmation is required for acceptance and revocation. `all-adverti
 
 ![Remote Peer Settings pane](assets/settings-pane-microvm.png)
 
-## Mediated remote work
+## Deferred beyond the chat MVP
 
-Use `work_send`, `work_status`, `work_wait`, `work_inbox`, `work_approve`, and `work_reject` through `remote_peer` for durable operator-reviewed requests. Both proposal and execute request shapes remain mediated; the add-on never grants direct remote tool execution. Signed one-time result callbacks route completed work back to the origin chat and persist failed delivery attempts for retry.
+Mediated `work_*` actions remain available for compatibility but are not part of the agent-chat MVP or default agent guidance. The MVP proves one-hop text/file conversation, opaque replies, delivery receipts and retry. It does not grant direct remote tool execution or multi-hop federation.
 
 ## Current scope
 

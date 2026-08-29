@@ -1,12 +1,12 @@
 {
   "name": "@rcarmo/piclaw-addon-remote-peer",
-  "version": "0.1.0",
-  "description": "Signed pairing, one-hop peer messaging, advertised agents, opaque replies, and mediated remote work for Piclaw",
+  "version": "0.2.0",
+  "description": "Agent-ready one-hop Piclaw chat with signed pairing, directory discovery, opaque replies, durable delivery, and verified files",
   "type": "module",
   "main": "index.ts",
   "piclaw": {
     "type": "extension",
-    "compatibleVersions": ">=2.12.0",
+    "compatibleVersions": ">=2.15.0",
     "tags": [
       "remote",
       "agents",

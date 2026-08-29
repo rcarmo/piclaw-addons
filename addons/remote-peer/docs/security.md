@@ -19,6 +19,7 @@ An operator must review and accept every inbound pairing request. Display names 
 - Local aliases are unique and operator-controlled.
 - The message source peer is derived from signature authentication; spoofable body labels cannot replace it.
 - Inbox delivery is queue-only by default, and duplicate IDs/idempotency keys return one stored receipt and one timeline delivery.
+- File transfer is disabled per peer by default. Enabled transfers use bounded raw binary requests, signed SHA-256 verification, receiver-owned size limits, mode-0600 temporary files, durable retry data and normal Piclaw media storage.
 - Signed rosters expose only operator-selected aliases, never local chat JIDs or the complete local agent list.
 - Agent access requires receiver-owned peer scope plus alias permission; delivery modes must pass both peer and alias ceilings.
 - Reply capabilities are signed, random, expiring, peer-bound, and stored hashed; their private mapping never crosses the instance boundary.

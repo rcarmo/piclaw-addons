@@ -51,7 +51,8 @@ test("startup registers the bang transport and signed external route", async () 
     addonId: "remote-peer",
     prefix: "/api/addons/remote-peer/v1",
     methods: ["POST"],
-    maxBodyBytes: 32 * 1024,
+    maxBodyBytes: 32 * 1024 * 1024,
+    bodyMode: "stream",
   });
   expect(typeof routes[0].handler).toBe("function");
   expect(statusPanels).toHaveLength(1);

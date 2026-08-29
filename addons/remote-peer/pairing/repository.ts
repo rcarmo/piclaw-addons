@@ -15,6 +15,8 @@ export interface PeerRecord {
   updated_at: string;
   last_seen_at: string | null;
   blocked_reason: string | null;
+  attachments_enabled?: number;
+  max_attachment_bytes?: number;
 }
 
 export interface InboundPairRecord {
@@ -96,6 +98,15 @@ export class PairingRepository {
   updatePeer(instanceId: string, updates: Pick<PeerRecord, "status" | "trust_epoch" | "updated_at" | "last_seen_at" | "blocked_reason">): void {
     this.db.query(`UPDATE peers SET status=?, trust_epoch=?, updated_at=?, last_seen_at=?, blocked_reason=? WHERE instance_id=?`)
       .run(updates.status, updates.trust_epoch, updates.updated_at, updates.last_seen_at, updates.blocked_reason, instanceId);
+  }
+
+  updatePeerAttachmentPolicy(instanceId: string, enabled: boolean, maxBytes: number, updatedAt: string): PeerRecord {
+    if (!Number.isInteger(maxBytes) || maxBytes < 0 || maxBytes > 16 * 1024 * 1024) throw new Error("Attachment limit must be 0-16777216 bytes.");
+    this.db.query("UPDATE peers SET attachments_enabled = ?, max_attachment_bytes = ?, updated_at = ? WHERE instance_id = ?")
+      .run(enabled ? 1 : 0, maxBytes, updatedAt, instanceId);
+    const peer = this.getPeer(instanceId);
+    if (!peer) throw new Error("Peer not found.");
+    return peer;
   }
 
   updatePeerAlias(instanceId: string, alias: string, updatedAt: string): void {

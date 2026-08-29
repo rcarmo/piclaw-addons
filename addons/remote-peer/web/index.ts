@@ -28,6 +28,7 @@ function RemotePeerSettings() {
   const [message, setMessage] = useState("");
   const [pairUrl, setPairUrl] = useState("");
   const [agentForm, setAgentForm] = useState({ local_agent: "", alias: "", modes: ["queue"] });
+  const [testForm, setTestForm] = useState({ address: "", content: "Hello from Remote Peer Settings", media_id: "" });
 
   const refresh = useCallback(async () => {
     try {
@@ -77,6 +78,15 @@ function RemotePeerSettings() {
   const statusColor = health.enabled && health.database === "ok" ? "var(--accent-color,#0f766e)" : "var(--danger-color,#dc2626)";
   const confirmFingerprint = (verb, item) => globalThis.prompt?.(`${verb} peer?\n\nFingerprint: ${item.fingerprint}\nOrigin: ${item.origin || "unknown"}\n\nType the fingerprint to confirm:`) || "";
   const confirmRisk = () => globalThis.prompt?.("This grants broader remote access. Type ALLOW REMOTE ACCESS to confirm:") || "";
+  const directoryEntries = dashboard.directory?.entries || [];
+  const copy = async (value) => { try { await navigator.clipboard.writeText(value); setMessage(`Copied ${value}`); } catch { setMessage(value); } };
+  const readiness = [
+    ["Runtime enabled", config.enabled === true],
+    ["Instance name set", Boolean(config.instanceName)],
+    ["External URL set", Boolean(config.externalUrl)],
+    ["Database healthy", health.database === "ok"],
+    ["At least one paired peer", health.paired > 0],
+  ];
 
   const peerCard = (peer) => html`<div style=${{ ...C.stat, marginBottom: "0.55rem" }}>
     <div style="display:flex;justify-content:space-between;gap:.5rem;align-items:flex-start">
@@ -85,26 +95,36 @@ function RemotePeerSettings() {
     </div>
     <div style=${{ ...C.row, marginTop: "0.65rem" }}>
       <select style=${C.input} value=${peer.messaging_scope} onChange=${e => {
-        const scope = e.target.value; const confirmation = scope === "all-advertised" ? confirmRisk() : "";
+        const scope = e.target.value; const confirmation = scope === "named-agents" || scope === "all-advertised" ? confirmRisk() : "";
         mutate({ action: "set_policy", peer: peer.instance_id, scope, mode_ceiling: peer.mode_ceiling, agents: peer.allowed_agents, confirmation }, "Peer scope updated.");
       }} disabled=${busy}>
         <option value="none">No messaging</option><option value="inbox-only">Inbox only</option><option value="named-agents">Named agents</option><option value="all-advertised">All advertised</option>
       </select>
       <select style=${C.input} value=${peer.mode_ceiling} onChange=${e => {
-        const mode_ceiling = e.target.value; const confirmation = mode_ceiling === "queue-auto-steer" ? confirmRisk() : "";
+        const mode_ceiling = e.target.value; const confirmation = mode_ceiling === "queue" ? "" : confirmRisk();
         mutate({ action: "set_policy", peer: peer.instance_id, scope: peer.messaging_scope, mode_ceiling, agents: peer.allowed_agents, confirmation }, "Mode ceiling updated.");
       }} disabled=${busy}>
         <option value="queue">Queue</option><option value="queue-auto">Queue + auto</option><option value="queue-auto-steer">Queue + auto + steer</option>
       </select>
+      <button style=${C.button} onClick=${() => mutate({ action: "ping", peer: peer.instance_id }, "Peer responded to signed ping.")} disabled=${busy}>Ping</button>
+      <button style=${C.button} onClick=${() => mutate({ action: "refresh_roster", peer: peer.instance_id }, "Signed roster refreshed.")} disabled=${busy}>Roster</button>
+      <label style=${C.muted}><input type="checkbox" checked=${peer.attachments_enabled === true} onChange=${e => mutate({ action: "set_attachment_policy", peer: peer.instance_id, enabled: e.target.checked, max_attachment_bytes: 16 * 1024 * 1024, confirmation: globalThis.prompt?.("Type ALLOW FILE TRANSFER to change file policy:") || "" }, "File policy updated.")}/> Files</label>
       <button style=${C.button} onClick=${() => mutate({ action: "set_alias", peer: peer.instance_id, alias: globalThis.prompt?.("New local peer alias:", peer.peer_alias) || "" }, "Alias updated.")} disabled=${busy}>Alias</button>
       <button style=${C.danger} onClick=${() => mutate({ action: "revoke", peer: peer.instance_id, confirmation: confirmFingerprint("Revoke", peer) }, "Peer revoked.")} disabled=${busy || peer.status !== "paired"}>Revoke</button>
     </div>
+    ${peer.messaging_scope === "named-agents" && html`<div style=${{ ...C.row, alignItems: "flex-start" }}><span style=${C.muted}>Allowed aliases:</span>${(dashboard.advertised_agents || []).filter(agent => agent.enabled).map(agent => html`<label style=${C.muted}><input type="checkbox" checked=${peer.allowed_agents.includes(agent.alias)} onChange=${e => { const agents = e.target.checked ? [...new Set([...peer.allowed_agents, agent.alias])] : peer.allowed_agents.filter(value => value !== agent.alias); mutate({ action: "set_policy", peer: peer.instance_id, scope: peer.messaging_scope, mode_ceiling: peer.mode_ceiling, agents, confirmation: confirmRisk() }, "Named-agent access updated."); }}/> @${agent.alias}</label>`)}</div>`}
     <div style=${C.muted}>${peer.origin || "No origin"} · last seen ${peer.last_seen_at || "never"}</div>
   </div>`;
 
   return html`<div style="padding:.35rem 0;max-width:920px">
     <section style=${C.section}>
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem"><h4 style=${C.title}>Health & identity</h4><button style=${C.button} onClick=${refresh} disabled=${busy}>Refresh</button></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem"><h4 style=${C.title}>MVP readiness</h4><button style=${C.button} onClick=${refresh} disabled=${busy}>Refresh</button></div>
+      <div style=${C.grid}>${readiness.map(([label, ready]) => html`<div style=${C.stat}><span style=${C.label}>${label}</span><strong style=${{ color: ready ? "var(--accent-color,#0f766e)" : "var(--danger-color,#dc2626)" }}>${ready ? "Ready" : "Required"}</strong></div>`)}</div>
+      <div style=${{ ...C.muted, marginTop: ".55rem" }}>Agents can use Remote Peer when paired addresses appear below. Text and file delivery default to queue mode.</div>
+    </section>
+
+    <section style=${C.section}>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem"><h4 style=${C.title}>Health & identity</h4></div>
       <div style=${C.grid}>
         <div style=${C.stat}><span style=${C.label}>Runtime</span><strong style=${{ color: statusColor }}>${health.enabled ? "Enabled" : "Disabled"}</strong></div>
         <div style=${C.stat}><span style=${C.label}>Database</span><strong>${health.database}</strong> · schema ${dashboard.foundation?.database?.schema_version}</div>
@@ -113,7 +133,7 @@ function RemotePeerSettings() {
       </div>
       <div style=${{ ...C.row, marginTop: ".65rem" }}><span style=${C.label}>Fingerprint</span><code style=${C.code}>${identity.fingerprint}</code><button style=${C.danger} onClick=${() => mutate({ action: "rotate_identity", confirmation: globalThis.prompt?.(`Revoke every paired peer first. Then type ROTATE ${identity.fingerprint} to confirm:`) || "" }, "Identity rotated. Restart Piclaw and re-pair every peer.")} disabled=${busy || health.paired > 0}>Rotate key</button></div>
       <div style=${C.row}><label><input type="checkbox" checked=${config.enabled === true} onChange=${e => saveConfig({ enabled: e.target.checked })} disabled=${busy}/> Enabled</label><input style=${C.input} value=${config.instanceName || ""} placeholder="Instance name" onBlur=${e => saveConfig({ instanceName: e.target.value })}/><input style=${C.input} value=${config.externalUrl || ""} placeholder="https://peer.example" onBlur=${e => saveConfig({ externalUrl: e.target.value })}/></div>
-      <div style=${C.row}><label><input type="checkbox" checked=${config.allowHttp === true} onChange=${e => saveConfig({ allowHttp: e.target.checked })}/> Allow HTTP</label><label><input type="checkbox" checked=${config.allowPrivateNetwork === true} onChange=${e => saveConfig({ allowPrivateNetwork: e.target.checked })}/> Allow private network</label></div>
+      <div style=${C.row}><label><input type="checkbox" checked=${config.allowHttp === true} onChange=${e => saveConfig({ allowHttp: e.target.checked })}/> Allow HTTP</label><label><input type="checkbox" checked=${config.allowPrivateNetwork === true} onChange=${e => saveConfig({ allowPrivateNetwork: e.target.checked })}/> Allow private network</label><button style=${C.button} disabled=${busy || !config.externalUrl} onClick=${() => mutate({ action: "endpoint_test" }, "External endpoint is reachable.")}>Test endpoint</button></div>
     </section>
 
     <section style=${C.section}>
@@ -128,14 +148,25 @@ function RemotePeerSettings() {
     </section>
 
     <section style=${C.section}>
+      <h4 style=${C.title}>Agent-ready addresses</h4>
+      ${directoryEntries.length === 0 && html`<div style=${C.muted}>No usable remote addresses yet. Complete setup and pairing first.</div>`}
+      ${directoryEntries.map(entry => html`<div style=${{ ...C.stat, marginBottom: ".45rem" }}>
+        <div style=${C.row}><code style=${C.code}>${entry.address}</code><button style=${C.button} onClick=${() => copy(entry.address)}>Copy</button><span style=${C.muted}>${entry.status} · ${entry.modes.join(", ")}${entry.attachments?.enabled ? ` · files up to ${Math.round(entry.attachments.max_file_bytes / 1024 / 1024)} MiB` : " · files off"}</span></div>
+      </div>`)}
+      ${directoryEntries.length > 0 && html`<div style=${C.row}><select style=${C.input} value=${testForm.address} onChange=${e => setTestForm({ ...testForm, address: e.target.value })}><option value="">Choose address…</option>${directoryEntries.map(entry => html`<option value=${entry.address}>${entry.address}</option>`)}</select><input style=${C.input} value=${testForm.content} onInput=${e => setTestForm({ ...testForm, content: e.target.value })}/><input style=${{ ...C.input, maxWidth: "130px" }} type="number" min="1" value=${testForm.media_id} placeholder="Media ID (optional)" onInput=${e => setTestForm({ ...testForm, media_id: e.target.value })}/><button style=${C.button} disabled=${busy || !testForm.address} onClick=${() => mutate({ action: "send_test", address: testForm.address, content: testForm.content, media_id: Number(testForm.media_id || 0) }, "Test message/file queued.")}>Send test</button></div>`}
+    </section>
+
+    <section style=${C.section}>
       <h4 style=${C.title}>Advertised agents & delivery</h4>
       <div style=${C.row}>
         <select style=${C.input} value=${agentForm.local_agent} onChange=${e => setAgentForm({ ...agentForm, local_agent: e.target.value, alias: agentForm.alias || e.target.value })}><option value="">Choose local agent…</option>${(dashboard.local_agents || []).map(agent => html`<option value=${agent.agent_name}>${agent.agent_name}${agent.active ? " · active" : ""}</option>`)}</select>
         <input style=${C.input} value=${agentForm.alias} onInput=${e => setAgentForm({ ...agentForm, alias: e.target.value })} placeholder="Public alias"/>
+        <label><input type="checkbox" checked=${agentForm.modes.includes("auto")} onChange=${e => setAgentForm({ ...agentForm, modes: e.target.checked ? ["queue", "auto"] : ["queue"] })}/> Allow auto</label>
         <button style=${C.button} onClick=${() => mutate({ action: "advertise_agent", ...agentForm }, "Agent advertised.")} disabled=${busy || !agentForm.local_agent}>Advertise</button>
       </div>
       ${(dashboard.advertised_agents || []).map(agent => html`<div style=${{ ...C.row, ...C.stat }}><strong>@${agent.alias}</strong><span style=${C.muted}>→ ${agent.local_agent} · ${agent.allowed_modes.join(", ")}</span><button style=${C.danger} onClick=${() => mutate({ action: "unadvertise_agent", alias: agent.alias }, "Agent hidden.")} disabled=${busy}>Hide</button></div>`)}
-      ${health.failed_receipts > 0 && html`<div style=${{ ...C.stat, marginTop: ".6rem", borderColor: "color-mix(in srgb,var(--danger-color,#dc2626) 45%,var(--border-color))" }}><strong>${health.failed_receipts} failed delivery receipt(s)</strong><div style=${C.muted}>Inspect details with remote_peer({ action: "message_failures" }).</div></div>`}
+      ${health.failed_receipts > 0 && html`<div style=${{ ...C.stat, marginTop: ".6rem", borderColor: "color-mix(in srgb,var(--danger-color,#dc2626) 45%,var(--border-color))" }}><strong>${health.failed_receipts} failed delivery receipt(s)</strong><div style=${C.muted}>Review the failed records below; retry reuses the same message, transfer IDs and idempotency key.</div></div>`}
+      ${[...(dashboard.failures?.outbound || []), ...(dashboard.failures?.inbound || [])].map(item => html`<div style=${{ ...C.stat, marginTop: ".45rem" }}><div style=${C.row}><code style=${C.code}>${item.message_id}</code><span style=${C.muted}>${item.status} · ${item.target_address || item.target_agent_name || "target"}</span>${item.target_address && html`<button style=${C.button} disabled=${busy} onClick=${() => mutate({ action: "retry_message", message_id: item.message_id }, "Delivery retried.")}>Retry</button>`}</div><div style=${C.muted}>${item.error || "No error detail"}${item.attachments?.length ? ` · ${item.attachments.map(file => `${file.filename} (${file.size} B, ${String(file.sha256).slice(0, 12)}…)`).join(", ")}` : ""}</div></div>`)}
     </section>
     ${message && html`<div role="status" style=${{ padding: ".55rem .7rem", borderRadius: "7px", background: "var(--bg-secondary)", color: /failed|requires|invalid|error/i.test(message) ? "var(--danger-color,#dc2626)" : "var(--accent-color,#0f766e)", fontSize: ".8rem" }}>${message}</div>`}
   </div>`;

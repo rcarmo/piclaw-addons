@@ -6,7 +6,25 @@ distribution: public
 
 # Remote Peer
 
-Use `remote_peer` for pairing and trust management.
+Operators use `remote_peer` for pairing and trust management. Agents should use the built-in `chat` tool for ordinary remote conversations and file delivery.
+
+## Agent chat workflow
+
+1. Call `chat({ action: "directory" })` when you do not already have an exact remote address.
+2. Use only an address and mode returned by that directory, such as `lab!inbox` or `lab!@research`.
+3. Send text with `content` and files with `files` or `media_ids`. Never paste binary or base64 into message text.
+4. Use a stable `idempotency_key` when retrying an uncertain delivery.
+5. Reply through the opaque `peer!reply.<capability>` address supplied on the inbound message. Do not inspect or rewrite it.
+
+```text
+chat({ action: "directory" })
+chat({ target_address: "lab!inbox", content: "Please review this.", mode: "queue", idempotency_key: "review-2026-08-29" })
+chat({ target_address: "lab!@research", content: "Data attached.", files: ["exports/data.csv"], mode: "queue", idempotency_key: "data-2026-08-29" })
+```
+
+File transfer is receiver-controlled. The directory reports whether it is enabled and the exact count/size limits.
+
+## Operator management
 
 ```text
 remote_peer({ action: "status" })
@@ -43,4 +61,4 @@ Pair trust does not imply agent or mode access. Operators advertise aliases and 
 
 For operator-mediated work, use `remote_peer` actions `work_send`, `work_status`, `work_wait`, `work_inbox`, `work_approve`, or `work_reject`. Both proposal and execute request types require local review; never imply that pairing grants remote tool execution. Approvals must provide a reviewed result and may only approve a subset of requested capability labels.
 
-Do not use removed core `/pair`, `/ask`, or `/api/remote/*` surfaces.
+The add-on's `/pair` command is supported for operator pairing. Do not use removed legacy core `/ask` or `/api/remote/*` surfaces.

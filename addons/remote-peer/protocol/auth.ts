@@ -14,9 +14,9 @@ function parseTimestamp(value: string): number | null {
   return Number.isNaN(parsed) ? null : parsed;
 }
 
-export function verifySignedRequest(
+export function verifySignedRequestHash(
   req: Request,
-  body: Uint8Array,
+  bodyHash: string,
   peer: SignedPeer,
   nonceCache: NonceReplayCache,
   now = Date.now(),
@@ -39,7 +39,7 @@ export function verifySignedRequest(
     method: req.method,
     pathWithQuery: `${url.pathname}${url.search}`,
     contentType: req.headers.get("content-type") || "",
-    bodyHash: hashBody(body),
+    bodyHash,
     timestamp,
     nonce,
     instanceId,
@@ -48,4 +48,14 @@ export function verifySignedRequest(
   if (!verifyCanonical(peer.public_key, canonical, signature)) return { ok: false, error: "Signature verification failed." };
   if (!nonceCache.checkAndStore(peer.instance_id, nonce, now)) return { ok: false, error: "Replay detected." };
   return { ok: true };
+}
+
+export function verifySignedRequest(
+  req: Request,
+  body: Uint8Array,
+  peer: SignedPeer,
+  nonceCache: NonceReplayCache,
+  now = Date.now(),
+): SignatureResult {
+  return verifySignedRequestHash(req, hashBody(body), peer, nonceCache, now);
 }
