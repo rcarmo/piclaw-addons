@@ -35,8 +35,8 @@ The pane loads/saves non-secret settings through the direct backend add-on confi
 | **Host** | text | — | Graphite/Carbon receiver host, e.g. `192.168.1.250` |
 | **Port** | number | 2003 | Carbon plaintext port |
 | **Metric prefix** | fixed | `piclaw` | Root prefix for all Graphite metric paths |
-| **Export token usage** | checkbox | off | Export local `token_usage` aggregates by instance, provider, and model. Requires Graphite enabled. |
-| **Export interval** | number | 15 min | Token-ledger aggregation cadence (1–60 minutes). |
+| **Export usage and compaction telemetry** | checkbox | off | Export local `token_usage` aggregates plus bounded compaction timing/outcome metrics by instance and model. Requires Graphite enabled. |
+| **Export interval** | number | 15 min | Durable usage/compaction export cadence (1–60 minutes). |
 | **Graphite render URL** | text | — | Optional endpoint used by the bundled `usage-telemetry-chart` SVG helper. |
 
 ## Storage model
@@ -47,7 +47,7 @@ The pane loads/saves non-secret settings through the direct backend add-on confi
 | All other settings | **Runtime database** — extension KV store (SQLite, global scope, extension ID `observability`) |
 | App Insights actor/session identity | **Derived on the backend** from Piclaw log records (`chatJid`, `sessionLeafId`, `turnId`) |
 
-No config files are written to disk. When token usage export is enabled, a bounded retry spool is written beside the messages database (`usage-telemetry/`): at most 7 days or 10 MB. It is used only when Carbon delivery fails.
+No config files are written to disk. When token usage export is enabled, bounded retry spools are written beside the messages database (`usage-telemetry/` and `compaction-telemetry/`): each is limited to 7 days or 10 MB and is used only when Carbon delivery fails.
 
 ### 3. Deploy to other instances
 
@@ -186,6 +186,7 @@ Browser telemetry is intentionally absent. The web entry only registers the Sett
 | `run_agent.attempt_failed` | `provider.error` (exception) | `recovery.attempts`, `provider.error.<classifier>` |
 | `tool.call.start/end` | `tool.call` (**dependency-style** child span of `agent.turn`) | `tool.<name>.count`, `tool.<name>.duration_ms` |
 | `dream.complete` | `dream` | `dream.duration_ms` |
+| `compaction.telemetry` | `compaction` | durable `compaction.<instance>.<provider>.<model>.<method>.<execution>.<trigger>.<outcome>.<timeout-stage>.*` metrics |
 | `get_or_create.create_main_session` | — | `session.created` |
 | `evict_idle.*` | — | `session.evicted` |
 | Any warn/error with `operation` | `log.warn` / `log.error` | — |
@@ -311,6 +312,14 @@ These interactions should be emitted by the backend as structured log records an
 }
 ```
 
+### Compaction telemetry
+
+Piclaw persists one bounded `compaction_telemetry` row per physical compaction generation. Joined callers do not create duplicate rows. The add-on converts live `compaction.telemetry` records to OTel spans and polls the durable table for restart-safe Graphite delivery.
+
+Fields are limited to canonical provider/model, method, execution, trigger, terminal outcome, timeout stage, durations, request/chunk counts, and settlement status. Prompts, summaries, chat identifiers, provider URLs, headers, credentials, and raw error text are never exported.
+
+Duration metrics use milliseconds. For one provider request, deterministic and provider-generation phases are derived from exact request/first-output/last-output timestamps. Multi-request progressive runs leave ambiguous phase durations absent rather than inventing precision.
+
 ### Graphite metric paths
 
 ```
@@ -333,6 +342,12 @@ piclaw.smith.session.evicted 1 1745828400
 
 # Dream
 piclaw.smith.dream.duration_ms 45000 1745828400
+
+# Compaction (provider/model/method/execution/trigger/outcome/timeout-stage)
+piclaw.compaction.smith.local.fast-summary.selective.single_pass.manual.success.none.attempt.count 1 1745828400
+piclaw.compaction.smith.local.fast-summary.selective.single_pass.manual.success.none.input.tokens 48000 1745828400
+piclaw.compaction.smith.local.fast-summary.selective.single_pass.manual.success.none.duration.ttft_ms 700 1745828400
+piclaw.compaction.smith.local.fast-summary.selective.single_pass.manual.success.none.duration.total_ms 1200 1745828400
 ```
 
 Queryable as:
@@ -341,6 +356,7 @@ Queryable as:
 piclaw.*.agent.turn.error          # errors across all instances
 piclaw.smith.tool.*.duration_ms    # all tool durations on smith
 piclaw.relay.provider.error.*      # all provider errors on relay
+piclaw.compaction.*.*.*.*.*.*.*.*.duration.ttft_ms  # TTFT across bounded compaction dimensions
 ```
 
 ### Azure Application Insights views

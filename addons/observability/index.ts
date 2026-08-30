@@ -24,6 +24,7 @@ import { addLogSink, removeLogSink, type LogSink as RuntimeLogSink, type LogReco
 import { createExtensionStorage, type ExtensionStorage } from "./compat/extension-kv.js";
 import { createLogger } from "./compat/logger.js";
 import { exportUsage } from "./usage-telemetry.js";
+import { exportCompactionTelemetry } from "./compaction-telemetry.js";
 
 const EXTENSION_ID = "observability";
 const baseDir = dirname(fileURLToPath(import.meta.url));
@@ -381,15 +382,21 @@ function scheduleUsageTelemetry(config: ObservabilityConfig): void {
   const run = async () => {
     if (usageTelemetryRunning) return;
     usageTelemetryRunning = true;
+    const exportConfig = {
+      graphite_host: config.graphite_host,
+      graphite_port: config.graphite_port,
+      graphite_prefix: "piclaw",
+      instance_name: config.instance_name,
+    };
     try {
-      await exportUsage({
-        graphite_host: config.graphite_host,
-        graphite_port: config.graphite_port,
-        graphite_prefix: "piclaw",
-        instance_name: config.instance_name,
-      });
+      await exportUsage(exportConfig);
     } catch (error) {
       log.warn("Usage telemetry export failed; pending data remains spooled", { operation: "usage_telemetry.export", error: formatError(error) });
+    }
+    try {
+      await exportCompactionTelemetry(exportConfig);
+    } catch (error) {
+      log.warn("Compaction telemetry export failed; pending data remains spooled", { operation: "compaction_telemetry.export", error: formatError(error) });
     } finally { usageTelemetryRunning = false; }
   };
   void run();
@@ -906,6 +913,42 @@ function bridgeSink(record: LogRecord): void {
     span.setStatus({ code: SpanStatusCode.ERROR, message: errText });
     setSyntheticResultCode(span, syntheticResultCodeForLevel(record.level));
     span.recordException(new Error(errText));
+    span.end();
+    return;
+  }
+
+  if (op === "compaction.telemetry") {
+    const outcome = readRecordString(record, "outcome") || "unknown";
+    const model = readRecordString(record, "model");
+    const provider = readRecordString(record, "provider");
+    const span = getTracer().startSpan("compaction", {
+      kind: SpanKind.INTERNAL,
+      attributes: {
+        "piclaw.instance": i,
+        "piclaw.compaction.trigger": readRecordString(record, "trigger") || "unknown",
+        "piclaw.compaction.method": readRecordString(record, "method") || "unknown",
+        "piclaw.compaction.execution": readRecordString(record, "execution") || "unknown",
+        "piclaw.compaction.outcome": outcome,
+        ...(provider ? { "piclaw.provider": provider } : {}),
+        ...(model ? { "piclaw.model": `${provider ? `${provider}/` : ""}${model}` } : {}),
+        ...(readRecordString(record, "timeoutStage") ? { "piclaw.compaction.timeout_stage": readRecordString(record, "timeoutStage")! } : {}),
+        ...(readRecordNumber(record, "totalDurationMs") != null ? { "piclaw.compaction.duration_ms": readRecordNumber(record, "totalDurationMs")! } : {}),
+        ...(readRecordNumber(record, "deterministicDurationMs") != null ? { "piclaw.compaction.deterministic_duration_ms": readRecordNumber(record, "deterministicDurationMs")! } : {}),
+        ...(readRecordNumber(record, "timeToFirstTokenMs") != null ? { "piclaw.compaction.ttft_ms": readRecordNumber(record, "timeToFirstTokenMs")! } : {}),
+        ...(readRecordNumber(record, "providerGenerationMs") != null ? { "piclaw.compaction.provider_generation_ms": readRecordNumber(record, "providerGenerationMs")! } : {}),
+        ...(readRecordNumber(record, "providerRequestCount") != null ? { "piclaw.compaction.provider_request_count": readRecordNumber(record, "providerRequestCount")! } : {}),
+        ...(readRecordNumber(record, "processedChunkCount") != null ? { "piclaw.compaction.processed_chunks": readRecordNumber(record, "processedChunkCount")! } : {}),
+        ...(readRecordNumber(record, "totalChunkCount") != null ? { "piclaw.compaction.total_chunks": readRecordNumber(record, "totalChunkCount")! } : {}),
+        "piclaw.compaction.settlement_timed_out": Boolean(record.settlementTimedOut),
+      },
+    });
+    if (outcome === "success" || outcome === "partial") {
+      span.setStatus({ code: SpanStatusCode.OK });
+      setSyntheticResultCode(span, 200);
+    } else {
+      span.setStatus({ code: SpanStatusCode.ERROR, message: outcome });
+      setSyntheticResultCode(span, 400);
+    }
     span.end();
     return;
   }

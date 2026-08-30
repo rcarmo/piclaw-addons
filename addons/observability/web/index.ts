@@ -170,9 +170,9 @@ function ObservabilitySettings() {
       ${num("Port", "graphite_port", "2003")}
       <div style=${{ fontSize: "0.73rem", color: "var(--text-secondary)", margin: "-0.15rem 0 0.4rem 188px" }}>Metrics use the fixed <code>piclaw</code> prefix.</div>
 
-      <h4 style=${H}>Usage telemetry</h4>
-      ${check("Export token usage", "usage_telemetry_enabled")}
-      ${hint("Exports local token_usage aggregates by instance, provider, and model. Failed exports are retained in a bounded local spool.")}
+      <h4 style=${H}>Usage and compaction telemetry</h4>
+      ${check("Export usage and compaction telemetry", "usage_telemetry_enabled")}
+      ${hint("Exports local token usage plus bounded compaction timing/outcome metrics by instance and model. Failed exports are retained in bounded local spools.")}
       ${num("Export interval (minutes)", "usage_telemetry_interval_minutes", "15")}
       ${text("Graphite render URL", "graphite_render_url", "http://192.168.1.250:8086")}
       ${hint("Optional; used by the bundled usage-telemetry-chart skill to render SVG charts.")}

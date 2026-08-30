@@ -35,6 +35,17 @@ test("buildRuntimeConfigKey changes only for backend runtime settings", () => {
   expect(buildRuntimeConfigKey({ ...base, graphite_enabled: true, graphite_host: "graphite.local" })).not.toBe(buildRuntimeConfigKey(base));
 });
 
+test("observability consumes bounded durable compaction telemetry without a second core exporter", () => {
+  const source = readFileSync(join(import.meta.dir, "index.ts"), "utf8");
+  expect(source).toContain('op === "compaction.telemetry"');
+  expect(source).toContain('getTracer().startSpan("compaction"');
+  expect(source).toContain("exportCompactionTelemetry(exportConfig)");
+  const block = source.slice(source.indexOf('if (op === "compaction.telemetry")'), source.indexOf('if (op === "get_or_create.create_main_session")'));
+  expect(block).not.toContain("errorMessage");
+  expect(block).not.toContain("chat_jid");
+  expect(block).not.toContain("generation_id");
+});
+
 test("process runtime is not torn down by individual session shutdown hooks", () => {
   const source = readFileSync(join(import.meta.dir, "index.ts"), "utf8");
   expect(source).toContain("ensureProcessRuntimeConfig");
