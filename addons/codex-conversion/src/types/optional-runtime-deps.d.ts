@@ -34,6 +34,7 @@ declare module "node-pty" {
 		onData(callback: (data: string) => void): IDisposable;
 		onExit(callback: (event: { exitCode: number; signal?: number | string }) => void): IDisposable;
 		write(data: string): void;
+		resize(columns: number, rows: number): void;
 		kill(signal?: string): void;
 	}
 

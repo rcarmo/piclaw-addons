@@ -2,8 +2,14 @@ import { randomBytes } from "node:crypto";
 import { spawn, type ChildProcessByStdio } from "node:child_process";
 import { resolve } from "node:path";
 import type { Readable } from "node:stream";
-import * as pty from "node-pty";
-import { CODEX_FALLBACK_SHELL, getCodexRuntimeShell, isFishShell } from "../adapter/runtime-shell.ts";
+import {
+	CODEX_FALLBACK_SHELL,
+	getCodexRuntimeShell,
+	isFishShell,
+	isPowerShell,
+	isWindowsCommandShell,
+} from "../adapter/runtime-shell.ts";
+import { spawnManagedPty, type ManagedPty, type PtyBackendPreference } from "./pty-backend.ts";
 
 export interface UnifiedExecResult {
 	chunk_id: string;
@@ -38,6 +44,7 @@ interface BaseExecSession {
 	emittedBuffer: string;
 	exitCode: number | null | undefined;
 	listeners: Set<() => void>;
+	releaseAbort: () => void;
 	interactive: boolean;
 }
 
@@ -48,7 +55,7 @@ interface PipeExecSession extends BaseExecSession {
 
 interface PtyExecSession extends BaseExecSession {
 	kind: "pty";
-	child: pty.IPty;
+	child: ManagedPty;
 	terminalCommitted: string;
 	terminalLine: string[];
 	terminalCursor: number;
@@ -66,6 +73,8 @@ export interface ExecSessionManager {
 }
 
 export interface ExecSessionManagerOptions {
+	ptyBackend?: PtyBackendPreference;
+	onPtyBackend?: (backend: "bun" | "node-pty") => void;
 	defaultExecYieldTimeMs?: number;
 	defaultWriteYieldTimeMs?: number;
 	minNonInteractiveExecYieldTimeMs?: number;
@@ -143,6 +152,12 @@ function resolveExecution(requestedShell: string | undefined, command: string): 
 		command: buildSyncedBashCommand(command, env),
 		env,
 	};
+}
+
+export function buildShellArgs(shell: string, command: string, login = true): string[] {
+	if (isWindowsCommandShell(shell)) return ["/d", "/s", "/c", command];
+	if (isPowerShell(shell)) return ["-NoLogo", "-NoProfile", "-Command", command];
+	return login ? ["-lc", command] : ["-c", command];
 }
 
 function clampYieldTime(yieldTimeMs: number | undefined, fallback: number): number {
@@ -346,11 +361,16 @@ function registerAbortHandler(signal: AbortSignal | undefined, onAbort: () => vo
 	return () => signal.removeEventListener("abort", abortListener);
 }
 
+function resolvePtyBackendPreference(value: unknown): PtyBackendPreference {
+	return value === "bun" || value === "node-pty" ? value : "auto";
+}
+
 export function createExecSessionManager(options: ExecSessionManagerOptions = {}): ExecSessionManager {
 	let nextSessionId = 1;
 	const sessions = new Map<number, ExecSession>();
 	const commandHistory = new Map<number, string>();
 	const exitListeners = new Set<(sessionId: number, command: string) => void>();
+	const ptyBackend = options.ptyBackend ?? resolvePtyBackendPreference(process.env.PICLAW_CODEX_PTY_BACKEND);
 	const defaultExecYieldTimeMs = options.defaultExecYieldTimeMs ?? DEFAULT_EXEC_YIELD_TIME_MS;
 	const defaultWriteYieldTimeMs = options.defaultWriteYieldTimeMs ?? DEFAULT_WRITE_YIELD_TIME_MS;
 	const minNonInteractiveExecYieldTimeMs = Math.min(
@@ -381,6 +401,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 	}
 
 	function finalizeSession(session: ExecSession): void {
+		session.releaseAbort();
 		for (const listener of exitListeners) {
 			listener(session.id, session.command);
 		}
@@ -448,7 +469,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 	function createPipeSession(input: ExecCommandInput, workdir: string, shell: string, signal?: AbortSignal): PipeExecSession {
 		const login = input.login ?? true;
 		const execution = resolveExecution(input.shell, input.cmd);
-		const shellArgs = login ? ["-lc", execution.command] : ["-c", execution.command];
+		const shellArgs = buildShellArgs(execution.shell, execution.command, login);
 		const child = spawn(shell, shellArgs, {
 			cwd: workdir,
 			stdio: ["ignore", "pipe", "pipe"],
@@ -464,6 +485,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 			emittedBuffer: "",
 			exitCode: undefined,
 			listeners: new Set(),
+			releaseAbort: () => {},
 			interactive: false,
 		};
 
@@ -483,54 +505,50 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 			finalizeSession(session);
 		});
 
-		registerAbortHandler(signal, () => {
-			if (session.exitCode === undefined) {
-				child.kill("SIGTERM");
-			}
+		session.releaseAbort = registerAbortHandler(signal, () => {
+			if (session.exitCode === undefined) child.kill("SIGTERM");
 		});
 
 		return session;
 	}
 
-	function createPtySession(input: ExecCommandInput, workdir: string, shell: string, signal?: AbortSignal): PtyExecSession {
+	async function createPtySession(input: ExecCommandInput, workdir: string, shell: string, signal?: AbortSignal): Promise<PtyExecSession> {
 		const login = input.login ?? true;
 		const execution = resolveExecution(input.shell, input.cmd);
-		const shellArgs = login ? ["-lc", execution.command] : ["-c", execution.command];
-		const child = pty.spawn(shell, shellArgs, {
-			cwd: workdir,
-			env: execution.env,
-			name: process.env.TERM || "xterm-256color",
-			cols: 80,
-			rows: 24,
-		});
-
+		const shellArgs = buildShellArgs(execution.shell, execution.command, login);
 		const session: PtyExecSession = {
 			kind: "pty",
 			id: nextSessionId++,
 			command: input.cmd,
-			child,
+			child: undefined as unknown as ManagedPty,
 			buffer: "",
 			emittedBuffer: "",
 			exitCode: undefined,
 			listeners: new Set(),
+			releaseAbort: () => {},
 			interactive: true,
 			terminalCommitted: "",
 			terminalLine: [],
 			terminalCursor: 0,
 		};
-
-		child.onData((data) => {
-			appendOutput(session, data);
+		const child = await spawnManagedPty(shell, shellArgs, {
+			cwd: workdir,
+			env: execution.env,
+			name: process.env.TERM || "xterm-256color",
+			cols: 80,
+			rows: 24,
+			backend: ptyBackend,
+			onBackend: options.onPtyBackend,
+			onData: (data) => appendOutput(session, data),
+			onExit: (exitCode) => {
+				session.exitCode = exitCode;
+				finalizeSession(session);
+			},
 		});
-		child.onExit(({ exitCode }) => {
-			session.exitCode = exitCode ?? 0;
-			finalizeSession(session);
-		});
+		session.child = child;
 
-		registerAbortHandler(signal, () => {
-			if (session.exitCode === undefined) {
-				child.kill();
-			}
+		session.releaseAbort = registerAbortHandler(signal, () => {
+			if (session.exitCode === undefined) child.kill();
 		});
 
 		return session;
@@ -541,7 +559,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 			const shell = resolveShell(input.shell);
 			const workdir = resolveWorkdir(cwd, input.workdir);
 			const session = input.tty
-				? createPtySession(input, workdir, shell, signal)
+				? await createPtySession(input, workdir, shell, signal)
 				: createPipeSession(input, workdir, shell, signal);
 			sessions.set(session.id, session);
 			rememberCommand(session.id, session.command);
@@ -587,14 +605,10 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 		},
 		shutdown: () => {
 			for (const session of sessions.values()) {
-				if (session.exitCode !== undefined) {
-					continue;
-				}
-				if (session.kind === "pty") {
-					session.child.kill();
-				} else {
-					session.child.kill("SIGTERM");
-				}
+				session.releaseAbort();
+				if (session.exitCode !== undefined) continue;
+				if (session.kind === "pty") session.child.dispose();
+				else session.child.kill("SIGTERM");
 			}
 			sessions.clear();
 			commandHistory.clear();
