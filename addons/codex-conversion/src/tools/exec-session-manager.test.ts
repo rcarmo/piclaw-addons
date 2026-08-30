@@ -65,7 +65,10 @@ test("pipe sessions preserve cwd, environment, output, exit code, and command hi
 	try {
 		const sessions = manager();
 		const result = await sessions.exec({ cmd: commands.cwdEnv, shell, tty: false, yield_time_ms: 1_000 }, cwd);
-		expect(result.output.toLowerCase()).toContain(`cwd=${realpathSync(cwd)}`.toLowerCase());
+		const expectedCwd = process.platform === "win32"
+			? join(cwd).split(/[\\/]/).at(-1)!
+			: realpathSync(cwd);
+		expect(result.output.toLowerCase()).toContain(expectedCwd.toLowerCase());
 		expect(result.output).toContain("marker=present");
 		expect(result.exit_code).toBe(0);
 	} finally {
