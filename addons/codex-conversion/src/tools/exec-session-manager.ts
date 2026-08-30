@@ -9,7 +9,7 @@ import {
 	isPowerShell,
 	isWindowsCommandShell,
 } from "../adapter/runtime-shell.ts";
-import { spawnManagedPty, type ManagedPty, type PtyBackendPreference } from "./pty-backend.ts";
+import { spawnManagedPty, type ManagedPty } from "./pty-backend.ts";
 
 export interface UnifiedExecResult {
 	chunk_id: string;
@@ -73,8 +73,6 @@ export interface ExecSessionManager {
 }
 
 export interface ExecSessionManagerOptions {
-	ptyBackend?: PtyBackendPreference;
-	onPtyBackend?: (backend: "bun" | "node-pty") => void;
 	defaultExecYieldTimeMs?: number;
 	defaultWriteYieldTimeMs?: number;
 	minNonInteractiveExecYieldTimeMs?: number;
@@ -361,16 +359,11 @@ function registerAbortHandler(signal: AbortSignal | undefined, onAbort: () => vo
 	return () => signal.removeEventListener("abort", abortListener);
 }
 
-function resolvePtyBackendPreference(value: unknown): PtyBackendPreference {
-	return value === "bun" || value === "node-pty" ? value : "auto";
-}
-
 export function createExecSessionManager(options: ExecSessionManagerOptions = {}): ExecSessionManager {
 	let nextSessionId = 1;
 	const sessions = new Map<number, ExecSession>();
 	const commandHistory = new Map<number, string>();
 	const exitListeners = new Set<(sessionId: number, command: string) => void>();
-	const ptyBackend = options.ptyBackend ?? resolvePtyBackendPreference(process.env.PICLAW_CODEX_PTY_BACKEND);
 	const defaultExecYieldTimeMs = options.defaultExecYieldTimeMs ?? DEFAULT_EXEC_YIELD_TIME_MS;
 	const defaultWriteYieldTimeMs = options.defaultWriteYieldTimeMs ?? DEFAULT_WRITE_YIELD_TIME_MS;
 	const minNonInteractiveExecYieldTimeMs = Math.min(
@@ -537,8 +530,6 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 			name: process.env.TERM || "xterm-256color",
 			cols: 80,
 			rows: 24,
-			backend: ptyBackend,
-			onBackend: options.onPtyBackend,
 			onData: (data) => appendOutput(session, data),
 			onExit: (exitCode) => {
 				session.exitCode = exitCode;

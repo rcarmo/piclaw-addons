@@ -16,7 +16,7 @@ The add-on activates only for supported Codex-like models and adapts those sessi
 
 Open **Settings → Add-Ons** and install **codex-conversion** from the catalog.
 
-Interactive sessions use Bun 1.4's native `Bun.Terminal` implementation on Linux, macOS, and Windows. The package retains `node-pty` as a temporary rollback dependency while the cross-platform compatibility matrix accumulates evidence. Set `PICLAW_CODEX_PTY_BACKEND=node-pty` to force rollback, or `PICLAW_CODEX_PTY_BACKEND=bun` to disable automatic fallback.
+Interactive sessions use Bun 1.4's native `Bun.Terminal` implementation on Linux, macOS, and Windows. No compiler, Python, `node-gyp`, or `node-pty` installation is required.
 
 ## Upstream
 
@@ -33,10 +33,8 @@ This package keeps the upstream source layout under `src/` and adapts imports to
 - `@earendil-works/pi-tui`
 - `@sinclair/typebox`
 
-It also declares upstream runtime dependencies (`node-gyp`, `node-pty`, `partial-json`, `web-tree-sitter`, `tree-sitter-bash`) so Piclaw's add-on installer can run a nested `bun install` for this package. `node-gyp` and `node-pty` remain package-local only for rollback; the default Bun backend does not load them.
+It declares the remaining upstream runtime dependencies (`partial-json`, `web-tree-sitter`, `tree-sitter-bash`) so Piclaw's add-on installer can run a nested `bun install` for this package. Native PTY dependencies are no longer required.
 
 ## Caveats
-
-The rollback `node-pty` dependency is native. Until it is removed in a follow-up release, installation can still require a compiler, `make`, and Python even though normal runtime sessions use `Bun.Terminal`. The Piclaw LXC and microVM images include that toolchain; very small deployments may need equivalent native-build tools.
 
 Bun's Windows ConPTY implementation differs from POSIX terminals in newline, raw-mode, Ctrl+C, and resize-signal details. The adapter tests semantic command behavior rather than byte-identical terminal output.

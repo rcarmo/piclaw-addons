@@ -39,9 +39,6 @@ jobs:
           bun-version: ${{ steps.bun-version.outputs.version }}
       - name: Install repository dependencies
         run: bun install --frozen-lockfile
-      - name: Install codex-conversion fallback dependencies
-        working-directory: addons/codex-conversion
-        run: bun install
       - name: Run Bun.Terminal manager and lifecycle tests
         run: bun test --max-concurrency=1 addons/codex-conversion/src/tools/exec-session-manager.test.ts addons/codex-conversion/src/tools/pty-backend.test.ts
       - name: Typecheck Earendil compatibility

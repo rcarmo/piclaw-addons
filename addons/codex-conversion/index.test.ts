@@ -34,8 +34,8 @@ test("codex-conversion package keeps upstream attribution and runtime dependenci
   expect(manifest.peerDependencies["@earendil-works/pi-ai"]).toBe("*");
   expect(manifest.peerDependencies["@earendil-works/pi-tui"]).toBe("*");
   expect(manifest.peerDependencies["@sinclair/typebox"]).toBe("*");
-  expect(manifest.dependencies["node-gyp"]).toBeTruthy();
-  expect(manifest.dependencies["node-pty"]).toBeTruthy();
+  expect(manifest.dependencies["node-gyp"]).toBeUndefined();
+  expect(manifest.dependencies["node-pty"]).toBeUndefined();
   expect(manifest.dependencies["partial-json"]).toBeTruthy();
   expect(manifest.dependencies["tree-sitter-bash"]).toBeTruthy();
   expect(manifest.dependencies["web-tree-sitter"]).toBeTruthy();

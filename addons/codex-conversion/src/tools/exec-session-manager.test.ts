@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -15,7 +15,6 @@ afterEach(() => {
 
 function manager(options: Parameters<typeof createExecSessionManager>[0] = {}): ExecSessionManager {
 	const value = createExecSessionManager({
-		ptyBackend: "bun",
 		defaultExecYieldTimeMs: 1_000,
 		defaultWriteYieldTimeMs: 250,
 		minNonInteractiveExecYieldTimeMs: 250,
@@ -26,14 +25,14 @@ function manager(options: Parameters<typeof createExecSessionManager>[0] = {}): 
 	return value;
 }
 
-const shell = process.platform === "win32" ? (process.env.ComSpec || "cmd.exe") : "/bin/bash";
+const shell = process.platform === "win32" ? "pwsh" : "/bin/bash";
 const commands = process.platform === "win32"
 	? {
-		print: (value: string) => `<nul set /p =${value}`,
-		cwdEnv: "<nul set /p =cwd=%cd%;marker=%CODEX_TEST_MARKER%",
-		interactive: "set /p value=& <nul set /p =input=%value%",
-		delay: "ping 127.0.0.1 -n 6 >nul",
-		exit: (code: number) => `exit /b ${code}`,
+		print: (value: string) => `[Console]::Write(${JSON.stringify(value)})`,
+		cwdEnv: `[Console]::Write("cwd=$((Get-Location).Path);marker=$env:CODEX_TEST_MARKER")`,
+		interactive: `$value = [Console]::In.ReadLine(); [Console]::Write("input=$value")`,
+		delay: "Start-Sleep -Seconds 5",
+		exit: (code: number) => `exit ${code}`,
 	}
 	: {
 		print: (value: string) => `printf %s ${JSON.stringify(value)}`,
@@ -66,7 +65,7 @@ test("pipe sessions preserve cwd, environment, output, exit code, and command hi
 	try {
 		const sessions = manager();
 		const result = await sessions.exec({ cmd: commands.cwdEnv, shell, tty: false, yield_time_ms: 1_000 }, cwd);
-		expect(result.output).toContain(`cwd=${cwd}`);
+		expect(result.output.toLowerCase()).toContain(`cwd=${realpathSync(cwd)}`.toLowerCase());
 		expect(result.output).toContain("marker=present");
 		expect(result.exit_code).toBe(0);
 	} finally {
@@ -76,18 +75,16 @@ test("pipe sessions preserve cwd, environment, output, exit code, and command hi
 });
 
 test("Bun PTY sessions preserve incremental output, interactive writes, and exit codes", async () => {
-	const backends: string[] = [];
-	const sessions = manager({ onPtyBackend: (backend) => backends.push(backend) });
+	const sessions = manager();
 	const started = await sessions.exec({ cmd: commands.interactive, shell, tty: true, yield_time_ms: 250 }, process.cwd());
 	expect(started.session_id).toBeNumber();
 	const sessionId = started.session_id!;
 	expect(sessions.hasSession(sessionId)).toBe(true);
 
-	const completed = await sessions.write({ session_id: sessionId, chars: "hello world\n", yield_time_ms: 1_000 });
+	const completed = await sessions.write({ session_id: sessionId, chars: process.platform === "win32" ? "hello world\r" : "hello world\n", yield_time_ms: 1_000 });
 	expect(completed.output).toContain("input=hello world");
 	expect(completed.exit_code).toBe(0);
 	expect(sessions.getSessionCommand(sessionId)).toBe(commands.interactive);
-	expect(backends).toEqual(["bun"]);
 });
 
 test("PTY output normalization handles ANSI cursor rewrites and output truncation", async () => {

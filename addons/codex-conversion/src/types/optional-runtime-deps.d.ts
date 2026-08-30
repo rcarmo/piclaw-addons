@@ -24,29 +24,3 @@ declare module "web-tree-sitter" {
 		namedChild(index: number): Node | null;
 	}
 }
-
-declare module "node-pty" {
-	export interface IDisposable {
-		dispose(): void;
-	}
-
-	export interface IPty {
-		onData(callback: (data: string) => void): IDisposable;
-		onExit(callback: (event: { exitCode: number; signal?: number | string }) => void): IDisposable;
-		write(data: string): void;
-		resize(columns: number, rows: number): void;
-		kill(signal?: string): void;
-	}
-
-	export function spawn(
-		file: string,
-		args: string[],
-		options?: {
-			cwd?: string;
-			env?: NodeJS.ProcessEnv;
-			name?: string;
-			cols?: number;
-			rows?: number;
-		},
-	): IPty;
-}
