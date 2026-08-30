@@ -14,7 +14,9 @@ The add-on activates only for supported Codex-like models and adapts those sessi
 
 ## Install
 
-Open **Settings → Add-Ons** and install **codex-conversion** from the catalog. The `node-pty` dependency requires a compiler, `make`, and Python during installation.
+Open **Settings → Add-Ons** and install **codex-conversion** from the catalog.
+
+Interactive sessions use Bun 1.4's native `Bun.Terminal` implementation on Linux, macOS, and Windows. No compiler, Python, `node-gyp`, or `node-pty` installation is required.
 
 ## Upstream
 
@@ -31,8 +33,8 @@ This package keeps the upstream source layout under `src/` and adapts imports to
 - `@earendil-works/pi-tui`
 - `@sinclair/typebox`
 
-It also declares upstream runtime dependencies (`node-gyp`, `node-pty`, `partial-json`, `web-tree-sitter`, `tree-sitter-bash`) so Piclaw's add-on installer can run a nested `bun install` for this package. `node-gyp` is package-local rather than a host-global prerequisite.
+It declares the remaining upstream runtime dependencies (`partial-json`, `web-tree-sitter`, `tree-sitter-bash`) so Piclaw's add-on installer can run a nested `bun install` for this package. Native PTY dependencies are no longer required.
 
 ## Caveats
 
-`node-pty` is a native dependency. Installation requires a compiler, `make`, and Python. The Piclaw LXC and microVM images include that toolchain; very small deployments may need equivalent native-build tools.
+Bun's Windows ConPTY implementation differs from POSIX terminals in newline, raw-mode, Ctrl+C, and resize-signal details. The adapter tests semantic command behavior rather than byte-identical terminal output.
