@@ -35,8 +35,8 @@ The pane loads/saves non-secret settings through the direct backend add-on confi
 | **Host** | text | — | Graphite/Carbon receiver host, e.g. `192.168.1.250` |
 | **Port** | number | 2003 | Carbon plaintext port |
 | **Metric prefix** | fixed | `piclaw` | Root prefix for all Graphite metric paths |
-| **Export token usage** | checkbox | off | Export local `token_usage` aggregates by instance, provider, and model. Requires Graphite enabled. |
-| **Export interval** | number | 15 min | Token-ledger aggregation cadence (1–60 minutes). |
+| **Export usage and compaction telemetry** | checkbox | off | Export local `token_usage` aggregates plus bounded compaction timing/outcome metrics by instance and model. Requires Graphite enabled. |
+| **Export interval** | number | 15 min | Durable usage/compaction export cadence (1–60 minutes). |
 | **Graphite render URL** | text | — | Optional endpoint used by the bundled `usage-telemetry-chart` SVG helper. |
 
 ## Storage model
@@ -345,6 +345,7 @@ piclaw.smith.dream.duration_ms 45000 1745828400
 
 # Compaction (provider/model/method/execution/trigger/outcome/timeout-stage)
 piclaw.compaction.smith.local.fast-summary.selective.single_pass.manual.success.none.attempt.count 1 1745828400
+piclaw.compaction.smith.local.fast-summary.selective.single_pass.manual.success.none.input.tokens 48000 1745828400
 piclaw.compaction.smith.local.fast-summary.selective.single_pass.manual.success.none.duration.ttft_ms 700 1745828400
 piclaw.compaction.smith.local.fast-summary.selective.single_pass.manual.success.none.duration.total_ms 1200 1745828400
 ```

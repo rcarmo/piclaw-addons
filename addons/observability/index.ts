@@ -925,7 +925,6 @@ function bridgeSink(record: LogRecord): void {
       kind: SpanKind.INTERNAL,
       attributes: {
         "piclaw.instance": i,
-        "piclaw.compaction.generation_id": readRecordString(record, "generationId") || "unknown",
         "piclaw.compaction.trigger": readRecordString(record, "trigger") || "unknown",
         "piclaw.compaction.method": readRecordString(record, "method") || "unknown",
         "piclaw.compaction.execution": readRecordString(record, "execution") || "unknown",

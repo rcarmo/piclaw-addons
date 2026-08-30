@@ -15,7 +15,7 @@ function createSchema(path: string) {
   const db = new Database(path);
   db.run(`CREATE TABLE compaction_telemetry (
     id INTEGER PRIMARY KEY AUTOINCREMENT, generation_id TEXT UNIQUE, recorded_at TEXT, trigger TEXT, method TEXT,
-    execution TEXT, outcome TEXT, provider TEXT, model TEXT, timeout_stage TEXT, total_duration_ms INTEGER,
+    execution TEXT, outcome TEXT, provider TEXT, model TEXT, timeout_stage TEXT, input_tokens INTEGER, total_duration_ms INTEGER,
     deterministic_duration_ms INTEGER, time_to_first_token_ms INTEGER, provider_generation_ms INTEGER,
     provider_request_count INTEGER, processed_chunk_count INTEGER, total_chunk_count INTEGER, settlement_timed_out INTEGER
   )`);
@@ -29,7 +29,7 @@ test("collector no-ops safely when the core table is absent", () => {
 
 test("collector exports bounded Graphite paths without chat or secret data", () => {
   const path = dbPath(); const db = createSchema(path);
-  db.run(`INSERT INTO compaction_telemetry VALUES (NULL, 'gen-1', '2026-08-30T00:00:00Z', 'manual', 'selective', 'single_pass', 'success', 'local', 'fast-summary', NULL, 1200, 200, 700, 300, 1, NULL, NULL, 0)`);
+  db.run(`INSERT INTO compaction_telemetry VALUES (NULL, 'gen-1', '2026-08-30T00:00:00Z', 'manual', 'selective', 'single_pass', 'success', 'local', 'fast-summary', NULL, 48000, 1200, 200, 700, 300, 1, NULL, NULL, 0)`);
   db.close();
   const batch = collectCompactionTelemetry(config, { id: 0 }, new Date("2026-08-30T00:01:00Z"), path)!;
   expect(batch.checkpoint.id).toBe(1);
@@ -44,7 +44,7 @@ test("collector exports bounded Graphite paths without chat or secret data", () 
 
 test("export spools, sends, and advances its durable checkpoint", async () => {
   const path = dbPath(); const db = createSchema(path);
-  db.run(`INSERT INTO compaction_telemetry VALUES (NULL, 'gen-1', '2026-08-30T00:00:00Z', 'manual', 'selective', 'single_pass', 'success', 'local', 'fast-summary', NULL, 1200, 200, 700, 300, 1, NULL, NULL, 0)`);
+  db.run(`INSERT INTO compaction_telemetry VALUES (NULL, 'gen-1', '2026-08-30T00:00:00Z', 'manual', 'selective', 'single_pass', 'success', 'local', 'fast-summary', NULL, 48000, 1200, 200, 700, 300, 1, NULL, NULL, 0)`);
   db.close();
   const received: string[] = [];
   const server = createServer(socket => socket.on("data", data => received.push(data.toString())));

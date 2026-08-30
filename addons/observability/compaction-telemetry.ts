@@ -14,7 +14,7 @@ export interface CompactionTelemetryConfig {
 
 interface CompactionRow {
   id: number; recorded_at: string; trigger: string; method: string; execution: string; outcome: string;
-  provider: string | null; model: string | null; timeout_stage: string | null;
+  provider: string | null; model: string | null; timeout_stage: string | null; input_tokens: number | null;
   total_duration_ms: number; deterministic_duration_ms: number | null; time_to_first_token_ms: number | null;
   provider_generation_ms: number | null; provider_request_count: number;
   processed_chunk_count: number | null; total_chunk_count: number | null; settlement_timed_out: number;
@@ -66,6 +66,7 @@ export function collectCompactionTelemetry(
       const base = [...prefixSegments, row.provider, row.model, row.method, row.execution, row.trigger, row.outcome, row.timeout_stage || "none"].map(graphiteSegment).join(".");
       const values: Record<string, number | null> = {
         "attempt.count": 1,
+        "input.tokens": row.input_tokens,
         "duration.total_ms": row.total_duration_ms,
         "duration.deterministic_ms": row.deterministic_duration_ms,
         "duration.ttft_ms": row.time_to_first_token_ms,

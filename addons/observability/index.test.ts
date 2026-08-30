@@ -43,6 +43,7 @@ test("observability consumes bounded durable compaction telemetry without a seco
   const block = source.slice(source.indexOf('if (op === "compaction.telemetry")'), source.indexOf('if (op === "get_or_create.create_main_session")'));
   expect(block).not.toContain("errorMessage");
   expect(block).not.toContain("chat_jid");
+  expect(block).not.toContain("generation_id");
 });
 
 test("process runtime is not torn down by individual session shutdown hooks", () => {
