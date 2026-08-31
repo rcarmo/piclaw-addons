@@ -45,4 +45,28 @@ describe("late-night-regrets", () => {
     expect(typeof mod.getTrainScriptPath).toBe("function");
     expect(typeof mod.getAttentionFilePath).toBe("function");
   });
+
+  test("/regrets uses the supported working-message UI API", async () => {
+    const mod = await import("./index.ts");
+    let handler: ((args: string, ctx: unknown) => Promise<void>) | undefined;
+    mod.default({
+      on: () => {},
+      registerCommand: (name: string, definition: { handler: typeof handler }) => {
+        if (name === "regrets") handler = definition.handler;
+      },
+    } as any);
+
+    const workingMessages: Array<string | undefined> = [];
+    const notifications: string[] = [];
+    expect(handler).toBeDefined();
+    await handler!("", {
+      ui: {
+        setWorkingMessage: (message?: string) => workingMessages.push(message),
+        notify: (message: string) => notifications.push(message),
+      },
+    });
+
+    expect(workingMessages).toEqual(["Running interaction quality classifier…"]);
+    expect(notifications).toEqual(["Running Late Night Regrets classifier and reflection…"]);
+  });
 });

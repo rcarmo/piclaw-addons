@@ -142,7 +142,7 @@ export default function lateNightRegretsExtension(pi: ExtensionAPI): void {
         ctx.ui.notify("Late Night Regrets is disabled in settings.", "warning");
         return;
       }
-      ctx.ui.setWorking("Running interaction quality classifier…");
+      ctx.ui.setWorkingMessage("Running interaction quality classifier…");
       ctx.ui.notify("Running Late Night Regrets classifier and reflection…", "info");
     },
   });
