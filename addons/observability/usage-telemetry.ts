@@ -34,6 +34,25 @@ export function graphiteSegment(value: unknown): string {
   return normalized || "unknown";
 }
 
+function graphiteRoot(prefix: string): string {
+  return prefix.split(".").map(graphiteSegment).join(".");
+}
+
+export function instanceFirstMetricPrefix(prefix: string, instance: string, category: string): string {
+  return `${graphiteRoot(prefix)}.${graphiteSegment(instance)}.${graphiteSegment(category)}`;
+}
+
+/** Rewrite queued pre-0.1.14 category-first paths before sending them to Carbon. */
+export function migrateLegacyCategoryMetricPath(path: string, prefix: string, category: string): string {
+  const root = graphiteRoot(prefix);
+  const normalizedCategory = graphiteSegment(category);
+  const legacyPrefix = `${root}.${normalizedCategory}.`;
+  if (!path.startsWith(legacyPrefix)) return path;
+  const [instance, ...suffix] = path.slice(legacyPrefix.length).split(".");
+  if (!instance || suffix.length === 0) return path;
+  return `${root}.${instance}.${normalizedCategory}.${suffix.join(".")}`;
+}
+
 function stateDir(dbPath: string): string { return join(dirname(dbPath), "usage-telemetry"); }
 function statePath(dbPath: string): string { return join(stateDir(dbPath), "state.json"); }
 function spoolPath(dbPath: string): string { return join(stateDir(dbPath), "spool.jsonl"); }
@@ -86,7 +105,7 @@ export function collectUsage(config: UsageTelemetryConfig, checkpoint: Checkpoin
         for (const field of ["input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens", "reasoning_tokens", "total_tokens", "cost_total"] as const) found[field] += row[field];
       } else aggregate.set(key, { ...row });
     }
-    const prefix = `${config.graphite_prefix.split(".").map(graphiteSegment).join(".")}.usage.${graphiteSegment(instanceId(config))}`;
+    const prefix = instanceFirstMetricPrefix(config.graphite_prefix, instanceId(config), "usage");
     const timestamp = Math.floor(now.getTime() / 1000);
     const points: MetricPoint[] = [];
     for (const row of aggregate.values()) {
@@ -142,7 +161,11 @@ export async function flushSpool(config: UsageTelemetryConfig, dbPath = messages
   const batches = loadSpool(dbPath);
   let sent = 0;
   while (batches.length) {
-    await sendCarbon(config.graphite_host, config.graphite_port, batches[0].points);
+    const points = batches[0].points.map(point => ({
+      ...point,
+      path: migrateLegacyCategoryMetricPath(point.path, config.graphite_prefix, "usage"),
+    }));
+    await sendCarbon(config.graphite_host, config.graphite_port, points);
     batches.shift(); sent += 1;
     saveSpool(batches, dbPath);
   }

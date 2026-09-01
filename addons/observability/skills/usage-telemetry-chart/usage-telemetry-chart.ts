@@ -1,18 +1,21 @@
 import { parseArgs } from "node:util";
 import { writeFileSync } from "node:fs";
 
-const args = parseArgs({ options: { "render-url": { type: "string" }, prefix: { type: "string", default: "piclaw.usage" }, metric: { type: "string", default: "tokens.total" }, days: { type: "string", default: "7" }, instance: { type: "string" }, provider: { type: "string" }, model: { type: "string" }, output: { type: "string" } } }).values;
+const args = parseArgs({ options: { "render-url": { type: "string" }, prefix: { type: "string", default: "piclaw" }, metric: { type: "string", default: "tokens.total" }, days: { type: "string", default: "7" }, instance: { type: "string" }, provider: { type: "string" }, model: { type: "string" }, output: { type: "string" } } }).values;
 if (!args["render-url"]) throw new Error("--render-url is required");
 const days = Math.max(1, Math.min(90, Number(args.days) || 7));
 const prefix = args.prefix!;
-const target = `${prefix}.*.*.*.${args.metric}`;
+const target = `${prefix}.*.usage.*.*.${args.metric}`;
 const url = new URL("render", args["render-url"]!.endsWith("/") ? args["render-url"] : `${args["render-url"]}/`);
 url.searchParams.set("target", target); url.searchParams.set("from", `-${days}days`); url.searchParams.set("format", "json");
 const response = await fetch(url); if (!response.ok) throw new Error(`Graphite returned ${response.status}`);
 const series = await response.json() as Array<{ target: string; datapoints: Array<[number | null, number]> }>;
 const filter = (target: string) => {
   const segments = target.split("."); const base = prefix.split(".").length;
-  return (!args.instance || segments[base] === args.instance) && (!args.provider || segments[base + 1] === args.provider) && (!args.model || segments[base + 2] === args.model);
+  return segments[base + 1] === "usage"
+    && (!args.instance || segments[base] === args.instance)
+    && (!args.provider || segments[base + 2] === args.provider)
+    && (!args.model || segments[base + 3] === args.model);
 };
 const byInstance = new Map<string, Map<string, number>>();
 for (const item of series.filter(item => filter(item.target))) {
