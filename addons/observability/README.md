@@ -186,7 +186,7 @@ Browser telemetry is intentionally absent. The web entry only registers the Sett
 | `run_agent.attempt_failed` | `provider.error` (exception) | `recovery.attempts`, `provider.error.<classifier>` |
 | `tool.call.start/end` | `tool.call` (**dependency-style** child span of `agent.turn`) | `tool.<name>.count`, `tool.<name>.duration_ms` |
 | `dream.complete` | `dream` | `dream.duration_ms` |
-| `compaction.telemetry` | `compaction` | durable `compaction.<instance>.<provider>.<model>.<method>.<execution>.<trigger>.<outcome>.<timeout-stage>.*` metrics |
+| `compaction.telemetry` | `compaction` | durable `<instance>.compaction.<provider>.<model>.<method>.<execution>.<trigger>.<outcome>.<timeout-stage>.*` metrics |
 | `get_or_create.create_main_session` | — | `session.created` |
 | `evict_idle.*` | — | `session.evicted` |
 | Any warn/error with `operation` | `log.warn` / `log.error` | — |
@@ -343,11 +343,15 @@ piclaw.smith.session.evicted 1 1745828400
 # Dream
 piclaw.smith.dream.duration_ms 45000 1745828400
 
+# Durable usage (provider/model/metric)
+piclaw.smith.usage.github-copilot.gpt_5_6_sol.tokens.total 48000 1745828400
+piclaw.smith.usage.github-copilot.gpt_5_6_sol.cost.estimated_usd 0.24 1745828400
+
 # Compaction (provider/model/method/execution/trigger/outcome/timeout-stage)
-piclaw.compaction.smith.local.fast-summary.selective.single_pass.manual.success.none.attempt.count 1 1745828400
-piclaw.compaction.smith.local.fast-summary.selective.single_pass.manual.success.none.input.tokens 48000 1745828400
-piclaw.compaction.smith.local.fast-summary.selective.single_pass.manual.success.none.duration.ttft_ms 700 1745828400
-piclaw.compaction.smith.local.fast-summary.selective.single_pass.manual.success.none.duration.total_ms 1200 1745828400
+piclaw.smith.compaction.local.fast-summary.selective.single_pass.manual.success.none.attempt.count 1 1745828400
+piclaw.smith.compaction.local.fast-summary.selective.single_pass.manual.success.none.input.tokens 48000 1745828400
+piclaw.smith.compaction.local.fast-summary.selective.single_pass.manual.success.none.duration.ttft_ms 700 1745828400
+piclaw.smith.compaction.local.fast-summary.selective.single_pass.manual.success.none.duration.total_ms 1200 1745828400
 ```
 
 Queryable as:
@@ -356,8 +360,11 @@ Queryable as:
 piclaw.*.agent.turn.error          # errors across all instances
 piclaw.smith.tool.*.duration_ms    # all tool durations on smith
 piclaw.relay.provider.error.*      # all provider errors on relay
-piclaw.compaction.*.*.*.*.*.*.*.*.duration.ttft_ms  # TTFT across bounded compaction dimensions
+piclaw.*.usage.*.*.tokens.total    # usage across all instances
+piclaw.*.compaction.*.*.*.*.*.*.*.duration.ttft_ms  # TTFT across bounded compaction dimensions
 ```
+
+Version 0.1.14 changed durable metrics from `piclaw.usage.<instance>...` and `piclaw.compaction.<instance>...` to the instance-first paths above. Existing Graphite history stays under the old paths. The exporters rewrite pending local retry-spool entries before sending them, but they do not dual-write or copy historical Graphite data.
 
 ### Azure Application Insights views
 

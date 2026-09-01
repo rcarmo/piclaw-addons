@@ -3,7 +3,13 @@ import { createConnection } from "node:net";
 import { hostname } from "node:os";
 import { dirname, join } from "node:path";
 import { Database } from "bun:sqlite";
-import { graphiteSegment, messagesDbPath, type MetricPoint } from "./usage-telemetry.js";
+import {
+  graphiteSegment,
+  instanceFirstMetricPrefix,
+  messagesDbPath,
+  migrateLegacyCategoryMetricPath,
+  type MetricPoint,
+} from "./usage-telemetry.js";
 
 export interface CompactionTelemetryConfig {
   graphite_host: string;
@@ -60,10 +66,11 @@ export function collectCompactionTelemetry(
     const rows = db.query("SELECT * FROM compaction_telemetry WHERE id > ? ORDER BY id LIMIT 2000").all(checkpoint.id) as CompactionRow[];
     if (!rows.length) return null;
     const timestamp = Math.floor(now.getTime() / 1000);
-    const prefixSegments = [...config.graphite_prefix.split("."), "compaction", instance(config)].map(graphiteSegment);
+    const prefix = instanceFirstMetricPrefix(config.graphite_prefix, instance(config), "compaction");
     const points: MetricPoint[] = [];
     for (const row of rows) {
-      const base = [...prefixSegments, row.provider, row.model, row.method, row.execution, row.trigger, row.outcome, row.timeout_stage || "none"].map(graphiteSegment).join(".");
+      const dimensions = [row.provider, row.model, row.method, row.execution, row.trigger, row.outcome, row.timeout_stage || "none"].map(graphiteSegment).join(".");
+      const base = `${prefix}.${dimensions}`;
       const values: Record<string, number | null> = {
         "attempt.count": 1,
         "input.tokens": row.input_tokens,
@@ -110,6 +117,13 @@ export async function exportCompactionTelemetry(config: CompactionTelemetryConfi
   const batches = loadSpool(dbPath);
   if (batch) { batches.push(batch); saveSpool(batches, dbPath); saveCheckpoint(batch.checkpoint, dbPath); }
   let sent = 0;
-  while (batches.length) { await send(config.graphite_host, config.graphite_port, batches[0].points); batches.shift(); sent += 1; saveSpool(batches, dbPath); }
+  while (batches.length) {
+    const points = batches[0].points.map(point => ({
+      ...point,
+      path: migrateLegacyCategoryMetricPath(point.path, config.graphite_prefix, "compaction"),
+    }));
+    await send(config.graphite_host, config.graphite_port, points);
+    batches.shift(); sent += 1; saveSpool(batches, dbPath);
+  }
   return { batches: sent, points: batch?.points.length ?? 0 };
 }
