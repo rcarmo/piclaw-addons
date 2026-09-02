@@ -5,10 +5,10 @@
 /**
  *
  * Class: mxMorphing
- * 
+ *
  * Implements animation for morphing cells. Here is an example of
  * using this class for animating the result of a layout algorithm:
- * 
+ *
  * (code)
  * graph.getModel().beginUpdate();
  * try
@@ -23,17 +23,17 @@
  *   {
  *     graph.getModel().endUpdate();
  *   });
- *   
+ *
  *   morph.startAnimation();
  * }
  * (end)
- * 
+ *
  * Constructor: mxMorphing
- * 
+ *
  * Constructs an animation.
- * 
+ *
  * Parameters:
- * 
+ *
  * graph - Reference to the enclosing <mxGraph>.
  * steps - Optional number of steps in the morphing animation. Default is 6.
  * ease - Optional easing constant for the animation. Default is 1.5.
@@ -55,28 +55,28 @@ mxMorphing.prototype.constructor = mxMorphing;
 
 /**
  * Variable: graph
- * 
+ *
  * Specifies the delay between the animation steps. Defaul is 30ms.
  */
 mxMorphing.prototype.graph = null;
 
 /**
  * Variable: steps
- * 
+ *
  * Specifies the maximum number of steps for the morphing.
  */
 mxMorphing.prototype.steps = null;
 
 /**
  * Variable: step
- * 
+ *
  * Contains the current step.
  */
 mxMorphing.prototype.step = 0;
 
 /**
  * Variable: ease
- * 
+ *
  * Ease-off for movement towards the given vector. Larger values are
  * slower and smoother. Default is 4.
  */
@@ -84,7 +84,7 @@ mxMorphing.prototype.ease = null;
 
 /**
  * Variable: cells
- * 
+ *
  * Optional array of cells to be animated. If this is not specified
  * then all cells are checked and animated if they have been moved
  * in the current transaction.
@@ -115,9 +115,9 @@ mxMorphing.prototype.updateAnimation = function()
 		// the changed cells but not for the animation itself
 		this.animateCell(this.graph.getModel().getRoot(), move, true);
 	}
-	
+
 	this.show(move);
-	
+
 	if (move.isEmpty() || this.step++ >= this.steps)
 	{
 		this.stopAnimation();
@@ -154,14 +154,14 @@ mxMorphing.prototype.animateCell = function(cell, move, recurse)
 		{
 			var translate = this.graph.view.getTranslate();
 			var scale = this.graph.view.getScale();
-			
+
 			delta.x += translate.x * scale;
 			delta.y += translate.y * scale;
-			
+
 			move.moveState(state, -delta.x / this.ease, -delta.y / this.ease);
 		}
 	}
-	
+
 	if (recurse && !this.stopRecursion(state, delta))
 	{
 		var childCount = this.graph.getModel().getChildCount(cell);
@@ -211,20 +211,20 @@ mxMorphing.prototype.getDelta = function(state)
 mxMorphing.prototype.getOriginForCell = function(cell)
 {
 	var result = null;
-	
+
 	if (cell != null)
 	{
 		var parent = this.graph.getModel().getParent(cell);
 		var geo = this.graph.getCellGeometry(cell);
 		result = this.getOriginForCell(parent);
-		
+
 		// TODO: Handle offsets
 		if (geo != null)
 		{
 			if (geo.relative)
 			{
 				var pgeo = this.graph.getCellGeometry(parent);
-				
+
 				if (pgeo != null)
 				{
 					result.x += geo.x * pgeo.width;
@@ -238,12 +238,12 @@ mxMorphing.prototype.getOriginForCell = function(cell)
 			}
 		}
 	}
-	
+
 	if (result == null)
 	{
 		var t = this.graph.view.getTranslate();
 		result = new mxPoint(-t.x, -t.y);
 	}
-	
+
 	return result;
 };

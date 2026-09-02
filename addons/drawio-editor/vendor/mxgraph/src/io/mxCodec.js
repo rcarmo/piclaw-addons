@@ -8,9 +8,9 @@
  * XML codec for JavaScript object graphs. See <mxObjectCodec> for a
  * description of the general encoding/decoding scheme. This class uses the
  * codecs registered in <mxCodecRegistry> for encoding/decoding each object.
- * 
+ *
  * References:
- * 
+ *
  * In order to resolve references, especially forward references, the mxCodec
  * constructor must be given the document that contains the referenced
  * elements.
@@ -24,82 +24,82 @@
  * var result = encoder.encode(graph.getModel());
  * var xml = mxUtils.getXml(result);
  * (end)
- * 
+ *
  * Example:
- * 
+ *
  * Using the code below, an XML document is decoded into an existing model. The
  * document may be obtained using one of the functions in mxUtils for loading
  * an XML file, eg. <mxUtils.get>, or using <mxUtils.parseXml> for parsing an
  * XML string.
- * 
+ *
  * (code)
  * var doc = mxUtils.parseXml(xmlString);
  * var codec = new mxCodec(doc);
  * codec.decode(doc.documentElement, graph.getModel());
  * (end)
- * 
+ *
  * Example:
- * 
+ *
  * This example demonstrates parsing a list of isolated cells into an existing
  * graph model. Note that the cells do not have a parent reference so they can
  * be added anywhere in the cell hierarchy after parsing.
- * 
+ *
  * (code)
  * var xml = '<root><mxCell id="2" value="Hello," vertex="1"><mxGeometry x="20" y="20" width="80" height="30" as="geometry"/></mxCell><mxCell id="3" value="World!" vertex="1"><mxGeometry x="200" y="150" width="80" height="30" as="geometry"/></mxCell><mxCell id="4" value="" edge="1" source="2" target="3"><mxGeometry relative="1" as="geometry"/></mxCell></root>';
  * var doc = mxUtils.parseXml(xml);
  * var codec = new mxCodec(doc);
  * var elt = doc.documentElement.firstChild;
  * var cells = [];
- * 
+ *
  * while (elt != null)
  * {
  *   cells.push(codec.decode(elt));
  *   elt = elt.nextSibling;
  * }
- * 
+ *
  * graph.addCells(cells);
  * (end)
- * 
+ *
  * Example:
- * 
+ *
  * Using the following code, the selection cells of a graph are encoded and the
  * output is displayed in a dialog box.
- * 
+ *
  * (code)
  * var enc = new mxCodec();
  * var cells = graph.getSelectionCells();
  * mxUtils.alert(mxUtils.getPrettyXml(enc.encode(cells)));
  * (end)
- * 
+ *
  * Newlines in the XML can be converted to <br>, in which case a '<br>' argument
  * must be passed to <mxUtils.getXml> as the second argument.
- * 
+ *
  * Debugging:
- * 
+ *
  * For debugging I/O you can use the following code to get the sequence of
  * encoded objects:
- * 
+ *
  * (code)
  * var oldEncode = mxCodec.prototype.encode;
  * mxCodec.prototype.encode = function(obj)
  * {
  *   mxLog.show();
  *   mxLog.debug('mxCodec.encode: obj='+mxUtils.getFunctionName(obj.constructor));
- *   
+ *
  *   return oldEncode.apply(this, arguments);
  * };
  * (end)
- * 
+ *
  * Note that the I/O system adds object codecs for new object automatically. For
  * decoding those objects, the constructor should be written as follows:
- * 
+ *
  * (code)
  * var MyObj = function(name)
  * {
  *   // ...
  * };
  * (end)
- * 
+ *
  * Constructor: mxCodec
  *
  * Constructs an XML encoder/decoder for the specified
@@ -114,8 +114,13 @@
 function mxCodec(document)
 {
 	this.document = document || mxUtils.createXmlDocument();
-	this.duplicates = [];
-	this.objects = [];
+	this.duplicates = Object.create(null);
+	// Uses a null prototype as object IDs are untrusted (cell IDs and idrefs
+	// such as source/target/parent) so that IDs like __proto__ or constructor
+	// are stored and looked up as regular entries instead of resolving to
+	// inherited members (eg. an edge terminal ref of __proto__ returning
+	// Array.prototype, which mxObjectIdentity would then pollute).
+	this.objects = Object.create(null);
 };
 
 /**
@@ -142,7 +147,7 @@ mxCodec.prototype.objects = null;
 
 /**
  * Variable: elements
- * 
+ *
  * Lookup table for resolving IDs to elements.
  */
 mxCodec.prototype.elements = null;
@@ -164,11 +169,11 @@ mxCodec.prototype.encodeDefaults = false;
 
 /**
  * Function: putObject
- * 
+ *
  * Assoiates the given object with the given ID and returns the given object.
- * 
+ *
  * Parameters
- * 
+ *
  * id - ID for the object to be associated with.
  * obj - Object to be associated with the ID.
  */
@@ -183,9 +188,9 @@ mxCodec.prototype.putObject = function(id, obj)
 
 		return obj;
 	}
-	
+
 	this.objects[id] = obj;
-	
+
 	return obj;
 };
 
@@ -204,15 +209,15 @@ mxCodec.prototype.getObject = function(id)
 	if (id != null)
 	{
 		obj = this.objects[id];
-		
+
 		if (obj == null)
 		{
 			obj = this.lookup(id);
-			
+
 			if (obj == null)
 			{
 				var node = this.getElementById(id);
-				
+
 				if (node != null)
 				{
 					obj = this.decode(node);
@@ -220,7 +225,7 @@ mxCodec.prototype.getObject = function(id)
 			}
 		}
 	}
-	
+
 	return obj;
 };
 
@@ -278,8 +283,10 @@ mxCodec.prototype.updateElements = function()
 {
 	if (this.elements == null)
 	{
-		this.elements = new Object();
-		
+		// Null prototype: element IDs come from untrusted XML so IDs such as
+		// __proto__ must not resolve to inherited object members.
+		this.elements = Object.create(null);
+
 		if (this.document.documentElement != null)
 		{
 			this.addElement(this.document.documentElement);
@@ -297,7 +304,7 @@ mxCodec.prototype.addElement = function(node)
 	if (node.nodeType == mxConstants.NODETYPE_ELEMENT)
 	{
 		var id = node.getAttribute('id');
-		
+
 		if (id != null)
 		{
 			if (this.elements[id] == null)
@@ -316,9 +323,9 @@ mxCodec.prototype.addElement = function(node)
 			}
 		}
 	}
-	
+
 	node = node.firstChild;
-	
+
 	while (node != null)
 	{
 		this.addElement(node);
@@ -353,20 +360,20 @@ mxCodec.prototype.isObjectIgnored = function(obj)
 mxCodec.prototype.getId = function(obj)
 {
 	var id = null;
-	
+
 	if (obj != null && !this.isObjectIgnored(obj))
 	{
 		id = this.reference(obj);
-		
+
 		if (id == null && obj instanceof mxCell)
 		{
 			id = obj.getId();
-			
+
 			if (id == null)
 			{
 				// Uses an on-the-fly Id
 				id = mxCellPath.create(obj);
-				
+
 				if (id.length == 0)
 				{
 					id = 'root';
@@ -374,7 +381,7 @@ mxCodec.prototype.getId = function(obj)
 			}
 		}
 	}
-	
+
 	return id;
 };
 
@@ -412,16 +419,16 @@ mxCodec.prototype.reference = function(obj)
  *
  * Parameters:
  *
- * obj - Object to be encoded. 
+ * obj - Object to be encoded.
  */
 mxCodec.prototype.encode = function(obj)
 {
 	var node = null;
-	
+
 	if (obj != null && obj.constructor != null && !this.isObjectIgnored(obj))
 	{
 		var enc = mxCodecRegistry.getCodec(obj.constructor);
-		
+
 		if (enc != null)
 		{
 			node = enc.encode(this, obj);
@@ -434,12 +441,12 @@ mxCodec.prototype.encode = function(obj)
 			}
 			else
 			{
-	    		mxLog.warn('mxCodec.encode: No codec for ' +
+			mxLog.warn('mxCodec.encode: No codec for ' +
 					mxUtils.getFunctionName(obj.constructor));
 			}
 		}
 	}
-	
+
 	return node;
 };
 
@@ -463,12 +470,12 @@ mxCodec.prototype.decode = function(node, into)
 {
 	this.updateElements();
 	var obj = null;
-	
+
 	if (node != null && node.nodeType == mxConstants.NODETYPE_ELEMENT)
 	{
 		var ctor = this.getConstructor(node.nodeName);
 		var dec = mxCodecRegistry.getCodec(ctor);
-		
+
 		if (dec != null)
 		{
 			obj = dec.decode(this, node, into);
@@ -479,13 +486,13 @@ mxCodec.prototype.decode = function(node, into)
 			obj.removeAttribute('as');
 		}
 	}
-	
+
 	return obj;
 };
 
 /**
  * Function: isConstructorAllowed
- * 
+ *
  * Returns true if the given constructor name is allowed to be
  * instantiated.
  *
@@ -511,7 +518,7 @@ mxCodec.prototype.isConstructorAllowed = function(name)
 mxCodec.prototype.getConstructor = function(name)
 {
 	var ctor = null;
-	
+
 	try
 	{
 		if (this.isConstructorAllowed(name))
@@ -545,7 +552,7 @@ mxCodec.prototype.getConstructor = function(name)
  * cell - <mxCell> to be encoded.
  * node - Parent XML node to add the encoded cell into.
  * includeChildren - Optional boolean indicating if the
- * function should include all descendents. Default is true. 
+ * function should include all descendents. Default is true.
  */
 mxCodec.prototype.encodeCell = function(cell, node, includeChildren)
 {
@@ -557,11 +564,11 @@ mxCodec.prototype.encodeCell = function(cell, node, includeChildren)
 		{
 			node.appendChild(cellNode);
 		}
-		
+
 		if (includeChildren == null || includeChildren)
 		{
 			var childCount = cell.getChildCount();
-			
+
 			for (var i = 0; i < childCount; i++)
 			{
 				this.encodeCell(cell.getChildAt(i), node);
@@ -572,7 +579,7 @@ mxCodec.prototype.encodeCell = function(cell, node, includeChildren)
 
 /**
  * Function: isCellCodec
- * 
+ *
  * Returns true if the given codec is a cell codec. This uses
  * <mxCellCodec.isCellCodec> to check if the codec is of the
  * given type.
@@ -583,7 +590,7 @@ mxCodec.prototype.isCellCodec = function(codec)
 	{
 		return codec.isCellCodec();
 	}
-	
+
 	return false;
 };
 
@@ -608,41 +615,41 @@ mxCodec.prototype.decodeCell = function(node, restoreStructures)
 {
 	restoreStructures = (restoreStructures != null) ? restoreStructures : true;
 	var cell = null;
-	
+
 	if (node != null && node.nodeType == mxConstants.NODETYPE_ELEMENT)
 	{
 		// Tries to find a codec for the given node name. If that does
 		// not return a codec then the node is the user object (an XML node
 		// that contains the mxCell, aka inversion).
 		var decoder = mxCodecRegistry.getCodec(node.nodeName);
-		
+
 		// Tries to find the codec for the cell inside the user object.
 		// This assumes all node names inside the user object are either
 		// not registered or they correspond to a class for cells.
 		if (!this.isCellCodec(decoder))
 		{
 			var child = node.firstChild;
-			
+
 			while (child != null && !this.isCellCodec(decoder))
 			{
 				decoder = mxCodecRegistry.getCodec(child.nodeName);
 				child = child.nextSibling;
 			}
 		}
-		
+
 		if (!this.isCellCodec(decoder))
 		{
 			decoder = mxCodecRegistry.getCodec(mxCell);
 		}
 
 		cell = decoder.decode(this, node);
-		
+
 		if (restoreStructures)
 		{
 			this.insertIntoGraph(cell);
 		}
 	}
-	
+
 	return cell;
 };
 
@@ -661,7 +668,7 @@ mxCodec.prototype.insertIntoGraph = function(cell)
 	cell.setTerminal(null, false);
 	cell.setTerminal(null, true);
 	cell.parent = null;
-	
+
 	if (parent != null)
 	{
 		if (parent == cell)

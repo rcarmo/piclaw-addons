@@ -32,9 +32,9 @@
  *
  * (code)
  * function CustomShape() { }
- * 
+ *
  * CustomShape.prototype = new mxShape();
- * CustomShape.prototype.constructor = CustomShape; 
+ * CustomShape.prototype.constructor = CustomShape;
  * (end)
  *
  * To register a custom shape in an existing graph instance,
@@ -55,7 +55,7 @@
  * var style = graph.getStylesheet().getDefaultVertexStyle();
  * style[mxConstants.STYLE_SHAPE] = 'customShape';
  * (end)
- * 
+ *
  * Constructor: mxShape
  *
  * Constructs a new shape.
@@ -91,14 +91,14 @@ mxShape.prototype.scale = 1;
 
 /**
  * Variable: antiAlias
- * 
+ *
  * Rendering hint for configuring the canvas.
  */
 mxShape.prototype.antiAlias = true;
 
 /**
  * Variable: minSvgStrokeWidth
- * 
+ *
  * Minimum stroke width for SVG output.
  */
 mxShape.prototype.minSvgStrokeWidth = 1;
@@ -123,10 +123,10 @@ mxShape.prototype.points = null;
  * Holds the outermost DOM node that represents this shape.
  */
 mxShape.prototype.node = null;
- 
+
 /**
  * Variable: state
- * 
+ *
  * Optional reference to the corresponding <mxCellState>.
  */
 mxShape.prototype.state = null;
@@ -163,21 +163,21 @@ mxShape.prototype.svgStrokeTolerance = 8;
 
 /**
  * Variable: pointerEvents
- * 
+ *
  * Specifies if pointer events should be handled. Default is true.
  */
 mxShape.prototype.pointerEvents = true;
 
 /**
  * Variable: svgPointerEvents
- * 
+ *
  * Specifies if pointer events should be handled. Default is true.
  */
 mxShape.prototype.svgPointerEvents = 'all';
 
 /**
  * Variable: shapePointerEvents
- * 
+ *
  * Specifies if pointer events outside of shape should be handled. Default
  * is false.
  */
@@ -185,7 +185,7 @@ mxShape.prototype.shapePointerEvents = false;
 
 /**
  * Variable: stencilPointerEvents
- * 
+ *
  * Specifies if pointer events outside of stencils should be handled. Default
  * is false. Set this to true for backwards compatibility with the 1.x branch.
  */
@@ -193,7 +193,7 @@ mxShape.prototype.stencilPointerEvents = false;
 
 /**
  * Variable: outline
- * 
+ *
  * Specifies if the shape should be drawn as an outline. This disables all
  * fill colors and can be used to disable other drawing states that should
  * not be painted for outlines. Default is false. This should be set before
@@ -203,14 +203,14 @@ mxShape.prototype.outline = false;
 
 /**
  * Variable: visible
- * 
+ *
  * Specifies if the shape is visible. Default is true.
  */
 mxShape.prototype.visible = true;
 
 /**
  * Variable: useSvgBoundingBox
- * 
+ *
  * Allows to use the SVG bounding box in SVG. Default is false for performance
  * reasons.
  */
@@ -231,7 +231,7 @@ mxShape.prototype.init = function(container)
 	if (this.node == null)
 	{
 		this.node = this.create(container);
-		
+
 		if (container != null)
 		{
 			container.appendChild(this.node);
@@ -257,7 +257,7 @@ mxShape.prototype.initStyles = function(container)
 
 /**
  * Function: isHtmlAllowed
- * 
+ *
  * Returns true if HTML is allowed for this shape. This implementation always
  * returns false.
  */
@@ -268,13 +268,13 @@ mxShape.prototype.isHtmlAllowed = function()
 
 /**
  * Function: getSvgScreenOffset
- * 
+ *
  * Returns 0, or 0.5 if <strokewidth> % 2 == 1.
  */
 mxShape.prototype.getSvgScreenOffset = function()
 {
 	var sw = this.stencil && this.stencil.strokewidth != 'inherit' ? Number(this.stencil.strokewidth) : this.strokewidth;
-	
+
 	return (mxUtils.mod(Math.max(1, Math.round(sw * this.scale)), 2) == 1) ? 0.5 : 0;
 };
 
@@ -293,7 +293,7 @@ mxShape.prototype.getSvgScreenOffset = function()
 mxShape.prototype.create = function(container)
 {
 	var node = null;
-	
+
 	if (container != null && container.ownerSVGElement != null)
 	{
 		node = this.createSvg(container);
@@ -302,7 +302,7 @@ mxShape.prototype.create = function(container)
 	{
 		node = this.createHtml(container);
 	}
-	
+
 	return node;
 };
 
@@ -326,7 +326,7 @@ mxShape.prototype.createHtml = function()
 {
 	var node = document.createElement('div');
 	node.style.position = 'absolute';
-	
+
 	return node;
 };
 
@@ -349,18 +349,18 @@ mxShape.prototype.reconfigure = function()
 mxShape.prototype.redraw = function()
 {
 	this.updateBoundsFromPoints();
-	
+
 	if (this.visible && this.checkBounds())
 	{
 		this.node.style.visibility = 'visible';
 		this.clear();
-		
+
 		if (this.node.nodeName == 'DIV')
 		{
 			this.redrawHtmlShape();
 		}
 		else
-		{	
+		{
 			this.redrawShape();
 		}
 	}
@@ -373,7 +373,7 @@ mxShape.prototype.redraw = function()
 
 /**
  * Function: clear
- * 
+ *
  * Removes all child nodes and resets all CSS.
  */
 mxShape.prototype.clear = function()
@@ -395,17 +395,17 @@ mxShape.prototype.clear = function()
 
 /**
  * Function: updateBoundsFromPoints
- * 
+ *
  * Updates the bounds based on the points.
  */
 mxShape.prototype.updateBoundsFromPoints = function()
 {
 	var pts = this.points;
-	
+
 	if (pts != null && pts.length > 0 && pts[0] != null)
 	{
 		this.bounds = new mxRectangle(Number(pts[0].x), Number(pts[0].y), this.scale, this.scale);
-		
+
 		for (var i = 1; i < this.points.length; i++)
 		{
 			if (pts[i] != null)
@@ -418,7 +418,7 @@ mxShape.prototype.updateBoundsFromPoints = function()
 
 /**
  * Function: styleChanged
- * 
+ *
  * Called when the style of the cell is in changed by the user.
  */
 mxShape.prototype.styleChanged = function(key, value, state)
@@ -428,7 +428,7 @@ mxShape.prototype.styleChanged = function(key, value, state)
 
 /**
  * Function: getLabelBounds
- * 
+ *
  * Returns the <mxRectangle> for the label bounds of this shape, based on the
  * given scaled and translated bounds of the shape. This method should not
  * change the rectangle in-place. This implementation returns the given rect.
@@ -437,7 +437,7 @@ mxShape.prototype.getLabelBounds = function(rect)
 {
 	var d = mxUtils.getValue(this.style, mxConstants.STYLE_DIRECTION, mxConstants.DIRECTION_EAST);
 	var bounds = rect;
-	
+
 	// Normalizes argument for getLabelMargins hook
 	if (d != mxConstants.DIRECTION_SOUTH && d != mxConstants.DIRECTION_NORTH &&
 		this.state != null && this.state.text != null &&
@@ -448,14 +448,14 @@ mxShape.prototype.getLabelBounds = function(rect)
 		bounds.width = bounds.height;
 		bounds.height = tmp;
 	}
-		
+
 	var m = this.getLabelMargins(bounds);
-	
+
 	if (m != null)
 	{
 		var flipH = mxUtils.getValue(this.style, mxConstants.STYLE_FLIPH, false) == '1';
 		var flipV = mxUtils.getValue(this.style, mxConstants.STYLE_FLIPV, false) == '1';
-		
+
 		// Handles special case for vertical labels
 		if (this.state != null && this.state.text != null &&
 			this.state.text.isPaintBoundsInverted())
@@ -470,16 +470,16 @@ mxShape.prototype.getLabelBounds = function(rect)
 			flipH = flipV;
 			flipV = tmp;
 		}
-		
+
 		return mxUtils.getDirectedBounds(rect, m, this.style, flipH, flipV);
 	}
-	
+
 	return rect;
 };
 
 /**
  * Function: getLabelMargins
- * 
+ *
  * Returns the scaled top, left, bottom and right margin to be used for
  * computing the label bounds as an <mxRectangle>, where the bottom and right
  * margin are defined in the width and height of the rectangle, respectively.
@@ -491,7 +491,7 @@ mxShape.prototype.getLabelMargins= function(rect)
 
 /**
  * Function: checkBounds
- * 
+ *
  * Returns true if the bounds are not null and all of its variables are numeric.
  */
 mxShape.prototype.checkBounds = function()
@@ -504,7 +504,7 @@ mxShape.prototype.checkBounds = function()
 
 /**
  * Function: getShadowStyle
- * 
+ *
  * Removes all child nodes and resets all CSS.
  */
 mxShape.prototype.getShadowStyle = function()
@@ -530,13 +530,13 @@ mxShape.prototype.getShadowStyle = function()
 		s.opacity = mxUtils.getValue(this.style,
 			mxConstants.STYLE_SHADOW_OPACITY, s.opacity);
 	}
-	
+
 	return s;
 };
 
 /**
  * Function: createDropShadow
- * 
+ *
  * Removes all child nodes and resets all CSS.
  */
 mxShape.prototype.createDropShadow = function(style, scale)
@@ -553,7 +553,7 @@ mxShape.prototype.createDropShadow = function(style, scale)
 
 /**
  * Function: updateSvgFilters
- * 
+ *
  * Removes all child nodes and resets all CSS.
  */
 mxShape.prototype.updateSvgFilters = function(scale)
@@ -564,7 +564,7 @@ mxShape.prototype.updateSvgFilters = function(scale)
 
 /**
  * Function: isShadowEnabled
- * 
+ *
  * Removes all child nodes and resets all CSS.
  */
 mxShape.prototype.isShadowEnabled = function()
@@ -580,7 +580,7 @@ mxShape.prototype.isShadowEnabled = function()
 mxShape.prototype.redrawShape = function()
 {
 	var canvas = this.createCanvas();
-	
+
 	if (canvas != null)
 	{
 		// Specifies if events should be handled
@@ -594,29 +594,29 @@ mxShape.prototype.redrawShape = function()
 
 /**
  * Function: createCanvas
- * 
+ *
  * Creates a new canvas for drawing this shape. May return null.
  */
 mxShape.prototype.createCanvas = function()
 {
 	var canvas = null;
-	
+
 	// LATER: Check if reusing existing DOM nodes improves performance
 	if (this.node.ownerSVGElement != null)
 	{
 		canvas = this.createSvgCanvas();
 	}
-	
+
 	if (canvas != null && this.outline)
 	{
 		canvas.setStrokeWidth(this.strokewidth);
 		canvas.setStrokeColor(this.stroke);
-		
+
 		if (this.isDashed != null)
 		{
 			canvas.setDashed(this.isDashed);
 		}
-		
+
 		canvas.setStrokeWidth = function() {};
 		canvas.setStrokeColor = function() {};
 		canvas.setFillColor = function() {};
@@ -631,7 +631,7 @@ mxShape.prototype.createCanvas = function()
 
 /**
  * Function: createSvgCanvas
- * 
+ *
  * Creates and returns an <mxSvgCanvas2D> for rendering this shape.
  */
 mxShape.prototype.createSvgCanvas = function()
@@ -652,7 +652,7 @@ mxShape.prototype.createSvgCanvas = function()
 	}
 
 	canvas.minStrokeWidth = this.minSvgStrokeWidth;
-	
+
 	if (!this.antiAlias)
 	{
 		// Rounds all numbers in the SVG output to integers
@@ -661,7 +661,7 @@ mxShape.prototype.createSvgCanvas = function()
 			return Math.round(parseFloat(value));
 		};
 	}
-	
+
 	return canvas;
 };
 
@@ -686,12 +686,12 @@ mxShape.prototype.redrawHtmlShape = function()
 mxShape.prototype.updateHtmlFilters = function(node)
 {
 	var f = '';
-	
+
 	if (this.opacity < 100)
 	{
 		f += 'alpha(opacity=' + (this.opacity) + ')';
 	}
-	
+
 	if (this.isShadow)
 	{
 		// FIXME: Cannot implement shadow transparency with filter
@@ -700,17 +700,17 @@ mxShape.prototype.updateHtmlFilters = function(node)
 			'OffY=\'' + Math.round(mxConstants.SHADOW_OFFSET_Y * this.scale) + '\', ' +
 			'Color=\'' + mxConstants.VML_SHADOWCOLOR + '\')';
 	}
-	
+
 	if (this.fill != null && this.fill != mxConstants.NONE &&
 		this.gradient && this.gradient != mxConstants.NONE)
 	{
 		var start = this.fill;
 		var end = this.gradient;
 		var type = '0';
-		
+
 		var lookup = {east:0,south:1,west:2,north:3};
 		var dir = (this.direction != null) ? lookup[this.direction] : 0;
-		
+
 		if (this.gradientDirection != null)
 		{
 			dir = mxUtils.mod(dir + lookup[this.gradientDirection] - 1, 4);
@@ -733,7 +733,7 @@ mxShape.prototype.updateHtmlFilters = function(node)
 		{
 			type = '1';
 		}
-		
+
 		f += 'progid:DXImageTransform.Microsoft.gradient(' +
 			'startColorStr=\'' + start + '\', endColorStr=\'' + end +
 			'\', gradientType=\'' + type + '\')';
@@ -750,7 +750,7 @@ mxShape.prototype.updateHtmlFilters = function(node)
 mxShape.prototype.updateHtmlColors = function(node)
 {
 	var color = this.stroke;
-	
+
 	if (color != null && color != mxConstants.NONE)
 	{
 		node.style.borderColor = mxUtils.getLightDarkColor(color).cssText;
@@ -772,7 +772,7 @@ mxShape.prototype.updateHtmlColors = function(node)
 	}
 
 	color = (this.outline) ? null : this.fill;
-	
+
 	if (color != null && color != mxConstants.NONE)
 	{
 		node.style.backgroundColor = mxUtils.getLightDarkColor(color).cssText;
@@ -798,7 +798,7 @@ mxShape.prototype.updateHtmlBounds = function(node)
 	var sw = Math.ceil(this.strokewidth * this.scale);
 	node.style.borderWidth = Math.max(1, sw) + 'px';
 	node.style.overflow = 'hidden';
-	
+
 	node.style.left = Math.round(this.bounds.x - sw / 2) + 'px';
 	node.style.top = Math.round(this.bounds.y - sw / 2) + 'px';
 
@@ -806,14 +806,14 @@ mxShape.prototype.updateHtmlBounds = function(node)
 	{
 		sw = -sw;
 	}
-	
+
 	node.style.width = Math.round(Math.max(0, this.bounds.width + sw)) + 'px';
 	node.style.height = Math.round(Math.max(0, this.bounds.height + sw)) + 'px';
 };
 
 /**
  * Function: destroyCanvas
- * 
+ *
  * Destroys the given canvas which was used for drawing. This implementation
  * increments the reference counts on all shared gradients used in the canvas.
  */
@@ -826,7 +826,7 @@ mxShape.prototype.destroyCanvas = function(canvas)
 		for (var key in canvas.gradients)
 		{
 			var gradient = canvas.gradients[key];
-			
+
 			if (gradient != null)
 			{
 				gradient.mxRefCount = (gradient.mxRefCount || 0) + 1;
@@ -836,7 +836,7 @@ mxShape.prototype.destroyCanvas = function(canvas)
 		for (var key in canvas.fillPatterns)
 		{
 			var pattern = canvas.fillPatterns[key];
-			
+
 			if (pattern != null)
 			{
 				pattern.mxRefCount = (pattern.mxRefCount || 0) + 1;
@@ -852,32 +852,32 @@ mxShape.prototype.destroyCanvas = function(canvas)
 
 /**
  * Function: beforePaint
- * 
+ *
  * Invoked before paint is called.
  */
 mxShape.prototype.beforePaint = function(c) { };
 
 /**
  * Function: afterPaint
- * 
+ *
  * Invokes after paint was called.
  */
 mxShape.prototype.afterPaint = function(c) { };
 
 /**
  * Function: paint
- * 
+ *
  * Generic rendering code.
  */
 mxShape.prototype.paint = function(c)
 {
 	var pointerEvents = c.pointerEvents;
 	var strokeDrawn = false;
-	
+
 	if (c != null && this.outline)
 	{
 		var stroke = c.stroke;
-		
+
 		c.stroke = function()
 		{
 			strokeDrawn = true;
@@ -903,19 +903,19 @@ mxShape.prototype.paint = function(c)
 		w = h;
 		h = tmp;
 	}
-	
+
 	this.updateTransform(c, x, y, w, h);
 	this.configureCanvas(c, x, y, w, h);
 	this.updateSvgFilters((c != null) ? c.state.scale : s);
 
 	// Adds background rectangle to capture events
 	var bg = null;
-	
+
 	if ((this.stencil == null && this.points == null && this.shapePointerEvents) ||
 		(this.stencil != null && this.stencilPointerEvents))
 	{
 		var bb = this.createBoundingBox();
-		
+
 		if (this.dialect == mxConstants.DIALECT_SVG)
 		{
 			bg = this.createTransparentSvgRectangle(bb.x, bb.y, bb.width, bb.height);
@@ -941,7 +941,7 @@ mxShape.prototype.paint = function(c)
 		// Stencils have separate strokewidth
 		c.setStrokeWidth(this.strokewidth);
 		var pts = this.getWaypoints();
-		
+
 		if (pts != null)
 		{
 			// Paints edge shape
@@ -960,12 +960,12 @@ mxShape.prototype.paint = function(c)
 			c.state.dy = dy;
 		}
 	}
-	
+
 	if (bg != null && c.state != null && c.state.transform != null)
 	{
 		bg.setAttribute('transform', c.state.transform);
 	}
-	
+
 	// Draws highlight rectangle if no stroke was used
 	if (c != null && this.outline && !strokeDrawn)
 	{
@@ -985,48 +985,48 @@ mxShape.prototype.getWaypoints = function()
 {
 	var pts = this.points;
 	var result = null;
-	
+
 	if (pts != null)
 	{
 		result = [];
-	
+
 		if (pts.length > 0)
 		{
 			var s = this.scale;
 			var t = Math.max(s, 1);
 			var p0 = pts[0];
 			result.push(new mxPoint(p0.x / s, p0.y / s));
-			
+
 			for (var i = 1; i < pts.length; i++)
 			{
 				var pe = pts[i];
-				
+
 				if (Math.abs(p0.x - pe.x) >= t ||
 					Math.abs(p0.y - pe.y) >= t)
 				{
 					result.push(new mxPoint(pe.x / s, pe.y / s));
 				}
-				
+
 				p0 = pe;
 			}
 		}
 	}
-	
+
 	return result;
 };
 
 /**
  * Function: configureCanvas
- * 
+ *
  * Sets the state of the canvas for drawing the shape.
  */
 mxShape.prototype.configureCanvas = function(c, x, y, w, h)
 {
 	var dash = null;
-	
+
 	if (this.style != null)
 	{
-		dash = this.style['dashPattern'];		
+		dash = this.style['dashPattern'];
 	}
 
 	c.setAlpha(this.opacity / 100);
@@ -1038,7 +1038,7 @@ mxShape.prototype.configureCanvas = function(c, x, y, w, h)
 	{
 		c.setShadow(this.isShadow, this.shadowStyle);
 	}
-	
+
 	// Dash pattern
 	if (this.isDashed != null)
 	{
@@ -1061,7 +1061,8 @@ mxShape.prototype.configureCanvas = function(c, x, y, w, h)
 	else
 	{
 		c.setFillColor(this.fill);
-		c.setFillStyle(this.fillStyle);
+		c.setFillStyle(this.fillStyle, this.hachureGap,
+			this.fillWeight, this.hachureAngle);
 	}
 
 	if (this.style != null)
@@ -1088,7 +1089,7 @@ mxShape.prototype.configureCanvas = function(c, x, y, w, h)
 
 /**
  * Function: configurePointerEvents
- * 
+ *
  * Configures the pointer events for the given canvas.
  */
 mxShape.prototype.configurePointerEvents = function(c)
@@ -1104,7 +1105,7 @@ mxShape.prototype.configurePointerEvents = function(c)
 
 /**
  * Function: getGradientBounds
- * 
+ *
  * Returns the bounding box for the gradient box for this shape.
  */
 mxShape.prototype.getGradientBounds = function(c, x, y, w, h)
@@ -1114,7 +1115,7 @@ mxShape.prototype.getGradientBounds = function(c, x, y, w, h)
 
 /**
  * Function: updateTransform
- * 
+ *
  * Sets the scale and rotation on the given canvas.
  */
 mxShape.prototype.updateTransform = function(c, x, y, w, h)
@@ -1128,13 +1129,13 @@ mxShape.prototype.updateTransform = function(c, x, y, w, h)
 
 /**
  * Function: paintVertexShape
- * 
+ *
  * Paints the vertex shape.
  */
 mxShape.prototype.paintVertexShape = function(c, x, y, w, h)
 {
 	this.paintBackground(c, x, y, w, h);
-	
+
 	if (!this.outline || this.style == null || mxUtils.getValue(
 		this.style, mxConstants.STYLE_BACKGROUND_OUTLINE, 0) == 0)
 	{
@@ -1145,34 +1146,34 @@ mxShape.prototype.paintVertexShape = function(c, x, y, w, h)
 
 /**
  * Function: paintBackground
- * 
+ *
  * Hook for subclassers. This implementation is empty.
  */
 mxShape.prototype.paintBackground = function(c, x, y, w, h) { };
 
 /**
  * Function: paintForeground
- * 
+ *
  * Hook for subclassers. This implementation is empty.
  */
 mxShape.prototype.paintForeground = function(c, x, y, w, h) { };
 
 /**
  * Function: paintEdgeShape
- * 
+ *
  * Hook for subclassers. This implementation is empty.
  */
 mxShape.prototype.paintEdgeShape = function(c, pts) { };
 
 /**
  * Function: getArcSize
- * 
+ *
  * Returns the arc size for the given dimension.
  */
 mxShape.prototype.getArcSize = function(w, h)
 {
 	var r = 0;
-	
+
 	if (mxUtils.getValue(this.style, mxConstants.STYLE_ABSOLUTE_ARCSIZE, 0) == '1')
 	{
 		r = Math.min(w / 2, Math.min(h / 2, mxUtils.getValue(this.style,
@@ -1184,24 +1185,24 @@ mxShape.prototype.getArcSize = function(w, h)
 			mxConstants.RECTANGLE_ROUNDING_FACTOR * 100) / 100;
 		r = Math.min(w * f, h * f);
 	}
-	
+
 	return r;
 };
 
 /**
  * Function: paintGlassEffect
- * 
+ *
  * Paints the glass gradient effect.
  */
 mxShape.prototype.paintGlassEffect = function(c, x, y, w, h, arc)
 {
 	var sw = Math.ceil(this.strokewidth / 2);
 	var size = 0.4;
-	
+
 	c.setGradient('#ffffff', '#ffffff', x, y, w, h * 0.6, 'south', 0.9, 0.1);
 	c.begin();
 	arc += 2 * sw;
-		
+
 	if (this.isRounded)
 	{
 		c.moveTo(x - sw + arc, y - sw);
@@ -1218,14 +1219,14 @@ mxShape.prototype.paintGlassEffect = function(c, x, y, w, h, arc)
 		c.quadTo(x + w * 0.5, y + h * 0.7, x + w + sw, y + h * size);
 		c.lineTo(x + w + sw, y - sw);
 	}
-	
+
 	c.close();
 	c.fill();
 };
 
 /**
  * Function: addPoints
- * 
+ *
  * Paints the given points with rounded corners.
  */
 mxShape.prototype.addPoints = function(c, pts, rounded, arcSize, close, exclude, initialMove)
@@ -1234,7 +1235,7 @@ mxShape.prototype.addPoints = function(c, pts, rounded, arcSize, close, exclude,
 	{
 		initialMove = (initialMove != null) ? initialMove : true;
 		var pe = pts[pts.length - 1];
-		
+
 		// Adds virtual waypoint in the center between start and end point
 		if (close && rounded)
 		{
@@ -1243,10 +1244,10 @@ mxShape.prototype.addPoints = function(c, pts, rounded, arcSize, close, exclude,
 			var wp = new mxPoint(pe.x + (p0.x - pe.x) / 2, pe.y + (p0.y - pe.y) / 2);
 			pts.splice(0, 0, wp);
 		}
-	
+
 		var pt = pts[0];
 		var i = 1;
-	
+
 		// Draws the line segments
 		if (initialMove)
 		{
@@ -1256,13 +1257,13 @@ mxShape.prototype.addPoints = function(c, pts, rounded, arcSize, close, exclude,
 		{
 			c.lineTo(pt.x, pt.y);
 		}
-		
+
 		while (i < ((close) ? pts.length : pts.length - 1))
 		{
 			var tmp = pts[mxUtils.mod(i, pts.length)];
 			var dx = pt.x - tmp.x;
 			var dy = pt.y - tmp.y;
-	
+
 			if (rounded && (dx != 0 || dy != 0) && (exclude == null || mxUtils.indexOf(exclude, i - 1) < 0))
 			{
 				// Draws a line from the last point to the current
@@ -1271,33 +1272,33 @@ mxShape.prototype.addPoints = function(c, pts, rounded, arcSize, close, exclude,
 				var dist = Math.sqrt(dx * dx + dy * dy);
 				var nx1 = dx * Math.min(arcSize, dist / 2) / dist;
 				var ny1 = dy * Math.min(arcSize, dist / 2) / dist;
-	
+
 				var x1 = tmp.x + nx1;
 				var y1 = tmp.y + ny1;
 				c.lineTo(x1, y1);
-	
+
 				// Draws a curve from the last point to the current
 				// point with a spacing of size off the current point
 				// into direction of the next point
 				var next = pts[mxUtils.mod(i + 1, pts.length)];
-				
+
 				// Uses next non-overlapping point
 				while (i < pts.length - 2 && Math.round(next.x - tmp.x) == 0 && Math.round(next.y - tmp.y) == 0)
 				{
 					next = pts[mxUtils.mod(i + 2, pts.length)];
 					i++;
 				}
-				
+
 				dx = next.x - tmp.x;
 				dy = next.y - tmp.y;
-	
+
 				dist = Math.max(1, Math.sqrt(dx * dx + dy * dy));
 				var nx2 = dx * Math.min(arcSize, dist / 2) / dist;
 				var ny2 = dy * Math.min(arcSize, dist / 2) / dist;
-	
+
 				var x2 = tmp.x + nx2;
 				var y2 = tmp.y + ny2;
-	
+
 				c.quadTo(tmp.x, tmp.y, x2, y2);
 				tmp = new mxPoint(x2, y2);
 			}
@@ -1305,11 +1306,11 @@ mxShape.prototype.addPoints = function(c, pts, rounded, arcSize, close, exclude,
 			{
 				c.lineTo(tmp.x, tmp.y);
 			}
-	
+
 			pt = tmp;
 			i++;
 		}
-	
+
 		if (close)
 		{
 			c.close();
@@ -1323,14 +1324,14 @@ mxShape.prototype.addPoints = function(c, pts, rounded, arcSize, close, exclude,
 
 /**
  * Function: resetStyles
- * 
+ *
  * Resets all styles.
  */
 mxShape.prototype.resetStyles = function()
 {
 	this.initStyles();
 	this.spacing = 0;
-	
+
 	delete this.fill;
 	delete this.gradient;
 	delete this.gradientDirection;
@@ -1348,10 +1349,10 @@ mxShape.prototype.resetStyles = function()
 
 /**
  * Function: apply
- * 
+ *
  * Applies the style of the given <mxCellState> to the shape. This
  * implementation assigns the following styles to local fields:
- * 
+ *
  * - <mxConstants.STYLE_FILLCOLOR> => fill
  * - <mxConstants.STYLE_GRADIENTCOLOR> => gradient
  * - <mxConstants.STYLE_GRADIENT_DIRECTION> => gradientDirection
@@ -1394,6 +1395,9 @@ mxShape.prototype.apply = function(state)
 		this.opacity = mxUtils.getValue(this.style, mxConstants.STYLE_OPACITY, this.opacity);
 		this.fillOpacity = mxUtils.getValue(this.style, mxConstants.STYLE_FILL_OPACITY, this.fillOpacity);
 		this.fillStyle = mxUtils.getValue(this.style,  mxConstants.STYLE_FILL_STYLE, null);
+		this.hachureGap = mxUtils.getValue(this.style, mxConstants.STYLE_HACHURE_GAP, null);
+		this.hachureAngle = mxUtils.getValue(this.style, mxConstants.STYLE_HACHURE_ANGLE, null);
+		this.fillWeight = mxUtils.getValue(this.style, mxConstants.STYLE_FILL_WEIGHT, null);
 		this.strokeOpacity = mxUtils.getValue(this.style, mxConstants.STYLE_STROKE_OPACITY, this.strokeOpacity);
 		this.stroke = mxUtils.getValue(this.style, mxConstants.STYLE_STROKECOLOR, this.stroke);
 		this.strokewidth = mxUtils.getNumber(this.style, mxConstants.STYLE_STROKEWIDTH, this.strokewidth);
@@ -1405,15 +1409,15 @@ mxShape.prototype.apply = function(state)
 		this.rotation = mxUtils.getValue(this.style, mxConstants.STYLE_ROTATION, this.rotation);
 		this.direction = mxUtils.getValue(this.style, mxConstants.STYLE_DIRECTION, this.direction);
 		this.flipH = mxUtils.getValue(this.style, mxConstants.STYLE_FLIPH, 0) == 1;
-		this.flipV = mxUtils.getValue(this.style, mxConstants.STYLE_FLIPV, 0) == 1;	
-		
+		this.flipV = mxUtils.getValue(this.style, mxConstants.STYLE_FLIPV, 0) == 1;
+
 		// Legacy support for stencilFlipH/V
 		if (this.stencil != null)
 		{
 			this.flipH = mxUtils.getValue(this.style, 'stencilFlipH', 0) == 1 || this.flipH;
 			this.flipV = mxUtils.getValue(this.style, 'stencilFlipV', 0) == 1 || this.flipV;
 		}
-		
+
 		if (this.direction == mxConstants.DIRECTION_NORTH || this.direction == mxConstants.DIRECTION_SOUTH)
 		{
 			var tmp = this.flipH;
@@ -1445,7 +1449,7 @@ mxShape.prototype.apply = function(state)
 
 /**
  * Function: setCursor
- * 
+ *
  * Sets the cursor on the given shape.
  *
  * Parameters:
@@ -1458,7 +1462,7 @@ mxShape.prototype.setCursor = function(cursor)
 	{
 		cursor = '';
 	}
-	
+
 	this.cursor = cursor;
 
 	if (this.node != null)
@@ -1469,7 +1473,7 @@ mxShape.prototype.setCursor = function(cursor)
 
 /**
  * Function: getCursor
- * 
+ *
  * Returns the current cursor.
  */
 mxShape.prototype.getCursor = function()
@@ -1479,7 +1483,7 @@ mxShape.prototype.getCursor = function()
 
 /**
  * Function: isRoundable
- * 
+ *
  * Hook for subclassers.
  */
 mxShape.prototype.isRoundable = function()
@@ -1501,11 +1505,11 @@ mxShape.prototype.getSvgBoundingBox = function()
 		try
 		{
 			var b = this.node.getBBox();
-	
+
 			if (b.width > 0 && b.height > 0)
 			{
 				result = new mxRectangle(b.x, b.y, b.width, b.height);
-				
+
 				// Adds stroke width
 				if (this.stroke != null)
 				{
@@ -1534,12 +1538,12 @@ mxShape.prototype.getShapeBoundingBox = function()
 	if (this.bounds != null)
 	{
 		bbox = this.createBoundingBox();
-		
+
 		if (bbox != null)
 		{
 			this.augmentBoundingBox(bbox);
 			var rot = this.getShapeRotation();
-			
+
 			if (rot != 0)
 			{
 				bbox = mxUtils.getBoundingBox(bbox, rot);
@@ -1565,7 +1569,7 @@ mxShape.prototype.createBoundingBox = function()
 	{
 		bb.rotate90();
 	}
-	
+
 	return bb;
 };
 
@@ -1575,6 +1579,22 @@ mxShape.prototype.createBoundingBox = function()
  * Augments the bounding box with the strokewidth and shadow offsets.
  */
 mxShape.prototype.augmentBoundingBox = function(bbox)
+{
+	this.augmentShadowBoundingBox(bbox);
+
+	// Adds stroke width
+	if (this.stroke != null)
+	{
+		bbox.grow(this.strokewidth * this.scale / 2);
+	}
+};
+
+/**
+ * Function: augmentShadowBoundingBox
+ *
+ * Augments the bounding box with the shadow offsets.
+ */
+mxShape.prototype.augmentShadowBoundingBox = function(bbox)
 {
 	if (this.isShadow)
 	{
@@ -1595,12 +1615,6 @@ mxShape.prototype.augmentBoundingBox = function(bbox)
 		bbox.grow(Math.max(ss.blur, 0) * this.scale * 2);
 		bbox.width += Math.ceil(Math.max(ss.dx, 0) * this.scale);
 		bbox.height += Math.ceil(Math.max(ss.dy, 0) * this.scale);
-	}
-	
-	// Adds stroke width
-	if (this.stroke != null)
-	{
-		bbox.grow(this.strokewidth * this.scale / 2);
 	}
 };
 
@@ -1624,7 +1638,7 @@ mxShape.prototype.updateBoundingBox = function()
 
 /**
  * Function: isPaintBoundsInverted
- * 
+ *
  * Returns true if the bounds should be inverted.
  */
 mxShape.prototype.isPaintBoundsInverted = function()
@@ -1636,7 +1650,7 @@ mxShape.prototype.isPaintBoundsInverted = function()
 
 /**
  * Function: getRotation
- * 
+ *
  * Returns the rotation from the style.
  */
 mxShape.prototype.getRotation = function()
@@ -1646,30 +1660,30 @@ mxShape.prototype.getRotation = function()
 
 /**
  * Function: getTextRotation
- * 
+ *
  * Returns the rotation for the text label.
  */
 mxShape.prototype.getTextRotation = function()
 {
 	var rot = this.getRotation();
-	
+
 	if (mxUtils.getValue(this.style, mxConstants.STYLE_HORIZONTAL, 1) != 1)
 	{
 		rot += mxText.prototype.verticalTextRotation;
 	}
-	
+
 	return rot;
 };
 
 /**
  * Function: getShapeRotation
- * 
+ *
  * Returns the actual rotation of the shape.
  */
 mxShape.prototype.getShapeRotation = function()
 {
 	var rot = this.getRotation();
-	
+
 	if (this.direction != null)
 	{
 		if (this.direction == mxConstants.DIRECTION_NORTH)
@@ -1685,13 +1699,13 @@ mxShape.prototype.getShapeRotation = function()
 			rot += 90;
 		}
 	}
-	
+
 	return rot;
 };
 
 /**
  * Function: createTransparentSvgRectangle
- * 
+ *
  * Adds a transparent rectangle that catches all events.
  */
 mxShape.prototype.createTransparentSvgRectangle = function(x, y, w, h)
@@ -1704,15 +1718,15 @@ mxShape.prototype.createTransparentSvgRectangle = function(x, y, w, h)
 	rect.setAttribute('fill', 'none');
 	rect.setAttribute('stroke', 'none');
 	rect.setAttribute('pointer-events', 'all');
-	
+
 	return rect;
 };
 
 /**
  * Function: setTransparentBackgroundImage
- * 
+ *
  * Sets a transparent background CSS style to catch all events.
- * 
+ *
  * Paints the line shape.
  */
 mxShape.prototype.setTransparentBackgroundImage = function(node)
@@ -1722,7 +1736,7 @@ mxShape.prototype.setTransparentBackgroundImage = function(node)
 
 /**
  * Function: intersectsRectangle
- * 
+ *
  * Returns true if the shape intersects the given rectangle.
  */
 mxShape.prototype.intersectsRectangle = function(rect, ignoreNode)
@@ -1733,7 +1747,7 @@ mxShape.prototype.intersectsRectangle = function(rect, ignoreNode)
 
 /**
  * Function: releaseSvgGradients
- * 
+ *
  * Paints the line shape.
  */
 mxShape.prototype.releaseSvgGradients = function(grads)
@@ -1743,11 +1757,11 @@ mxShape.prototype.releaseSvgGradients = function(grads)
 		for (var key in grads)
 		{
 			var gradient = grads[key];
-			
+
 			if (gradient != null)
 			{
 				gradient.mxRefCount = (gradient.mxRefCount || 0) - 1;
-				
+
 				if (gradient.mxRefCount == 0 && gradient.parentNode != null)
 				{
 					gradient.parentNode.removeChild(gradient);
@@ -1759,7 +1773,7 @@ mxShape.prototype.releaseSvgGradients = function(grads)
 
 /**
  * Function: releaseSvgFillPatterns
- * 
+ *
  * Release not needed Svg Patterns.
  */
 mxShape.prototype.releaseSvgFillPatterns = function(patterns)
@@ -1769,11 +1783,11 @@ mxShape.prototype.releaseSvgFillPatterns = function(patterns)
 		for (var key in patterns)
 		{
 			var pattern = patterns[key];
-			
+
 			if (pattern != null)
 			{
 				pattern.mxRefCount = (pattern.mxRefCount || 0) - 1;
-				
+
 				if (pattern.mxRefCount == 0 && pattern.parentNode != null)
 				{
 					pattern.parentNode.removeChild(pattern);
@@ -1794,15 +1808,15 @@ mxShape.prototype.destroy = function()
 	if (this.node != null)
 	{
 		mxEvent.release(this.node);
-		
+
 		if (this.node.parentNode != null)
 		{
 			this.node.parentNode.removeChild(this.node);
 		}
-		
+
 		this.node = null;
 	}
-	
+
 	// Decrements refCount and removes unused
 	this.releaseSvgGradients(this.oldGradients);
 	this.releaseSvgFillPatterns(this.oldFillPatterns);

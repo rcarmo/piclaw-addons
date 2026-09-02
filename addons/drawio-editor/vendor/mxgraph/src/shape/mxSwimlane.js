@@ -13,13 +13,13 @@
  * and <mxConstants.STYLE_SWIMLANE_LINE> to hide the line between the title
  * region and the content area. The <mxConstants.STYLE_HORIZONTAL> affects
  * the orientation of this shape, not only its label.
- * 
+ *
  * Constructor: mxSwimlane
  *
  * Constructs a new swimlane shape.
- * 
+ *
  * Parameters:
- * 
+ *
  * bounds - <mxRectangle> that defines the bounds. This is stored in
  * <mxShape.bounds>.
  * fill - String that defines the fill color. This is stored in <fill>.
@@ -60,7 +60,7 @@ mxSwimlane.prototype.fixedHeaderDefault = true;
 
 /**
  * Function: apply
- * 
+ *
  * Extends mxShape to update the swimlane styles.
  *
  * Parameters:
@@ -71,7 +71,7 @@ mxSwimlane.prototype.fixedHeaderDefault = true;
 {
 	var old = this.spacing;
 	mxShape.prototype.apply.apply(this, arguments);
-	
+
 	if (this.style != null)
 	{
 		this.laneFill = mxUtils.getValue(this.style,
@@ -82,7 +82,7 @@ mxSwimlane.prototype.fixedHeaderDefault = true;
 
 /**
  * Function: isRoundable
- * 
+ *
  * Adds roundable support.
  */
 mxSwimlane.prototype.isRoundable = function()
@@ -92,7 +92,7 @@ mxSwimlane.prototype.isRoundable = function()
 
 /**
  * Function: getTitleSize
- * 
+ *
  * Returns the title size.
  */
 mxSwimlane.prototype.getTitleSize = function()
@@ -103,8 +103,20 @@ mxSwimlane.prototype.getTitleSize = function()
 };
 
 /**
+ * Function: getFooterSize
+ *
+ * Returns the size of the footer, the filled and bordered region painted at the
+ * end of the swimlane opposite the title. Default is 0 (no footer).
+ */
+mxSwimlane.prototype.getFooterSize = function()
+{
+	return Math.max(0, mxUtils.getValue(this.style,
+		mxConstants.STYLE_FOOTER_SIZE, 0));
+};
+
+/**
  * Function: getLabelBounds
- * 
+ *
  * Returns the bounding box for the label.
  */
 mxSwimlane.prototype.getLabelBounds = function(rect)
@@ -149,27 +161,27 @@ mxSwimlane.prototype.getLabelBounds = function(rect)
 	else
 	{
 		var tmp = Math.min(bounds.width, start * this.scale);
-		
+
 		if (realFlipH || realFlipV)
 		{
-			bounds.x += bounds.width - tmp;	
+			bounds.x += bounds.width - tmp;
 		}
 
 		bounds.width = tmp;
 	}
-	
+
 	return bounds;
 };
 
 /**
  * Function: getGradientBounds
- * 
+ *
  * Returns the bounding box for the gradient box for this shape.
  */
 mxSwimlane.prototype.getGradientBounds = function(c, x, y, w, h)
 {
 	var start = this.getTitleSize();
-	
+
 	if (this.isHorizontal())
 	{
 		return new mxRectangle(x, y, w, Math.min(start, h));
@@ -182,7 +194,7 @@ mxSwimlane.prototype.getGradientBounds = function(c, x, y, w, h)
 
 /**
  * Function: getSwimlaneArcSize
- * 
+ *
  * Returns the arcsize for the swimlane.
  */
 mxSwimlane.prototype.getSwimlaneArcSize = function(w, h, start)
@@ -197,7 +209,7 @@ mxSwimlane.prototype.getSwimlaneArcSize = function(w, h, start)
 		var f = mxUtils.getValue(this.style, mxConstants.STYLE_ARCSIZE,
 			mxConstants.RECTANGLE_ROUNDING_FACTOR * 100) / 100;
 
-		return start * f * 3; 
+		return start * f * 3;
 	}
 };
 
@@ -230,7 +242,7 @@ mxSwimlane.prototype.paintVertexShape = function(c, x, y, w, h)
 		}
 
 		var r = 0;
-		
+
 		if (this.isHorizontal())
 		{
 			start = Math.min(start, h);
@@ -239,9 +251,9 @@ mxSwimlane.prototype.paintVertexShape = function(c, x, y, w, h)
 		{
 			start = Math.min(start, w);
 		}
-		
+
 		c.translate(x, y);
-		
+
 		if (!this.isRounded)
 		{
 			this.paintSwimlane(c, x, y, w, h, start);
@@ -252,7 +264,9 @@ mxSwimlane.prototype.paintVertexShape = function(c, x, y, w, h)
 			r = Math.min(((this.isHorizontal()) ? h : w) - start, Math.min(start, r));
 			this.paintRoundedSwimlane(c, x, y, w, h, start, r);
 		}
-		
+
+		this.paintFooter(c, x, y, w, h, start, r);
+
 		var sep = mxUtils.getValue(this.style, mxConstants.STYLE_SEPARATORCOLOR, mxConstants.NONE);
 		this.paintSeparator(c, x, y, w, h, start, sep);
 
@@ -263,7 +277,7 @@ mxSwimlane.prototype.paintVertexShape = function(c, x, y, w, h)
 			c.image(bounds.x - x, bounds.y - y, bounds.width, bounds.height,
 					this.image, false, false, false, clipPath);
 		}
-		
+
 		if (this.glass)
 		{
 			c.setShadow(false);
@@ -282,7 +296,7 @@ mxSwimlane.prototype.configurePointerEvents = function(c)
 	var events = true;
 	var head = true;
 	var body = true;
-	
+
 	if (this.style != null)
 	{
 		events = mxUtils.getValue(this.style, mxConstants.STYLE_POINTER_EVENTS, '1') == '1';
@@ -307,7 +321,7 @@ mxSwimlane.prototype.paintSwimlane = function(c, x, y, w, h, start)
 	var line = true;
 	var head = true;
 	var body = true;
-	
+
 	if (this.style != null)
 	{
 		events = mxUtils.getValue(this.style, mxConstants.STYLE_POINTER_EVENTS, '1') == '1';
@@ -339,12 +353,12 @@ mxSwimlane.prototype.paintSwimlane = function(c, x, y, w, h, start)
 			{
 				c.pointerEvents = false;
 			}
-			
+
 			if (fill != mxConstants.NONE)
 			{
 				c.setFillColor(fill);
 			}
-			
+
 			c.begin();
 			c.moveTo(0, start);
 			c.lineTo(0, h);
@@ -391,18 +405,18 @@ mxSwimlane.prototype.paintSwimlane = function(c, x, y, w, h, start)
 			{
 				c.pointerEvents = false;
 			}
-			
+
 			if (fill != mxConstants.NONE)
 			{
 				c.setFillColor(fill);
 			}
-			
+
 			c.begin();
 			c.moveTo(start, 0);
 			c.lineTo(w, 0);
 			c.lineTo(w, h);
 			c.lineTo(start, h);
-			
+
 			if (body)
 			{
 				if (fill == mxConstants.NONE)
@@ -420,7 +434,7 @@ mxSwimlane.prototype.paintSwimlane = function(c, x, y, w, h, start)
 			}
 		}
 	}
-	
+
 	if (line)
 	{
 		this.paintDivider(c, x, y, w, h, start, fill == mxConstants.NONE);
@@ -439,7 +453,7 @@ mxSwimlane.prototype.paintRoundedSwimlane = function(c, x, y, w, h, start, r)
 	var line = true;
 	var head = true;
 	var body = true;
-	
+
 	if (this.style != null)
 	{
 		events = mxUtils.getValue(this.style, mxConstants.STYLE_POINTER_EVENTS, '1') == '1';
@@ -473,12 +487,12 @@ mxSwimlane.prototype.paintRoundedSwimlane = function(c, x, y, w, h, start, r)
 			{
 				c.pointerEvents = false;
 			}
-			
+
 			if (fill != mxConstants.NONE)
 			{
 				c.setFillColor(fill);
 			}
-			
+
 			c.begin();
 			c.moveTo(0, start);
 			c.lineTo(0, h - r);
@@ -486,7 +500,7 @@ mxSwimlane.prototype.paintRoundedSwimlane = function(c, x, y, w, h, start, r)
 			c.lineTo(w - Math.min(w / 2, r), h);
 			c.quadTo(w, h, w, h - r);
 			c.lineTo(w, start);
-			
+
 			if (body)
 			{
 				if (fill == mxConstants.NONE)
@@ -529,12 +543,12 @@ mxSwimlane.prototype.paintRoundedSwimlane = function(c, x, y, w, h, start, r)
 			{
 				c.pointerEvents = false;
 			}
-			
+
 			if (fill != mxConstants.NONE)
 			{
 				c.setFillColor(fill);
 			}
-			
+
 			c.begin();
 			c.moveTo(start, h);
 			c.lineTo(w - r, h);
@@ -568,6 +582,105 @@ mxSwimlane.prototype.paintRoundedSwimlane = function(c, x, y, w, h, start, r)
 };
 
 /**
+ * Function: paintFooter
+ *
+ * Paints the footer, a filled and bordered region at the end of the swimlane
+ * opposite the title. The footer follows the rounded corners of the swimlane
+ * when rounded (passing r = 0 for the non-rounded case), tracing the lane wall
+ * exactly even when the footer is shorter than the arc radius. Supports both
+ * horizontal and vertical orientations.
+ */
+mxSwimlane.prototype.paintFooter = function(c, x, y, w, h, start, r)
+{
+	var footer = this.getFooterSize();
+	var horizontal = this.isHorizontal();
+	var size = (horizontal) ? h : w;
+
+	// Keeps the footer within the body so it never overlaps the title
+	footer = Math.min(footer, size - start);
+
+	if (footer <= 0)
+	{
+		return;
+	}
+
+	var fill = this.fill;
+
+	// Reuses the title fill (the body may have switched to the lane fill) and
+	// disables the shadow so the inner border does not cast one onto the body
+	if (fill != null && fill != mxConstants.NONE)
+	{
+		c.setFillColor(fill);
+	}
+
+	c.setShadow(false);
+	c.begin();
+
+	if (horizontal)
+	{
+		var rr = Math.min(w / 2, r);
+
+		if (footer >= r)
+		{
+			// Divider clears the corners: straight sides plus the full rounding
+			c.moveTo(0, h - footer);
+			c.lineTo(0, h - r);
+			c.quadTo(0, h, rr, h);
+			c.lineTo(w - rr, h);
+			c.quadTo(w, h, w, h - r);
+			c.lineTo(w, h - footer);
+		}
+		else
+		{
+			// Divider falls inside the corners: trace the lane wall (radius r)
+			// from where its quadratic crosses y = h - footer (split at t)
+			var t = 1 - Math.sqrt(footer / r);
+			var px = rr * t * t;
+			var bx = rr * t;
+			c.moveTo(px, h - footer);
+			c.quadTo(bx, h, rr, h);
+			c.lineTo(w - rr, h);
+			c.quadTo(w - bx, h, w - px, h - footer);
+		}
+	}
+	else
+	{
+		var rr = Math.min(h / 2, r);
+
+		if (footer >= r)
+		{
+			c.moveTo(w - footer, 0);
+			c.lineTo(w - r, 0);
+			c.quadTo(w, 0, w, rr);
+			c.lineTo(w, h - rr);
+			c.quadTo(w, h, w - r, h);
+			c.lineTo(w - footer, h);
+		}
+		else
+		{
+			var t = 1 - Math.sqrt(footer / r);
+			var py = rr * t * t;
+			var by = rr * t;
+			c.moveTo(w - footer, py);
+			c.quadTo(w, by, w, rr);
+			c.lineTo(w, h - rr);
+			c.quadTo(w, h - by, w - footer, h - py);
+		}
+	}
+
+	c.close();
+
+	if (fill != null && fill != mxConstants.NONE)
+	{
+		c.fillAndStroke();
+	}
+	else
+	{
+		c.stroke();
+	}
+};
+
+/**
  * Function: paintDivider
  *
  * Paints the divider between swimlane title and content area.
@@ -582,7 +695,7 @@ mxSwimlane.prototype.paintDivider = function(c, x, y, w, h, start, shadow)
 		}
 
 		c.begin();
-		
+
 		if (this.isHorizontal())
 		{
 			c.moveTo(0, start);
@@ -610,7 +723,7 @@ mxSwimlane.prototype.paintSeparator = function(c, x, y, w, h, start, color)
 		c.setStrokeColor(color);
 		c.setDashed(true);
 		c.begin();
-		
+
 		if (this.isHorizontal())
 		{
 			c.moveTo(w, start);
@@ -621,7 +734,7 @@ mxSwimlane.prototype.paintSeparator = function(c, x, y, w, h, start, color)
 			c.moveTo(start, 0);
 			c.lineTo(w, 0);
 		}
-		
+
 		c.stroke();
 		c.setDashed(false);
 	}

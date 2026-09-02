@@ -4,16 +4,16 @@
  */
 /**
  * Class: mxCellHighlight
- * 
+ *
  * A helper class to highlight cells. Here is an example for a given cell.
- * 
+ *
  * (code)
  * var highlight = new mxCellHighlight(graph, '#ff0000', 2);
  * highlight.highlight(graph.view.getState(cell)));
  * (end)
- * 
+ *
  * Constructor: mxCellHighlight
- * 
+ *
  * Constructs a cell highlight.
  */
 function mxCellHighlight(graph, highlightColor, strokeWidth, dashed)
@@ -33,7 +33,7 @@ function mxCellHighlight(graph, highlightColor, strokeWidth, dashed)
 			if (this.state != null)
 			{
 				var tmp = this.graph.view.getState(this.state.cell);
-				
+
 				if (tmp == null)
 				{
 					this.hide();
@@ -50,7 +50,7 @@ function mxCellHighlight(graph, highlightColor, strokeWidth, dashed)
 		this.graph.getView().addListener(mxEvent.TRANSLATE, this.repaintHandler);
 		this.graph.getView().addListener(mxEvent.SCALE_AND_TRANSLATE, this.repaintHandler);
 		this.graph.getModel().addListener(mxEvent.CHANGE, this.repaintHandler);
-		
+
 		// Hides the marker if the current root changes
 		this.resetHandler = mxUtils.bind(this, function()
 		{
@@ -64,7 +64,7 @@ function mxCellHighlight(graph, highlightColor, strokeWidth, dashed)
 
 /**
  * Variable: keepOnTop
- * 
+ *
  * Specifies if the highlights should appear on top of everything
  * else in the overlay pane. Default is false.
  */
@@ -72,21 +72,21 @@ mxCellHighlight.prototype.keepOnTop = false;
 
 /**
  * Variable: graph
- * 
+ *
  * Reference to the enclosing <mxGraph>.
  */
 mxCellHighlight.prototype.graph = null;
 
 /**
  * Variable: state
- * 
+ *
  * Reference to the <mxCellState>.
  */
 mxCellHighlight.prototype.state = null;
 
 /**
  * Variable: spacing
- * 
+ *
  * Specifies the spacing between the highlight for vertices and the vertex.
  * Default is 0.
  */
@@ -94,7 +94,7 @@ mxCellHighlight.prototype.spacing = 0;
 
 /**
  * Variable: resetHandler
- * 
+ *
  * Holds the handler that automatically invokes reset if the highlight
  * should be hidden.
  */
@@ -102,17 +102,17 @@ mxCellHighlight.prototype.resetHandler = null;
 
 /**
  * Function: setHighlightColor
- * 
+ *
  * Sets the color of the rectangle used to highlight drop targets.
- * 
+ *
  * Parameters:
- * 
+ *
  * color - String that represents the new highlight color.
  */
 mxCellHighlight.prototype.setHighlightColor = function(color)
 {
 	this.highlightColor = color;
-	
+
 	if (this.shape != null)
 	{
 		this.shape.stroke = color;
@@ -121,7 +121,7 @@ mxCellHighlight.prototype.setHighlightColor = function(color)
 
 /**
  * Function: drawHighlight
- * 
+ *
  * Creates and returns the highlight shape for the given state.
  */
 mxCellHighlight.prototype.drawHighlight = function()
@@ -137,13 +137,13 @@ mxCellHighlight.prototype.drawHighlight = function()
 
 /**
  * Function: createShape
- * 
+ *
  * Creates and returns the highlight shape for the given state.
  */
 mxCellHighlight.prototype.createShape = function()
 {
 	var shape = this.graph.cellRenderer.createShape(this.state);
-	
+
 	shape.svgStrokeTolerance = this.graph.tolerance;
 	shape.points = this.state.absolutePoints;
 	shape.apply(this.state);
@@ -151,11 +151,11 @@ mxCellHighlight.prototype.createShape = function()
 	shape.opacity = this.opacity;
 	shape.isDashed = this.dashed;
 	shape.isShadow = false;
-	
+
 	shape.dialect = mxConstants.DIALECT_SVG;
 	shape.init(this.graph.getView().getOverlayPane());
 	mxEvent.redirectMouseEvents(shape.node, this.graph, this.state);
-	
+
 	if (this.graph.dialect != mxConstants.DIALECT_SVG)
 	{
 		shape.pointerEvents = false;
@@ -164,13 +164,13 @@ mxCellHighlight.prototype.createShape = function()
 	{
 		shape.svgPointerEvents = 'stroke';
 	}
-	
+
 	return shape;
 };
 
 /**
  * Function: getStrokeWidth
- * 
+ *
  * Returns the stroke width.
  */
 mxCellHighlight.prototype.getStrokeWidth = function(state)
@@ -180,7 +180,7 @@ mxCellHighlight.prototype.getStrokeWidth = function(state)
 
 /**
  * Function: repaint
- * 
+ *
  * Updates the highlight after a change of the model or view.
  */
 mxCellHighlight.prototype.repaint = function()
@@ -188,7 +188,7 @@ mxCellHighlight.prototype.repaint = function()
 	if (this.state != null && this.shape != null)
 	{
 		this.shape.scale = this.state.view.scale;
-		
+
 		if (this.graph.model.isEdge(this.state.cell))
 		{
 			this.shape.strokewidth = this.getStrokeWidth();
@@ -209,14 +209,14 @@ mxCellHighlight.prototype.repaint = function()
 		{
 			this.shape.setCursor(this.state.shape.getCursor());
 		}
-		
+
 		this.shape.redraw();
 	}
 };
 
 /**
  * Function: hide
- * 
+ *
  * Resets the state of the cell marker.
  */
 mxCellHighlight.prototype.hide = function()
@@ -226,7 +226,7 @@ mxCellHighlight.prototype.hide = function()
 
 /**
  * Function: mark
- * 
+ *
  * Marks the <markedState> and fires a <mark> event.
  */
 mxCellHighlight.prototype.highlight = function(state)
@@ -240,7 +240,7 @@ mxCellHighlight.prototype.highlight = function(state)
 		}
 
 		this.state = state;
-		
+
 		if (this.state != null)
 		{
 			this.drawHighlight();
@@ -250,13 +250,13 @@ mxCellHighlight.prototype.highlight = function(state)
 
 /**
  * Function: isHighlightAt
- * 
+ *
  * Returns true if this highlight is at the given position.
  */
 mxCellHighlight.prototype.isHighlightAt = function(x, y)
 {
 	var hit = false;
-	
+
 	// Quirks mode is currently not supported as it used a different coordinate system
 	if (this.shape != null && document.elementFromPoint != null)
 	{
@@ -269,17 +269,17 @@ mxCellHighlight.prototype.isHighlightAt = function(x, y)
 				hit = true;
 				break;
 			}
-			
+
 			elt = elt.parentNode;
 		}
 	}
-	
+
 	return hit;
 };
 
 /**
  * Function: destroy
- * 
+ *
  * Destroys the handler and all its resources and DOM nodes.
  */
 mxCellHighlight.prototype.destroy = function()
@@ -287,7 +287,7 @@ mxCellHighlight.prototype.destroy = function()
 	this.graph.getView().removeListener(this.resetHandler);
 	this.graph.getView().removeListener(this.repaintHandler);
 	this.graph.getModel().removeListener(this.repaintHandler);
-	
+
 	if (this.shape != null)
 	{
 		this.shape.destroy();

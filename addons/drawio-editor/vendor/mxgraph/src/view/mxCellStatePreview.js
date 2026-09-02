@@ -5,15 +5,15 @@
 /**
  *
  * Class: mxCellStatePreview
- * 
+ *
  * Implements a live preview for moving cells.
- * 
+ *
  * Constructor: mxCellStatePreview
- * 
+ *
  * Constructs a move preview for the given graph.
- * 
+ *
  * Parameters:
- * 
+ *
  * graph - Reference to the enclosing <mxGraph>.
  */
 function mxCellStatePreview(graph)
@@ -24,28 +24,28 @@ function mxCellStatePreview(graph)
 
 /**
  * Variable: graph
- * 
+ *
  * Reference to the enclosing <mxGraph>.
  */
 mxCellStatePreview.prototype.graph = null;
 
 /**
  * Variable: deltas
- * 
+ *
  * Reference to the enclosing <mxGraph>.
  */
 mxCellStatePreview.prototype.deltas = null;
 
 /**
  * Variable: count
- * 
+ *
  * Contains the number of entries in the map.
  */
 mxCellStatePreview.prototype.count = 0;
 
 /**
  * Function: isEmpty
- * 
+ *
  * Returns true if this contains no entries.
  */
 mxCellStatePreview.prototype.isEmpty = function()
@@ -60,7 +60,7 @@ mxCellStatePreview.prototype.moveState = function(state, dx, dy, add, includeEdg
 {
 	add = (add != null) ? add : true;
 	includeEdges = (includeEdges != null) ? includeEdges : true;
-	
+
 	var delta = this.deltas.get(state.cell);
 
 	if (delta == null)
@@ -80,12 +80,12 @@ mxCellStatePreview.prototype.moveState = function(state, dx, dy, add, includeEdg
 		delta.point.x = dx;
 		delta.point.y = dy;
 	}
-	
+
 	if (includeEdges)
 	{
 		this.addEdges(state);
 	}
-	
+
 	return delta.point;
 };
 
@@ -98,7 +98,7 @@ mxCellStatePreview.prototype.show = function(visitor)
 	{
 		this.translateState(delta.state, delta.point.x, delta.point.y);
 	}));
-	
+
 	this.deltas.visit(mxUtils.bind(this, function(key, delta)
 	{
 		this.revalidateState(delta.state, delta.point.x, delta.point.y, visitor);
@@ -113,12 +113,12 @@ mxCellStatePreview.prototype.translateState = function(state, dx, dy)
 	if (state != null)
 	{
 		var model = this.graph.getModel();
-		
+
 		if (model.isVertex(state.cell))
 		{
 			state.view.updateCellState(state);
 			var geo = model.getGeometry(state.cell);
-			
+
 			// Moves selection cells and non-relative vertices in
 			// the first phase so that edge terminal points will
 			// be updated in the second phase
@@ -128,12 +128,12 @@ mxCellStatePreview.prototype.translateState = function(state, dx, dy)
 				state.y += dy;
 			}
 		}
-	    
+
 	    var childCount = model.getChildCount(state.cell);
-	    
+
 	    for (var i = 0; i < childCount; i++)
 	    {
-	    	this.translateState(state.view.getState(model.getChildAt(state.cell, i)), dx, dy);
+		this.translateState(state.view.getState(model.getChildAt(state.cell, i)), dx, dy);
 	    }
 	}
 };
@@ -146,7 +146,7 @@ mxCellStatePreview.prototype.revalidateState = function(state, dx, dy, visitor)
 	if (state != null)
 	{
 		var model = this.graph.getModel();
-		
+
 		// Updates the edge terminal points and restores the
 		// (relative) positions of any (relative) children
 		if (model.isEdge(state.cell))
@@ -156,7 +156,7 @@ mxCellStatePreview.prototype.revalidateState = function(state, dx, dy, visitor)
 
 		var geo = this.graph.getCellGeometry(state.cell);
 		var pState = state.view.getState(model.getParent(state.cell));
-		
+
 		// Moves selection vertices which are relative
 		if ((dx != 0 || dy != 0) && geo != null && geo.relative &&
 			model.isVertex(state.cell) && (pState == null ||
@@ -165,20 +165,20 @@ mxCellStatePreview.prototype.revalidateState = function(state, dx, dy, visitor)
 			state.x += dx;
 			state.y += dy;
 		}
-		
+
 		this.graph.cellRenderer.redraw(state);
-	
+
 		// Invokes the visitor on the given state
 		if (visitor != null)
 		{
 			visitor(state);
 		}
-						
+
 	    var childCount = model.getChildCount(state.cell);
-	    
+
 	    for (var i = 0; i < childCount; i++)
 	    {
-	    	this.revalidateState(this.graph.view.getState(model.getChildAt(state.cell, i)), dx, dy, visitor);
+		this.revalidateState(this.graph.view.getState(model.getChildAt(state.cell, i)), dx, dy, visitor);
 	    }
 	}
 };

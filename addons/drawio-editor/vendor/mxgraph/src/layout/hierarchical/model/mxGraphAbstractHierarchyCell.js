@@ -4,9 +4,9 @@
  */
 /**
  * Class: mxGraphAbstractHierarchyCell
- * 
+ *
  * An abstraction of an internal hierarchy node or edge
- * 
+ *
  * Constructor: mxGraphAbstractHierarchyCell
  *
  * Constructs a new hierarchical layout algorithm.
@@ -20,63 +20,63 @@ function mxGraphAbstractHierarchyCell()
 
 /**
  * Variable: maxRank
- * 
+ *
  * The maximum rank this cell occupies. Default is -1.
  */
 mxGraphAbstractHierarchyCell.prototype.maxRank = -1;
 
 /**
  * Variable: minRank
- * 
+ *
  * The minimum rank this cell occupies. Default is -1.
  */
 mxGraphAbstractHierarchyCell.prototype.minRank = -1;
 
 /**
  * Variable: x
- * 
+ *
  * The x position of this cell for each layer it occupies
  */
 mxGraphAbstractHierarchyCell.prototype.x = null;
 
 /**
  * Variable: y
- * 
+ *
  * The y position of this cell for each layer it occupies
  */
 mxGraphAbstractHierarchyCell.prototype.y = null;
 
 /**
  * Variable: width
- * 
+ *
  * The width of this cell. Default is 0.
  */
 mxGraphAbstractHierarchyCell.prototype.width = 0;
 
 /**
  * Variable: height
- * 
+ *
  * The height of this cell. Default is 0.
  */
 mxGraphAbstractHierarchyCell.prototype.height = 0;
 
 /**
  * Variable: nextLayerConnectedCells
- * 
+ *
  * A cached version of the cells this cell connects to on the next layer up
  */
 mxGraphAbstractHierarchyCell.prototype.nextLayerConnectedCells = null;
 
 /**
  * Variable: previousLayerConnectedCells
- * 
+ *
  * A cached version of the cells this cell connects to on the next layer down
  */
 mxGraphAbstractHierarchyCell.prototype.previousLayerConnectedCells = null;
 
 /**
  * Variable: temp
- * 
+ *
  * Temporary variable for general use. Generally, try to avoid
  * carrying information between stages. Currently, the longest
  * path layering sets temp to the rank position in fixRanks()
@@ -88,7 +88,7 @@ mxGraphAbstractHierarchyCell.prototype.temp = null;
 
 /**
  * Function: getNextLayerConnectedCells
- * 
+ *
  * Returns the cells this cell connects to on the next layer up
  */
 mxGraphAbstractHierarchyCell.prototype.getNextLayerConnectedCells = function(layer)
@@ -98,7 +98,7 @@ mxGraphAbstractHierarchyCell.prototype.getNextLayerConnectedCells = function(lay
 
 /**
  * Function: getPreviousLayerConnectedCells
- * 
+ *
  * Returns the cells this cell connects to on the next layer down
  */
 mxGraphAbstractHierarchyCell.prototype.getPreviousLayerConnectedCells = function(layer)
@@ -108,7 +108,7 @@ mxGraphAbstractHierarchyCell.prototype.getPreviousLayerConnectedCells = function
 
 /**
  * Function: isEdge
- * 
+ *
  * Returns whether or not this cell is an edge
  */
 mxGraphAbstractHierarchyCell.prototype.isEdge = function()
@@ -118,7 +118,7 @@ mxGraphAbstractHierarchyCell.prototype.isEdge = function()
 
 /**
  * Function: isVertex
- * 
+ *
  * Returns whether or not this cell is a node
  */
 mxGraphAbstractHierarchyCell.prototype.isVertex = function()
@@ -128,7 +128,7 @@ mxGraphAbstractHierarchyCell.prototype.isVertex = function()
 
 /**
  * Function: getGeneralPurposeVariable
- * 
+ *
  * Gets the value of temp for the specified layer
  */
 mxGraphAbstractHierarchyCell.prototype.getGeneralPurposeVariable = function(layer)
@@ -138,7 +138,7 @@ mxGraphAbstractHierarchyCell.prototype.getGeneralPurposeVariable = function(laye
 
 /**
  * Function: setGeneralPurposeVariable
- * 
+ *
  * Set the value of temp for the specified layer
  */
 mxGraphAbstractHierarchyCell.prototype.setGeneralPurposeVariable = function(layer, value)
@@ -148,7 +148,7 @@ mxGraphAbstractHierarchyCell.prototype.setGeneralPurposeVariable = function(laye
 
 /**
  * Function: setX
- * 
+ *
  * Set the value of x for the specified layer
  */
 mxGraphAbstractHierarchyCell.prototype.setX = function(layer, value)
@@ -165,7 +165,7 @@ mxGraphAbstractHierarchyCell.prototype.setX = function(layer, value)
 
 /**
  * Function: getX
- * 
+ *
  * Gets the value of x on the specified layer
  */
 mxGraphAbstractHierarchyCell.prototype.getX = function(layer)
@@ -184,7 +184,7 @@ mxGraphAbstractHierarchyCell.prototype.getX = function(layer)
 
 /**
  * Function: setY
- * 
+ *
  * Set the value of y for the specified layer
  */
 mxGraphAbstractHierarchyCell.prototype.setY = function(layer, value)

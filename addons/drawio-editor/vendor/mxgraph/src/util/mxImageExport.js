@@ -4,46 +4,46 @@
  */
 /**
  * Class: mxImageExport
- * 
+ *
  * Creates a new image export instance to be used with an export canvas. Here
  * is an example that uses this class to create an image via a backend using
  * <mxXmlExportCanvas>.
- * 
+ *
  * (code)
  * var xmlDoc = mxUtils.createXmlDocument();
  * var root = xmlDoc.createElement('output');
  * xmlDoc.appendChild(root);
- * 
+ *
  * var xmlCanvas = new mxXmlCanvas2D(root);
  * var imgExport = new mxImageExport();
  * imgExport.drawState(graph.getView().getState(graph.model.root), xmlCanvas);
- * 
+ *
  * var bounds = graph.getGraphBounds();
  * var w = Math.ceil(bounds.x + bounds.width);
  * var h = Math.ceil(bounds.y + bounds.height);
- * 
+ *
  * var xml = mxUtils.getXml(root);
  * new mxXmlRequest('export', 'format=png&w=' + w +
  * 		'&h=' + h + '&bg=#F9F7ED&xml=' + encodeURIComponent(xml))
  * 		.simulate(document, '_blank');
  * (end)
- * 
+ *
  * Constructor: mxImageExport
- * 
+ *
  * Constructs a new image export.
  */
 function mxImageExport() { };
 
 /**
  * Variable: includeOverlays
- * 
+ *
  * Specifies if overlays should be included in the export. Default is false.
  */
 mxImageExport.prototype.includeOverlays = false;
 
 /**
  * Function: drawState
- * 
+ *
  * Draws the given state and all its descendants to the given canvas.
  */
 mxImageExport.prototype.drawState = function(state, canvas)
@@ -54,7 +54,7 @@ mxImageExport.prototype.drawState = function(state, canvas)
 		{
 			this.drawCellState.apply(this, arguments);
 		}));
-				
+
 		// Paints the overlays
 		if (this.includeOverlays)
 		{
@@ -68,7 +68,7 @@ mxImageExport.prototype.drawState = function(state, canvas)
 
 /**
  * Function: visitStatesRecursive
- * 
+ *
  * Visits the given state and all its descendants to the given canvas recursively.
  */
 mxImageExport.prototype.visitStatesRecursive = function(state, canvas, visitor)
@@ -76,10 +76,10 @@ mxImageExport.prototype.visitStatesRecursive = function(state, canvas, visitor)
 	if (state != null)
 	{
 		visitor(state, canvas);
-		
+
 		var graph = state.view.graph;
 		var childCount = graph.model.getChildCount(state.cell);
-		
+
 		for (var i = 0; i < childCount; i++)
 		{
 			var childState = graph.view.getState(graph.model.getChildAt(state.cell, i));
@@ -90,7 +90,7 @@ mxImageExport.prototype.visitStatesRecursive = function(state, canvas, visitor)
 
 /**
  * Function: getTitleForCellState
- * 
+ *
  * Returns the title for the given cell state and canvas. This returns null.
  */
 mxImageExport.prototype.getTitleForCellState = function(state, canvas)
@@ -100,7 +100,7 @@ mxImageExport.prototype.getTitleForCellState = function(state, canvas)
 
 /**
  * Function: getLinkForCellState
- * 
+ *
  * Returns the link for the given cell state and canvas. This returns null.
  */
 mxImageExport.prototype.getLinkForCellState = function(state, canvas)
@@ -110,7 +110,7 @@ mxImageExport.prototype.getLinkForCellState = function(state, canvas)
 
 /**
  * Function: getLinkTargetForCellState
- * 
+ *
  * Returns the link target for the given cell state and canvas. This returns null.
  */
 mxImageExport.prototype.getLinkTargetForCellState = function(state, canvas)
@@ -120,14 +120,14 @@ mxImageExport.prototype.getLinkTargetForCellState = function(state, canvas)
 
 /**
  * Function: drawCellState
- * 
+ *
  * Draws the given state to the given canvas.
  */
 mxImageExport.prototype.drawCellState = function(state, canvas)
 {
 	// Experimental feature
 	var link = this.getLinkForCellState(state, canvas);
-	
+
 	if (link != null)
 	{
 		canvas.setLink(link, this.getLinkTargetForCellState(state, canvas));
@@ -135,12 +135,12 @@ mxImageExport.prototype.drawCellState = function(state, canvas)
 
 	// Experimental feature
 	var title = this.getTitleForCellState(state, canvas);
-	
+
 	if (title != null)
 	{
 		canvas.setTitle(title);
 	}
-	
+
 	// Paints the shape and text
 	this.drawShape(state, canvas);
 	this.drawText(state, canvas);
@@ -158,7 +158,7 @@ mxImageExport.prototype.drawCellState = function(state, canvas)
 
 /**
  * Function: drawShape
- * 
+ *
  * Draws the shape of the given state.
  */
 mxImageExport.prototype.drawShape = function(state, canvas)
@@ -171,7 +171,7 @@ mxImageExport.prototype.drawShape = function(state, canvas)
 
 /**
  * Function: drawText
- * 
+ *
  * Draws the text of the given state.
  */
 mxImageExport.prototype.drawText = function(state, canvas)
@@ -181,7 +181,7 @@ mxImageExport.prototype.drawText = function(state, canvas)
 
 /**
  * Function: doDrawShape
- * 
+ *
  * Draws the given shape on the given canvas.
  */
  mxImageExport.prototype.doDrawShape = function(shape, canvas)
@@ -190,13 +190,13 @@ mxImageExport.prototype.drawText = function(state, canvas)
 	 {
 		var root = canvas.root;
 		var node = shape.node;
-		
+
 		canvas.root = shape.createSvg();
 		root.appendChild(canvas.root);
 		shape.node = canvas.root;
 		canvas.save();
 
-		var off = shape.getSvgScreenOffset();
+		var off = this.getSvgShapeOffset(shape, canvas);
 
 		if (off != 0)
 		{
@@ -210,16 +210,42 @@ mxImageExport.prototype.drawText = function(state, canvas)
 		shape.beforePaint(canvas);
 		shape.paint(canvas);
 		shape.afterPaint(canvas);
-		
+
 		canvas.restore();
 		shape.node = node;
 		canvas.root = root;
 	 }
  };
- 
+
+/**
+ * Function: getSvgShapeOffset
+ *
+ * Returns the crisp rendering offset for the given shape in the export.
+ * The exported graph is cropped to bounds that grow by the raw strokewidth
+ * (see mxShape.augmentBoundingBox), so the offset is only applied where a
+ * stroke grew those bounds, with the parity taken from the stroke width at
+ * the scale of the output rather than the screen. Otherwise the content
+ * shifts against the crop, adding padding on one side of the exported
+ * image and clipping content on the other. Shape-specific overrides of
+ * the screen offset (eg. mxText, mxImageShape) are used unchanged.
+ */
+mxImageExport.prototype.getSvgShapeOffset = function(shape, canvas)
+{
+	if (shape.getSvgScreenOffset != mxShape.prototype.getSvgScreenOffset)
+	{
+		return shape.getSvgScreenOffset();
+	}
+
+	var sw = (shape.stencil != null && shape.stencil.strokewidth != 'inherit') ?
+		Number(shape.stencil.strokewidth) : shape.strokewidth;
+	var scale = shape.scale * ((canvas.state != null) ? canvas.state.scale : 1);
+
+	return (shape.stroke != null && mxUtils.mod(Math.round(sw * scale), 2) == 1) ? 0.5 : 0;
+};
+
 /**
  * Function: drawOverlays
- * 
+ *
  * Draws the overlays for the given state. This is called if <includeOverlays>
  * is true.
  */
@@ -236,4 +262,3 @@ mxImageExport.prototype.drawOverlays = function(state, canvas)
 		});
 	}
 };
-

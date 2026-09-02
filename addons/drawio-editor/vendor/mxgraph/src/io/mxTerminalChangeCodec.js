@@ -32,7 +32,7 @@ mxCodecRegistry.register(function()
 	codec.afterDecode = function(dec, node, obj)
 	{
 		obj.previous = obj.terminal;
-		
+
 		return obj;
 	};
 

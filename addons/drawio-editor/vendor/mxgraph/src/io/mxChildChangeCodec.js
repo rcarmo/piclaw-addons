@@ -40,7 +40,7 @@ mxCodecRegistry.register(function()
 		{
 			return true;
 		}
-		
+
 		return mxUtils.indexOf(this.idrefs, attr) >= 0;
 	};
 
@@ -49,13 +49,13 @@ mxCodecRegistry.register(function()
 	 *
 	 * Excludes references to parent or previous if not in the model.
 	 */
-  	codec.isExcluded = function(obj, attr, value, write)
-  	{
-  		return mxObjectCodec.prototype.isExcluded.apply(this, arguments) ||
-  			(write && value != null && (attr == 'previous' ||
-  			attr == 'parent') && !obj.model.contains(value));
-  	};
-  	
+	codec.isExcluded = function(obj, attr, value, write)
+	{
+		return mxObjectCodec.prototype.isExcluded.apply(this, arguments) ||
+			(write && value != null && (attr == 'previous' ||
+			attr == 'parent') && !obj.model.contains(value));
+	};
+
 	/**
 	 * Function: afterEncode
 	 *
@@ -78,7 +78,7 @@ mxCodecRegistry.register(function()
 			// execute of the edit.
 			enc.encodeCell(obj.child, node);
 		}
-		
+
 		return node;
 	};
 
@@ -95,18 +95,18 @@ mxCodecRegistry.register(function()
 		{
 			// Makes sure the original node isn't modified
 			node = node.cloneNode(true);
-			
+
 			var tmp = node.firstChild;
 			obj.child = dec.decodeCell(tmp, false);
 
 			var tmp2 = tmp.nextSibling;
 			tmp.parentNode.removeChild(tmp);
 			tmp = tmp2;
-			
+
 			while (tmp != null)
 			{
 				tmp2 = tmp.nextSibling;
-				
+
 				if (tmp.nodeType == mxConstants.NODETYPE_ELEMENT)
 				{
 					// Ignores all existing cells because those do not need to
@@ -115,13 +115,13 @@ mxCodecRegistry.register(function()
 					// to an inconsistent state on the model (ie. a parent
 					// change without a call to parentForCellChanged).
 					var id = tmp.getAttribute('id');
-					
+
 					if (dec.lookup(id) == null)
 					{
 						dec.decodeCell(tmp);
 					}
 				}
-				
+
 				tmp.parentNode.removeChild(tmp);
 				tmp = tmp2;
 			}
@@ -131,10 +131,10 @@ mxCodecRegistry.register(function()
 			var childRef = node.getAttribute('child');
 			obj.child = dec.getObject(childRef);
 		}
-		
+
 		return node;
 	};
-	
+
 	/**
 	 * Function: afterDecode
 	 *
@@ -146,18 +146,18 @@ mxCodecRegistry.register(function()
 		// parent must be restored on the cell for the case where the cell was
 		// added. This is needed for the local model to identify the cell as a
 		// new cell and register the ID.
-        if (obj.child != null)
-        {
-            if (obj.child.parent != null && obj.previous != null &&
-                obj.child.parent != obj.previous)
-            {
-                obj.previous = obj.child.parent;
-            }
+	if (obj.child != null)
+	{
+	    if (obj.child.parent != null && obj.previous != null &&
+		obj.child.parent != obj.previous)
+	    {
+		obj.previous = obj.child.parent;
+	    }
 
-            obj.child.parent = obj.previous;
-            obj.previous = obj.parent;
-            obj.previousIndex = obj.index;
-        }
+	    obj.child.parent = obj.previous;
+	    obj.previous = obj.parent;
+	    obj.previousIndex = obj.index;
+	}
 
 		return obj;
 	};

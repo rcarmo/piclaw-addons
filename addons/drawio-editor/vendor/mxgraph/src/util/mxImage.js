@@ -6,9 +6,9 @@
  * Class: mxImage
  *
  * Contains the URL, width, height and optional position of an image.
- * 
+ *
  * Constructor: mxImage
- * 
+ *
  * Constructs a new image.
  */
 function mxImage(src, width, height, x, y)
@@ -54,4 +54,3 @@ mxImage.prototype.height = 0;
   * Integer that specifies the y-coordinate of the image.
   */
  mxImage.prototype.y = 0;
- 

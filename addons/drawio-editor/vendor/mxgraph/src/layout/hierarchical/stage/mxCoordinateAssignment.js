@@ -4,17 +4,17 @@
  */
 /**
  * Class: mxCoordinateAssignment
- * 
+ *
  * Sets the horizontal locations of node and edge dummy nodes on each layer.
  * Uses median down and up weighings as well as heuristics to straighten edges as
  * far as possible.
- * 
+ *
  * Constructor: mxCoordinateAssignment
  *
  * Creates a coordinate assignment.
- * 
+ *
  * Arguments:
- * 
+ *
  * intraCellSpacing - the minimum buffer between cells on the same rank
  * interRankCellSpacing - the minimum distance between cells on adjacent ranks
  * orientation - the position of the root node(s) relative to the graph
@@ -39,28 +39,28 @@ mxCoordinateAssignment.prototype.constructor = mxCoordinateAssignment;
 
 /**
  * Variable: layout
- * 
+ *
  * Reference to the enclosing <mxHierarchicalLayout>.
  */
 mxCoordinateAssignment.prototype.layout = null;
 
 /**
  * Variable: intraCellSpacing
- * 
+ *
  * The minimum buffer between cells on the same rank. Default is 30.
  */
 mxCoordinateAssignment.prototype.intraCellSpacing = 30;
 
 /**
  * Variable: interRankCellSpacing
- * 
+ *
  * The minimum distance between cells on adjacent ranks. Default is 100.
  */
 mxCoordinateAssignment.prototype.interRankCellSpacing = 100;
 
 /**
  * Variable: parallelEdgeSpacing
- * 
+ *
  * The distance between each parallel edge on each ranks for long edges.
  * Default is 10.
  */
@@ -68,35 +68,35 @@ mxCoordinateAssignment.prototype.parallelEdgeSpacing = 10;
 
 /**
  * Variable: maxIterations
- * 
+ *
  * The number of heuristic iterations to run. Default is 8.
  */
 mxCoordinateAssignment.prototype.maxIterations = 8;
 
 /**
  * Variable: prefHozEdgeSep
- * 
+ *
  * The preferred horizontal distance between edges exiting a vertex Default is 5.
  */
 mxCoordinateAssignment.prototype.prefHozEdgeSep = 5;
 
 /**
  * Variable: prefVertEdgeOff
- * 
+ *
  * The preferred vertical offset between edges exiting a vertex Default is 2.
  */
 mxCoordinateAssignment.prototype.prefVertEdgeOff = 2;
 
 /**
  * Variable: minEdgeJetty
- * 
+ *
  * The minimum distance for an edge jetty from a vertex Default is 12.
  */
 mxCoordinateAssignment.prototype.minEdgeJetty = 12;
 
 /**
  * Variable: channelBuffer
- * 
+ *
  * The size of the vertical buffer in the center of inter-rank channels
  * where edge control points should not be placed Default is 4.
  */
@@ -104,7 +104,7 @@ mxCoordinateAssignment.prototype.channelBuffer = 4;
 
 /**
  * Variable: jettyPositions
- * 
+ *
  * Map of internal edges and (x,y) pair of positions of the start and end jetty
  * for that edge where it connects to the source and target vertices.
  * Note this should technically be a WeakHashMap, but since JS does not
@@ -117,7 +117,7 @@ mxCoordinateAssignment.prototype.jettyPositions = null;
 
 /**
  * Variable: orientation
- * 
+ *
  * The position of the root ( start ) node(s) relative to the rest of the
  * laid out graph. Default is <mxConstants.DIRECTION_NORTH>.
  */
@@ -125,70 +125,70 @@ mxCoordinateAssignment.prototype.orientation = mxConstants.DIRECTION_NORTH;
 
 /**
  * Variable: initialX
- * 
+ *
  * The minimum x position node placement starts at
  */
 mxCoordinateAssignment.prototype.initialX = null;
 
 /**
  * Variable: limitX
- * 
+ *
  * The maximum x value this positioning lays up to
  */
 mxCoordinateAssignment.prototype.limitX = null;
 
 /**
  * Variable: currentXDelta
- * 
+ *
  * The sum of x-displacements for the current iteration
  */
 mxCoordinateAssignment.prototype.currentXDelta = null;
 
 /**
  * Variable: widestRank
- * 
+ *
  * The rank that has the widest x position
  */
 mxCoordinateAssignment.prototype.widestRank = null;
 
 /**
  * Variable: rankTopY
- * 
+ *
  * Internal cache of top-most values of Y for each rank
  */
 mxCoordinateAssignment.prototype.rankTopY = null;
 
 /**
  * Variable: rankBottomY
- * 
+ *
  * Internal cache of bottom-most value of Y for each rank
  */
 mxCoordinateAssignment.prototype.rankBottomY = null;
 
 /**
  * Variable: widestRankValue
- * 
+ *
  * The X-coordinate of the edge of the widest rank
  */
 mxCoordinateAssignment.prototype.widestRankValue = null;
 
 /**
  * Variable: rankWidths
- * 
+ *
  * The width of all the ranks
  */
 mxCoordinateAssignment.prototype.rankWidths = null;
 
 /**
  * Variable: rankY
- * 
+ *
  * The Y-coordinate of all the ranks
  */
 mxCoordinateAssignment.prototype.rankY = null;
 
 /**
  * Variable: fineTuning
- * 
+ *
  * Whether or not to perform local optimisations and iterate multiple times
  * through the algorithm. Default is true.
  */
@@ -196,21 +196,21 @@ mxCoordinateAssignment.prototype.fineTuning = true;
 
 /**
  * Variable: nextLayerConnectedCache
- * 
+ *
  * A store of connections to the layer above for speed
  */
 mxCoordinateAssignment.prototype.nextLayerConnectedCache = null;
 
 /**
  * Variable: previousLayerConnectedCache
- * 
+ *
  * A store of connections to the layer below for speed
  */
 mxCoordinateAssignment.prototype.previousLayerConnectedCache = null;
 
 /**
  * Variable: groupPadding
- * 
+ *
  * Padding added to resized parents Default is 10.
  */
 mxCoordinateAssignment.prototype.groupPadding = 10;
@@ -229,22 +229,22 @@ mxCoordinateAssignment.prototype.printStatus = function()
 	{
 		mxLog.write('Rank ', j, ' : ' );
 		var rank = model.ranks[j];
-		
+
 		for (var k = 0; k < rank.length; k++)
 		{
 			var cell = rank[k];
-			
+
 			mxLog.write(cell.getGeneralPurposeVariable(j), '  ');
 		}
 		mxLog.writeln();
 	}
-	
+
 	mxLog.writeln('====================================');
 };
 
 /**
  * Function: execute
- * 
+ *
  * A basic horizontal coordinate assignment algorithm
  */
 mxCoordinateAssignment.prototype.execute = function(parent)
@@ -254,29 +254,29 @@ mxCoordinateAssignment.prototype.execute = function(parent)
 	this.currentXDelta = 0.0;
 
 	this.initialCoords(this.layout.getGraph(), model);
-	
+
 //	this.printStatus();
-	
+
 	if (this.fineTuning)
 	{
 		this.minNode(model);
 	}
-	
+
 	var bestXDelta = 100000000.0;
-	
+
 	if (this.fineTuning)
 	{
 		for (var i = 0; i < this.maxIterations; i++)
 		{
 //			this.printStatus();
-		
+
 			// Median Heuristic
 			if (i != 0)
 			{
 				this.medianPos(i, model);
 				this.minNode(model);
 			}
-			
+
 			// if the total offset is less for the current positioning,
 			// there are less heavily angled edges and so the current
 			// positioning is used
@@ -285,14 +285,14 @@ mxCoordinateAssignment.prototype.execute = function(parent)
 				for (var j = 0; j < model.ranks.length; j++)
 				{
 					var rank = model.ranks[j];
-					
+
 					for (var k = 0; k < rank.length; k++)
 					{
 						var cell = rank[k];
 						cell.setX(j, cell.getGeneralPurposeVariable(j));
 					}
 				}
-				
+
 				bestXDelta = this.currentXDelta;
 			}
 			else
@@ -301,7 +301,7 @@ mxCoordinateAssignment.prototype.execute = function(parent)
 				for (var j = 0; j < model.ranks.length; j++)
 				{
 					var rank = model.ranks[j];
-					
+
 					for (var k = 0; k < rank.length; k++)
 					{
 						var cell = rank[k];
@@ -309,34 +309,34 @@ mxCoordinateAssignment.prototype.execute = function(parent)
 					}
 				}
 			}
-			
+
 			this.minPath(this.layout.getGraph(), model);
-			
+
 			this.currentXDelta = 0;
 		}
 	}
-	
+
 	this.setCellLocations(this.layout.getGraph(), model);
 };
 
 /**
  * Function: minNode
- * 
+ *
  * Performs one median positioning sweep in both directions
  */
 mxCoordinateAssignment.prototype.minNode = function(model)
 {
 	// Queue all nodes
 	var nodeList = [];
-	
+
 	// Need to be able to map from cell to cellWrapper
 	var map = new mxDictionary();
 	var rank = [];
-	
+
 	for (var i = 0; i <= model.maxRank; i++)
 	{
 		rank[i] = model.ranks[i];
-		
+
 		for (var j = 0; j < rank[i].length; j++)
 		{
 			// Use the weight to store the rank and visited to store whether
@@ -346,30 +346,30 @@ mxCoordinateAssignment.prototype.minNode = function(model)
 			nodeWrapper.rankIndex = j;
 			nodeWrapper.visited = true;
 			nodeList.push(nodeWrapper);
-			
+
 			map.put(node, nodeWrapper);
 		}
 	}
-	
+
 	// Set a limit of the maximum number of times we will access the queue
 	// in case a loop appears
 	var maxTries = nodeList.length * 10;
 	var count = 0;
-	
+
 	// Don't move cell within this value of their median
 	var tolerance = 1;
-	
+
 	while (nodeList.length > 0 && count <= maxTries)
 	{
 		var cellWrapper = nodeList.shift();
 		var cell = cellWrapper.cell;
-		
+
 		var rankValue = cellWrapper.weightedValue;
 		var rankIndex = parseInt(cellWrapper.rankIndex);
-		
+
 		var nextLayerConnectedCells = cell.getNextLayerConnectedCells(rankValue);
 		var previousLayerConnectedCells = cell.getPreviousLayerConnectedCells(rankValue);
-		
+
 		var numNextLayerConnected = nextLayerConnectedCells.length;
 		var numPreviousLayerConnected = previousLayerConnectedCells.length;
 
@@ -382,7 +382,7 @@ mxCoordinateAssignment.prototype.minNode = function(model)
 				+ numPreviousLayerConnected;
 		var currentPosition = cell.getGeneralPurposeVariable(rankValue);
 		var cellMedian = currentPosition;
-		
+
 		if (numConnectedNeighbours > 0)
 		{
 			cellMedian = (medianNextLevel * numNextLayerConnected + medianPreviousLevel
@@ -392,7 +392,7 @@ mxCoordinateAssignment.prototype.minNode = function(model)
 
 		// Flag storing whether or not position has changed
 		var positionChanged = false;
-		
+
 		if (cellMedian < currentPosition - tolerance)
 		{
 			if (rankIndex == 0)
@@ -425,7 +425,7 @@ mxCoordinateAssignment.prototype.minNode = function(model)
 		else if (cellMedian > currentPosition + tolerance)
 		{
 			var rankSize = rank[rankValue].length;
-			
+
 			if (rankIndex == rankSize - 1)
 			{
 				cell.setGeneralPurposeVariable(rankValue, cellMedian);
@@ -438,7 +438,7 @@ mxCoordinateAssignment.prototype.minNode = function(model)
 						.getGeneralPurposeVariable(rankValue);
 				rightLimit = rightLimit - rightCell.width / 2
 						- this.intraCellSpacing - cell.width / 2;
-				
+
 				if (rightLimit > cellMedian)
 				{
 					cell.setGeneralPurposeVariable(rankValue, cellMedian);
@@ -453,7 +453,7 @@ mxCoordinateAssignment.prototype.minNode = function(model)
 				}
 			}
 		}
-		
+
 		if (positionChanged)
 		{
 			// Add connected nodes to map and list
@@ -461,7 +461,7 @@ mxCoordinateAssignment.prototype.minNode = function(model)
 			{
 				var connectedCell = nextLayerConnectedCells[i];
 				var connectedCellWrapper = map.get(connectedCell);
-				
+
 				if (connectedCellWrapper != null)
 				{
 					if (connectedCellWrapper.visited == false)
@@ -488,7 +488,7 @@ mxCoordinateAssignment.prototype.minNode = function(model)
 				}
 			}
 		}
-		
+
 		cellWrapper.visited = false;
 		count++;
 	}
@@ -496,11 +496,11 @@ mxCoordinateAssignment.prototype.minNode = function(model)
 
 /**
  * Function: medianPos
- * 
+ *
  * Performs one median positioning sweep in one direction
- * 
+ *
  * Parameters:
- * 
+ *
  * i - the iteration of the whole process
  * model - an internal model of the hierarchical layout
  */
@@ -508,7 +508,7 @@ mxCoordinateAssignment.prototype.medianPos = function(i, model)
 {
 	// Reverse sweep direction each time through this method
 	var downwardSweep = (i % 2 == 0);
-	
+
 	if (downwardSweep)
 	{
 		for (var j = model.maxRank; j > 0; j--)
@@ -527,11 +527,11 @@ mxCoordinateAssignment.prototype.medianPos = function(i, model)
 
 /**
  * Function: rankMedianPosition
- * 
+ *
  * Performs median minimisation over one rank.
- * 
+ *
  * Parameters:
- * 
+ *
  * rankValue - the layer number of this rank
  * model - an internal model of the hierarchical layout
  * nextRankValue - the layer number whose connected cels are to be laid out
@@ -555,7 +555,7 @@ mxCoordinateAssignment.prototype.rankMedianPosition = function(rankValue, model,
 		weightedValues[i].rankIndex = i;
 		cellMap[currentCell.id] = weightedValues[i];
 		var nextLayerConnectedCells = null;
-		
+
 		if (nextRankValue < rankValue)
 		{
 			nextLayerConnectedCells = currentCell
@@ -577,7 +577,7 @@ mxCoordinateAssignment.prototype.rankMedianPosition = function(rankValue, model,
 
 	// Set the new position of each node within the rank using
 	// its temp variable
-	
+
 	for (var i = 0; i < weightedValues.length; i++)
 	{
 		var numConnectionsNextLevel = 0;
@@ -599,7 +599,7 @@ mxCoordinateAssignment.prototype.rankMedianPosition = function(rankValue, model,
 		if (nextLayerConnectedCells != null)
 		{
 			numConnectionsNextLevel = nextLayerConnectedCells.length;
-			
+
 			if (numConnectionsNextLevel > 0)
 			{
 				medianNextLevel = this.medianXValue(nextLayerConnectedCells,
@@ -616,15 +616,15 @@ mxCoordinateAssignment.prototype.rankMedianPosition = function(rankValue, model,
 
 		var leftBuffer = 0.0;
 		var leftLimit = -100000000.0;
-		
+
 		for (var j = weightedValues[i].rankIndex - 1; j >= 0;)
 		{
 			var weightedValue = cellMap[rank[j].id];
-			
+
 			if (weightedValue != null)
 			{
 				var leftCell = weightedValue.cell;
-				
+
 				if (weightedValue.visited)
 				{
 					// The left limit is the right hand limit of that
@@ -648,15 +648,15 @@ mxCoordinateAssignment.prototype.rankMedianPosition = function(rankValue, model,
 
 		var rightBuffer = 0.0;
 		var rightLimit = 100000000.0;
-		
+
 		for (var j = weightedValues[i].rankIndex + 1; j < weightedValues.length;)
 		{
 			var weightedValue = cellMap[rank[j].id];
-			
+
 			if (weightedValue != null)
 			{
 				var rightCell = weightedValue.cell;
-				
+
 				if (weightedValue.visited)
 				{
 					// The left limit is the right hand limit of that
@@ -677,7 +677,7 @@ mxCoordinateAssignment.prototype.rankMedianPosition = function(rankValue, model,
 				}
 			}
 		}
-		
+
 		if (medianNextLevel >= leftLimit && medianNextLevel <= rightLimit)
 		{
 			cell.setGeneralPurposeVariable(rankValue, medianNextLevel);
@@ -703,19 +703,19 @@ mxCoordinateAssignment.prototype.rankMedianPosition = function(rankValue, model,
 
 /**
  * Function: calculatedWeightedValue
- * 
+ *
  * Calculates the priority the specified cell has based on the type of its
  * cell and the cells it is connected to on the next layer
- * 
+ *
  * Parameters:
- * 
+ *
  * currentCell - the cell whose weight is to be calculated
  * collection - the cells the specified cell is connected to
  */
 mxCoordinateAssignment.prototype.calculatedWeightedValue = function(currentCell, collection)
 {
 	var totalWeight = 0;
-	
+
 	for (var i = 0; i < collection.length; i++)
 	{
 		var cell = collection[i];
@@ -739,12 +739,12 @@ mxCoordinateAssignment.prototype.calculatedWeightedValue = function(currentCell,
 
 /**
  * Function: medianXValue
- * 
+ *
  * Calculates the median position of the connected cell on the specified
  * rank
- * 
+ *
  * Parameters:
- * 
+ *
  * connectedCells - the cells the candidate connects to on this level
  * rankValue - the layer number of this rank
  */
@@ -763,7 +763,7 @@ mxCoordinateAssignment.prototype.medianXValue = function(connectedCells, rankVal
 	}
 
 	medianValues.sort(function(a,b){return a - b;});
-	
+
 	if (connectedCells.length % 2 == 1)
 	{
 		// For odd numbers of adjacent vertices return the median
@@ -781,13 +781,13 @@ mxCoordinateAssignment.prototype.medianXValue = function(connectedCells, rankVal
 
 /**
  * Function: initialCoords
- * 
+ *
  * Sets up the layout in an initial positioning. The ranks are all centered
  * as much as possible along the middle vertex in each rank. The other cells
  * are then placed as close as possible on either side.
- * 
+ *
  * Parameters:
- * 
+ *
  * facade - the facade describing the input graph
  * model - an internal model of the hierarchical layout
  */
@@ -815,14 +815,14 @@ mxCoordinateAssignment.prototype.initialCoords = function(facade, model)
 
 /**
  * Function: rankCoordinates
- * 
+ *
  * Sets up the layout in an initial positioning. All the first cells in each
  * rank are moved to the left and the rest of the rank inserted as close
  * together as their size and buffering permits. This method works on just
  * the specified rank.
- * 
+ *
  * Parameters:
- * 
+ *
  * rankValue - the current rank being processed
  * graph - the facade describing the input graph
  * model - an internal model of the hierarchical layout
@@ -837,11 +837,11 @@ mxCoordinateAssignment.prototype.rankCoordinates = function(rankValue, graph, mo
 	// Store whether or not any of the cells' bounds were unavailable so
 	// to only issue the warning once for all cells
 	var boundsWarning = false;
-	
+
 	for (var i = 0; i < rank.length; i++)
 	{
 		var node = rank[i];
-		
+
 		if (node.isVertex())
 		{
 			var bounds = this.layout.getVertexBounds(node.cell);
@@ -901,12 +901,12 @@ mxCoordinateAssignment.prototype.rankCoordinates = function(rankValue, graph, mo
 
 /**
  * Function: calculateWidestRank
- * 
+ *
  * Calculates the width rank in the hierarchy. Also set the y value of each
  * rank whilst performing the calculation
- * 
+ *
  * Parameters:
- * 
+ *
  * graph - the facade describing the input graph
  * model - an internal model of the hierarchical layout
  */
@@ -914,7 +914,7 @@ mxCoordinateAssignment.prototype.calculateWidestRank = function(graph, model)
 {
 	// Starting y co-ordinate
 	var y = -this.interRankCellSpacing;
-	
+
 	// Track the widest cell on the last rank since the y
 	// difference depends on it
 	var lastRankMaxCellHeight = 0.0;
@@ -931,7 +931,7 @@ mxCoordinateAssignment.prototype.calculateWidestRank = function(graph, model)
 		// Store whether or not any of the cells' bounds were unavailable so
 		// to only issue the warning once for all cells
 		var boundsWarning = false;
-		
+
 		for (var i = 0; i < rank.length; i++)
 		{
 			var node = rank[i];
@@ -1025,10 +1025,10 @@ mxCoordinateAssignment.prototype.calculateWidestRank = function(graph, model)
 
 /**
  * Function: minPath
- * 
+ *
  * Straightens out chains of virtual nodes where possibleacade to those stored after this layout
  * processing step has completed.
- * 
+ *
  * Parameters:
  *
  * graph - the facade describing the input graph
@@ -1038,16 +1038,16 @@ mxCoordinateAssignment.prototype.minPath = function(graph, model)
 {
 	// Work down and up each edge with at least 2 control points
 	// trying to straighten each one out. If the same number of
-	// straight segments are formed in both directions, the 
+	// straight segments are formed in both directions, the
 	// preferred direction used is the one where the final
-	// control points have the least offset from the connectable 
+	// control points have the least offset from the connectable
 	// region of the terminating vertices
 	var edges = model.edgeMapper.getValues();
-	
+
 	for (var j = 0; j < edges.length; j++)
 	{
 		var cell = edges[j];
-		
+
 		if (cell.maxRank - cell.minRank - 1 < 1)
 		{
 			continue;
@@ -1059,7 +1059,7 @@ mxCoordinateAssignment.prototype.minPath = function(graph, model)
 				.getGeneralPurposeVariable(cell.minRank + 1);
 		var edgeStraight = true;
 		var refSegCount = 0;
-		
+
 		for (var i = cell.minRank + 2; i < cell.maxRank; i++)
 		{
 			var x = cell.getGeneralPurposeVariable(i);
@@ -1105,7 +1105,7 @@ mxCoordinateAssignment.prototype.minPath = function(graph, model)
 				{
 					upXPositions[i - cell.minRank - 1] = nextX;
 					currentX = nextX;
-				}				
+				}
 			}
 
 			currentX = cell.getX(i);
@@ -1166,10 +1166,10 @@ mxCoordinateAssignment.prototype.minPath = function(graph, model)
 
 /**
  * Function: repositionValid
- * 
- * Determines whether or not a node may be moved to the specified x 
+ *
+ * Determines whether or not a node may be moved to the specified x
  * position on the specified rank
- * 
+ *
  * Parameters:
  *
  * model - the layout model
@@ -1250,10 +1250,10 @@ mxCoordinateAssignment.prototype.repositionValid = function(model, cell, rank, p
 
 /**
  * Function: setCellLocations
- * 
+ *
  * Sets the cell locations in the facade to those stored after this layout
  * processing step has completed.
- * 
+ *
  * Parameters:
  *
  * graph - the input graph
@@ -1269,10 +1269,10 @@ mxCoordinateAssignment.prototype.setCellLocations = function(graph, model)
 		this.rankTopY[i] = Number.MAX_VALUE;
 		this.rankBottomY[i] = -Number.MAX_VALUE;
 	}
-	
+
 	var vertices = model.vertexMapper.getValues();
 
-	// Process vertices all first, since they define the lower and 
+	// Process vertices all first, since they define the lower and
 	// limits of each rank. Between these limits lie the channels
 	// where the edges can be routed across the graph
 
@@ -1280,7 +1280,7 @@ mxCoordinateAssignment.prototype.setCellLocations = function(graph, model)
 	{
 		this.setVertexLocation(vertices[i]);
 	}
-	
+
 	// Post process edge styles. Needs the vertex locations set for initial
 	// values of the top and bottoms of each rank
 	if (this.layout.edgeStyle == mxHierarchicalEdgeStyle.ORTHOGONAL
@@ -1300,9 +1300,9 @@ mxCoordinateAssignment.prototype.setCellLocations = function(graph, model)
 
 /**
  * Function: localEdgeProcessing
- * 
+ *
  * Separates the x position of edges as they connect to vertices
- * 
+ *
  * Parameters:
  *
  * model - the layout model
@@ -1415,7 +1415,7 @@ mxCoordinateAssignment.prototype.localEdgeProcessing = function(model)
 							var numActualEdges = connectedEdges[j].edges
 									.length;
 							var pos = this.jettyPositions[connectedEdges[j].ids[0]];
-							
+
 							if (pos == null)
 							{
 								pos = [];
@@ -1439,7 +1439,7 @@ mxCoordinateAssignment.prototype.localEdgeProcessing = function(model)
 								currentX += edgeSpacing;
 								pos[m * 4 + k * 2 + 1] = currentYOffset;
 							}
-							
+
 							maxYOffset = Math.max(maxYOffset,
 									currentYOffset);
 						}
@@ -1456,7 +1456,7 @@ mxCoordinateAssignment.prototype.localEdgeProcessing = function(model)
 
 /**
  * Function: setEdgePosition
- * 
+ *
  * Fixes the control points
  */
 mxCoordinateAssignment.prototype.setEdgePosition = function(cell)
@@ -1470,13 +1470,13 @@ mxCoordinateAssignment.prototype.setEdgePosition = function(cell)
 	{
 		var maxRank = cell.maxRank;
 		var minRank = cell.minRank;
-		
+
 		if (maxRank == minRank)
 		{
 			maxRank = cell.source.maxRank;
 			minRank = cell.target.minRank;
 		}
-		
+
 		var parallelEdgeCount = 0;
 		var jettys = this.jettyPositions[cell.ids[0]];
 
@@ -1497,7 +1497,7 @@ mxCoordinateAssignment.prototype.setEdgePosition = function(cell)
 			// places. Since single length edges only have jettys, not segment
 			// control points, we just say the edge isn't reversed in this section
 			var reversed = cell.isReversed;
-			
+
 			if (realSource != source)
 			{
 				// The real edges include all core model edges and these can go
@@ -1515,21 +1515,21 @@ mxCoordinateAssignment.prototype.setEdgePosition = function(cell)
 						(layoutReversed ? this.rankBottomY[minRank] : this.rankTopY[minRank]) :
 							(layoutReversed ? this.rankTopY[maxRank] : this.rankBottomY[maxRank]);
 				var jetty = jettys[parallelEdgeCount * 4 + 1 + arrayOffset];
-				
+
 				if (reversed != layoutReversed)
 				{
 					jetty = -jetty;
 				}
-				
+
 				y += jetty;
 				var x = jettys[parallelEdgeCount * 4 + arrayOffset];
-				
+
 				var modelSource = graph.model.getTerminal(realEdge, true);
 
 				if (this.layout.isPort(modelSource) && graph.model.getParent(modelSource) == realSource)
 				{
 					var state = graph.view.getState(modelSource);
-					
+
 					if (state != null)
 					{
 						x = state.x;
@@ -1544,7 +1544,7 @@ mxCoordinateAssignment.prototype.setEdgePosition = function(cell)
 						|| this.orientation == mxConstants.DIRECTION_SOUTH)
 				{
 					newPoints.push(new mxPoint(x, y));
-					
+
 					if (this.layout.edgeStyle == mxHierarchicalEdgeStyle.CURVE)
 					{
 						newPoints.push(new mxPoint(x, y + jetty));
@@ -1553,7 +1553,7 @@ mxCoordinateAssignment.prototype.setEdgePosition = function(cell)
 				else
 				{
 					newPoints.push(new mxPoint(y, x));
-					
+
 					if (this.layout.edgeStyle == mxHierarchicalEdgeStyle.CURVE)
 					{
 						newPoints.push(new mxPoint(y + jetty, x));
@@ -1561,7 +1561,7 @@ mxCoordinateAssignment.prototype.setEdgePosition = function(cell)
 				}
 			}
 
-			// Declare variables to define loop through edge points and 
+			// Declare variables to define loop through edge points and
 			// change direction if edge is reversed
 
 			var loopStart = cell.x.length - 1;
@@ -1619,21 +1619,21 @@ mxCoordinateAssignment.prototype.setEdgePosition = function(cell)
 						(layoutReversed ? this.rankTopY[maxRank] : this.rankBottomY[maxRank]) :
 							(layoutReversed ? this.rankBottomY[minRank] : this.rankTopY[minRank]);
 				var jetty = jettys[parallelEdgeCount * 4 + 3 - arrayOffset];
-				
+
 				if (reversed != layoutReversed)
 				{
 					jetty = -jetty;
 				}
 				var y = rankY - jetty;
 				var x = jettys[parallelEdgeCount * 4 + 2 - arrayOffset];
-				
+
 				var modelTarget = graph.model.getTerminal(realEdge, false);
 				var realTarget = this.layout.getVisibleTerminal(realEdge, false);
 
 				if (this.layout.isPort(modelTarget) && graph.model.getParent(modelTarget) == realTarget)
 				{
 					var state = graph.view.getState(modelTarget);
-					
+
 					if (state != null)
 					{
 						x = state.x;
@@ -1671,7 +1671,7 @@ mxCoordinateAssignment.prototype.setEdgePosition = function(cell)
 			}
 
 			this.layout.setEdgePoints(realEdge, newPoints);
-			
+
 			// Resets edge label position
 			if (this.layout.resetEdgeLabels &&
 				realEdge.geometry != null)
@@ -1698,7 +1698,7 @@ mxCoordinateAssignment.prototype.setEdgePosition = function(cell)
 			{
 				offsetX = -offsetX + this.parallelEdgeSpacing;
 			}
-			
+
 			parallelEdgeCount++;
 		}
 
@@ -1709,11 +1709,11 @@ mxCoordinateAssignment.prototype.setEdgePosition = function(cell)
 
 /**
  * Function: setVertexLocation
- * 
+ *
  * Fixes the position of the specified vertex.
- * 
+ *
  * Parameters:
- * 
+ *
  * cell - the vertex to position
  */
 mxCoordinateAssignment.prototype.setVertexLocation = function(cell)
@@ -1741,11 +1741,11 @@ mxCoordinateAssignment.prototype.setVertexLocation = function(cell)
 
 /**
  * Function: processReversedEdge
- * 
+ *
  * Hook to add additional processing
- * 
+ *
  * Parameters:
- * 
+ *
  * edge - the hierarchical model edge
  * realEdge - the real edge in the graph
  */

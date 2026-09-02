@@ -9,13 +9,13 @@
  * is used to represent edges, not vertices.)
  * This shape is registered under <mxConstants.SHAPE_ARROW>
  * in <mxCellRenderer>.
- * 
+ *
  * Constructor: mxArrow
  *
  * Constructs a new arrow shape.
- * 
+ *
  * Parameters:
- * 
+ *
  * points - Array of <mxPoints> that define the points. This is stored in
  * <mxShape.points>.
  * fill - String that defines the fill color. This is stored in <fill>.
@@ -55,14 +55,14 @@ mxUtils.extend(mxArrow, mxShape);
 mxArrow.prototype.augmentBoundingBox = function(bbox)
 {
 	mxShape.prototype.augmentBoundingBox.apply(this, arguments);
-	
+
 	var w = Math.max(this.arrowWidth, this.endSize);
 	bbox.grow((w / 2 + this.strokewidth) * this.scale);
 };
 
 /**
  * Function: paintEdgeShape
- * 
+ *
  * Paints the line shape.
  */
 mxArrow.prototype.paintEdgeShape = function(c, pts)
@@ -79,7 +79,7 @@ mxArrow.prototype.paintEdgeShape = function(c, pts)
 	var dy = pe.y - p0.y;
 	var dist = Math.sqrt(dx * dx + dy * dy);
 	var length = dist - 2 * spacing - arrow;
-	
+
 	// Computes the norm and the inverse norm
 	var nx = dx / dist;
 	var ny = dy / dist;
@@ -87,7 +87,7 @@ mxArrow.prototype.paintEdgeShape = function(c, pts)
 	var basey = length * ny;
 	var floorx = width * ny/3;
 	var floory = -width * nx/3;
-	
+
 	// Computes points
 	var p0x = p0.x - floorx / 2 + spacing * nx;
 	var p0y = p0.y - floory / 2 + spacing * ny;
@@ -100,7 +100,7 @@ mxArrow.prototype.paintEdgeShape = function(c, pts)
 	// p4 not necessary
 	var p5x = p3x - 3 * floorx;
 	var p5y = p3y - 3 * floory;
-	
+
 	c.begin();
 	c.moveTo(p0x, p0y);
 	c.lineTo(p1x, p1y);

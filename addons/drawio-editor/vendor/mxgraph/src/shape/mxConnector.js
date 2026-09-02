@@ -4,19 +4,19 @@
  */
 /**
  * Class: mxConnector
- * 
+ *
  * Extends <mxShape> to implement a connector shape. The connector
  * shape allows for arrow heads on either side.
- * 
+ *
  * This shape is registered under <mxConstants.SHAPE_CONNECTOR> in
  * <mxCellRenderer>.
- * 
+ *
  * Constructor: mxConnector
- * 
+ *
  * Constructs a new connector shape.
- * 
+ *
  * Parameters:
- * 
+ *
  * points - Array of <mxPoints> that define the points. This is stored in
  * <mxShape.points>.
  * stroke - String that defines the stroke color. This is stored in <stroke>.
@@ -48,7 +48,7 @@ mxConnector.prototype.updateBoundingBox = function()
 
 /**
  * Function: paintEdgeShape
- * 
+ *
  * Paints the line shape.
  */
 mxConnector.prototype.paintEdgeShape = function(c, pts)
@@ -63,14 +63,14 @@ mxConnector.prototype.paintEdgeShape = function(c, pts)
 	// Disables shadows, dashed styles and fixes fill color for markers
 	c.setShadow(false);
 	c.setDashed(false);
-	
+
 	if (sourceMarker != null)
 	{
 		c.setFillColor(mxUtils.getValue(this.style,
 			mxConstants.STYLE_STARTFILLCOLOR, this.stroke));
 		sourceMarker();
 	}
-	
+
 	if (targetMarker != null)
 	{
 		c.setFillColor(mxUtils.getValue(this.style,
@@ -81,7 +81,7 @@ mxConnector.prototype.paintEdgeShape = function(c, pts)
 
 /**
  * Function: createMarker
- * 
+ *
  * Prepares the marker by adding offsets in pts and returning a function to
  * paint the marker.
  */
@@ -100,22 +100,22 @@ mxConnector.prototype.createMarker = function(c, pts, source)
 		var dx = pe.x - p0.x;
 		var dy = pe.y - p0.y;
 		var dist = Math.sqrt(dx * dx + dy * dy);
-		
+
 		var unitX = dx / dist;
 		var unitY = dy / dist;
-		
+
 		var size = mxUtils.getNumber(this.style, (source) ? mxConstants.STYLE_STARTSIZE :
 			mxConstants.STYLE_ENDSIZE, mxConstants.DEFAULT_MARKERSIZE);
-		
-		// Allow for stroke width in the end point used and the 
+
+		// Allow for stroke width in the end point used and the
 		// orthogonal vectors describing the direction of the marker
 		var filled = this.style[(source) ? mxConstants.STYLE_STARTFILL :
 			mxConstants.STYLE_ENDFILL] != 0;
-		
+
 		result = mxMarker.createMarker(c, this, type, pe, unitX, unitY,
 			size, source, this.strokewidth, filled);
 	}
-	
+
 	return result;
 };
 
@@ -127,19 +127,19 @@ mxConnector.prototype.createMarker = function(c, pts, source)
 mxConnector.prototype.augmentBoundingBox = function(bbox)
 {
 	mxShape.prototype.augmentBoundingBox.apply(this, arguments);
-	
+
 	// Adds marker sizes
 	var size = 0;
-	
+
 	if (mxUtils.getValue(this.style, mxConstants.STYLE_STARTARROW, mxConstants.NONE) != mxConstants.NONE)
 	{
 		size = mxUtils.getNumber(this.style, mxConstants.STYLE_STARTSIZE, mxConstants.DEFAULT_MARKERSIZE) + 1;
 	}
-	
+
 	if (mxUtils.getValue(this.style, mxConstants.STYLE_ENDARROW, mxConstants.NONE) != mxConstants.NONE)
 	{
 		size = Math.max(size, mxUtils.getNumber(this.style, mxConstants.STYLE_ENDSIZE, mxConstants.DEFAULT_MARKERSIZE)) + 1;
 	}
-	
+
 	bbox.grow(size * this.scale);
 };

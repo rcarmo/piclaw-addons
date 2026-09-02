@@ -7,17 +7,17 @@
  *
  * Extends <mxShape> to implement a text shape. To change vertical text from
  * bottom to top to top to bottom, the following code can be used:
- * 
+ *
  * (code)
  * mxText.prototype.verticalTextRotation = 90;
  * (end)
- * 
+ *
  * Constructor: mxText
  *
  * Constructs a new text shape.
- * 
+ *
  * Parameters:
- * 
+ *
  * value - String that represents the text to be displayed. This is stored in
  * <value>.
  * bounds - <mxRectangle> that defines the bounds. This is stored in
@@ -94,7 +94,7 @@ mxUtils.extend(mxText, mxShape);
 
 /**
  * Variable: baseSpacingTop
- * 
+ *
  * Specifies the spacing to be added to the top spacing. Default is 0. Use the
  * value 5 here to get the same label positions as in mxGraph 1.x.
  */
@@ -102,7 +102,7 @@ mxText.prototype.baseSpacingTop = 0;
 
 /**
  * Variable: baseSpacingBottom
- * 
+ *
  * Specifies the spacing to be added to the bottom spacing. Default is 0. Use the
  * value 1 here to get the same label positions as in mxGraph 1.x.
  */
@@ -110,21 +110,21 @@ mxText.prototype.baseSpacingBottom = 0;
 
 /**
  * Variable: baseSpacingLeft
- * 
+ *
  * Specifies the spacing to be added to the left spacing. Default is 0.
  */
 mxText.prototype.baseSpacingLeft = 0;
 
 /**
  * Variable: baseSpacingRight
- * 
+ *
  * Specifies the spacing to be added to the right spacing. Default is 0.
  */
 mxText.prototype.baseSpacingRight = 0;
 
 /**
  * Variable: replaceLinefeeds
- * 
+ *
  * Specifies if linefeeds in HTML labels should be replaced with BR tags.
  * Default is true.
  */
@@ -132,14 +132,14 @@ mxText.prototype.replaceLinefeeds = true;
 
 /**
  * Variable: verticalTextRotation
- * 
+ *
  * Rotation for vertical text. Default is -90 (bottom to top).
  */
 mxText.prototype.verticalTextRotation = -90;
 
 /**
  * Variable: ignoreClippedStringSize
- * 
+ *
  * Specifies if the string size should be measured in <updateBoundingBox> if
  * the label is clipped and the label position is center and middle. If this is
  * true, then the bounding box will be set to <bounds>. Default is true.
@@ -149,7 +149,7 @@ mxText.prototype.ignoreClippedStringSize = true;
 
 /**
  * Variable: ignoreStringSize
- * 
+ *
  * Specifies if the actual string size should be measured. If disabled the
  * boundingBox will not ignore the actual size of the string, otherwise
  * <bounds> will be used instead. Default is false.
@@ -158,7 +158,7 @@ mxText.prototype.ignoreStringSize = false;
 
 /**
  * Variable: textWidthPadding
- * 
+ *
  * Specifies the padding to be added to the text width for the bounding box.
  * This is needed to make sure no clipping is applied to borders. Default is 3.
  */
@@ -166,21 +166,21 @@ mxText.prototype.textWidthPadding = 3;
 
 /**
  * Variable: lastValue
- * 
+ *
  * Contains the last rendered text value. Used for caching.
  */
 mxText.prototype.lastValue = null;
 
 /**
  * Variable: cacheEnabled
- * 
+ *
  * Specifies if caching for HTML labels should be enabled. Default is true.
  */
 mxText.prototype.cacheEnabled = true;
 
 /**
  * Function: isHtmlAllowed
- * 
+ *
  * Returns true if HTML is allowed for this shape. This implementation returns
  * true if the browser is not in IE8 standards mode.
  */
@@ -191,7 +191,7 @@ mxText.prototype.isHtmlAllowed = function()
 
 /**
  * Function: getSvgScreenOffset
- * 
+ *
  * Disables offset in IE9 for crisper image output.
  */
 mxText.prototype.getSvgScreenOffset = function()
@@ -201,7 +201,7 @@ mxText.prototype.getSvgScreenOffset = function()
 
 /**
  * Function: checkBounds
- * 
+ *
  * Returns true if the bounds are not null and all of its variables are numeric.
  */
 mxText.prototype.checkBounds = function()
@@ -213,7 +213,7 @@ mxText.prototype.checkBounds = function()
 
 /**
  * Function: configurePointerEvents
- * 
+ *
  * Configures the pointer events for the given canvas.
  */
 mxText.prototype.configurePointerEvents = function(c)
@@ -223,18 +223,18 @@ mxText.prototype.configurePointerEvents = function(c)
 
 /**
  * Function: getActualTextDirection
- * 
+ *
  * Returns the actual text direction.
  */
 mxText.prototype.getActualTextDirection = function()
 {
 	var dir = this.textDirection;
-	
+
 	if (dir == mxConstants.TEXT_DIRECTION_AUTO)
 	{
 		dir = this.getAutoDirection();
 	}
-	
+
 	if (dir != mxConstants.TEXT_DIRECTION_LTR &&
 		dir != mxConstants.TEXT_DIRECTION_RTL &&
 		dir != mxConstants.TEXT_DIRECTION_VERTICAL_LR &&
@@ -248,7 +248,7 @@ mxText.prototype.getActualTextDirection = function()
 
 /**
  * Function: paint
- * 
+ *
  * Generic rendering code.
  */
 mxText.prototype.paint = function(c, update)
@@ -259,13 +259,13 @@ mxText.prototype.paint = function(c, update)
 	var y = this.bounds.y / s;
 	var w = this.bounds.width / s;
 	var h = this.bounds.height / s;
-	
+
 	this.updateTransform(c, x, y, w, h);
 	this.configureCanvas(c, x, y, w, h);
 	this.updateSvgFilters((c != null) ? c.state.scale : s);
-				
+
 	var dir = this.getActualTextDirection();
-	
+
 	if (update)
 	{
 		c.updateText(x, y, w, h, this.align, this.valign, this.wrap, this.overflow,
@@ -275,25 +275,25 @@ mxText.prototype.paint = function(c, update)
 	{
 		// Checks if text contains HTML markup
 		var realHtml = mxUtils.isNode(this.value) || this.dialect == mxConstants.DIALECT_STRICTHTML;
-		
+
 		// Always renders labels as HTML in VML
 		var fmt = (realHtml) ? 'html' : '';
 		var val = this.value;
-		
+
 		if (!realHtml && fmt == 'html')
 		{
 			val = mxUtils.htmlEntities(val, false);
 		}
-		
+
 		if (fmt == 'html' && !mxUtils.isNode(this.value))
 		{
-			val = mxUtils.replaceTrailingNewlines(val, '<div><br></div>');			
+			val = mxUtils.replaceTrailingNewlines(val, '<div><br></div>');
 		}
-		
+
 		// Handles trailing newlines to make sure they are visible in rendering output
 		val = (!mxUtils.isNode(this.value) && this.replaceLinefeeds && fmt == 'html') ?
 			val.replace(/\n/g, '<br/>') : val;
-		
+
 		c.text(x, y, w, h, val, this.align, this.valign, this.wrap, fmt,
 			this.overflow, this.clipped, this.getTextRotation(), dir);
 	}
@@ -301,7 +301,7 @@ mxText.prototype.paint = function(c, update)
 
 /**
  * Function: redraw
- * 
+ *
  * Renders the text using the given DOM nodes.
  */
 mxText.prototype.redraw = function()
@@ -327,7 +327,7 @@ mxText.prototype.redraw = function()
 		{
 			if (mxClient.IS_SVG)
 			{
-				this.redrawHtmlShapeWithCss3();	
+				this.redrawHtmlShapeWithCss3();
 			}
 			else
 			{
@@ -343,7 +343,7 @@ mxText.prototype.redraw = function()
 			{
 				// Specifies if events should be handled
 				canvas.pointerEvents = this.pointerEvents;
-	
+
 				this.paint(canvas, true);
 				this.destroyCanvas(canvas);
 			}
@@ -357,7 +357,7 @@ mxText.prototype.redraw = function()
 	else
 	{
 		mxShape.prototype.redraw.apply(this, arguments);
-		
+
 		if (mxUtils.isNode(this.value) || this.dialect == mxConstants.DIALECT_STRICTHTML)
 		{
 			this.lastValue = this.value;
@@ -371,13 +371,13 @@ mxText.prototype.redraw = function()
 
 /**
  * Function: resetStyles
- * 
+ *
  * Resets all styles.
  */
 mxText.prototype.resetStyles = function()
 {
 	mxShape.prototype.resetStyles.apply(this, arguments);
-	
+
 	this.color = 'black';
 	this.align = mxConstants.ALIGN_CENTER;
 	this.valign = mxConstants.ALIGN_MIDDLE;
@@ -392,13 +392,14 @@ mxText.prototype.resetStyles = function()
 	this.horizontal = true;
 	delete this.background;
 	delete this.border;
+	this.labelPadding = 0;
 	this.textDirection = mxConstants.DEFAULT_TEXT_DIRECTION;
 	delete this.margin;
 };
 
 /**
  * Function: apply
- * 
+ *
  * Extends mxShape to update the text styles.
  *
  * Parameters:
@@ -409,7 +410,7 @@ mxText.prototype.apply = function(state)
 {
 	var old = this.spacing;
 	mxShape.prototype.apply.apply(this, arguments);
-	
+
 	if (this.style != null)
 	{
 		this.fontStyle = mxUtils.getValue(this.style, mxConstants.STYLE_FONTSTYLE, this.fontStyle);
@@ -426,18 +427,19 @@ mxText.prototype.apply = function(state)
 		this.horizontal = mxUtils.getValue(this.style, mxConstants.STYLE_HORIZONTAL, this.horizontal);
 		this.background = mxUtils.getValue(this.style, mxConstants.STYLE_LABEL_BACKGROUNDCOLOR, this.background);
 		this.border = mxUtils.getValue(this.style, mxConstants.STYLE_LABEL_BORDERCOLOR, this.border);
+		this.labelPadding = mxUtils.getValue(this.style, mxConstants.STYLE_LABEL_PADDING, this.labelPadding);
 		this.textDirection = mxUtils.getValue(this.style, mxConstants.STYLE_TEXT_DIRECTION, mxConstants.DEFAULT_TEXT_DIRECTION);
 		this.opacity = mxUtils.getValue(this.style, mxConstants.STYLE_TEXT_OPACITY, 100);
 		this.updateMargin();
 	}
-	
+
 	this.flipV = null;
 	this.flipH = null;
 };
 
 /**
  * Function: getAutoDirection
- * 
+ *
  * Used to determine the automatic text direction. Returns
  * <mxConstants.TEXT_DIRECTION_LTR> or <mxConstants.TEXT_DIRECTION_RTL>
  * depending on the contents of <value>. This is not invoked for HTML, wrapped
@@ -447,7 +449,7 @@ mxText.prototype.getAutoDirection = function()
 {
 	// Looks for strong (directional) characters
 	var tmp = /[A-Za-z\u05d0-\u065f\u066a-\u06ef\u06fa-\u07ff\ufb1d-\ufdff\ufe70-\ufefc]/.exec(this.value);
-	
+
 	// Returns the direction defined by the character
 	return (tmp != null && tmp.length > 0 && tmp[0] > 'z') ?
 		mxConstants.TEXT_DIRECTION_RTL : mxConstants.TEXT_DIRECTION_LTR;
@@ -455,13 +457,13 @@ mxText.prototype.getAutoDirection = function()
 
 /**
  * Function: getContentNode
- * 
+ *
  * Returns the node that contains the rendered input.
  */
 mxText.prototype.getContentNode = function()
 {
 	var result = this.node;
-	
+
 	if (result != null)
 	{
 		// Rendered with no foreignObject
@@ -475,7 +477,7 @@ mxText.prototype.getContentNode = function()
 			result = result.firstChild.firstChild.firstChild.firstChild.firstChild;
 		}
 	}
-	
+
 	return result;
 };
 
@@ -489,7 +491,7 @@ mxText.prototype.updateBoundingBox = function()
 	var node = this.node;
 	this.boundingBox = this.bounds.clone();
 	var rot = this.getTextRotation();
-	
+
 	var h = (this.style != null) ? mxUtils.getValue(this.style, mxConstants.STYLE_LABEL_POSITION, mxConstants.ALIGN_CENTER) : null;
 	var v = (this.style != null) ? mxUtils.getValue(this.style, mxConstants.STYLE_VERTICAL_LABEL_POSITION, mxConstants.ALIGN_MIDDLE) : null;
 
@@ -498,7 +500,7 @@ mxText.prototype.updateBoundingBox = function()
 	{
 		var ow = null;
 		var oh = null;
-		
+
 		if (node.ownerSVGElement != null)
 		{
 			if (node.firstChild != null && node.firstChild.firstChild != null &&
@@ -509,14 +511,14 @@ mxText.prototype.updateBoundingBox = function()
 				// Uses second inner DIV for font metrics
 				node = node.firstChild.firstChild.firstChild.firstChild;
 				oh = node.offsetHeight * this.scale;
-				
+
 				if (this.overflow == 'width')
 				{
 					ow = this.boundingBox.width;
 				}
 				else
 				{
-					ow = node.offsetWidth * this.scale;	
+					ow = node.offsetWidth * this.scale;
 				}
 			}
 			else
@@ -524,7 +526,7 @@ mxText.prototype.updateBoundingBox = function()
 				try
 				{
 					var b = node.getBBox();
-					
+
 					// Workaround for bounding box of empty string
 					if (typeof(this.value) == 'string' && mxUtils.trim(this.value) == 0)
 					{
@@ -538,7 +540,7 @@ mxText.prototype.updateBoundingBox = function()
 					{
 						this.boundingBox = new mxRectangle(b.x, b.y, b.width, b.height);
 					}
-					
+
 					return;
 				}
 				catch (e)
@@ -566,14 +568,14 @@ mxText.prototype.updateBoundingBox = function()
 
 				this.offsetWidth = sizeDiv.offsetWidth + this.textWidthPadding;
 				this.offsetHeight = sizeDiv.offsetHeight;
-				
+
 				ow = this.offsetWidth * this.scale;
 				oh = this.offsetHeight * this.scale;
 			}
 		}
 
 		if (ow != null && oh != null)
-		{	
+		{
 			this.boundingBox = new mxRectangle(this.bounds.x,
 				this.bounds.y, ow, oh);
 		}
@@ -589,11 +591,11 @@ mxText.prototype.updateBoundingBox = function()
 				this.margin.y * this.boundingBox.height,
 				this.boundingBox.width, this.boundingBox.height),
 				rot, new mxPoint(0, 0));
-			
+
 			this.unrotatedBoundingBox = mxRectangle.fromRectangle(this.boundingBox);
 			this.unrotatedBoundingBox.x += this.margin.x * this.unrotatedBoundingBox.width;
 			this.unrotatedBoundingBox.y += this.margin.y * this.unrotatedBoundingBox.height;
-			
+
 			this.boundingBox.x += bbox.x;
 			this.boundingBox.y += bbox.y;
 			this.boundingBox.width = bbox.width;
@@ -610,7 +612,7 @@ mxText.prototype.updateBoundingBox = function()
 
 /**
  * Function: getShapeRotation
- * 
+ *
  * Returns 0 to avoid using rotation in the canvas via updateTransform.
  */
 mxText.prototype.getShapeRotation = function()
@@ -620,7 +622,7 @@ mxText.prototype.getShapeRotation = function()
 
 /**
  * Function: getTextRotation
- * 
+ *
  * Returns the rotation for the text label of the corresponding shape.
  */
 mxText.prototype.getTextRotation = function()
@@ -630,7 +632,7 @@ mxText.prototype.getTextRotation = function()
 
 /**
  * Function: isPaintBoundsInverted
- * 
+ *
  * Inverts the bounds if <mxShape.isBoundsInverted> returns true or if the
  * horizontal style is false.
  */
@@ -641,16 +643,17 @@ mxText.prototype.isPaintBoundsInverted = function()
 
 /**
  * Function: configureCanvas
- * 
+ *
  * Sets the state of the canvas for drawing the shape.
  */
 mxText.prototype.configureCanvas = function(c, x, y, w, h)
 {
 	mxShape.prototype.configureCanvas.apply(this, arguments);
-	
+
 	c.setFontColor(this.color);
 	c.setFontBackgroundColor(this.background);
 	c.setFontBorderColor(this.border);
+	c.setLabelPadding(this.labelPadding);
 	c.setFontFamily(this.family);
 	c.setFontSize(this.size);
 	c.setFontStyle(this.fontStyle);
@@ -659,7 +662,7 @@ mxText.prototype.configureCanvas = function(c, x, y, w, h)
 
 /**
  * Function: isShadowEnabled
- * 
+ *
  * Removes all child nodes and resets all CSS.
  */
 mxText.prototype.isShadowEnabled = function()
@@ -670,28 +673,28 @@ mxText.prototype.isShadowEnabled = function()
 
 /**
  * Function: getHtmlValue
- * 
+ *
  * Private helper function to create SVG elements
  */
 mxText.prototype.getHtmlValue = function()
 {
 	var val = this.value;
-	
+
 	if (this.dialect != mxConstants.DIALECT_STRICTHTML)
 	{
 		val = mxUtils.htmlEntities(val, false);
 	}
-	
+
 	// Handles trailing newlines to make sure they are visible in rendering output
 	val = mxUtils.replaceTrailingNewlines(val, '<div><br></div>');
 	val = (this.replaceLinefeeds) ? val.replace(/\n/g, '<br/>') : val;
-	
+
 	return val;
 };
 
 /**
  * Function: getTextCss
- * 
+ *
  * Private helper function to create SVG elements
  */
 mxText.prototype.getTextCss = function()
@@ -700,7 +703,7 @@ mxText.prototype.getTextCss = function()
 		mxConstants.LINE_HEIGHT;
 
 	var css = 'display: inline-block; font-size: ' + this.size + 'px; ' +
-		'font-family: ' + this.family + '; color: ' + this.color + '; line-height: ' + lh +
+		'font-family: ' + mxUtils.parseCssFontFamily(this.family) + '; color: ' + this.color + '; line-height: ' + lh +
 		'; pointer-events: ' + ((this.pointerEvents) ? 'all' : 'none') + '; ';
 
 	if ((this.fontStyle & mxConstants.FONT_BOLD) == mxConstants.FONT_BOLD)
@@ -712,21 +715,26 @@ mxText.prototype.getTextCss = function()
 	{
 		css += 'font-style: italic; ';
 	}
-	
+
 	var deco = [];
-	
+
 	if ((this.fontStyle & mxConstants.FONT_UNDERLINE) == mxConstants.FONT_UNDERLINE)
 	{
 		deco.push('underline');
 	}
-	
+
 	if ((this.fontStyle & mxConstants.FONT_STRIKETHROUGH) == mxConstants.FONT_STRIKETHROUGH)
 	{
 		deco.push('line-through');
 	}
-	
+
 	if (deco.length > 0)
 	{
+		if ((this.fontStyle & mxConstants.FONT_UNDERLINE_DOTTED) == mxConstants.FONT_UNDERLINE_DOTTED)
+		{
+			deco.push('dotted');
+		}
+
 		css += 'text-decoration: ' + deco.join(' ') + '; ';
 	}
 
@@ -742,22 +750,22 @@ mxText.prototype.redrawHtmlShape = function()
 {
 	if (mxClient.IS_SVG)
 	{
-		this.redrawHtmlShapeWithCss3();	
+		this.redrawHtmlShapeWithCss3();
 	}
 	else
 	{
 		var style = this.node.style;
-	
+
 		// Resets CSS styles
 		style.whiteSpace = 'normal';
 		style.overflow = '';
 		style.width = '';
 		style.height = '';
-		
+
 		this.updateValue();
 		this.updateFont(this.node);
 		this.updateSize(this.node);
-		
+
 		this.offsetWidth = null;
 		this.offsetHeight = null;
 		this.updateHtmlTransform();
@@ -777,10 +785,11 @@ mxText.prototype.redrawHtmlShapeWithCss3 = function()
 		'top: ' + Math.round(this.bounds.y) + 'px; pointer-events: none; ';
 	var block = this.getTextCss();
 	var dir = this.getActualTextDirection();
-	
+
 	mxSvgCanvas2D.createCss(w + 2, h, this.align, this.valign, this.wrap, this.overflow, this.clipped, dir,
 		(this.background != null) ? mxUtils.htmlEntities(this.background) : null,
 		(this.border != null) ? mxUtils.htmlEntities(this.border) : null,
+		mxUtils.parseCssSpacing(this.labelPadding),
 		flex, block, this.scale, mxUtils.bind(this, function(dx, dy, flex, item, block, ofl)
 	{
 		var r = this.getTextRotation();
@@ -789,17 +798,17 @@ mxText.prototype.redrawHtmlShapeWithCss3 = function()
 			((this.margin.x != 0 || this.margin.y != 0) ?
 				'translate(' + (this.margin.x * 100) + '%,' +
 					(this.margin.y * 100) + '%)' : '');
-		
+
 		if (tr != '')
 		{
 			tr = 'transform-origin: 0 0; transform: ' + tr + '; ';
 		}
-		
+
 		if (this.overflow == 'block' && this.valign == mxConstants.ALIGN_MIDDLE)
 		{
 			tr += 'max-height: ' + (h + 1) + 'px;';
 		}
-		
+
 		if (ofl == '')
 		{
 			flex += item;
@@ -808,7 +817,7 @@ mxText.prototype.redrawHtmlShapeWithCss3 = function()
 		else
 		{
 			item += tr;
-			
+
 			if (mxClient.IS_SF)
 			{
 				item += '-webkit-clip-path: content-box;';
@@ -819,16 +828,16 @@ mxText.prototype.redrawHtmlShapeWithCss3 = function()
 		{
 			item += 'width: 100%; ';
 		}
-		
+
 		if (this.opacity < 100)
 		{
 			block += 'opacity: ' + (this.opacity / 100) + '; ';
 		}
-		
+
 		this.node.setAttribute('style', flex);
-		
+
 		var html = (mxUtils.isNode(this.value)) ? this.value.outerHTML : this.getHtmlValue();
-		
+
 		if (this.node.firstChild == null)
 		{
 			this.node.innerHTML = '<div><div>' + html +'</div></div>';
@@ -850,7 +859,7 @@ mxText.prototype.updateHtmlTransform = function()
 	var style = this.node.style;
 	var dx = this.margin.x;
 	var dy = this.margin.y;
-	
+
 	if (theta != 0)
 	{
 		mxUtils.setPrefixedStyle(style, 'transformOrigin', (-dx * 100) + '%' + ' ' + (-dy * 100) + '%');
@@ -867,7 +876,7 @@ mxText.prototype.updateHtmlTransform = function()
 	style.left = Math.round(this.bounds.x - Math.ceil(dx * ((this.overflow != 'fill' &&
 		this.overflow != 'width') ? 3 : 1))) + 'px';
 	style.top = Math.round(this.bounds.y - dy * ((this.overflow != 'fill') ? 3 : 1)) + 'px';
-	
+
 	if (this.opacity < 100)
 	{
 		style.opacity = this.opacity / 100;
@@ -880,7 +889,7 @@ mxText.prototype.updateHtmlTransform = function()
 
 /**
  * Function: updateInnerHtml
- * 
+ *
  * Sets the inner HTML of the given element to the <value>.
  */
 mxText.prototype.updateInnerHtml = function(elt)
@@ -892,18 +901,18 @@ mxText.prototype.updateInnerHtml = function(elt)
 	else
 	{
 		var val = this.value;
-		
+
 		if (this.dialect != mxConstants.DIALECT_STRICTHTML)
 		{
 			// LATER: Can be cached in updateValue
 			val = mxUtils.htmlEntities(val, false);
 		}
-		
+
 		// Handles trailing newlines to make sure they are visible in rendering output
 		val = mxUtils.replaceTrailingNewlines(val, '<div>&nbsp;</div>');
 		val = (this.replaceLinefeeds) ? val.replace(/\n/g, '<br/>') : val;
 		val = '<div style="display:inline-block;_display:inline;">' + val + '</div>';
-		
+
 		elt.innerHTML = val;
 	}
 };
@@ -923,12 +932,12 @@ mxText.prototype.updateValue = function()
 	else
 	{
 		var val = this.value;
-		
+
 		if (this.dialect != mxConstants.DIALECT_STRICTHTML)
 		{
 			val = mxUtils.htmlEntities(val, false);
 		}
-		
+
 		// Handles trailing newlines to make sure they are visible in rendering output
 		val = mxUtils.replaceTrailingNewlines(val, '<div><br></div>');
 		val = (this.replaceLinefeeds) ? val.replace(/\n/g, '<br/>') : val;
@@ -941,7 +950,7 @@ mxText.prototype.updateValue = function()
 			{
 				this.node.style.backgroundColor = bg;
 			}
-			
+
 			if (bd != null)
 			{
 				this.node.style.border = '1px solid ' + bd;
@@ -950,17 +959,17 @@ mxText.prototype.updateValue = function()
 		else
 		{
 			var css = '';
-			
+
 			if (bg != null)
 			{
 				css += 'background-color:' + mxUtils.htmlEntities(bg) + ';';
 			}
-			
+
 			if (bd != null)
 			{
 				css += 'border:1px solid ' + mxUtils.htmlEntities(bd) + ';';
 			}
-			
+
 			// Wrapper DIV for background, zoom needed for inline in quirks
 			// and to measure wrapped font sizes in all browsers
 			// FIXME: Background size in quirks mode for wrapped text
@@ -971,10 +980,10 @@ mxText.prototype.updateValue = function()
 		}
 
 		this.node.innerHTML = val;
-		
+
 		// Sets text direction
 		var divs = this.node.getElementsByTagName('div');
-		
+
 		if (divs.length > 0)
 		{
 			// LATER: Add vertical writing-mode support
@@ -984,7 +993,7 @@ mxText.prototype.updateValue = function()
 			{
 				dir = this.getAutoDirection();
 			}
-			
+
 			if (dir == mxConstants.TEXT_DIRECTION_LTR || dir == mxConstants.TEXT_DIRECTION_RTL)
 			{
 				divs[divs.length - 1].setAttribute('dir', dir);
@@ -1005,13 +1014,13 @@ mxText.prototype.updateValue = function()
 mxText.prototype.updateFont = function(node)
 {
 	var style = node.style;
-	
+
 	style.lineHeight = (mxConstants.ABSOLUTE_LINE_HEIGHT) ? (this.size * mxConstants.LINE_HEIGHT) + 'px' : mxConstants.LINE_HEIGHT;
 	style.fontSize = this.size + 'px';
-	style.fontFamily = this.family;
+	style.fontFamily = mxUtils.parseCssFontFamily(this.family);
 	style.verticalAlign = 'top';
 	style.color = this.color;
-	
+
 	if ((this.fontStyle & mxConstants.FONT_BOLD) == mxConstants.FONT_BOLD)
 	{
 		style.fontWeight = 'bold';
@@ -1029,21 +1038,26 @@ mxText.prototype.updateFont = function(node)
 	{
 		style.fontStyle = '';
 	}
-	
+
 	var txtDecor = [];
-	
+
 	if ((this.fontStyle & mxConstants.FONT_UNDERLINE) == mxConstants.FONT_UNDERLINE)
 	{
 		txtDecor.push('underline');
 	}
-	
+
 	if ((this.fontStyle & mxConstants.FONT_STRIKETHROUGH) == mxConstants.FONT_STRIKETHROUGH)
 	{
 		txtDecor.push('line-through');
 	}
-	
+
+	if (txtDecor.length > 0 && (this.fontStyle & mxConstants.FONT_UNDERLINE_DOTTED) == mxConstants.FONT_UNDERLINE_DOTTED)
+	{
+		txtDecor.push('dotted');
+	}
+
 	style.textDecoration = txtDecor.join(' ');
-	
+
 	if (this.align == mxConstants.ALIGN_CENTER)
 	{
 		style.textAlign = 'center';
@@ -1103,19 +1117,19 @@ mxText.prototype.updateSize = function(node)
 		if (this.overflow != 'fill' && this.overflow != 'width')
 		{
 			var sizeDiv = node;
-			
+
 			if (sizeDiv.firstChild != null && sizeDiv.firstChild.nodeName == 'DIV')
 			{
 				sizeDiv = sizeDiv.firstChild;
-				
+
 				if (node.style.wordWrap == 'break-word')
 				{
 					sizeDiv.style.width = '100%';
 				}
 			}
-			
+
 			var tmp = sizeDiv.offsetWidth;
-			
+
 			// Workaround for text measuring in hidden containers
 			if (tmp == 0)
 			{
@@ -1128,12 +1142,12 @@ mxText.prototype.updateSize = function(node)
 			}
 
 			tmp += 3;
-			
+
 			if (this.clipped)
 			{
 				tmp = Math.min(tmp, w);
 			}
-			
+
 			style.width = tmp + 'px';
 		}
 	}
@@ -1190,6 +1204,6 @@ mxText.prototype.getSpacing = function(noBase, margin)
 	{
 		dy = this.spacingTop + (noBase? 0 : this.baseSpacingTop);
 	}
-	
+
 	return new mxPoint(dx, dy);
 };

@@ -11,45 +11,45 @@
  * cached in <mxCellStates> for faster retrieval. The states are updated
  * whenever the model or the view state (translate, scale) changes. The scale
  * and translate are honoured in the bounds.
- * 
+ *
  * Event: mxEvent.UNDO
- * 
+ *
  * Fires after the root was changed in <setCurrentRoot>. The <code>edit</code>
  * property contains the <mxUndoableEdit> which contains the
  * <mxCurrentRootChange>.
- * 
+ *
  * Event: mxEvent.SCALE_AND_TRANSLATE
- * 
+ *
  * Fires after the scale and translate have been changed in <scaleAndTranslate>.
  * The <code>scale</code>, <code>previousScale</code>, <code>translate</code>
  * and <code>previousTranslate</code> properties contain the new and previous
  * scale and translate, respectively.
- * 
+ *
  * Event: mxEvent.SCALE
- * 
+ *
  * Fires after the scale was changed in <setScale>. The <code>scale</code> and
  * <code>previousScale</code> properties contain the new and previous scale.
- * 
+ *
  * Event: mxEvent.TRANSLATE
- * 
+ *
  * Fires after the translate was changed in <setTranslate>. The
  * <code>translate</code> and <code>previousTranslate</code> properties contain
  * the new and previous value for translate.
- * 
+ *
  * Event: mxEvent.DOWN and mxEvent.UP
- * 
+ *
  * Fire if the current root is changed by executing an <mxCurrentRootChange>.
  * The event name depends on the location of the root in the cell hierarchy
  * with respect to the current root. The <code>root</code> and
  * <code>previous</code> properties contain the new and previous root,
  * respectively.
- * 
+ *
  * Constructor: mxGraphView
  *
  * Constructs a new view for the given <mxGraph>.
- * 
+ *
  * Parameters:
- * 
+ *
  * graph - Reference to the enclosing <mxGraph>.
  */
 function mxGraphView(graph)
@@ -73,7 +73,7 @@ mxGraphView.prototype.EMPTY_POINT = new mxPoint();
 
 /**
  * Variable: doneResource
- * 
+ *
  * Specifies the resource key for the status message after a long operation.
  * If the resource for this key does not exist then the value is used as
  * the status message. Default is 'done'.
@@ -91,7 +91,7 @@ mxGraphView.prototype.updatingDocumentResource = (mxClient.language != 'none') ?
 
 /**
  * Variable: allowEval
- * 
+ *
  * Specifies if string values in cell styles should be evaluated using
  * <mxUtils.eval>. This will only be used if the string values can't be mapped
  * to objects using <mxStyleRegistry>. Default is false. NOTE: Enabling this
@@ -101,7 +101,7 @@ mxGraphView.prototype.allowEval = false;
 
 /**
  * Variable: captureDocumentGesture
- * 
+ *
  * Specifies if a gesture should be captured when it goes outside of the
  * graph container. Default is true.
  */
@@ -109,7 +109,7 @@ mxGraphView.prototype.captureDocumentGesture = true;
 
 /**
  * Variable: rendering
- * 
+ *
  * Specifies if shapes should be created, updated and destroyed using the
  * methods of <mxCellRenderer> in <graph>. Default is true.
  */
@@ -138,11 +138,11 @@ mxGraphView.prototype.graphBounds = null;
 
 /**
  * Variable: scale
- * 
+ *
  * Specifies the scale. Default is 1 (100%).
  */
 mxGraphView.prototype.scale = 1;
-	
+
 /**
  * Variable: translate
  *
@@ -153,14 +153,14 @@ mxGraphView.prototype.translate = null;
 
 /**
  * Variable: states
- * 
+ *
  * <mxDictionary> that maps from cell IDs to <mxCellStates>.
  */
 mxGraphView.prototype.states = null;
 
 /**
  * Variable: updateStyle
- * 
+ *
  * Specifies if the style should be updated in each validation step. If this
  * is false then the style is only updated if the state is created or if the
  * style of the cell was changed. Default is false.
@@ -169,28 +169,28 @@ mxGraphView.prototype.updateStyle = false;
 
 /**
  * Variable: lastNode
- * 
+ *
  * During validation, this contains the last DOM node that was processed.
  */
 mxGraphView.prototype.lastNode = null;
 
 /**
  * Variable: lastHtmlNode
- * 
+ *
  * During validation, this contains the last HTML DOM node that was processed.
  */
 mxGraphView.prototype.lastHtmlNode = null;
 
 /**
  * Variable: lastForegroundNode
- * 
+ *
  * During validation, this contains the last edge's DOM node that was processed.
  */
 mxGraphView.prototype.lastForegroundNode = null;
 
 /**
  * Variable: lastForegroundHtmlNode
- * 
+ *
  * During validation, this contains the last edge HTML DOM node that was processed.
  */
 mxGraphView.prototype.lastForegroundHtmlNode = null;
@@ -217,7 +217,7 @@ mxGraphView.prototype.setGraphBounds = function(value)
 
 /**
  * Function: getBounds
- * 
+ *
  * Returns the union of all <mxCellStates> for the given array of <mxCells>.
  *
  * Parameters:
@@ -227,17 +227,17 @@ mxGraphView.prototype.setGraphBounds = function(value)
 mxGraphView.prototype.getBounds = function(cells)
 {
 	var result = null;
-	
+
 	if (cells != null && cells.length > 0)
 	{
 		var model = this.graph.getModel();
-		
+
 		for (var i = 0; i < cells.length; i++)
 		{
 			if (model.isVertex(cells[i]) || model.isEdge(cells[i]))
 			{
 				var state = this.getState(cells[i]);
-			
+
 				if (state != null)
 				{
 					if (result == null)
@@ -252,7 +252,7 @@ mxGraphView.prototype.getBounds = function(cells)
 			}
 		}
 	}
-	
+
 	return result;
 };
 
@@ -277,7 +277,7 @@ mxGraphView.prototype.setCurrentRoot = function(root)
 		this.fireEvent(new mxEventObject(mxEvent.UNDO, 'edit', edit));
 		this.graph.sizeDidChange();
 	}
-	
+
 	return root;
 };
 
@@ -297,11 +297,11 @@ mxGraphView.prototype.scaleAndTranslate = function(scale, dx, dy)
 {
 	var previousScale = this.scale;
 	var previousTranslate = new mxPoint(this.translate.x, this.translate.y);
-	
+
 	if (this.scale != scale || this.translate.x != dx || this.translate.y != dy)
 	{
 		this.scale = scale;
-		
+
 		this.translate.x = dx;
 		this.translate.y = dy;
 
@@ -310,7 +310,7 @@ mxGraphView.prototype.scaleAndTranslate = function(scale, dx, dy)
 			this.viewStateChanged();
 		}
 	}
-	
+
 	this.fireEvent(new mxEventObject(mxEvent.SCALE_AND_TRANSLATE,
 		'scale', scale, 'previousScale', previousScale,
 		'translate', this.translate, 'previousTranslate', previousTranslate));
@@ -318,7 +318,7 @@ mxGraphView.prototype.scaleAndTranslate = function(scale, dx, dy)
 
 /**
  * Function: getScale
- * 
+ *
  * Returns the <scale>.
  */
 mxGraphView.prototype.getScale = function()
@@ -339,7 +339,7 @@ mxGraphView.prototype.getScale = function()
 mxGraphView.prototype.setScale = function(value)
 {
 	var previousScale = this.scale;
-	
+
 	if (this.scale != value)
 	{
 		this.scale = value;
@@ -349,14 +349,14 @@ mxGraphView.prototype.setScale = function(value)
 			this.viewStateChanged();
 		}
 	}
-	
+
 	this.fireEvent(new mxEventObject(mxEvent.SCALE,
 		'scale', value, 'previousScale', previousScale));
 };
 
 /**
  * Function: getTranslate
- * 
+ *
  * Returns the <translate>.
  */
 mxGraphView.prototype.getTranslate = function()
@@ -379,7 +379,7 @@ mxGraphView.prototype.getTranslate = function()
 mxGraphView.prototype.setTranslate = function(dx, dy)
 {
 	var previousTranslate = new mxPoint(this.translate.x, this.translate.y);
-	
+
 	if (this.translate.x != dx || this.translate.y != dy)
 	{
 		this.translate.x = dx;
@@ -390,14 +390,14 @@ mxGraphView.prototype.setTranslate = function(dx, dy)
 			this.viewStateChanged();
 		}
 	}
-	
+
 	this.fireEvent(new mxEventObject(mxEvent.TRANSLATE,
 		'translate', this.translate, 'previousTranslate', previousTranslate));
 };
 
 /**
  * Function: viewStateChanged
- * 
+ *
  * Invoked after <scale> and/or <translate> has changed.
  */
 mxGraphView.prototype.viewStateChanged = function()
@@ -417,7 +417,7 @@ mxGraphView.prototype.refresh = function()
 	{
 		this.clear();
 	}
-	
+
 	this.revalidate();
 };
 
@@ -437,9 +437,9 @@ mxGraphView.prototype.revalidate = function()
  *
  * Removes the state of the given cell and all descendants if the given
  * cell is not the current root.
- * 
+ *
  * Parameters:
- * 
+ *
  * cell - Optional <mxCell> for which the state should be removed. Default
  * is the root of the model.
  * force - Boolean indicating if the current root should be ignored for
@@ -451,13 +451,13 @@ mxGraphView.prototype.clear = function(cell, force, recurse)
 	cell = cell || model.getRoot();
 	force = (force != null) ? force : false;
 	recurse = (recurse != null) ? recurse : true;
-	
+
 	this.removeState(cell);
-	
+
 	if (recurse && (force || cell != this.currentRoot))
 	{
 		var childCount = model.getChildCount(cell);
-		
+
 		for (var i = 0; i < childCount; i++)
 		{
 			this.clear(model.getChildAt(cell, i), force);
@@ -471,12 +471,12 @@ mxGraphView.prototype.clear = function(cell, force, recurse)
 
 /**
  * Function: invalidate
- * 
+ *
  * Invalidates the state of the given cell, all its descendants and
  * connected edges.
- * 
+ *
  * Parameters:
- * 
+ *
  * cell - Optional <mxCell> to be invalidated. Default is the root of the
  * model.
  */
@@ -489,42 +489,42 @@ mxGraphView.prototype.invalidate = function(cell, recurse, includeEdges)
 	{
 		recurse = (recurse != null) ? recurse : true;
 		includeEdges = (includeEdges != null) ? includeEdges : true;
-		
+
 		var state = this.getState(cell);
-		
+
 		if (state != null)
 		{
 			state.invalid = true;
 		}
-		
+
 		// Avoids infinite loops for invalid graphs
 		if (!cell.invalidating)
 		{
 			cell.invalidating = true;
-			
+
 			// Recursively invalidates all descendants
 			if (recurse)
 			{
 				var childCount = model.getChildCount(cell);
-				
+
 				for (var i = 0; i < childCount; i++)
 				{
 					var child = model.getChildAt(cell, i);
 					this.invalidate(child, recurse, includeEdges);
 				}
 			}
-			
+
 			// Propagates invalidation to all connected edges
 			if (includeEdges)
 			{
 				var edgeCount = model.getEdgeCount(cell);
-				
+
 				for (var i = 0; i < edgeCount; i++)
 				{
 					this.invalidate(model.getEdgeAt(cell, i), recurse, includeEdges);
 				}
 			}
-			
+
 			delete cell.invalidating;
 		}
 	}
@@ -532,13 +532,13 @@ mxGraphView.prototype.invalidate = function(cell, recurse, includeEdges)
 
 /**
  * Function: validate
- * 
+ *
  * Calls <validateCell> and <validateCellState> and updates the <graphBounds>
  * using <getBoundingBox>. Finally the background is validated using
  * <validateBackground>.
- * 
+ *
  * Parameters:
- * 
+ *
  * cell - Optional <mxCell> to be used as the root of the validation.
  * Default is <currentRoot> or the root of the model.
  */
@@ -547,7 +547,7 @@ mxGraphView.prototype.validate = function(cell)
 	var t0 = mxLog.enter('mxGraphView.validate');
 	window.status = mxResources.get(this.updatingDocumentResource) ||
 		this.updatingDocumentResource;
-	
+
 	this.resetValidationState();
 
 	var cell = (cell != null) ? cell : ((this.currentRoot != null) ?
@@ -559,7 +559,7 @@ mxGraphView.prototype.validate = function(cell)
 	this.validateBackground();
 
 	this.resetValidationState();
-	
+
 	window.status = mxResources.get(this.doneResource) ||
 		this.doneResource;
 	mxLog.leave('mxGraphView.validate', t0);
@@ -567,7 +567,7 @@ mxGraphView.prototype.validate = function(cell)
 
 /**
  * Function: getEmptyBounds
- * 
+ *
  * Returns the bounds for an empty graph. This returns a rectangle at
  * <translate> with the size of 0 x 0.
  */
@@ -578,11 +578,11 @@ mxGraphView.prototype.getEmptyBounds = function()
 
 /**
  * Function: updateBoundingBox
- * 
+ *
  * Updates the bounding boxes for the given cell state.
- * 
+ *
  * Parameters:
- * 
+ *
  * state - <mxCellState> whose bounding boxes should be updated.
  */
 mxGraphView.prototype.updateBoundingBox = function(state)
@@ -600,12 +600,12 @@ mxGraphView.prototype.updateBoundingBox = function(state)
 
 /**
  * Function: getBoundingBox
- * 
+ *
  * Returns the bounding box of the shape and the label for the given
  * <mxCellState> and its children if recurse is true.
- * 
+ *
  * Parameters:
- * 
+ *
  * state - <mxCellState> whose bounding box should be returned.
  * recurse - Optional boolean indicating if the children should be included.
  * Default is true.
@@ -616,9 +616,9 @@ mxGraphView.prototype.getBoundingBox = function(state, recurse, update)
 {
 	recurse = (recurse != null) ? recurse : true;
 	update = (update != null) ? update : false;
-	
+
 	var bbox = null;
-	
+
 	if (state != null)
 	{
 		if (update)
@@ -655,13 +655,13 @@ mxGraphView.prototype.getBoundingBox = function(state, recurse, update)
 		{
 			var model = this.graph.getModel();
 			var childCount = model.getChildCount(state.cell);
-			
+
 			for (var i = 0; i < childCount; i++)
 			{
 				var bounds = this.getBoundingBox(this.getState(
 					model.getChildAt(state.cell, i)),
 					recurse, update);
-				
+
 				if (bounds != null)
 				{
 					if (bbox == null)
@@ -676,7 +676,7 @@ mxGraphView.prototype.getBoundingBox = function(state, recurse, update)
 			}
 		}
 	}
-	
+
 	return bbox;
 };
 
@@ -684,9 +684,9 @@ mxGraphView.prototype.getBoundingBox = function(state, recurse, update)
  * Function: createBackgroundPageShape
  *
  * Creates and returns the shape used as the background page.
- * 
+ *
  * Parameters:
- * 
+ *
  * bounds - <mxRectangle> that represents the bounds of the shape.
  */
 mxGraphView.prototype.createBackgroundPageShape = function(bounds)
@@ -707,13 +707,13 @@ mxGraphView.prototype.validateBackground = function()
 
 /**
  * Function: validateBackgroundImage
- * 
+ *
  * Validates the background image.
  */
 mxGraphView.prototype.validateBackgroundImage = function()
 {
 	var bg = this.graph.getBackgroundImage();
-	
+
 	if (bg != null)
 	{
 		if (this.backgroundImage == null || this.backgroundImage.image != bg.src)
@@ -722,15 +722,15 @@ mxGraphView.prototype.validateBackgroundImage = function()
 			{
 				this.backgroundImage.destroy();
 			}
-			
+
 			var bounds = new mxRectangle(0, 0, 1, 1);
-			
+
 			this.backgroundImage = new mxImageShape(bounds, bg.src);
 			this.backgroundImage.dialect = this.graph.dialect;
 			this.backgroundImage.init(this.backgroundPane);
 			this.backgroundImage.redraw();
 		}
-		
+
 		this.redrawBackgroundImage(this.backgroundImage, bg);
 	}
 	else if (this.backgroundImage != null)
@@ -742,7 +742,7 @@ mxGraphView.prototype.validateBackgroundImage = function()
 
 /**
  * Function: validateBackgroundPage
- * 
+ *
  * Validates the background page.
  */
 mxGraphView.prototype.validateBackgroundPage = function()
@@ -750,7 +750,7 @@ mxGraphView.prototype.validateBackgroundPage = function()
 	if (this.graph.pageVisible)
 	{
 		var bounds = this.getBackgroundPageBounds();
-		
+
 		if (this.backgroundPageShape == null)
 		{
 			this.backgroundPageShape = this.createBackgroundPageShape(bounds);
@@ -759,7 +759,7 @@ mxGraphView.prototype.validateBackgroundPage = function()
 			this.backgroundPageShape.dialect = this.graph.dialect;
 			this.backgroundPageShape.init(this.backgroundPane);
 			this.backgroundPageShape.redraw();
-			
+
 			// Adds listener for double click handling on background
 			if (this.graph.nativeDblClickEnabled)
 			{
@@ -783,7 +783,7 @@ mxGraphView.prototype.validateBackgroundPage = function()
 					{
 						this.graph.tooltipHandler.hide();
 					}
-					
+
 					if (this.graph.isMouseDown && !mxEvent.isConsumed(evt))
 					{
 						this.graph.fireMouseEvent(mxEvent.MOUSE_MOVE, new mxMouseEvent(evt));
@@ -811,7 +811,7 @@ mxGraphView.prototype.validateBackgroundPage = function()
 
 /**
  * Function: getBackgroundPageBounds
- * 
+ *
  * Returns the bounds for the background page.
  */
 mxGraphView.prototype.getBackgroundPageBounds = function()
@@ -820,7 +820,7 @@ mxGraphView.prototype.getBackgroundPageBounds = function()
 	var ps = this.scale * this.graph.pageScale;
 	var bounds = new mxRectangle(this.scale * this.translate.x, this.scale * this.translate.y,
 			fmt.width * ps, fmt.height * ps);
-	
+
 	return bounds;
 };
 
@@ -828,12 +828,12 @@ mxGraphView.prototype.getBackgroundPageBounds = function()
  * Function: redrawBackgroundImage
  *
  * Updates the bounds and redraws the background image.
- * 
+ *
  * Example:
- * 
+ *
  * If the background image should not be scaled, this can be replaced with
  * the following.
- * 
+ *
  * (code)
  * mxGraphView.prototype.redrawBackground = function(backgroundImage, bg)
  * {
@@ -845,9 +845,9 @@ mxGraphView.prototype.getBackgroundPageBounds = function()
  *   backgroundImage.redraw();
  * };
  * (end)
- * 
+ *
  * Parameters:
- * 
+ *
  * backgroundImage - <mxImageShape> that represents the background image.
  * bg - <mxImage> that specifies the image and its dimensions.
  */
@@ -857,7 +857,7 @@ mxGraphView.prototype.redrawBackgroundImage = function(backgroundImage, bg)
 		this.scale * (this.translate.x + bg.x),
 		this.scale * (this.translate.y + bg.y),
 		this.scale * bg.width, this.scale * bg.height);
-	
+
 	if (backgroundImage.scale != this.scale ||
 		!bounds.equals(backgroundImage.bounds))
 	{
@@ -883,13 +883,13 @@ mxGraphView.prototype.redrawBackgroundImage = function(backgroundImage, bg)
 
 /**
  * Function: validateCell
- * 
+ *
  * Recursively creates the cell state for the given cell if visible is true and
  * the given cell is visible. If the cell is not visible but the state exists
  * then it is removed using <removeState>.
- * 
+ *
  * Parameters:
- * 
+ *
  * cell - <mxCell> whose <mxCellState> should be created.
  * visible - Optional boolean indicating if the cell should be visible. Default
  * is true.
@@ -897,12 +897,12 @@ mxGraphView.prototype.redrawBackgroundImage = function(backgroundImage, bg)
 mxGraphView.prototype.validateCell = function(cell, visible)
 {
 	visible = (visible != null) ? visible : true;
-	
+
 	if (cell != null)
 	{
 		visible = visible && this.graph.isCellVisible(cell);
 		var state = this.getState(cell, visible);
-		
+
 		if (state != null && !visible)
 		{
 			this.removeState(cell);
@@ -911,7 +911,7 @@ mxGraphView.prototype.validateCell = function(cell, visible)
 		{
 			var model = this.graph.getModel();
 			var childCount = model.getChildCount(cell);
-			
+
 			for (var i = 0; i < childCount; i++)
 			{
 				this.validateCell(model.getChildAt(cell, i), visible &&
@@ -919,17 +919,17 @@ mxGraphView.prototype.validateCell = function(cell, visible)
 			}
 		}
 	}
-	
+
 	return cell;
 };
 
 /**
  * Function: validateCellState
- * 
+ *
  * Validates and repaints the <mxCellState> for the given <mxCell>.
- * 
+ *
  * Parameters:
- * 
+ *
  * cell - <mxCell> whose <mxCellState> should be validated.
  * recurse - Optional boolean indicating if the children of the cell should be
  * validated. Default is true.
@@ -938,25 +938,25 @@ mxGraphView.prototype.validateCellState = function(cell, recurse)
 {
 	recurse = (recurse != null) ? recurse : true;
 	var state = null;
-	
+
 	if (cell != null)
 	{
 		state = this.getState(cell);
-		
+
 		if (state != null)
 		{
 			var model = this.graph.getModel();
-			
+
 			if (state.invalid)
 			{
 				state.invalid = false;
-				
+
 				if (state.style == null || state.invalidStyle)
 				{
 					state.style = this.graph.getCellStyle(state.cell);
 					state.invalidStyle = false;
 				}
-				
+
 				if (cell != this.currentRoot)
 				{
 					this.validateCellState(model.getParent(cell), false);
@@ -964,9 +964,9 @@ mxGraphView.prototype.validateCellState = function(cell, recurse)
 
 				state.setVisibleTerminalState(this.validateCellState(this.getVisibleTerminal(cell, true), false), true);
 				state.setVisibleTerminalState(this.validateCellState(this.getVisibleTerminal(cell, false), false), false);
-				
+
 				this.updateCellState(state);
-				
+
 				// Repaint happens immediately after the cell is validated
 				if (cell != this.currentRoot && !state.invalid)
 				{
@@ -984,9 +984,9 @@ mxGraphView.prototype.validateCellState = function(cell, recurse)
 				{
 					this.stateValidated(state);
 				}
-			
+
 				var childCount = model.getChildCount(cell);
-				
+
 				for (var i = 0; i < childCount; i++)
 				{
 					this.validateCellState(model.getChildAt(cell, i));
@@ -994,17 +994,17 @@ mxGraphView.prototype.validateCellState = function(cell, recurse)
 			}
 		}
 	}
-	
+
 	return state;
 };
 
 /**
  * Function: updateCellState
- * 
+ *
  * Updates the given <mxCellState>.
- * 
+ *
  * Parameters:
- * 
+ *
  * state - <mxCellState> to be updated.
  */
 mxGraphView.prototype.updateCellState = function(state)
@@ -1014,34 +1014,34 @@ mxGraphView.prototype.updateCellState = function(state)
 	state.origin.x = 0;
 	state.origin.y = 0;
 	state.length = 0;
-	
+
 	if (state.cell != this.currentRoot)
 	{
 		var model = this.graph.getModel();
-		var pState = this.getState(model.getParent(state.cell)); 
-		
+		var pState = this.getState(model.getParent(state.cell));
+
 		if (pState != null && pState.cell != this.currentRoot)
 		{
 			state.origin.x += pState.origin.x;
 			state.origin.y += pState.origin.y;
 		}
-		
+
 		var offset = this.graph.getChildOffsetForCell(state.cell);
-		
+
 		if (offset != null)
 		{
 			state.origin.x += offset.x;
 			state.origin.y += offset.y;
 		}
-		
-		var geo = this.graph.getCellGeometry(state.cell);				
-	
+
+		var geo = this.graph.getCellGeometry(state.cell);
+
 		if (geo != null)
 		{
 			if (!model.isEdge(state.cell))
 			{
 				offset = (geo.offset != null) ? geo.offset : this.EMPTY_POINT;
-	
+
 				if (geo.relative && pState != null)
 				{
 					if (model.isEdge(pState.cell))
@@ -1068,19 +1068,19 @@ mxGraphView.prototype.updateCellState = function(state)
 					state.origin.y += geo.y;
 				}
 			}
-	
+
 			state.x = this.scale * (this.translate.x + state.origin.x);
 			state.y = this.scale * (this.translate.y + state.origin.y);
 			state.width = this.scale * geo.width;
 			state.unscaledWidth = geo.width;
 			state.height = this.scale * geo.height;
 			state.unscaledHeight = geo.height;
-			
+
 			if (model.isVertex(state.cell))
 			{
 				this.updateVertexState(state, geo);
 			}
-			
+
 			if (model.isEdge(state.cell))
 			{
 				this.updateEdgeState(state, geo);
@@ -1093,7 +1093,7 @@ mxGraphView.prototype.updateCellState = function(state)
 
 /**
  * Function: isCellCollapsed
- * 
+ *
  * Returns true if the children of the given cell should not be visible in the
  * view. This implementation uses <mxGraph.isCellVisible> but it can be
  * overidden to use a separate condition.
@@ -1105,18 +1105,18 @@ mxGraphView.prototype.isCellCollapsed = function(cell)
 
 /**
  * Function: updateVertexState
- * 
+ *
  * Validates the given cell state.
  */
 mxGraphView.prototype.updateVertexState = function(state, geo)
 {
 	var model = this.graph.getModel();
 	var pState = this.getState(model.getParent(state.cell));
-	
+
 	if (geo.relative && pState != null && !model.isEdge(pState.cell))
 	{
 		var alpha = mxUtils.toRadians(pState.style[mxConstants.STYLE_ROTATION] || '0');
-		
+
 		if (alpha != 0)
 		{
 			var cos = Math.cos(alpha);
@@ -1129,13 +1129,13 @@ mxGraphView.prototype.updateVertexState = function(state, geo)
 			state.y = pt.y - state.height / 2;
 		}
 	}
-	
+
 	this.updateVertexLabelOffset(state);
 };
 
 /**
  * Function: updateEdgeState
- * 
+ *
  * Validates the given cell state.
  */
 mxGraphView.prototype.updateEdgeState = function(state, geo)
@@ -1159,9 +1159,9 @@ mxGraphView.prototype.updateEdgeState = function(state, geo)
 		this.updateFixedTerminalPoints(state, source, target);
 		this.updatePoints(state, geo.points, source, target);
 		this.updateFloatingTerminalPoints(state, source, target);
-		
+
 		var pts = state.absolutePoints;
-		
+
 		if (state.cell != this.currentRoot && (pts == null || pts.length < 2 ||
 			pts[0] == null || pts[pts.length - 1] == null))
 		{
@@ -1179,12 +1179,12 @@ mxGraphView.prototype.updateEdgeState = function(state, geo)
 
 /**
  * Function: updateVertexLabelOffset
- * 
+ *
  * Updates the absoluteOffset of the given vertex cell state. This takes
  * into account the label position styles.
- * 
+ *
  * Parameters:
- * 
+ *
  * state - <mxCellState> whose absolute offset should be updated.
  */
 mxGraphView.prototype.updateVertexLabelOffset = function(state)
@@ -1194,7 +1194,7 @@ mxGraphView.prototype.updateVertexLabelOffset = function(state)
 	if (h == mxConstants.ALIGN_LEFT)
 	{
 		var lw = mxUtils.getValue(state.style, mxConstants.STYLE_LABEL_WIDTH, null);
-		
+
 		if (lw != null)
 		{
 			lw *= this.scale;
@@ -1203,7 +1203,7 @@ mxGraphView.prototype.updateVertexLabelOffset = function(state)
 		{
 			lw = state.width;
 		}
-		
+
 		state.absoluteOffset.x -= lw;
 	}
 	else if (h == mxConstants.ALIGN_RIGHT)
@@ -1213,13 +1213,13 @@ mxGraphView.prototype.updateVertexLabelOffset = function(state)
 	else if (h == mxConstants.ALIGN_CENTER)
 	{
 		var lw = mxUtils.getValue(state.style, mxConstants.STYLE_LABEL_WIDTH, null);
-		
+
 		if (lw != null)
 		{
 			// Aligns text block with given width inside the vertex width
 			var align = mxUtils.getValue(state.style, mxConstants.STYLE_ALIGN, mxConstants.ALIGN_CENTER);
 			var dx = 0;
-			
+
 			if (align == mxConstants.ALIGN_CENTER)
 			{
 				dx = 0.5;
@@ -1228,16 +1228,16 @@ mxGraphView.prototype.updateVertexLabelOffset = function(state)
 			{
 				dx = 1;
 			}
-			
+
 			if (dx != 0)
 			{
 				state.absoluteOffset.x -= (lw * this.scale - state.width) * dx;
 			}
 		}
 	}
-	
+
 	var v = mxUtils.getValue(state.style, mxConstants.STYLE_VERTICAL_LABEL_POSITION, mxConstants.ALIGN_MIDDLE);
-	
+
 	if (v == mxConstants.ALIGN_TOP)
 	{
 		state.absoluteOffset.y -= state.height;
@@ -1263,12 +1263,12 @@ mxGraphView.prototype.resetValidationState = function()
 
 /**
  * Function: stateValidated
- * 
+ *
  * Invoked when a state has been processed in <validatePoints>. This is used
  * to update the order of the DOM nodes of the shape.
- * 
+ *
  * Parameters:
- * 
+ *
  * state - <mxCellState> that represents the cell state.
  */
 mxGraphView.prototype.stateValidated = function(state)
@@ -1296,9 +1296,9 @@ mxGraphView.prototype.stateValidated = function(state)
  *
  * Sets the initial absolute terminal points in the given state before the edge
  * style is computed.
- * 
+ *
  * Parameters:
- * 
+ *
  * edge - <mxCellState> whose initial terminal points should be updated.
  * source - <mxCellState> which represents the source terminal.
  * target - <mxCellState> which represents the target terminal.
@@ -1315,9 +1315,9 @@ mxGraphView.prototype.updateFixedTerminalPoints = function(edge, source, target)
  * Function: updateFixedTerminalPoint
  *
  * Sets the fixed source or target terminal point on the given edge.
- * 
+ *
  * Parameters:
- * 
+ *
  * edge - <mxCellState> whose terminal point should be updated.
  * terminal - <mxCellState> which represents the actual terminal.
  * source - Boolean that specifies if the terminal is the source.
@@ -1332,9 +1332,9 @@ mxGraphView.prototype.updateFixedTerminalPoint = function(edge, terminal, source
  * Function: getFixedTerminalPoint
  *
  * Returns the fixed source or target terminal point for the given edge.
- * 
+ *
  * Parameters:
- * 
+ *
  * edge - <mxCellState> whose terminal point should be returned.
  * terminal - <mxCellState> which represents the actual terminal.
  * source - Boolean that specifies if the terminal is the source.
@@ -1343,12 +1343,12 @@ mxGraphView.prototype.updateFixedTerminalPoint = function(edge, terminal, source
 mxGraphView.prototype.getFixedTerminalPoint = function(edge, terminal, source, constraint)
 {
 	var pt = null;
-	
+
 	if (constraint != null)
 	{
 		pt = this.graph.getConnectionPoint(terminal, constraint, false); // FIXME Rounding introduced bugs when calculating label positions -> , this.graph.isOrthogonal(edge));
 	}
-	
+
 	if (pt == null && terminal == null)
 	{
 		var s = this.scale;
@@ -1356,26 +1356,26 @@ mxGraphView.prototype.getFixedTerminalPoint = function(edge, terminal, source, c
 		var orig = edge.origin;
 		var geo = this.graph.getCellGeometry(edge.cell);
 		pt = geo.getTerminalPoint(source);
-		
+
 		if (pt != null)
 		{
 			pt = new mxPoint(s * (tr.x + pt.x + orig.x),
 							 s * (tr.y + pt.y + orig.y));
 		}
 	}
-	
+
 	return pt;
 };
 
 /**
  * Function: updateBoundsFromStencil
- * 
+ *
  * Updates the bounds of the given cell state to reflect the bounds of the stencil
  * if it has a fixed aspect and returns the previous bounds as an <mxRectangle> if
  * the bounds have been modified or null otherwise.
- * 
+ *
  * Parameters:
- * 
+ *
  * edge - <mxCellState> whose bounds should be updated.
  */
 mxGraphView.prototype.updateBoundsFromStencil = function(state)
@@ -1403,9 +1403,9 @@ mxGraphView.prototype.updateBoundsFromStencil = function(state)
  *
  * Updates the absolute points in the given state using the specified array
  * of <mxPoints> as the relative points.
- * 
+ *
  * Parameters:
- * 
+ *
  * edge - <mxCellState> whose absolute points should be updated.
  * points - Array of <mxPoints> that constitute the relative points.
  * source - <mxCellState> that represents the source terminal.
@@ -1419,12 +1419,12 @@ mxGraphView.prototype.updatePoints = function(edge, points, source, target)
 		var pts = [];
 		pts.push(edge.absolutePoints[0]);
 		var edgeStyle = this.getEdgeStyle(edge, points, source, target);
-		
+
 		if (edgeStyle != null)
 		{
 			var src = this.getTerminalPort(edge, source, true);
 			var trg = this.getTerminalPort(edge, target, false);
-			
+
 			// Uses the stencil bounds for routing and restores after routing
 			var srcBounds = this.updateBoundsFromStencil(src);
 			var trgBounds = (src != trg) ? this.updateBoundsFromStencil(trg) : null;
@@ -1458,7 +1458,7 @@ mxGraphView.prototype.updatePoints = function(edge, points, source, target)
 				}
 			}
 		}
-		
+
 		var tmp = edge.absolutePoints;
 		pts.push(tmp[tmp.length-1]);
 
@@ -1477,17 +1477,17 @@ mxGraphView.prototype.transformControlPoint = function(state, pt, ignoreScale)
 	{
 		var orig = state.origin;
 		var scale = ignoreScale ? 1 : this.scale
-		
+
 	    return new mxPoint(scale * (pt.x + this.translate.x + orig.x),
-	    		scale * (pt.y + this.translate.y + orig.y));
+			scale * (pt.y + this.translate.y + orig.y));
 	}
-	
+
 	return null;
 };
 
 /**
  * Function: isLoopStyleEnabled
- * 
+ *
  * Returns true if the given edge should be routed with <mxGraph.defaultLoopStyle>
  * or the <mxConstants.STYLE_LOOP> defined for the given edge. This implementation
  * returns true if the given edge is a loop and does not have connections constraints
@@ -1497,20 +1497,20 @@ mxGraphView.prototype.isLoopStyleEnabled = function(edge, points, source, target
 {
 	var sc = this.graph.getConnectionConstraint(edge, source, true);
 	var tc = this.graph.getConnectionConstraint(edge, target, false);
-	
+
 	if ((points == null || points.length < 2) &&
 		(!mxUtils.getValue(edge.style, mxConstants.STYLE_ORTHOGONAL_LOOP, false) ||
 		((sc == null || sc.point == null) && (tc == null || tc.point == null))))
 	{
 		return source != null && source == target;
 	}
-	
+
 	return false;
 };
 
 /**
  * Function: getEdgeStyle
- * 
+ *
  * Returns the edge style function to be used to render the given edge state.
  */
 mxGraphView.prototype.getEdgeStyle = function(edge, points, source, target)
@@ -1524,20 +1524,20 @@ mxGraphView.prototype.getEdgeStyle = function(edge, points, source, target)
 	if (typeof(edgeStyle) == "string")
 	{
 		var tmp = mxStyleRegistry.getValue(edgeStyle);
-		
+
 		if (tmp == null && this.isAllowEval())
 		{
- 			tmp = mxUtils.eval(edgeStyle);
+			tmp = mxUtils.eval(edgeStyle);
 		}
-		
+
 		edgeStyle = tmp;
 	}
-	
+
 	if (typeof(edgeStyle) == "function")
 	{
 		return edgeStyle;
 	}
-	
+
 	return null;
 };
 
@@ -1546,9 +1546,9 @@ mxGraphView.prototype.getEdgeStyle = function(edge, points, source, target)
  *
  * Updates the terminal points in the given state after the edge style was
  * computed for the edge.
- * 
+ *
  * Parameters:
- * 
+ *
  * state - <mxCellState> whose terminal points should be updated.
  * source - <mxCellState> that represents the source terminal.
  * target - <mxCellState> that represents the target terminal.
@@ -1566,7 +1566,7 @@ mxGraphView.prototype.updateFloatingTerminalPoints = function(state, source, tar
 		{
 			this.updateFloatingTerminalPoint(state, target, source, false);
 		}
-		
+
 		if (p0 == null && source != null)
 		{
 			this.updateFloatingTerminalPoint(state, source, target, true);
@@ -1579,9 +1579,9 @@ mxGraphView.prototype.updateFloatingTerminalPoints = function(state, source, tar
  *
  * Updates the absolute terminal point in the given state for the given
  * start and end state, where start is the source if source is true.
- * 
+ *
  * Parameters:
- * 
+ *
  * edge - <mxCellState> whose terminal point should be updated.
  * start - <mxCellState> for the terminal on "this" side of the edge.
  * end - <mxCellState> for the terminal on the other side of the edge.
@@ -1594,12 +1594,12 @@ mxGraphView.prototype.updateFloatingTerminalPoint = function(edge, start, end, s
 
 /**
  * Function: getFloatingTerminalPoint
- * 
+ *
  * Returns the floating terminal point for the given edge, start and end
  * state, where start is the source if source is true.
- * 
+ *
  * Parameters:
- * 
+ *
  * edge - <mxCellState> whose terminal point should be returned.
  * start - <mxCellState> for the terminal on "this" side of the edge.
  * end - <mxCellState> for the terminal on the other side of the edge.
@@ -1609,18 +1609,18 @@ mxGraphView.prototype.getFloatingTerminalPoint = function(edge, start, end, sour
 {
 	start = this.getTerminalPort(edge, start, source);
 	var next = this.getNextPoint(edge, end, source);
-	
+
 	var orth = this.graph.isOrthogonal(edge);
 	var alpha = mxUtils.toRadians(Number(start.style[mxConstants.STYLE_ROTATION] || '0'));
 	var center = new mxPoint(start.getCenterX(), start.getCenterY());
-	
+
 	if (alpha != 0)
 	{
 		var cos = Math.cos(-alpha);
 		var sin = Math.sin(-alpha);
 		next = mxUtils.getRotatedPoint(next, cos, sin, center);
 	}
-	
+
 	var border = parseFloat(edge.style[mxConstants.STYLE_PERIMETER_SPACING] || 0);
 	border += parseFloat(edge.style[(source) ?
 		mxConstants.STYLE_SOURCE_PERIMETER_SPACING :
@@ -1639,12 +1639,12 @@ mxGraphView.prototype.getFloatingTerminalPoint = function(edge, start, end, sour
 
 /**
  * Function: getTerminalPort
- * 
+ *
  * Returns an <mxCellState> that represents the source or target terminal or
  * port for the given edge.
- * 
+ *
  * Parameters:
- * 
+ *
  * state - <mxCellState> that represents the state of the edge.
  * terminal - <mxCellState> that represents the terminal.
  * source - Boolean indicating if the given terminal is the source terminal.
@@ -1654,18 +1654,18 @@ mxGraphView.prototype.getTerminalPort = function(state, terminal, source)
 	var key = (source) ? mxConstants.STYLE_SOURCE_PORT :
 		mxConstants.STYLE_TARGET_PORT;
 	var id = mxUtils.getValue(state.style, key);
-	
+
 	if (id != null)
 	{
 		var tmp = this.getState(this.graph.getModel().getCell(id));
-		
+
 		// Only uses ports where a cell state exists
 		if (tmp != null)
 		{
 			terminal = tmp;
 		}
 	}
-	
+
 	return terminal;
 };
 
@@ -1674,9 +1674,9 @@ mxGraphView.prototype.getTerminalPort = function(state, terminal, source)
  *
  * Returns an <mxPoint> that defines the location of the intersection point between
  * the perimeter and the line between the center of the shape and the given point.
- * 
+ *
  * Parameters:
- * 
+ *
  * terminal - <mxCellState> for the source or target terminal.
  * next - <mxPoint> that lies outside of the given terminal.
  * orthogonal - Boolean that specifies if the orthogonal projection onto
@@ -1688,11 +1688,11 @@ mxGraphView.prototype.getTerminalPort = function(state, terminal, source)
 mxGraphView.prototype.getPerimeterPoint = function(terminal, next, orthogonal, border)
 {
 	var point = null;
-	
+
 	if (terminal != null)
 	{
 		var perimeter = this.getPerimeterFunction(terminal);
-		
+
 		if (perimeter != null && next != null)
 		{
 			var bounds = this.getPerimeterBounds(terminal, border);
@@ -1701,31 +1701,31 @@ mxGraphView.prototype.getPerimeterPoint = function(terminal, next, orthogonal, b
 			{
 				point = new mxPoint(next.x, next.y);
 				var flipH = false;
-				var flipV = false;	
-				
+				var flipV = false;
+
 				if (this.graph.model.isVertex(terminal.cell))
 				{
 					flipH = mxUtils.getValue(terminal.style, mxConstants.STYLE_FLIPH, 0) == 1;
-					flipV = mxUtils.getValue(terminal.style, mxConstants.STYLE_FLIPV, 0) == 1;	
-	
+					flipV = mxUtils.getValue(terminal.style, mxConstants.STYLE_FLIPV, 0) == 1;
+
 					// Legacy support for stencilFlipH/V
 					if (terminal.shape != null && terminal.shape.stencil != null)
 					{
 						flipH = (mxUtils.getValue(terminal.style, 'stencilFlipH', 0) == 1) || flipH;
 						flipV = (mxUtils.getValue(terminal.style, 'stencilFlipV', 0) == 1) || flipV;
 					}
-	
+
 					if (flipH)
 					{
 						point.x = 2 * bounds.getCenterX() - point.x;
 					}
-					
+
 					if (flipV)
 					{
 						point.y = 2 * bounds.getCenterY() - point.y;
 					}
 				}
-				
+
 				point = perimeter(bounds, terminal, point, orthogonal);
 
 				if (point != null)
@@ -1734,7 +1734,7 @@ mxGraphView.prototype.getPerimeterPoint = function(terminal, next, orthogonal, b
 					{
 						point.x = 2 * bounds.getCenterX() - point.x;
 					}
-					
+
 					if (flipV)
 					{
 						point.y = 2 * bounds.getCenterY() - point.y;
@@ -1742,19 +1742,19 @@ mxGraphView.prototype.getPerimeterPoint = function(terminal, next, orthogonal, b
 				}
 			}
 		}
-		
+
 		if (point == null)
 		{
 			point = this.getPoint(terminal);
 		}
 	}
-	
+
 	return point;
 };
 
 /**
  * Function: getRoutingCenterX
- * 
+ *
  * Returns the x-coordinate of the center point for automatic routing.
  */
 mxGraphView.prototype.getRoutingCenterX = function (state)
@@ -1767,7 +1767,7 @@ mxGraphView.prototype.getRoutingCenterX = function (state)
 
 /**
  * Function: getRoutingCenterY
- * 
+ *
  * Returns the y-coordinate of the center point for automatic routing.
  */
 mxGraphView.prototype.getRoutingCenterY = function (state)
@@ -1783,18 +1783,18 @@ mxGraphView.prototype.getRoutingCenterY = function (state)
  *
  * Returns the perimeter bounds for the given terminal, edge pair as an
  * <mxRectangle>.
- * 
+ *
  * If you have a model where each terminal has a relative child that should
  * act as the graphical endpoint for a connection from/to the terminal, then
  * this method can be replaced as follows:
- * 
+ *
  * (code)
  * var oldGetPerimeterBounds = mxGraphView.prototype.getPerimeterBounds;
  * mxGraphView.prototype.getPerimeterBounds = function(terminal, edge, isSource)
  * {
  *   var model = this.graph.getModel();
  *   var childCount = model.getChildCount(terminal.cell);
- * 
+ *
  *   if (childCount > 0)
  *   {
  *     var child = model.getChildAt(terminal.cell, 0);
@@ -1804,20 +1804,20 @@ mxGraphView.prototype.getRoutingCenterY = function (state)
  *         geo.relative)
  *     {
  *       var state = this.getState(child);
- *       
+ *
  *       if (state != null)
  *       {
  *         terminal = state;
  *       }
  *     }
  *   }
- *   
+ *
  *   return oldGetPerimeterBounds.apply(this, arguments);
  * };
  * (end)
- * 
+ *
  * Parameters:
- * 
+ *
  * terminal - <mxCellState> that represents the terminal.
  * border - Number that adds a border between the shape and the perimeter.
  */
@@ -1846,20 +1846,20 @@ mxGraphView.prototype.getPerimeterFunction = function(state)
 	if (typeof(perimeter) == "string")
 	{
 		var tmp = mxStyleRegistry.getValue(perimeter);
-		
+
 		if (tmp == null && this.isAllowEval())
 		{
- 			tmp = mxUtils.eval(perimeter);
+			tmp = mxUtils.eval(perimeter);
 		}
 
 		perimeter = tmp;
 	}
-	
+
 	if (typeof(perimeter) == "function")
 	{
 		return perimeter;
 	}
-	
+
 	return null;
 };
 
@@ -1868,9 +1868,9 @@ mxGraphView.prototype.getPerimeterFunction = function(state)
  *
  * Returns the nearest point in the list of absolute points or the center
  * of the opposite terminal.
- * 
+ *
  * Parameters:
- * 
+ *
  * edge - <mxCellState> that represents the edge.
  * opposite - <mxCellState> that represents the opposite terminal.
  * source - Boolean indicating if the next point for the source or target
@@ -1880,18 +1880,18 @@ mxGraphView.prototype.getNextPoint = function(edge, opposite, source)
 {
 	var pts = edge.absolutePoints;
 	var point = null;
-	
+
 	if (pts != null && pts.length >= 2)
 	{
 		var count = pts.length;
 		point = pts[(source) ? Math.min(1, count - 1) : Math.max(0, count - 2)];
 	}
-	
+
 	if (point == null && opposite != null)
 	{
 		point = new mxPoint(opposite.getCenterX(), opposite.getCenterY());
 	}
-	
+
 	return point;
 };
 
@@ -1901,9 +1901,9 @@ mxGraphView.prototype.getNextPoint = function(edge, opposite, source)
  * Returns the nearest ancestor terminal that is visible. The edge appears
  * to be connected to this terminal on the display. The result of this method
  * is cached in <mxCellState.getVisibleTerminalState>.
- * 
+ *
  * Parameters:
- * 
+ *
  * edge - <mxCell> whose visible terminal should be returned.
  * source - Boolean that specifies if the source or target terminal
  * should be returned.
@@ -1913,14 +1913,14 @@ mxGraphView.prototype.getVisibleTerminal = function(edge, source)
 	var model = this.graph.getModel();
 	var result = model.getTerminal(edge, source);
 	var best = result;
-	
+
 	while (result != null && result != this.currentRoot)
 	{
 		if (!this.graph.isCellVisible(best) || this.isCellCollapsed(result))
 		{
 			best = result;
 		}
-		
+
 		result = model.getParent(result);
 	}
 
@@ -1931,7 +1931,7 @@ mxGraphView.prototype.getVisibleTerminal = function(edge, source)
 	{
 		best = null;
 	}
-	
+
 	return best;
 };
 
@@ -1942,9 +1942,9 @@ mxGraphView.prototype.getVisibleTerminal = function(edge, source)
  * he absolute points.
  * Also updates <mxCellState.terminalDistance>, <mxCellState.length> and
  * <mxCellState.segments>.
- * 
+ *
  * Parameters:
- * 
+ *
  * state - <mxCellState> whose bounds should be updated.
  */
 mxGraphView.prototype.updateEdgeBounds = function(state)
@@ -1952,7 +1952,7 @@ mxGraphView.prototype.updateEdgeBounds = function(state)
 	var points = state.absolutePoints;
 	var p0 = points[0];
 	var pe = points[points.length - 1];
-	
+
 	if (p0.x != pe.x || p0.y != pe.y)
 	{
 		var dx = pe.x - p0.x;
@@ -1963,45 +1963,45 @@ mxGraphView.prototype.updateEdgeBounds = function(state)
 	{
 		state.terminalDistance = 0;
 	}
-	
+
 	var length = 0;
 	var segments = [];
 	var pt = p0;
-	
+
 	if (pt != null)
 	{
 		var minX = pt.x;
 		var minY = pt.y;
 		var maxX = minX;
 		var maxY = minY;
-		
+
 		for (var i = 1; i < points.length; i++)
 		{
 			var tmp = points[i];
-			
+
 			if (tmp != null)
 			{
 				var dx = pt.x - tmp.x;
 				var dy = pt.y - tmp.y;
-				
+
 				var segment = Math.sqrt(dx * dx + dy * dy);
 				segments.push(segment);
 				length += segment;
-				
+
 				pt = tmp;
-				
+
 				minX = Math.min(pt.x, minX);
 				minY = Math.min(pt.y, minY);
 				maxX = Math.max(pt.x, maxX);
 				maxY = Math.max(pt.y, maxY);
 			}
 		}
-		
+
 		state.length = length;
 		state.segments = segments;
-		
+
 		var markerSize = 1; // TODO: include marker size
-		
+
 		state.x = minX;
 		state.y = minY;
 		state.width = Math.max(markerSize, maxX - minX);
@@ -2015,9 +2015,9 @@ mxGraphView.prototype.updateEdgeBounds = function(state)
  * Returns the absolute point on the edge for the given relative
  * <mxGeometry> as an <mxPoint>. The edge is represented by the given
  * <mxCellState>.
- * 
+ *
  * Parameters:
- * 
+ *
  * state - <mxCellState> that represents the state of the parent edge.
  * geometry - <mxGeometry> that represents the relative location.
  */
@@ -2025,14 +2025,14 @@ mxGraphView.prototype.getPoint = function(state, geometry)
 {
 	var x = state.getCenterX();
 	var y = state.getCenterY();
-	
+
 	if (state.segments != null && (geometry == null || geometry.relative))
 	{
 		var gx = (geometry != null) ? geometry.x / 2 : 0;
 		var pointCount = state.absolutePoints.length;
 		var dist = Math.round((gx + 0.5) * state.length);
 		var segment = state.segments[0];
-		var length = 0;				
+		var length = 0;
 		var index = 1;
 
 		while (dist >= Math.round(length + segment) && index < pointCount - 1)
@@ -2055,7 +2055,7 @@ mxGraphView.prototype.getPoint = function(state, geometry)
 			{
 				gy = geometry.y;
 				var offset = geometry.offset;
-				
+
 				if (offset != null)
 				{
 					offsetX = offset.x;
@@ -2067,7 +2067,7 @@ mxGraphView.prototype.getPoint = function(state, geometry)
 			var dy = pe.y - p0.y;
 			var nx = (segment == 0) ? 0 : dy / segment;
 			var ny = (segment == 0) ? 0 : dx / segment;
-			
+
 			x = p0.x + dx * factor + (nx * gy + offsetX) * this.scale;
 			y = p0.y + dy * factor - (ny * gy - offsetY) * this.scale;
 		}
@@ -2075,15 +2075,15 @@ mxGraphView.prototype.getPoint = function(state, geometry)
 	else if (geometry != null)
 	{
 		var offset = geometry.offset;
-		
+
 		if (offset != null)
 		{
 			x += offset.x;
 			y += offset.y;
 		}
 	}
-	
-	return new mxPoint(x, y);		
+
+	return new mxPoint(x, y);
 };
 
 /**
@@ -2091,9 +2091,9 @@ mxGraphView.prototype.getPoint = function(state, geometry)
  *
  * Gets the relative point that describes the given, absolute label
  * position for the given edge state.
- * 
+ *
  * Parameters:
- * 
+ *
  * state - <mxCellState> that represents the state of the parent edge.
  * x - Specifies the x-coordinate of the absolute label location.
  * y - Specifies the y-coordinate of the absolute label location.
@@ -2102,11 +2102,11 @@ mxGraphView.prototype.getRelativePoint = function(edgeState, x, y)
 {
 	var model = this.graph.getModel();
 	var geometry = model.getGeometry(edgeState.cell);
-	
+
 	if (geometry != null)
 	{
 		var pointCount = edgeState.absolutePoints.length;
-		
+
 		if (geometry.relative && pointCount > 1)
 		{
 			var totalLength = edgeState.length;
@@ -2119,14 +2119,14 @@ mxGraphView.prototype.getRelativePoint = function(edgeState, x, y)
 			var length = 0;
 			var index = 0;
 			var tmp = 0;
-			
+
 			for (var i = 2; i < pointCount; i++)
 			{
 				p0 = pe;
 				pe = edgeState.absolutePoints[i];
 				var dist = mxUtils.ptSegDistSq(p0.x, p0.y, pe.x, pe.y, x, y);
 				tmp += segments[i - 2];
-				
+
 				if (dist <= minDist)
 				{
 					minDist = dist;
@@ -2134,27 +2134,27 @@ mxGraphView.prototype.getRelativePoint = function(edgeState, x, y)
 					length = tmp;
 				}
 			}
-			
+
 			var seg = segments[index];
 			p0 = edgeState.absolutePoints[index];
 			pe = edgeState.absolutePoints[index + 1];
-			
+
 			var x2 = p0.x;
 			var y2 = p0.y;
-			
+
 			var x1 = pe.x;
 			var y1 = pe.y;
-			
+
 			var px = x;
 			var py = y;
-			
+
 			var xSegment = x2 - x1;
 			var ySegment = y2 - y1;
-			
+
 			px -= x1;
 			py -= y1;
 			var projlenSq = 0;
-			
+
 			px = xSegment - px;
 			py = ySegment - py;
 			var dotprod = px * xSegment + py * ySegment;
@@ -2186,11 +2186,11 @@ mxGraphView.prototype.getRelativePoint = function(edgeState, x, y)
 			}
 
 			// Constructs the relative point for the label
-			return new mxPoint(((totalLength / 2 - length - projlen) / totalLength) * -2,
+			return new mxPoint((totalLength > 0) ? ((totalLength / 2 - length - projlen) / totalLength) * -2 : 0,
 						yDistance / this.scale);
 		}
 	}
-	
+
 	return new mxPoint();
 };
 
@@ -2203,26 +2203,26 @@ mxGraphView.prototype.getRelativePoint = function(edgeState, x, y)
  * between the two endpoints if the geometry is absolute, or as the
  * relative distance between the center along the line and the absolute
  * orthogonal distance if the geometry is relative.
- * 
+ *
  * Parameters:
- * 
+ *
  * state - <mxCellState> whose absolute offset should be updated.
  */
 mxGraphView.prototype.updateEdgeLabelOffset = function(state)
 {
 	var points = state.absolutePoints;
-	
+
 	state.absoluteOffset.x = state.getCenterX();
 	state.absoluteOffset.y = state.getCenterY();
 
 	if (points != null && points.length > 0 && state.segments != null)
 	{
 		var geometry = this.graph.getCellGeometry(state.cell);
-		
+
 		if (geometry.relative)
 		{
 			var offset = this.getPoint(state, geometry);
-			
+
 			if (offset != null)
 			{
 				state.absoluteOffset = offset;
@@ -2232,7 +2232,7 @@ mxGraphView.prototype.updateEdgeLabelOffset = function(state)
 		{
 			var p0 = points[0];
 			var pe = points[points.length - 1];
-			
+
 			if (p0 != null && pe != null)
 			{
 				var dx = pe.x - p0.x;
@@ -2241,16 +2241,16 @@ mxGraphView.prototype.updateEdgeLabelOffset = function(state)
 				var y0 = 0;
 
 				var off = geometry.offset;
-				
+
 				if (off != null)
 				{
 					x0 = off.x;
 					y0 = off.y;
 				}
-				
+
 				var x = p0.x + dx / 2 + x0 * this.scale;
 				var y = p0.y + dy / 2 + y0 * this.scale;
-				
+
 				state.absoluteOffset.x = x;
 				state.absoluteOffset.y = y;
 			}
@@ -2263,9 +2263,9 @@ mxGraphView.prototype.updateEdgeLabelOffset = function(state)
  *
  * Returns the <mxCellState> for the given cell. If create is true, then
  * the state is created if it does not yet exist.
- * 
+ *
  * Parameters:
- * 
+ *
  * cell - <mxCell> for which the <mxCellState> should be returned.
  * create - Optional boolean indicating if a new state should be created
  * if it does not yet exist. Default is false.
@@ -2274,11 +2274,11 @@ mxGraphView.prototype.getState = function(cell, create)
 {
 	create = create || false;
 	var state = null;
-	
+
 	if (cell != null)
 	{
 		state = this.states.get(cell);
-		
+
 		if (create && (state == null || this.updateStyle) && this.graph.isCellVisible(cell))
 		{
 			if (state == null)
@@ -2373,17 +2373,17 @@ mxGraphView.prototype.getCellStates = function(cells)
 	else
 	{
 		var result = [];
-		
+
 		for (var i = 0; i < cells.length; i++)
 		{
 			var state = this.getState(cells[i]);
-			
+
 			if (state != null)
 			{
 				result.push(state);
 			}
 		}
-		
+
 		return result;
 	}
 };
@@ -2392,19 +2392,19 @@ mxGraphView.prototype.getCellStates = function(cells)
  * Function: removeState
  *
  * Removes and returns the <mxCellState> for the given cell.
- * 
+ *
  * Parameters:
- * 
+ *
  * cell - <mxCell> for which the <mxCellState> should be removed.
  */
 mxGraphView.prototype.removeState = function(cell)
 {
 	var state = null;
-	
+
 	if (cell != null)
 	{
 		state = this.states.remove(cell);
-		
+
 		if (state != null)
 		{
 			this.graph.cellRenderer.destroy(state);
@@ -2412,7 +2412,7 @@ mxGraphView.prototype.removeState = function(cell)
 			state.destroy();
 		}
 	}
-	
+
 	return state;
 };
 
@@ -2421,9 +2421,9 @@ mxGraphView.prototype.removeState = function(cell)
  *
  * Creates and returns an <mxCellState> for the given cell and initializes
  * it using <mxCellRenderer.initialize>.
- * 
+ *
  * Parameters:
- * 
+ *
  * cell - <mxCell> for which a new <mxCellState> should be created.
  */
 mxGraphView.prototype.createState = function(cell)
@@ -2484,14 +2484,14 @@ mxGraphView.prototype.getDecoratorPane = function()
 
 /**
  * Function: isContainerEvent
- * 
+ *
  * Returns true if the event origin is one of the drawing panes or
  * containers of the view.
  */
 mxGraphView.prototype.isContainerEvent = function(evt)
 {
 	var source = mxEvent.getSource(evt);
-	
+
 	return source == this.graph.container ||
 		this.backgroundPane.contains(source) ||
 		source == this.canvas.parentNode ||
@@ -2503,7 +2503,7 @@ mxGraphView.prototype.isContainerEvent = function(evt)
 
 /**
  * Function: isScrollEvent
- * 
+ *
  * Returns true if the event origin is one of the scrollbars of the
  * container in IE. Such events are ignored.
  */
@@ -2522,12 +2522,12 @@ mxGraphView.prototype.isContainerEvent = function(evt)
 
 	var outHeight = this.graph.container.offsetHeight;
 	var inHeight = this.graph.container.clientHeight;
-	
+
 	if (outHeight > inHeight && pt.y > inHeight + 2 && pt.y <= outHeight)
 	{
 		return true;
 	}
-	
+
 	return false;
 };
 
@@ -2540,10 +2540,10 @@ mxGraphView.prototype.isContainerEvent = function(evt)
 mxGraphView.prototype.init = function()
 {
 	this.installListeners();
-	
+
 	// Creates the DOM nodes for the respective display dialect
 	var graph = this.graph;
-	
+
 	if (graph.dialect == mxConstants.DIALECT_SVG)
 	{
 		this.createSvg();
@@ -2563,7 +2563,7 @@ mxGraphView.prototype.installListeners = function()
 {
 	var graph = this.graph;
 	var container = graph.container;
-	
+
 	if (container != null)
 	{
 		// Support for touch device gestures (eg. pinch to zoom)
@@ -2575,7 +2575,7 @@ mxGraphView.prototype.installListeners = function()
 				graph.fireGestureEvent(evt);
 				mxEvent.consume(evt);
 			}));
-			
+
 			mxEvent.addListener(container, 'gesturechange', mxUtils.bind(this, function(evt)
 			{
 				graph.fireGestureEvent(evt);
@@ -2588,7 +2588,7 @@ mxGraphView.prototype.installListeners = function()
 				mxEvent.consume(evt);
 			}));
 		}
-		
+
 		// Adds basic listeners for graph event dispatching
 		mxEvent.addGestureListeners(container, mxUtils.bind(this, function(evt)
 		{
@@ -2614,7 +2614,7 @@ mxGraphView.prototype.installListeners = function()
 				graph.fireMouseEvent(mxEvent.MOUSE_UP, new mxMouseEvent(evt));
 			}
 		}));
-		
+
 		// Adds listener for double click handling on background, this does always
 		// use native event handler, we assume that the DOM of the background
 		// does not change during the double click
@@ -2632,7 +2632,7 @@ mxGraphView.prototype.installListeners = function()
 		var getState = function(evt)
 		{
 			var state = null;
-			
+
 			// Workaround for touch events which started on some DOM node
 			// on top of the container, in which case the cells under the
 			// mouse for the move and up events are not detected.
@@ -2640,16 +2640,16 @@ mxGraphView.prototype.installListeners = function()
 			{
 				var x = mxEvent.getClientX(evt);
 				var y = mxEvent.getClientY(evt);
-				
+
 				// Dispatches the drop event to the graph which
 				// consumes and executes the source function
 				var pt = mxUtils.convertPoint(container, x, y);
 				state = graph.view.getState(graph.getCellAt(pt.x, pt.y));
 			}
-			
+
 			return state;
 		};
-		
+
 		// Adds basic listeners for graph event dispatching outside of the
 		// container and finishing the handling of a single gesture
 		// Implemented via graph event dispatch loop to avoid duplicate events
@@ -2663,7 +2663,7 @@ mxGraphView.prototype.installListeners = function()
 			mouseMove: function() { },
 			mouseUp: function() { }
 		});
-		
+
 		this.moveHandler = mxUtils.bind(this, function(evt)
 		{
 			// Hides the tooltip if mouse is outside container
@@ -2679,7 +2679,7 @@ mxGraphView.prototype.installListeners = function()
 				graph.fireMouseEvent(mxEvent.MOUSE_MOVE, new mxMouseEvent(evt, getState(evt)));
 			}
 		});
-		
+
 		this.endHandler = mxUtils.bind(this, function(evt)
 		{
 			if (this.captureDocumentGesture && graph.isMouseDown && graph.container != null &&
@@ -2689,7 +2689,7 @@ mxGraphView.prototype.installListeners = function()
 				graph.fireMouseEvent(mxEvent.MOUSE_UP, new mxMouseEvent(evt));
 			}
 		});
-		
+
 		mxEvent.addGestureListeners(document, null, this.moveHandler, this.endHandler);
 	}
 };
@@ -2702,12 +2702,12 @@ mxGraphView.prototype.installListeners = function()
 mxGraphView.prototype.createHtml = function()
 {
 	var container = this.graph.container;
-	
+
 	if (container != null)
 	{
 		this.canvas = this.createHtmlPane('100%', '100%');
 		this.canvas.style.overflow = 'hidden';
-	
+
 		// Uses minimal size for inner DIVs on Canvas. This is required
 		// for correct event processing in IE. If we have an overlapping
 		// DIV then the events on the cells are only fired for labels.
@@ -2715,7 +2715,7 @@ mxGraphView.prototype.createHtml = function()
 		this.drawPane = this.createHtmlPane('1px', '1px');
 		this.overlayPane = this.createHtmlPane('1px', '1px');
 		this.decoratorPane = this.createHtmlPane('1px', '1px');
-		
+
 		this.canvas.appendChild(this.backgroundPane);
 		this.canvas.appendChild(this.drawPane);
 		this.canvas.appendChild(this.overlayPane);
@@ -2728,7 +2728,7 @@ mxGraphView.prototype.createHtml = function()
 
 /**
  * Function: updateHtmlCanvasSize
- * 
+ *
  * Updates the size of the HTML canvas.
  */
 mxGraphView.prototype.updateHtmlCanvasSize = function(width, height)
@@ -2760,13 +2760,13 @@ mxGraphView.prototype.updateHtmlCanvasSize = function(width, height)
 
 /**
  * Function: createHtmlPane
- * 
+ *
  * Creates and returns a drawing pane in HTML (DIV).
  */
 mxGraphView.prototype.createHtmlPane = function(width, height)
 {
 	var pane = document.createElement('DIV');
-	
+
 	if (width != null && height != null)
 	{
 		pane.style.position = 'absolute';
@@ -2780,7 +2780,7 @@ mxGraphView.prototype.createHtmlPane = function(width, height)
 	{
 		pane.style.position = 'relative';
 	}
-	
+
 	return pane;
 };
 
@@ -2793,7 +2793,7 @@ mxGraphView.prototype.createSvg = function()
 {
 	var container = this.graph.container;
 	this.canvas = document.createElementNS(mxConstants.NS_SVG, 'g');
-	
+
 	// For background image
 	this.backgroundPane = document.createElementNS(mxConstants.NS_SVG, 'g');
 	this.canvas.appendChild(this.backgroundPane);
@@ -2804,21 +2804,21 @@ mxGraphView.prototype.createSvg = function()
 
 	this.overlayPane = document.createElementNS(mxConstants.NS_SVG, 'g');
 	this.canvas.appendChild(this.overlayPane);
-	
+
 	this.decoratorPane = document.createElementNS(mxConstants.NS_SVG, 'g');
 	this.canvas.appendChild(this.decoratorPane);
-	
+
 	var root = document.createElementNS(mxConstants.NS_SVG, 'svg');
 	root.style.left = '0px';
 	root.style.top = '0px';
 	root.style.width = '100%';
 	root.style.height = '100%';
-	
+
 	// NOTE: In standards mode, the SVG must have block layout
 	// in order for the container DIV to not show scrollbars.
 	root.style.display = 'block';
 	root.appendChild(this.canvas);
-	
+
 	if (container != null)
 	{
 		container.appendChild(root);
@@ -2828,19 +2828,19 @@ mxGraphView.prototype.createSvg = function()
 
 /**
  * Function: updateContainerStyle
- * 
+ *
  * Updates the style of the container after installing the SVG DOM elements.
  */
 mxGraphView.prototype.updateContainerStyle = function(container)
 {
 	// Workaround for offset of container
 	var style = mxUtils.getCurrentStyle(container);
-	
+
 	if (style != null && style.position == 'static')
 	{
 		container.style.position = 'relative';
 	}
-	
+
 	// Disables built-in pan and zoom in IE10 and later
 	if (mxClient.IS_POINTER)
 	{
@@ -2850,25 +2850,25 @@ mxGraphView.prototype.updateContainerStyle = function(container)
 
 /**
  * Function: destroy
- * 
+ *
  * Destroys the view and all its resources.
  */
 mxGraphView.prototype.destroy = function()
 {
 	var root = (this.canvas != null) ? this.canvas.ownerSVGElement : null;
-	
+
 	if (root == null)
 	{
 		root = this.canvas;
 	}
-	
+
 	if (root != null && root.parentNode != null)
 	{
 		this.clear(this.currentRoot, true);
 		mxEvent.removeGestureListeners(document, null, this.moveHandler, this.endHandler);
 		mxEvent.release(this.graph.container);
 		root.parentNode.removeChild(root);
-		
+
 		this.moveHandler = null;
 		this.endHandler = null;
 		this.canvas = null;
@@ -2894,12 +2894,12 @@ function mxCurrentRootChange(view, root)
 	this.root = root;
 	this.previous = root;
 	this.isUp = root == null;
-	
+
 	if (!this.isUp)
 	{
 		var tmp = this.view.currentRoot;
 		var model = this.view.graph.getModel();
-		
+
 		while (tmp != null)
 		{
 			if (tmp == root)
@@ -2907,7 +2907,7 @@ function mxCurrentRootChange(view, root)
 				this.isUp = true;
 				break;
 			}
-			
+
 			tmp = model.getParent(tmp);
 		}
 	}
@@ -2925,7 +2925,7 @@ mxCurrentRootChange.prototype.execute = function()
 	this.previous = tmp;
 
 	var translate = this.view.graph.getTranslateForRoot(this.view.currentRoot);
-	
+
 	if (translate != null)
 	{
 		this.view.translate = new mxPoint(-translate.x, -translate.y);
@@ -2940,7 +2940,7 @@ mxCurrentRootChange.prototype.execute = function()
 	{
 		this.view.refresh();
 	}
-	
+
 	var name = (this.isUp) ? mxEvent.UP : mxEvent.DOWN;
 	this.view.fireEvent(new mxEventObject(name,
 		'root', this.view.currentRoot, 'previous', this.previous));

@@ -4,10 +4,10 @@
  */
 /**
  * Class: mxSwimlaneOrdering
- * 
+ *
  * An implementation of the first stage of the Sugiyama layout. Straightforward
  * longest path calculation of layer assignment
- * 
+ *
  * Constructor: mxSwimlaneOrdering
  *
  * Creates a cycle remover for the given internal model.
@@ -25,14 +25,14 @@ mxSwimlaneOrdering.prototype.constructor = mxSwimlaneOrdering;
 
 /**
  * Variable: layout
- * 
+ *
  * Reference to the enclosing <mxHierarchicalLayout>.
  */
 mxSwimlaneOrdering.prototype.layout = null;
 
 /**
  * Function: execute
- * 
+ *
  * Takes the graph detail and configuration information within the facade
  * and creates the resulting laid out graph within that facade for further
  * use.
@@ -42,16 +42,16 @@ mxSwimlaneOrdering.prototype.execute = function(parent)
 	var model = this.layout.getModel();
 	var seenNodes = new Object();
 	var unseenNodes = mxUtils.clone(model.vertexMapper, null, true);
-	
+
 	// Perform a dfs through the internal model. If a cycle is found,
 	// reverse it.
 	var rootsArray = null;
-	
+
 	if (model.roots != null)
 	{
 		var modelRoots = model.roots;
 		rootsArray = [];
-		
+
 		for (var i = 0; i < modelRoots.length; i++)
 		{
 			rootsArray[i] = model.vertexMapper.get(modelRoots[i]);
@@ -87,7 +87,7 @@ mxSwimlaneOrdering.prototype.execute = function(parent)
 			parent.connectsAsSource.push(connectingEdge);
 			mxUtils.remove(connectingEdge, node.connectsAsSource);
 		}
-		
+
 		var cellId = mxCellPath.create(node.cell);
 		seenNodes[cellId] = node;
 		delete unseenNodes[cellId];

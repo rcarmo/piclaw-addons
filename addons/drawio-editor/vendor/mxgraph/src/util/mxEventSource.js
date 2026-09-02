@@ -19,7 +19,7 @@
  *
  * <mxGraphModel>, <mxGraph>, <mxGraphView>, <mxEditor>, <mxCellOverlay>,
  * <mxToolbar>, <mxWindow>
- * 
+ *
  * Constructor: mxEventSource
  *
  * Constructs a new event source.
@@ -54,7 +54,7 @@ mxEventSource.prototype.eventSource = null;
 
 /**
  * Function: isEventsEnabled
- * 
+ *
  * Returns <eventsEnabled>.
  */
 mxEventSource.prototype.isEventsEnabled = function()
@@ -64,7 +64,7 @@ mxEventSource.prototype.isEventsEnabled = function()
 
 /**
  * Function: setEventsEnabled
- * 
+ *
  * Sets <eventsEnabled>.
  */
 mxEventSource.prototype.setEventsEnabled = function(value)
@@ -74,7 +74,7 @@ mxEventSource.prototype.setEventsEnabled = function(value)
 
 /**
  * Function: getEventSource
- * 
+ *
  * Returns <eventSource>.
  */
 mxEventSource.prototype.getEventSource = function()
@@ -84,7 +84,7 @@ mxEventSource.prototype.getEventSource = function()
 
 /**
  * Function: setEventSource
- * 
+ *
  * Sets <eventSource>.
  */
 mxEventSource.prototype.setEventSource = function(value)
@@ -97,7 +97,7 @@ mxEventSource.prototype.setEventSource = function(value)
  *
  * Binds the specified function to the given event name. If no event name
  * is given, then the listener is registered for all events.
- * 
+ *
  * The parameters of the listener are the sender and an <mxEventObject>.
  */
 mxEventSource.prototype.addListener = function(name, funct)
@@ -106,7 +106,7 @@ mxEventSource.prototype.addListener = function(name, funct)
 	{
 		this.eventListeners = [];
 	}
-	
+
 	this.eventListeners.push(name);
 	this.eventListeners.push(funct);
 };
@@ -121,7 +121,7 @@ mxEventSource.prototype.removeListener = function(funct)
 	if (this.eventListeners != null)
 	{
 		var i = 0;
-		
+
 		while (i < this.eventListeners.length)
 		{
 			if (this.eventListeners[i+1] == funct)
@@ -148,7 +148,7 @@ mxEventSource.prototype.removeListener = function(funct)
  * (code)
  * fireEvent(new mxEventObject("eventName", key1, val1, .., keyN, valN))
  * (end)
- * 
+ *
  * Parameters:
  *
  * evt - <mxEventObject> that represents the event.
@@ -163,7 +163,7 @@ mxEventSource.prototype.fireEvent = function(evt, sender)
 		{
 			evt = new mxEventObject();
 		}
-		
+
 		if (sender == null)
 		{
 			sender = this.getEventSource();
@@ -177,7 +177,7 @@ mxEventSource.prototype.fireEvent = function(evt, sender)
 		for (var i = 0; i < this.eventListeners.length; i += 2)
 		{
 			var listen = this.eventListeners[i];
-			
+
 			if (listen == null || listen == evt.getName())
 			{
 				// Workaround for closure compiler bug where args are

@@ -7,15 +7,15 @@
  *
  * Extends <mxShape> to implement an actor shape. If a custom shape with one
  * filled area is needed, then this shape's <redrawPath> should be overridden.
- * 
+ *
  * Example:
- * 
+ *
  * (code)
  * function SampleShape() { }
- * 
+ *
  * SampleShape.prototype = new mxActor();
  * SampleShape.prototype.constructor = vsAseShape;
- * 
+ *
  * mxCellRenderer.registerShape('sample', SampleShape);
  * SampleShape.prototype.redrawPath = function(path, x, y, w, h)
  * {
@@ -25,16 +25,16 @@
  *   path.close();
  * }
  * (end)
- * 
+ *
  * This shape is registered under <mxConstants.SHAPE_ACTOR> in
  * <mxCellRenderer>.
- * 
+ *
  * Constructor: mxActor
  *
  * Constructs a new actor shape.
- * 
+ *
  * Parameters:
- * 
+ *
  * bounds - <mxRectangle> that defines the bounds. This is stored in
  * <mxShape.bounds>.
  * fill - String that defines the fill color. This is stored in <fill>.
@@ -58,7 +58,7 @@ mxUtils.extend(mxActor, mxShape);
 
 /**
  * Function: paintVertexShape
- * 
+ *
  * Redirects to redrawPath for subclasses to work.
  */
 mxActor.prototype.paintVertexShape = function(c, x, y, w, h)

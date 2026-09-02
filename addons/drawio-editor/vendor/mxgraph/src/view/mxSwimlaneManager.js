@@ -4,19 +4,19 @@
  */
 /**
  * Class: mxSwimlaneManager
- * 
+ *
  * Manager for swimlanes and nested swimlanes that sets the size of newly added
  * swimlanes to that of their siblings, and propagates changes to the size of a
  * swimlane to its siblings, if <siblings> is true, and its ancestors, if
  * <bubbling> is true.
- * 
+ *
  * Constructor: mxSwimlaneManager
  *
  * Constructs a new swimlane manager for the given graph.
  *
  * Arguments:
- * 
- * graph - Reference to the enclosing graph. 
+ *
+ * graph - Reference to the enclosing graph.
  */
 function mxSwimlaneManager(graph, horizontal, addEnabled, resizeEnabled)
 {
@@ -31,7 +31,7 @@ function mxSwimlaneManager(graph, horizontal, addEnabled, resizeEnabled)
 			this.cellsAdded(evt.getProperty('cells'));
 		}
 	});
-	
+
 	this.resizeHandler = mxUtils.bind(this, function(sender, evt)
 	{
 		if (this.isEnabled() && this.isResizeEnabled())
@@ -39,7 +39,7 @@ function mxSwimlaneManager(graph, horizontal, addEnabled, resizeEnabled)
 			this.cellsResized(evt.getProperty('cells'));
 		}
 	});
-	
+
 	this.setGraph(graph);
 };
 
@@ -51,28 +51,28 @@ mxSwimlaneManager.prototype.constructor = mxSwimlaneManager;
 
 /**
  * Variable: graph
- * 
+ *
  * Reference to the enclosing <mxGraph>.
  */
 mxSwimlaneManager.prototype.graph = null;
 
 /**
  * Variable: enabled
- * 
+ *
  * Specifies if event handling is enabled. Default is true.
  */
 mxSwimlaneManager.prototype.enabled = true;
 
 /**
  * Variable: horizontal
- * 
+ *
  * Specifies the orientation of the swimlanes. Default is true.
  */
 mxSwimlaneManager.prototype.horizontal = true;
 
 /**
  * Variable: addEnabled
- * 
+ *
  * Specifies if newly added cells should be resized to match the size of their
  * existing siblings. Default is true.
  */
@@ -80,28 +80,28 @@ mxSwimlaneManager.prototype.addEnabled = true;
 
 /**
  * Variable: resizeEnabled
- * 
+ *
  * Specifies if resizing of swimlanes should be handled. Default is true.
  */
 mxSwimlaneManager.prototype.resizeEnabled = true;
 
 /**
  * Variable: moveHandler
- * 
+ *
  * Holds the function that handles the move event.
  */
 mxSwimlaneManager.prototype.addHandler = null;
 
 /**
  * Variable: moveHandler
- * 
+ *
  * Holds the function that handles the move event.
  */
 mxSwimlaneManager.prototype.resizeHandler = null;
 
 /**
  * Function: isEnabled
- * 
+ *
  * Returns true if events are handled. This implementation
  * returns <enabled>.
  */
@@ -112,12 +112,12 @@ mxSwimlaneManager.prototype.isEnabled = function()
 
 /**
  * Function: setEnabled
- * 
+ *
  * Enables or disables event handling. This implementation
  * updates <enabled>.
- * 
+ *
  * Parameters:
- * 
+ *
  * enabled - Boolean that specifies the new enabled state.
  */
 mxSwimlaneManager.prototype.setEnabled = function(value)
@@ -127,7 +127,7 @@ mxSwimlaneManager.prototype.setEnabled = function(value)
 
 /**
  * Function: isHorizontal
- * 
+ *
  * Returns <horizontal>.
  */
 mxSwimlaneManager.prototype.isHorizontal = function()
@@ -137,7 +137,7 @@ mxSwimlaneManager.prototype.isHorizontal = function()
 
 /**
  * Function: setHorizontal
- * 
+ *
  * Sets <horizontal>.
  */
 mxSwimlaneManager.prototype.setHorizontal = function(value)
@@ -147,7 +147,7 @@ mxSwimlaneManager.prototype.setHorizontal = function(value)
 
 /**
  * Function: isAddEnabled
- * 
+ *
  * Returns <addEnabled>.
  */
 mxSwimlaneManager.prototype.isAddEnabled = function()
@@ -157,7 +157,7 @@ mxSwimlaneManager.prototype.isAddEnabled = function()
 
 /**
  * Function: setAddEnabled
- * 
+ *
  * Sets <addEnabled>.
  */
 mxSwimlaneManager.prototype.setAddEnabled = function(value)
@@ -167,7 +167,7 @@ mxSwimlaneManager.prototype.setAddEnabled = function(value)
 
 /**
  * Function: isResizeEnabled
- * 
+ *
  * Returns <resizeEnabled>.
  */
 mxSwimlaneManager.prototype.isResizeEnabled = function()
@@ -177,7 +177,7 @@ mxSwimlaneManager.prototype.isResizeEnabled = function()
 
 /**
  * Function: setResizeEnabled
- * 
+ *
  * Sets <resizeEnabled>.
  */
 mxSwimlaneManager.prototype.setResizeEnabled = function(value)
@@ -187,7 +187,7 @@ mxSwimlaneManager.prototype.setResizeEnabled = function(value)
 
 /**
  * Function: getGraph
- * 
+ *
  * Returns the graph that this manager operates on.
  */
 mxSwimlaneManager.prototype.getGraph = function()
@@ -197,7 +197,7 @@ mxSwimlaneManager.prototype.getGraph = function()
 
 /**
  * Function: setGraph
- * 
+ *
  * Sets the graph that the manager operates on.
  */
 mxSwimlaneManager.prototype.setGraph = function(graph)
@@ -207,9 +207,9 @@ mxSwimlaneManager.prototype.setGraph = function(graph)
 		this.graph.removeListener(this.addHandler);
 		this.graph.removeListener(this.resizeHandler);
 	}
-	
+
 	this.graph = graph;
-	
+
 	if (this.graph != null)
 	{
 		this.graph.addListener(mxEvent.ADD_CELLS, this.addHandler);
@@ -219,7 +219,7 @@ mxSwimlaneManager.prototype.setGraph = function(graph)
 
 /**
  * Function: isSwimlaneIgnored
- * 
+ *
  * Returns true if the given swimlane should be ignored.
  */
 mxSwimlaneManager.prototype.isSwimlaneIgnored = function(swimlane)
@@ -229,7 +229,7 @@ mxSwimlaneManager.prototype.isSwimlaneIgnored = function(swimlane)
 
 /**
  * Function: isCellHorizontal
- * 
+ *
  * Returns true if the given cell is horizontal. If the given cell is not a
  * swimlane, then the global orientation is returned.
  */
@@ -238,20 +238,20 @@ mxSwimlaneManager.prototype.isCellHorizontal = function(cell)
 	if (this.graph.isSwimlane(cell))
 	{
 		var style = this.graph.getCellStyle(cell);
-		
+
 		return mxUtils.getValue(style, mxConstants.STYLE_HORIZONTAL, 1) == 1;
 	}
-	
+
 	return !this.isHorizontal();
 };
 
 /**
  * Function: cellsAdded
- * 
+ *
  * Called if any cells have been added.
- * 
+ *
  * Parameters:
- * 
+ *
  * cell - Array of <mxCells> that have been added.
  */
 mxSwimlaneManager.prototype.cellsAdded = function(cells)
@@ -280,12 +280,12 @@ mxSwimlaneManager.prototype.cellsAdded = function(cells)
 
 /**
  * Function: swimlaneAdded
- * 
+ *
  * Updates the size of the given swimlane to match that of any existing
  * siblings swimlanes.
- * 
+ *
  * Parameters:
- * 
+ *
  * swimlane - <mxCell> that represents the new swimlane.
  */
 mxSwimlaneManager.prototype.swimlaneAdded = function(swimlane)
@@ -294,23 +294,23 @@ mxSwimlaneManager.prototype.swimlaneAdded = function(swimlane)
 	var parent = model.getParent(swimlane);
 	var childCount = model.getChildCount(parent);
 	var geo = null;
-	
+
 	// Finds the first valid sibling swimlane as reference
 	for (var i = 0; i < childCount; i++)
 	{
 		var child = model.getChildAt(parent, i);
-		
+
 		if (child != swimlane && !this.isSwimlaneIgnored(child))
 		{
 			geo = model.getGeometry(child);
-			
+
 			if (geo != null)
-			{	
+			{
 				break;
 			}
 		}
 	}
-	
+
 	// Applies the size of the refernece to the newly added swimlane
 	if (geo != null)
 	{
@@ -321,12 +321,12 @@ mxSwimlaneManager.prototype.swimlaneAdded = function(swimlane)
 
 /**
  * Function: cellsResized
- * 
+ *
  * Called if any cells have been resizes. Calls <swimlaneResized> for all
  * swimlanes where <isSwimlaneIgnored> returns false.
- * 
+ *
  * Parameters:
- * 
+ *
  * cells - Array of <mxCells> whose size was changed.
  */
 mxSwimlaneManager.prototype.cellsResized = function(cells)
@@ -334,7 +334,7 @@ mxSwimlaneManager.prototype.cellsResized = function(cells)
 	if (cells != null)
 	{
 		var model = this.getGraph().getModel();
-		
+
 		model.beginUpdate();
 		try
 		{
@@ -350,7 +350,7 @@ mxSwimlaneManager.prototype.cellsResized = function(cells)
 						var size = new mxRectangle(0, 0, geo.width, geo.height);
 						var top = cells[i];
 						var current = top;
-						
+
 						while (current != null)
 						{
 							top = current;
@@ -361,7 +361,7 @@ mxSwimlaneManager.prototype.cellsResized = function(cells)
 							size.width += tmp.width;
 							size.height += tmp.height;
 						}
-						
+
 						var parentHorizontal = (current != null) ? this.isCellHorizontal(current) : this.horizontal;
 						this.resizeSwimlane(top, size.width, size.height, parentHorizontal);
 					}
@@ -377,34 +377,34 @@ mxSwimlaneManager.prototype.cellsResized = function(cells)
 
 /**
  * Function: resizeSwimlane
- * 
+ *
  * Called from <cellsResized> for all swimlanes that are not ignored to update
  * the size of the siblings and the size of the parent swimlanes, recursively,
  * if <bubbling> is true.
- * 
+ *
  * Parameters:
- * 
+ *
  * swimlane - <mxCell> whose size has changed.
  */
 mxSwimlaneManager.prototype.resizeSwimlane = function(swimlane, w, h, parentHorizontal)
 {
 	var model = this.getGraph().getModel();
-	
+
 	model.beginUpdate();
 	try
 	{
 		var horizontal = this.isCellHorizontal(swimlane);
-		
+
 		if (!this.isSwimlaneIgnored(swimlane))
 		{
 			var geo = model.getGeometry(swimlane);
-			
+
 			if (geo != null)
 			{
 				if ((parentHorizontal && geo.height != h) || (!parentHorizontal && geo.width != w))
 				{
 					geo = geo.clone();
-					
+
 					if (parentHorizontal)
 					{
 						geo.height = h;
@@ -424,9 +424,9 @@ mxSwimlaneManager.prototype.resizeSwimlane = function(swimlane, w, h, parentHori
 				new mxRectangle();
 		w -= tmp.width;
 		h -= tmp.height;
-		
+
 		var childCount = model.getChildCount(swimlane);
-		
+
 		for (var i = 0; i < childCount; i++)
 		{
 			var child = model.getChildAt(swimlane, i);
@@ -441,7 +441,7 @@ mxSwimlaneManager.prototype.resizeSwimlane = function(swimlane, w, h, parentHori
 
 /**
  * Function: destroy
- * 
+ *
  * Removes all handlers from the <graph> and deletes the reference to it.
  */
 mxSwimlaneManager.prototype.destroy = function()

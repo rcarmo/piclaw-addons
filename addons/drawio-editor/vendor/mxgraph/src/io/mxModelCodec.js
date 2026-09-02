@@ -37,7 +37,7 @@ mxCodecRegistry.register(function()
 		{
 			var defs = this.encodeResources(enc, rootNode,
 				enc.document.createElement('defs'));
-			
+
 			if (defs.childNodes.length > 0)
 			{
 				rootNode.parentNode.insertBefore(defs, rootNode);
@@ -47,9 +47,9 @@ mxCodecRegistry.register(function()
 
 	/**
 	 * Function: encodeResources
-	 * 
+	 *
 	 * Adds resources for images and shapes in styles to the given defs node.
-	 */	
+	 */
 	codec.encodeResources = function(enc, rootNode, defs)
 	{
 		var cells = rootNode.getElementsByTagName('mxCell');
@@ -65,7 +65,7 @@ mxCodecRegistry.register(function()
 
 	/**
 	 * Function: compressCellStyle
-	 * 
+	 *
 	 * Processes the given style string and replaces data URLs and stenctils
 	 * with references in defs.
 	 */
@@ -102,11 +102,11 @@ mxCodecRegistry.register(function()
 
 	/**
 	 * Function: addResource
-	 * 
+	 *
 	 * Creates a definition for the given data URL or stencil in defs
 	 * if it does not yet exist and calls the given function with the
 	 * def index. This adds the entry on the second use of the data.
-	 */	
+	 */
 	codec.addResource = function(enc, defs, data, lookup, fn)
 	{
 		var item = lookup[data];
@@ -121,7 +121,7 @@ mxCodecRegistry.register(function()
 				delete item.elt;
 				delete item.fn;
 			}
-			
+
 			fn(item.id);
 		}
 		else
@@ -134,9 +134,9 @@ mxCodecRegistry.register(function()
 
 	/**
 	 * Function: decodeChild
-	 * 
+	 *
 	 * Overrides decode child to handle special child nodes.
-	 */	
+	 */
 	codec.decodeChild = function(dec, child, obj)
 	{
 		if (child.nodeName == 'defs')
@@ -155,9 +155,9 @@ mxCodecRegistry.register(function()
 
 	/**
 	 * Function: decodeResources
-	 * 
+	 *
 	 * Replaces references to images and shapes in styles with data.
-	 */	
+	 */
 	codec.decodeResources = function(dec, child, obj)
 	{
 		var cells = child.parentNode.getElementsByTagName('mxCell');
@@ -171,9 +171,9 @@ mxCodecRegistry.register(function()
 
 	/**
 	 * Function: decompressCellStyle
-	 * 
+	 *
 	 * Processes the given style string and replaces references with data in defs.
-	 */	
+	 */
 	codec.decompressCellStyle = function(dec, defs, cell)
 	{
 		var style = cell.getAttribute('style');
@@ -182,7 +182,7 @@ mxCodecRegistry.register(function()
 		{
 			var styles = style.split(';');
 			var newStyles = [];
-					
+
 			for (var j = 0; j < styles.length; j++)
 			{
 				var parts = styles[j].split('=');
@@ -202,7 +202,7 @@ mxCodecRegistry.register(function()
 					else if (window.console != null)
 					{
 						console.error('mxModelCodec.decodeChild: Invalid reference ' +
-							index + ' in cell ' + cells[i].getAttribute('index'));
+							index + ' in cell ' + cell.getAttribute('id'));
 					}
 				}
 				else
@@ -225,16 +225,16 @@ mxCodecRegistry.register(function()
 	{
 		var rootCell = null;
 		var tmp = root.firstChild;
-		
+
 		while (tmp != null)
 		{
 			var cell = dec.decodeCell(tmp);
-			
+
 			if (cell != null && cell.getParent() == null)
 			{
 				rootCell = cell;
 			}
-			
+
 			tmp = tmp.nextSibling;
 		}
 

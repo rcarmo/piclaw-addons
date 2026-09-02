@@ -32,7 +32,7 @@ const EXT_DIR = typeof import.meta.dir === "string"
   : dirname(new URL(import.meta.url).pathname);
 const ROUTE_PREFIX = "/drawio";
 const DEFAULT_WORKSPACE_ROOT = "/workspace";
-const DRAWIO_VERSION = "v29.6.1";
+export const DRAWIO_VERSION = "v31.4.2";
 
 export function getDrawioVendorDirCandidates(baseDir = EXT_DIR, cwd = process.cwd()): string[] {
   return [
@@ -301,8 +301,14 @@ function patchDrawioExportTarget(win) {
     // mode, so we patch the relevant constructors/prototypes instead of trying to
     // discover a live UI object after startup.
     function postExport(payload) {
-      var target = (win && (win.parent || win.opener)) || window;
-      target.postMessage(JSON.stringify(Object.assign({ event: 'workspace-export' }, payload)), '*');
+      // This patch function is created in the same-origin wrapper realm and
+      // installed on iframe prototypes. Calling postMessage here would use the
+      // wrapper as event.source, which the strict iframe-origin check correctly
+      // rejects. Persist through the wrapper's direct save bridge instead;
+      // native Draw.io events continue through the validated message listener.
+      saveWorkspace(payload, true).catch(function(err) {
+        console.error('[drawio] workspace export save error:', err);
+      });
       return true;
     }
 
@@ -326,24 +332,30 @@ function patchDrawioExportTarget(win) {
       savePatched = true;
     }
 
-    var appCtor = win && win.App;
-    var exportPatched = !!(appCtor && appCtor.prototype && appCtor.prototype.__piclawExportPatched);
-    if (appCtor && appCtor.prototype && !exportPatched) {
-      // Non-XML exports (PNG/JPEG/SVG) go through App.exportFile.
-      var original = appCtor.prototype.exportFile;
-      appCtor.prototype.exportFile = function(data, filename, mimeType, base64Encoded, mode, folderId) {
+    function patchExportPrototype(ctor) {
+      if (!ctor || !ctor.prototype) return false;
+      if (ctor.prototype.__piclawExportPatched) return true;
+      var original = ctor.prototype.exportFile;
+      ctor.prototype.exportFile = function(data, filename, mimeType, base64Encoded, mode, folderId) {
         try {
-          if (filename && postExport({ filename: filename, mimeType: mimeType, base64Encoded: !!base64Encoded, data: data, mode: mode, folderId: folderId })) {
+          if (filename && data != null && postExport({ filename: filename, mimeType: mimeType, base64Encoded: !!base64Encoded, data: data, mode: mode, folderId: folderId })) {
             return;
           }
         } catch (err) {
           console.warn('[drawio] export intercept failed, falling back to native export', err);
         }
-        return original.apply(this, arguments);
+        return typeof original === 'function' ? original.apply(this, arguments) : undefined;
       };
-      appCtor.prototype.__piclawExportPatched = true;
-      exportPatched = true;
+      ctor.prototype.__piclawExportPatched = true;
+      return true;
     }
+
+    // v29 used App for embedded exports. v31 may execute the base EditorUi
+    // implementation directly. Patch both prototypes so either upstream path
+    // returns PNG/JPEG/SVG bytes to the same-origin workspace wrapper.
+    var editorExportPatched = patchExportPrototype(win && win.EditorUi);
+    var appExportPatched = patchExportPrototype(win && win.App);
+    var exportPatched = editorExportPatched || appExportPatched;
 
     var actionsCtor = win && win.Actions;
     var actionsPatched = !!(actionsCtor && actionsCtor.prototype && actionsCtor.prototype.__piclawMinimalExportActionsPatched);

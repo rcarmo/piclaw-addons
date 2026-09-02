@@ -1,6 +1,6 @@
 # piclaw-addon-drawio-editor
 
-Self-hosted draw.io diagram editor extension for piclaw.
+Self-hosted draw.io diagram editor extension for piclaw. The add-on version matches the bundled upstream draw.io version; add-on `31.4.2` contains draw.io `v31.4.2`.
 
 Requires Piclaw `>=1.8.0`.
 
@@ -19,11 +19,15 @@ Open **Settings → Add-Ons** and install **drawio-editor** from the catalog.
 
 ## Vendor files
 
-The draw.io webapp (~44MB) is not included in this addon package. It must be vendored separately:
+The public add-on tarball includes the self-hosted draw.io webapp. It does not download editor code during installation.
 
-1. Download from [jgraph/drawio releases](https://github.com/jgraph/drawio/releases)
-2. Extract to `vendor/` directory inside this addon's install path
-3. Or symlink from an existing piclaw install
+Maintainers update the bundle from the official upstream WAR with:
+
+```sh
+bun run --cwd addons/drawio-editor vendor:update
+```
+
+The refresh script derives the upstream tag from the add-on version, verifies the pinned WAR SHA-256, copies the browser client subset, checks `EditorUi.VERSION` and `mxClient.VERSION`, and writes `vendor/drawio.meta.json`.
 
 ## Architecture
 

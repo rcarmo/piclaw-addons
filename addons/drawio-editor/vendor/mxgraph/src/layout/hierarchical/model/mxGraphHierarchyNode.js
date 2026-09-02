@@ -4,15 +4,15 @@
  */
 /**
  * Class: mxGraphHierarchyNode
- * 
+ *
  * An abstraction of a hierarchical edge for the hierarchy layout
- * 
+ *
  * Constructor: mxGraphHierarchyNode
  *
  * Constructs an internal node to represent the specified real graph cell
  *
  * Arguments:
- * 
+ *
  * cell - the real graph cell this node represents
  */
 function mxGraphHierarchyNode(cell)
@@ -32,35 +32,35 @@ mxGraphHierarchyNode.prototype.constructor = mxGraphHierarchyNode;
 
 /**
  * Variable: cell
- * 
+ *
  * The graph cell this object represents.
  */
 mxGraphHierarchyNode.prototype.cell = null;
 
 /**
  * Variable: id
- * 
+ *
  * The object identity of the wrapped cell
  */
 mxGraphHierarchyNode.prototype.id = null;
 
 /**
  * Variable: connectsAsTarget
- * 
+ *
  * Collection of hierarchy edges that have this node as a target
  */
 mxGraphHierarchyNode.prototype.connectsAsTarget = null;
 
 /**
  * Variable: connectsAsSource
- * 
+ *
  * Collection of hierarchy edges that have this node as a source
  */
 mxGraphHierarchyNode.prototype.connectsAsSource = null;
 
 /**
  * Variable: hashCode
- * 
+ *
  * Assigns a unique hashcode for each node. Used by the model dfs instead
  * of copying HashSets
  */
@@ -68,7 +68,7 @@ mxGraphHierarchyNode.prototype.hashCode = false;
 
 /**
  * Function: getRankValue
- * 
+ *
  * Returns the integer value of the layer that this node resides in
  */
 mxGraphHierarchyNode.prototype.getRankValue = function(layer)
@@ -78,7 +78,7 @@ mxGraphHierarchyNode.prototype.getRankValue = function(layer)
 
 /**
  * Function: getNextLayerConnectedCells
- * 
+ *
  * Returns the cells this cell connects to on the next layer up
  */
 mxGraphHierarchyNode.prototype.getNextLayerConnectedCells = function(layer)
@@ -87,7 +87,7 @@ mxGraphHierarchyNode.prototype.getNextLayerConnectedCells = function(layer)
 	{
 		this.nextLayerConnectedCells = [];
 		this.nextLayerConnectedCells[0] = [];
-		
+
 		for (var i = 0; i < this.connectsAsTarget.length; i++)
 		{
 			var edge = this.connectsAsTarget[i];
@@ -111,7 +111,7 @@ mxGraphHierarchyNode.prototype.getNextLayerConnectedCells = function(layer)
 
 /**
  * Function: getPreviousLayerConnectedCells
- * 
+ *
  * Returns the cells this cell connects to on the next layer down
  */
 mxGraphHierarchyNode.prototype.getPreviousLayerConnectedCells = function(layer)
@@ -120,7 +120,7 @@ mxGraphHierarchyNode.prototype.getPreviousLayerConnectedCells = function(layer)
 	{
 		this.previousLayerConnectedCells = [];
 		this.previousLayerConnectedCells[0] = [];
-		
+
 		for (var i = 0; i < this.connectsAsSource.length; i++)
 		{
 			var edge = this.connectsAsSource[i];
@@ -143,7 +143,7 @@ mxGraphHierarchyNode.prototype.getPreviousLayerConnectedCells = function(layer)
 
 /**
  * Function: isVertex
- * 
+ *
  * Returns true.
  */
 mxGraphHierarchyNode.prototype.isVertex = function()
@@ -153,7 +153,7 @@ mxGraphHierarchyNode.prototype.isVertex = function()
 
 /**
  * Function: getGeneralPurposeVariable
- * 
+ *
  * Gets the value of temp for the specified layer
  */
 mxGraphHierarchyNode.prototype.getGeneralPurposeVariable = function(layer)
@@ -163,7 +163,7 @@ mxGraphHierarchyNode.prototype.getGeneralPurposeVariable = function(layer)
 
 /**
  * Function: setGeneralPurposeVariable
- * 
+ *
  * Set the value of temp for the specified layer
  */
 mxGraphHierarchyNode.prototype.setGeneralPurposeVariable = function(layer, value)
@@ -185,12 +185,12 @@ mxGraphHierarchyNode.prototype.isAncestor = function(otherNode)
 		{
 			return true;
 		}
-		
+
 		if (this.hashCode == null || this.hashCode == null)
 		{
 			return false;
 		}
-		
+
 		// Secondly, this hash code must match the start of the other
 		// node's hash code. Arrays.equals cannot be used here since
 		// the arrays are different length, and we do not want to
@@ -211,7 +211,7 @@ mxGraphHierarchyNode.prototype.isAncestor = function(otherNode)
 
 /**
  * Function: getCoreCell
- * 
+ *
  * Gets the core vertex associated with this wrapper
  */
 mxGraphHierarchyNode.prototype.getCoreCell = function()

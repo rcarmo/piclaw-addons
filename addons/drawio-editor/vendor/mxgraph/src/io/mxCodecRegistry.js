@@ -11,7 +11,7 @@ var mxCodecRegistry =
 	 *
 	 * Adding an <mxCodec>:
 	 *
-	 * 1. Define a default codec with a new instance of the 
+	 * 1. Define a default codec with a new instance of the
 	 * object to be handled.
 	 *
 	 * (code)
@@ -32,24 +32,24 @@ var mxCodecRegistry =
 	 * mxCodecRegistry.register(codec);
 	 * (end)
 	 *
-	 * <mxObjectCodec.decode> may be used to either create a new 
-	 * instance of an object or to configure an existing instance, 
+	 * <mxObjectCodec.decode> may be used to either create a new
+	 * instance of an object or to configure an existing instance,
 	 * in which case the into argument points to the existing
 	 * object. In this case, we say the codec "configures" the
 	 * object.
-	 * 
+	 *
 	 * Variable: codecs
 	 *
 	 * Maps from constructor names to codecs.
 	 */
-	codecs: [],
-	
+	codecs: Object.create(null),
+
 	/**
 	 * Variable: aliases
 	 *
 	 * Maps from classnames to codecnames.
 	 */
-	aliases: [],
+	aliases: Object.create(null),
 
 	/**
 	 * Function: register
@@ -67,7 +67,7 @@ var mxCodecRegistry =
 		{
 			var name = codec.getName();
 			mxCodecRegistry.codecs[name] = codec;
-			
+
 			var classname = mxUtils.getFunctionName(codec.template.constructor);
 
 			if (classname != name)
@@ -97,24 +97,24 @@ var mxCodecRegistry =
 	 *
 	 * Parameters:
 	 *
-	 * ctor - JavaScript constructor function. 
+	 * ctor - JavaScript constructor function.
 	 */
 	getCodec: function(ctor)
 	{
 		var codec = null;
-		
+
 		if (ctor != null)
 		{
 			var name = mxUtils.getFunctionName(ctor);
 			var tmp = mxCodecRegistry.aliases[name];
-			
+
 			if (tmp != null)
 			{
 				name = tmp;
 			}
-			
+
 			codec = mxCodecRegistry.codecs[name];
-			
+
 			// Registers a new default codec for the given constructor
 			// if no codec has been previously defined.
 			if (codec == null)
@@ -130,7 +130,7 @@ var mxCodecRegistry =
 				}
 			}
 		}
-		
+
 		return codec;
 	}
 
