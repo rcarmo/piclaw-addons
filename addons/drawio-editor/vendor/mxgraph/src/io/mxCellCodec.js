@@ -23,22 +23,22 @@ mxCodecRegistry.register(function()
 	 * - parent
 	 * - source
 	 * - target
-	 * 
+	 *
 	 * Transient fields can be added using the following code:
-	 * 
+	 *
 	 * mxCodecRegistry.getCodec(mxCell).exclude.push('name_of_field');
-	 * 
+	 *
 	 * To subclass <mxCell>, replace the template and add an alias as
 	 * follows.
-	 * 
+	 *
 	 * (code)
 	 * function CustomCell(value, geometry, style)
 	 * {
 	 *   mxCell.apply(this, arguments);
 	 * }
-	 * 
+	 *
 	 * mxUtils.extend(CustomCell, mxCell);
-	 * 
+	 *
 	 * mxCodecRegistry.getCodec(mxCell).template = new CustomCell();
 	 * mxCodecRegistry.addAlias('CustomCell', 'mxCell');
 	 * (end)
@@ -64,18 +64,18 @@ mxCodecRegistry.register(function()
 	{
 		return attr.nodeName !== 'value' && mxObjectCodec.prototype.isNumericAttribute.apply(this, arguments);
 	};
-	
+
 	/**
 	 * Function: isExcluded
 	 *
 	 * Excludes user objects that are XML nodes.
-	 */ 
+	 */
 	codec.isExcluded = function(obj, attr, value, isWrite)
 	{
 		return mxObjectCodec.prototype.isExcluded.apply(this, arguments) ||
 			(isWrite && attr == 'value' && mxUtils.isNode(value));
 	};
-	
+
 	/**
 	 * Function: afterEncode
 	 *
@@ -92,7 +92,7 @@ mxCodecRegistry.register(function()
 			var tmp = node;
 			node = mxUtils.importNode(enc.document, obj.value, true);
 			node.appendChild(tmp);
-			
+
 			// Moves the id attribute to the outermost XML node, namely the
 			// node which denotes the object boundaries in the file.
 			var id = tmp.getAttribute('id');
@@ -113,13 +113,13 @@ mxCodecRegistry.register(function()
 	{
 		var inner = node.cloneNode(true);
 		var classname = this.getName();
-		
+
 		if (node.nodeName != classname)
 		{
 			// Passes the inner graphical annotation node to the
 			// object codec for further processing of the cell.
 			var tmp = node.getElementsByTagName(classname)[0];
-			
+
 			if (tmp != null && tmp.parentNode == node)
 			{
 				mxUtils.removeWhitespace(tmp, true);
@@ -131,11 +131,11 @@ mxCodecRegistry.register(function()
 			{
 				inner = null;
 			}
-			
+
 			// Creates the user object out of the XML node
 			obj.value = node.cloneNode(true);
 			var id = obj.value.getAttribute('id');
-			
+
 			if (id != null)
 			{
 				obj.setId(id);
@@ -147,7 +147,7 @@ mxCodecRegistry.register(function()
 			// Uses ID from XML file as ID for cell in model
 			obj.setId(node.getAttribute('id'));
 		}
-			
+
 		// Preprocesses and removes all Id-references in order to use the
 		// correct encoder (this) for the known references to cells (all).
 		if (inner != null)
@@ -156,17 +156,17 @@ mxCodecRegistry.register(function()
 			{
 				var attr = this.idrefs[i];
 				var ref = inner.getAttribute(attr);
-				
+
 				if (ref != null)
 				{
 					inner.removeAttribute(attr);
 					var object = dec.objects[ref] || dec.lookup(ref);
-					
+
 					if (object == null)
 					{
 						// Needs to decode forward reference
 						var element = dec.getElementById(ref);
-						
+
 						if (element != null)
 						{
 							var decoder = mxCodecRegistry.codecs[element.nodeName] || this;
@@ -179,12 +179,12 @@ mxCodecRegistry.register(function()
 								' for cell ' + obj.getId());
 						}
 					}
-					
+
 					obj[attr] = object;
 				}
 			}
 		}
-		
+
 		return inner;
 	};
 

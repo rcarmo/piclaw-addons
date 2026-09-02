@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-drawio-editor",
-  "version": "0.1.0",
+  "version": "31.4.2",
   "description": "Self-hosted draw.io diagram editor with workspace file integration",
   "type": "module",
   "main": "index.ts",
@@ -16,7 +16,8 @@
   },
   "agents": {},
   "scripts": {
-    "postinstall": "echo 'draw.io addon installed. Vendor files must be provided separately \u2014 see README.'"
+    "vendor:update": "bun run scripts/vendor-drawio.ts",
+    "test": "bun test index.test.ts"
   },
   "license": "MIT",
   "keywords": [

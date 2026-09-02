@@ -22,20 +22,20 @@ var mxStylesheetCodec = mxCodecRegistry.register(function()
 	codec.encode = function(enc, obj)
 	{
 		var node = enc.document.createElement(this.getName());
-		
+
 		for (var i in obj.styles)
 		{
 			var style = obj.styles[i];
 			var styleNode = enc.document.createElement('add');
-			
+
 			if (i != null)
 			{
 				styleNode.setAttribute('as', i);
-				
+
 				for (var j in style)
 				{
 					var value = this.getStringValue(j, style[j]);
-					
+
 					if (value != null)
 					{
 						var entry = enc.document.createElement('add');
@@ -44,14 +44,14 @@ var mxStylesheetCodec = mxCodecRegistry.register(function()
 						styleNode.appendChild(entry);
 					}
 				}
-				
+
 				if (styleNode.childNodes.length > 0)
 				{
 					node.appendChild(styleNode);
 				}
 			}
 		}
-		
+
 	    return node;
 	};
 
@@ -63,7 +63,7 @@ var mxStylesheetCodec = mxCodecRegistry.register(function()
 	codec.getStringValue = function(key, value)
 	{
 		var type = typeof(value);
-		
+
 		if (type == 'function')
 		{
 			value = mxStyleRegistry.getName(value);
@@ -72,10 +72,10 @@ var mxStylesheetCodec = mxCodecRegistry.register(function()
 		{
 			value = null;
 		}
-		
+
 		return value;
 	};
-	
+
 	/**
 	 * Function: decode
 	 *
@@ -103,7 +103,7 @@ var mxStylesheetCodec = mxCodecRegistry.register(function()
 	 *
 	 * A remove node will remove the entry with the name given in the as-attribute
 	 * from the style.
-	 * 
+	 *
 	 * Example:
 	 *
 	 * (code)
@@ -121,25 +121,25 @@ var mxStylesheetCodec = mxCodecRegistry.register(function()
 	{
 		var obj = into || new this.template.constructor();
 		var id = node.getAttribute('id');
-		
+
 		if (id != null)
 		{
 			dec.objects[id] = obj;
 		}
-		
+
 		node = node.firstChild;
-		
+
 		while (node != null)
 		{
 			if (!this.processInclude(dec, node, obj) && node.nodeName == 'add')
 			{
 				var as = node.getAttribute('as');
-				
+
 				if (as != null)
 				{
 					var extend = node.getAttribute('extend');
 					var style = (extend != null) ? mxUtils.clone(obj.styles[extend]) : null;
-					
+
 					if (style == null)
 					{
 						if (extend != null)
@@ -147,58 +147,58 @@ var mxStylesheetCodec = mxCodecRegistry.register(function()
 							mxLog.warn('mxStylesheetCodec.decode: stylesheet ' +
 								extend + ' not found to extend');
 						}
-						
+
 						style = new Object();
 					}
-					
+
 					var entry = node.firstChild;
-					
+
 					while (entry != null)
 					{
 						if (entry.nodeType == mxConstants.NODETYPE_ELEMENT)
 						{
-						 	var key = entry.getAttribute('as');
-						 	
-						 	if (entry.nodeName == 'add')
-						 	{
-							 	var text = mxUtils.getTextContent(entry);
-							 	var value = null;
-							 	
-							 	if (text != null && text.length > 0 && mxStylesheetCodec.allowEval)
-							 	{
-							 		value = mxUtils.eval(text);
-							 	}
-							 	else
-							 	{
-							 		value = entry.getAttribute('value');
-							 		
-							 		if (mxUtils.isNumeric(value))
-							 		{
+							var key = entry.getAttribute('as');
+
+							if (entry.nodeName == 'add')
+							{
+								var text = mxUtils.getTextContent(entry);
+								var value = null;
+
+								if (text != null && text.length > 0 && mxStylesheetCodec.allowEval)
+								{
+									value = mxUtils.eval(text);
+								}
+								else
+								{
+									value = entry.getAttribute('value');
+
+									if (mxUtils.isNumeric(value))
+									{
 										value = parseFloat(value);
 									}
-							 	}
+								}
 
-							 	if (value != null)
-							 	{
-							 		style[key] = value;
-							 	}
-						 	}
-						 	else if (entry.nodeName == 'remove')
-						 	{
-						 		delete style[key];
-						 	}
+								if (value != null)
+								{
+									style[key] = value;
+								}
+							}
+							else if (entry.nodeName == 'remove')
+							{
+								delete style[key];
+							}
 						}
-						
+
 						entry = entry.nextSibling;
 					}
-					
+
 					obj.putCellStyle(as, style);
 				}
 			}
-			
+
 			node = node.nextSibling;
 		}
-		
+
 		return obj;
 	};
 
@@ -209,7 +209,7 @@ var mxStylesheetCodec = mxCodecRegistry.register(function()
 
 /**
  * Variable: allowEval
- * 
+ *
  * Static global switch that specifies if the use of eval is allowed for
  * evaluating text content. Default is true. Set this to false if stylesheets
  * may contain user input.

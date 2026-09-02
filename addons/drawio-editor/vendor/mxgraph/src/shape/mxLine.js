@@ -8,13 +8,13 @@
  * Extends <mxShape> to implement a horizontal line shape.
  * This shape is registered under <mxConstants.SHAPE_LINE> in
  * <mxCellRenderer>.
- * 
+ *
  * Constructor: mxLine
  *
  * Constructs a new line shape.
- * 
+ *
  * Parameters:
- * 
+ *
  * bounds - <mxRectangle> that defines the bounds. This is stored in
  * <mxShape.bounds>.
  * stroke - String that defines the stroke color. Default is 'black'. This is
@@ -38,14 +38,14 @@ mxUtils.extend(mxLine, mxShape);
 
 /**
  * Function: vertical
- * 
+ *
  * Whether to paint a vertical line.
  */
 mxLine.prototype.vertical = false;
 
 /**
  * Function: paintVertexShape
- * 
+ *
  * Redirects to redrawPath for subclasses to work.
  */
 mxLine.prototype.paintVertexShape = function(c, x, y, w, h)

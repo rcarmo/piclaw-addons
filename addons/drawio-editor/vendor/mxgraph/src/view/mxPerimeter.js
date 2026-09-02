@@ -6,71 +6,71 @@ var mxPerimeter =
 {
 	/**
 	 * Class: mxPerimeter
-	 * 
+	 *
 	 * Provides various perimeter functions to be used in a style
 	 * as the value of <mxConstants.STYLE_PERIMETER>. Perimeters for
 	 * rectangle, circle, rhombus and triangle are available.
 	 *
 	 * Example:
-	 * 
+	 *
 	 * (code)
 	 * <add as="perimeter">mxPerimeter.RectanglePerimeter</add>
 	 * (end)
-	 * 
+	 *
 	 * Or programmatically:
-	 * 
+	 *
 	 * (code)
 	 * style[mxConstants.STYLE_PERIMETER] = mxPerimeter.RectanglePerimeter;
 	 * (end)
-	 * 
-	 * When adding new perimeter functions, it is recommended to use the 
+	 *
+	 * When adding new perimeter functions, it is recommended to use the
 	 * mxPerimeter-namespace as follows:
-	 * 
+	 *
 	 * (code)
 	 * mxPerimeter.CustomPerimeter = function (bounds, vertex, next, orthogonal)
 	 * {
 	 *   var x = 0; // Calculate x-coordinate
 	 *   var y = 0; // Calculate y-coordainte
-	 *   
+	 *
 	 *   return new mxPoint(x, y);
 	 * }
 	 * (end)
-	 * 
+	 *
 	 * The new perimeter should then be registered in the <mxStyleRegistry> as follows:
 	 * (code)
 	 * mxStyleRegistry.putValue('customPerimeter', mxPerimeter.CustomPerimeter);
 	 * (end)
-	 * 
+	 *
 	 * The custom perimeter above can now be used in a specific vertex as follows:
-	 * 
+	 *
 	 * (code)
 	 * model.setStyle(vertex, 'perimeter=customPerimeter');
 	 * (end)
-	 * 
+	 *
 	 * Note that the key of the <mxStyleRegistry> entry for the function should
 	 * be used in string values, unless <mxGraphView.allowEval> is true, in
 	 * which case you can also use mxPerimeter.CustomPerimeter for the value in
 	 * the cell style above.
-	 * 
+	 *
 	 * Or it can be used for all vertices in the graph as follows:
-	 * 
+	 *
 	 * (code)
 	 * var style = graph.getStylesheet().getDefaultVertexStyle();
 	 * style[mxConstants.STYLE_PERIMETER] = mxPerimeter.CustomPerimeter;
 	 * (end)
-	 * 
+	 *
 	 * Note that the object can be used directly when programmatically setting
 	 * the value, but the key in the <mxStyleRegistry> should be used when
 	 * setting the value via a key, value pair in a cell style.
-	 * 
+	 *
 	 * The parameters are explained in <RectanglePerimeter>.
-	 * 
+	 *
 	 * Function: RectanglePerimeter
-	 * 
+	 *
 	 * Describes a rectangular perimeter for the given bounds.
 	 *
 	 * Parameters:
-	 * 
+	 *
 	 * bounds - <mxRectangle> that represents the absolute bounds of the
 	 * vertex.
 	 * vertex - <mxCellState> that represents the vertex.
@@ -93,7 +93,7 @@ var mxPerimeter =
 		var pi2 = Math.PI/2;
 		var beta = pi2 - alpha;
 		var t = Math.atan2(bounds.height, bounds.width);
-		
+
 		if (alpha < -pi + t || alpha > pi - t)
 		{
 			// Left edge
@@ -118,7 +118,7 @@ var mxPerimeter =
 			p.y = bounds.y + bounds.height;
 			p.x = cx + bounds.height * Math.tan(beta) / 2;
 		}
-		
+
 		if (orthogonal)
 		{
 			if (next.x >= bounds.x &&
@@ -148,13 +148,13 @@ var mxPerimeter =
 				p.y = bounds.y + bounds.height;
 			}
 		}
-		
+
 		return p;
 	},
 
 	/**
 	 * Function: EllipsePerimeter
-	 * 
+	 *
 	 * Describes an elliptic perimeter. See <RectanglePerimeter>
 	 * for a description of the parameters.
 	 */
@@ -168,12 +168,12 @@ var mxPerimeter =
 		var cy = y + b;
 		var px = next.x;
 		var py = next.y;
-		
+
 		// Calculates straight line equation through
 		// point and ellipse center y = d * x + h
 		var dx = parseInt(px - cx);
 		var dy = parseInt(py - cy);
-		
+
 		if (dx == 0 && dy != 0)
 		{
 			return new mxPoint(cx, cy + b * dy / Math.abs(dy));
@@ -189,29 +189,29 @@ var mxPerimeter =
 			{
 				var ty = py - cy;
 				var tx = Math.sqrt(a*a*(1-(ty*ty)/(b*b))) || 0;
-				
+
 				if (px <= x)
 				{
 					tx = -tx;
 				}
-				
+
 				return new mxPoint(cx+tx, py);
 			}
-			
+
 			if (px >= x && px <= x + bounds.width)
 			{
 				var tx = px - cx;
 				var ty = Math.sqrt(b*b*(1-(tx*tx)/(a*a))) || 0;
-				
+
 				if (py <= y)
 				{
-					ty = -ty;	
+					ty = -ty;
 				}
-				
+
 				return new mxPoint(px, cy+ty);
 			}
 		}
-		
+
 		// Calculates intersection
 		var d = dy / dx;
 		var h = cy - d * cx;
@@ -221,7 +221,7 @@ var mxPerimeter =
 				b * b * cx * cx -
 				a * a * b * b;
 		var det = Math.sqrt(f * f - 4 * e * g);
-		
+
 		// Two solutions (perimeter points)
 		var xout1 = (-f + det) / (2 * e);
 		var xout2 = (-f - det) / (2 * e);
@@ -231,11 +231,11 @@ var mxPerimeter =
 					+ Math.pow((yout1 - py), 2));
 		var dist2 = Math.sqrt(Math.pow((xout2 - px), 2)
 					+ Math.pow((yout2 - py), 2));
-					
+
 		// Correct solution
 		var xout = 0;
 		var yout = 0;
-		
+
 		if (dist1 < dist2)
 		{
 			xout = xout1;
@@ -246,13 +246,13 @@ var mxPerimeter =
 			xout = xout2;
 			yout = yout2;
 		}
-		
+
 		return new mxPoint(xout, yout);
 	},
 
 	/**
 	 * Function: RhombusPerimeter
-	 * 
+	 *
 	 * Describes a rhombus (aka diamond) perimeter. See <RectanglePerimeter>
 	 * for a description of the parameters.
 	 */
@@ -262,7 +262,7 @@ var mxPerimeter =
 		var y = bounds.y;
 		var w = bounds.width;
 		var h = bounds.height;
-		
+
 		var cx = x + w / 2;
 		var cy = y + h / 2;
 
@@ -292,10 +292,10 @@ var mxPerimeter =
 				return new mxPoint(x + w, cy); // right
 			}
 		}
-		
+
 		var tx = cx;
 		var ty = cy;
-		
+
 		if (orthogonal)
 		{
 			if (px >= x && px <= x + w)
@@ -307,7 +307,7 @@ var mxPerimeter =
 				ty = py;
 			}
 		}
-		
+
 		// In which quadrant will the intersection be?
 		// set the slope and offset of the border line accordingly
 		if (px < cx)
@@ -330,10 +330,10 @@ var mxPerimeter =
 			return mxUtils.intersection(px, py, tx, ty, cx, y + h, x + w, cy);
 		}
 	},
-	
+
 	/**
 	 * Function: TrianglePerimeter
-	 * 
+	 *
 	 * Describes a triangle perimeter. See <RectanglePerimeter>
 	 * for a description of the parameters.
 	 */
@@ -348,14 +348,14 @@ var mxPerimeter =
 		var y = bounds.y;
 		var w = bounds.width;
 		var h = bounds.height;
-		
+
 		var cx = x + w / 2;
 		var cy = y + h / 2;
-		
+
 		var start = new mxPoint(x, y);
 		var corner = new mxPoint(x + w, cy);
 		var end = new mxPoint(x, y + h);
-		
+
 		if (direction == mxConstants.DIRECTION_NORTH)
 		{
 			start = end;
@@ -379,9 +379,9 @@ var mxPerimeter =
 
 		var alpha = (vertical) ? Math.atan2(dx, dy) : Math.atan2(dy, dx);
 		var t = (vertical) ? Math.atan2(w, h) : Math.atan2(h, w);
-		
+
 		var base = false;
-		
+
 		if (direction == mxConstants.DIRECTION_NORTH ||
 			direction == mxConstants.DIRECTION_WEST)
 		{
@@ -389,10 +389,10 @@ var mxPerimeter =
 		}
 		else
 		{
-			base = alpha < -Math.PI + t || alpha > Math.PI - t;	
+			base = alpha < -Math.PI + t || alpha > Math.PI - t;
 		}
 
-		var result = null;			
+		var result = null;
 
 		if (base)
 		{
@@ -437,7 +437,7 @@ var mxPerimeter =
 			if (orthogonal)
 			{
 				var pt = new mxPoint(cx, cy);
-		
+
 				if (next.y >= y && next.y <= y + h)
 				{
 					pt.x = (vertical) ? cx : (
@@ -452,11 +452,11 @@ var mxPerimeter =
 						(direction == mxConstants.DIRECTION_NORTH) ?
 							y + h : y);
 				}
-				
+
 				// Compute angle
 				dx = next.x - pt.x;
 				dy = next.y - pt.y;
-				
+
 				cx = pt.x;
 				cy = pt.y;
 			}
@@ -473,18 +473,18 @@ var mxPerimeter =
 					corner.x, corner.y, end.x, end.y);
 			}
 		}
-		
+
 		if (result == null)
 		{
 			result = new mxPoint(cx, cy);
 		}
-		
+
 		return result;
 	},
-	
+
 	/**
 	 * Function: HexagonPerimeter
-	 * 
+	 *
 	 * Describes a hexagon perimeter. See <RectanglePerimeter>
 	 * for a description of the parameters.
 	 */
@@ -748,7 +748,7 @@ var mxPerimeter =
 			if (px >= x && px <= x + w)
 			{
 				tx = px;
-				
+
 				if (py < cy)
 				{
 					ty = y + h;
@@ -761,7 +761,7 @@ var mxPerimeter =
 			else if (py >= y && py <= y + h)
 			{
 				ty = py;
-				
+
 				if (px < cx)
 				{
 					tx = x + w;
@@ -910,12 +910,12 @@ var mxPerimeter =
 
 			result = mxUtils.intersection(cx, cy, next.x, next.y, a.x, a.y, b.x, b.y);
 		}
-		
+
 		if (result == null)
 		{
 			return new mxPoint(cx, cy);
 		}
-		
+
 		return result;
 	}
 };

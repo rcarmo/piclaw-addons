@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync, copyFileSync } from 'node:fs';
 import { basename, dirname, join, relative, resolve } from 'node:path';
+import { addonFromFile } from './generate-report-paths';
 
 const e2eRoot = resolve(import.meta.dir, '..');
 const repoRoot = resolve(e2eRoot, '../..');
@@ -30,12 +31,6 @@ function esc(s: unknown): string {
 function dur(ms: number): string { return ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(1)}s`; }
 function emoji(status: string): string { return status === 'passed' ? '✅' : status === 'failed' ? '❌' : status === 'timedOut' ? '⏱️' : status === 'skipped' ? '⏭️' : '❓'; }
 function b64(path: string): string { try { return `data:image/png;base64,${readFileSync(path).toString('base64')}`; } catch { return ''; } }
-function addonFromFile(file = ''): string {
-  const normalized = file.replaceAll('\\', '/');
-  const match = normalized.match(/\.generated\/([^/]+)\//);
-  return match?.[1] || process.env.PICLAW_ADDON || 'addon';
-}
-
 function findImages(dir: string): string[] {
   const images: string[] = [];
   if (!existsSync(dir)) return images;

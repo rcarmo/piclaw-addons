@@ -47,20 +47,20 @@ mxCodecRegistry.register(function()
 	 * attribute as a space-separated list of comma-separated
 	 * coordinate pairs (eg. x0,y0 x1,y1 ... xn,yn). All
 	 * values from the cell style are added as attribute
-	 * values to the node. 
+	 * values to the node.
 	 */
 	codec.encodeCell = function(enc, view, cell)
 	{
 		var model = view.graph.getModel();
 		var state = view.getState(cell);
 		var parent = model.getParent(cell);
-		
+
 		if (parent == null || state != null)
 		{
 			var childCount = model.getChildCount(cell);
 			var geo = view.graph.getCellGeometry(cell);
 			var name = null;
-			
+
 			if (parent == model.getRoot())
 			{
 				name = 'layer';
@@ -81,26 +81,26 @@ mxCodecRegistry.register(function()
 			{
 				name = 'vertex';
 			}
-			
+
 			if (name != null)
 			{
 				var node = enc.document.createElement(name);
 				var lab = view.graph.getLabel(cell);
-				
+
 				if (lab != null)
 				{
 					node.setAttribute('label', view.graph.getLabel(cell));
-					
+
 					if (view.graph.isHtmlLabel(cell))
 					{
 						node.setAttribute('html', true);
 					}
 				}
-		
+
 				if (parent == null)
 				{
 					var bounds = view.getGraphBounds();
-					
+
 					if (bounds != null)
 					{
 						node.setAttribute('x', Math.round(bounds.x));
@@ -108,7 +108,7 @@ mxCodecRegistry.register(function()
 						node.setAttribute('width', Math.round(bounds.width));
 						node.setAttribute('height', Math.round(bounds.height));
 					}
-					
+
 					node.setAttribute('scale', view.scale);
 				}
 				else if (state != null && geo != null)
@@ -116,50 +116,50 @@ mxCodecRegistry.register(function()
 					// Writes each key, value in the style pair to an attribute
 				    for (var i in state.style)
 				    {
-				    	var value = state.style[i];
-		
-				    	// Tries to turn objects and functions into strings
+					var value = state.style[i];
+
+					// Tries to turn objects and functions into strings
 					    if (typeof(value) == 'function' &&
 							typeof(value) == 'object')
 						{
-					    	value = mxStyleRegistry.getName(value);
-				        }
-				    	
-				    	if (value != null &&
-				    		typeof(value) != 'function' &&
+						value = mxStyleRegistry.getName(value);
+					}
+
+					if (value != null &&
+						typeof(value) != 'function' &&
 							typeof(value) != 'object')
 						{
 							node.setAttribute(i, value);
-				        }
+					}
 				    }
-				    
+
 					var abs = state.absolutePoints;
-					
+
 					// Writes the list of points into one attribute
 					if (abs != null && abs.length > 0)
 					{
 						var pts = Math.round(abs[0].x) + ',' + Math.round(abs[0].y);
-		
+
 						for (var i=1; i<abs.length; i++)
 						{
 							pts += ' ' + Math.round(abs[i].x) + ',' +
 								Math.round(abs[i].y);
 						}
-		
+
 						node.setAttribute('points', pts);
 					}
-					
+
 					// Writes the bounds into 4 attributes
 					else
 					{
 						node.setAttribute('x', Math.round(state.x));
 						node.setAttribute('y', Math.round(state.y));
 						node.setAttribute('width', Math.round(state.width));
-						node.setAttribute('height', Math.round(state.height));				
+						node.setAttribute('height', Math.round(state.height));
 					}
-		
+
 					var offset = state.absoluteOffset;
-					
+
 					// Writes the offset into 2 attributes
 					if (offset != null)
 					{
@@ -167,19 +167,19 @@ mxCodecRegistry.register(function()
 						{
 							node.setAttribute('dx', Math.round(offset.x));
 						}
-						
+
 						if (offset.y != 0)
 						{
 							node.setAttribute('dy', Math.round(offset.y));
 						}
 					}
 				}
-		
+
 				for (var i=0; i<childCount; i++)
 				{
 					var childNode = this.encodeCell(enc,
 							view, model.getChildAt(cell, i));
-					
+
 					if (childNode != null)
 					{
 						node.appendChild(childNode);
@@ -187,7 +187,7 @@ mxCodecRegistry.register(function()
 				}
 			}
 		}
-		
+
 		return node;
 	};
 

@@ -4,20 +4,20 @@
  */
 /**
  * Class: mxRadialTreeLayout
- * 
+ *
  * Extends <mxGraphLayout> to implement a radial tree algorithm. This
  * layout is suitable for graphs that have no cycles (trees). Vertices that are
  * not connected to the tree will be ignored by this layout.
- * 
+ *
  * Example:
- * 
+ *
  * (code)
  * var layout = new mxRadialTreeLayout(graph);
  * layout.execute(graph.getDefaultParent());
  * (end)
- * 
+ *
  * Constructor: mxRadialTreeLayout
- * 
+ *
  * Constructs a new radial tree layout for the specified graph
  */
 function mxRadialTreeLayout(graph)
@@ -67,14 +67,14 @@ mxRadialTreeLayout.prototype.nodeDistance = 10;
 
 /**
  * Variable: autoRadius
- * 
+ *
  * Specifies if the radios should be computed automatically
  */
 mxRadialTreeLayout.prototype.autoRadius = false;
 
 /**
  * Variable: sortEdges
- * 
+ *
  * Specifies if edges should be sorted according to the order of their
  * opposite terminal cell in the model.
  */
@@ -82,54 +82,54 @@ mxRadialTreeLayout.prototype.sortEdges = false;
 
 /**
  * Variable: rowMinX
- * 
+ *
  * Array of leftmost x coordinate of each row
  */
 mxRadialTreeLayout.prototype.rowMinX = [];
 
 /**
  * Variable: rowMaxX
- * 
+ *
  * Array of rightmost x coordinate of each row
  */
 mxRadialTreeLayout.prototype.rowMaxX = [];
 
 /**
  * Variable: rowMinCenX
- * 
+ *
  * Array of x coordinate of leftmost vertex of each row
  */
 mxRadialTreeLayout.prototype.rowMinCenX = [];
 
 /**
  * Variable: rowMaxCenX
- * 
+ *
  * Array of x coordinate of rightmost vertex of each row
  */
 mxRadialTreeLayout.prototype.rowMaxCenX = [];
 
 /**
  * Variable: rowRadi
- * 
+ *
  * Array of y deltas of each row behind root vertex, also the radius in the tree
  */
 mxRadialTreeLayout.prototype.rowRadi = [];
 
 /**
  * Variable: row
- * 
+ *
  * Array of vertices on each row
  */
 mxRadialTreeLayout.prototype.row = [];
 
 /**
  * Function: isVertexIgnored
- * 
+ *
  * Returns a boolean indicating if the given <mxCell> should be ignored as a
  * vertex. This returns true if the cell has no connections.
- * 
+ *
  * Parameters:
- * 
+ *
  * vertex - <mxCell> whose ignored state should be returned.
  */
 mxRadialTreeLayout.prototype.isVertexIgnored = function(vertex)
@@ -140,28 +140,28 @@ mxRadialTreeLayout.prototype.isVertexIgnored = function(vertex)
 
 /**
  * Function: execute
- * 
+ *
  * Implements <mxGraphLayout.execute>.
- * 
+ *
  * If the parent has any connected edges, then it is used as the root of
  * the tree. Else, <mxGraph.findTreeRoots> will be used to find a suitable
  * root node within the set of children of the given parent.
- * 
+ *
  * Parameters:
- * 
+ *
  * parent - <mxCell> whose children should be laid out.
  * root - Optional <mxCell> that will be used as the root of the tree.
  */
 mxRadialTreeLayout.prototype.execute = function(parent, root)
 {
 	this.parent = parent;
-	
+
 	this.useBoundingBox = false;
 	this.edgeRouting = false;
 	//this.horizontal = false;
 
 	mxCompactTreeLayout.prototype.execute.apply(this, arguments);
-	
+
 	var bounds = null;
 	var rootBounds = this.getVertexBounds(this.root);
 	this.centerX = rootBounds.x + rootBounds.width / 2;
@@ -174,9 +174,9 @@ mxRadialTreeLayout.prototype.execute = function(parent, root)
 		bounds = (bounds != null) ? bounds : vertexBounds.clone();
 		bounds.add(vertexBounds);
 	}
-	
+
 	this.calcRowDims([this.node], 0);
-	
+
 	var maxLeftGrad = 0;
 	var maxRightGrad = 0;
 
@@ -185,18 +185,18 @@ mxRadialTreeLayout.prototype.execute = function(parent, root)
 	{
 		var leftGrad = (this.centerX - this.rowMinX[i] - this.nodeDistance) / this.rowRadi[i];
 		var rightGrad = (this.rowMaxX[i] - this.centerX - this.nodeDistance) / this.rowRadi[i];
-		
+
 		maxLeftGrad = Math.max (maxLeftGrad, leftGrad);
 		maxRightGrad = Math.max (maxRightGrad, rightGrad);
 	}
-	
+
 	// Extend out row so they meet the maximum gradient and convert to polar co-ords
 	for (var i = 0; i < this.row.length; i++)
 	{
 		var xLeftLimit = this.centerX - this.nodeDistance - maxLeftGrad * this.rowRadi[i];
 		var xRightLimit = this.centerX + this.nodeDistance + maxRightGrad * this.rowRadi[i];
 		var fullWidth = xRightLimit - xLeftLimit;
-		
+
 		for (var j = 0; j < this.row[i].length; j ++)
 		{
 			var row = this.row[i];
@@ -212,25 +212,25 @@ mxRadialTreeLayout.prototype.execute = function(parent, root)
 	for (var i = this.row.length - 2; i >= 0; i--)
 	{
 		var row = this.row[i];
-		
+
 		for (var j = 0; j < row.length; j++)
 		{
 			var node = row[j];
 			var child = node.child;
 			var counter = 0;
 			var totalTheta = 0;
-			
+
 			while (child != null)
 			{
 				totalTheta += child.theta;
 				counter++;
 				child = child.next;
 			}
-			
+
 			if (counter > 0)
 			{
 				var averTheta = totalTheta / counter;
-				
+
 				if (averTheta > node.theta && j < row.length - 1)
 				{
 					var nextTheta = row[j+1].theta;
@@ -244,7 +244,7 @@ mxRadialTreeLayout.prototype.execute = function(parent, root)
 			}
 		}
 	}
-	
+
 	// Set locations
 	for (var i = 0; i < this.row.length; i++)
 	{
@@ -262,11 +262,11 @@ mxRadialTreeLayout.prototype.execute = function(parent, root)
 
 /**
  * Function: calcRowDims
- * 
+ *
  * Recursive function to calculate the dimensions of each row
- * 
+ *
  * Parameters:
- * 
+ *
  * row - Array of internal nodes, the children of which are to be processed.
  * rowNum - Integer indicating which row is being processed.
  */
@@ -294,23 +294,23 @@ mxRadialTreeLayout.prototype.calcRowDims = function(row, rowNum)
 		{
 			var cell = child.cell;
 			var vertexBounds = this.getVertexBounds(cell);
-			
+
 			this.rowMinX[rowNum] = Math.min(vertexBounds.x, this.rowMinX[rowNum]);
 			this.rowMaxX[rowNum] = Math.max(vertexBounds.x + vertexBounds.width, this.rowMaxX[rowNum]);
 			this.rowMinCenX[rowNum] = Math.min(vertexBounds.x + vertexBounds.width / 2, this.rowMinCenX[rowNum]);
 			this.rowMaxCenX[rowNum] = Math.max(vertexBounds.x + vertexBounds.width / 2, this.rowMaxCenX[rowNum]);
 			this.rowRadi[rowNum] = vertexBounds.y - this.getVertexBounds(this.root).y;
-	
+
 			if (child.child != null)
 			{
 				rowHasChildren = true;
 			}
-			
+
 			this.row[rowNum].push(child);
 			child = child.next;
 		}
 	}
-	
+
 	if (rowHasChildren)
 	{
 		this.calcRowDims(this.row[rowNum], rowNum + 1);

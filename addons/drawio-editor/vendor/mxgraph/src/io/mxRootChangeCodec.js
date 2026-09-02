@@ -28,7 +28,7 @@ mxCodecRegistry.register(function()
 	codec.afterEncode = function(enc, obj, node)
 	{
 		enc.encodeCell(obj.root, node);
-		
+
 		return node;
 	};
 
@@ -45,14 +45,14 @@ mxCodecRegistry.register(function()
 		{
 			// Makes sure the original node isn't modified
 			node = node.cloneNode(true);
-			
+
 			var tmp = node.firstChild;
 			obj.root = dec.decodeCell(tmp, false);
 
 			var tmp2 = tmp.nextSibling;
 			tmp.parentNode.removeChild(tmp);
 			tmp = tmp2;
-		
+
 			while (tmp != null)
 			{
 				tmp2 = tmp.nextSibling;
@@ -61,10 +61,10 @@ mxCodecRegistry.register(function()
 				tmp = tmp2;
 			}
 		}
-		
+
 		return node;
 	};
-	
+
 	/**
 	 * Function: afterDecode
 	 *
@@ -73,7 +73,7 @@ mxCodecRegistry.register(function()
 	codec.afterDecode = function(dec, node, obj)
 	{
 		obj.previous = obj.root;
-		
+
 		return obj;
 	};
 

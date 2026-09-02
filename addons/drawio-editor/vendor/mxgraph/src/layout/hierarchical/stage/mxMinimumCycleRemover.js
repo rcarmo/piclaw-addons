@@ -4,10 +4,10 @@
  */
 /**
  * Class: mxMinimumCycleRemover
- * 
+ *
  * An implementation of the first stage of the Sugiyama layout. Straightforward
  * longest path calculation of layer assignment
- * 
+ *
  * Constructor: mxMinimumCycleRemover
  *
  * Creates a cycle remover for the given internal model.
@@ -25,14 +25,14 @@ mxMinimumCycleRemover.prototype.constructor = mxMinimumCycleRemover;
 
 /**
  * Variable: layout
- * 
+ *
  * Reference to the enclosing <mxHierarchicalLayout>.
  */
 mxMinimumCycleRemover.prototype.layout = null;
 
 /**
  * Function: execute
- * 
+ *
  * Takes the graph detail and configuration information within the facade
  * and creates the resulting laid out graph within that facade for further
  * use.
@@ -43,21 +43,21 @@ mxMinimumCycleRemover.prototype.execute = function(parent)
 	var seenNodes = new Object();
 	var unseenNodesArray = model.vertexMapper.getValues();
 	var unseenNodes = new Object();
-	
+
 	for (var i = 0; i < unseenNodesArray.length; i++)
 	{
 		unseenNodes[unseenNodesArray[i].id] = unseenNodesArray[i];
 	}
-	
+
 	// Perform a dfs through the internal model. If a cycle is found,
 	// reverse it.
 	var rootsArray = null;
-	
+
 	if (model.roots != null)
 	{
 		var modelRoots = model.roots;
 		rootsArray = [];
-		
+
 		for (var i = 0; i < modelRoots.length; i++)
 		{
 			rootsArray[i] = model.vertexMapper.get(modelRoots[i]);
@@ -77,7 +77,7 @@ mxMinimumCycleRemover.prototype.execute = function(parent)
 			mxUtils.remove(connectingEdge, node.connectsAsTarget);
 			node.connectsAsSource.push(connectingEdge);
 		}
-		
+
 		seenNodes[node.id] = node;
 		delete unseenNodes[node.id];
 	}, rootsArray, true, null);
@@ -101,7 +101,7 @@ mxMinimumCycleRemover.prototype.execute = function(parent)
 			parent.connectsAsTarget.push(connectingEdge);
 			mxUtils.remove(connectingEdge, node.connectsAsTarget);
 		}
-		
+
 		seenNodes[node.id] = node;
 		delete unseenNodes[node.id];
 	}, unseenNodes, true, seenNodesCopy);

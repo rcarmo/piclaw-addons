@@ -4,21 +4,21 @@
  */
 /**
  * Class: mxEventObject
- * 
+ *
  * The mxEventObject is a wrapper for all properties of a single event.
  * Additionally, it also offers functions to consume the event and check if it
  * was consumed as follows:
- * 
+ *
  * (code)
  * evt.consume();
  * INV: evt.isConsumed() == true
  * (end)
- * 
+ *
  * Constructor: mxEventObject
  *
  * Constructs a new event object with the specified name. An optional
  * sequence of key, value pairs can be appended to define properties.
- * 
+ *
  * Example:
  *
  * (code)
@@ -29,7 +29,7 @@ function mxEventObject(name)
 {
 	this.name = name;
 	this.properties = [];
-	
+
 	for (var i = 1; i < arguments.length; i += 2)
 	{
 		if (arguments[i + 1] != null)
@@ -62,7 +62,7 @@ mxEventObject.prototype.consumed = false;
 
 /**
  * Function: getName
- * 
+ *
  * Returns <name>.
  */
 mxEventObject.prototype.getName = function()
@@ -72,7 +72,7 @@ mxEventObject.prototype.getName = function()
 
 /**
  * Function: getProperties
- * 
+ *
  * Returns <properties>.
  */
 mxEventObject.prototype.getProperties = function()
@@ -82,7 +82,7 @@ mxEventObject.prototype.getProperties = function()
 
 /**
  * Function: getProperty
- * 
+ *
  * Returns the property for the given key.
  */
 mxEventObject.prototype.getProperty = function(key)

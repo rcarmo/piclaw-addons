@@ -232,7 +232,7 @@ mxSwimlaneModel.prototype.createInternalCells = function(layout, vertices, inter
 				// We process all edge between this source and its targets
 				// If there are edges going both ways, we need to collect
 				// them all into one internal edges to avoid looping problems
-				// later. We assume this direction (source -> target) is the 
+				// later. We assume this direction (source -> target) is the
 				// natural direction if at least half the edges are going in
 				// that direction.
 
@@ -240,13 +240,13 @@ mxSwimlaneModel.prototype.createInternalCells = function(layout, vertices, inter
 				// in case we've processed this the other way around
 				// (target -> source) and the number of edges in each direction
 				// are the same. All the graph edges will have been assigned to
-				// an internal edge going the other way, so we don't want to 
+				// an internal edge going the other way, so we don't want to
 				// process them again
 				var undirectedEdges = layout.getEdgesBetween(vertices[i],
 						cell, false);
 				var directedEdges = layout.getEdgesBetween(vertices[i],
 						cell, true);
-				
+
 				if (undirectedEdges != null &&
 						undirectedEdges.length > 0 &&
 						this.edgeMapper.get(undirectedEdges[0]) == null &&
@@ -265,8 +265,8 @@ mxSwimlaneModel.prototype.createInternalCells = function(layout, vertices, inter
 
 					    if (layout.disableEdgeStyle)
 					    {
-					    	layout.setEdgeStyleEnabled(edge, false);
-					    	layout.setOrthogonalEdge(edge,true);
+						layout.setEdgeStyleEnabled(edge, false);
+						layout.setOrthogonalEdge(edge,true);
 					    }
 					}
 
@@ -295,7 +295,7 @@ mxSwimlaneModel.prototype.createInternalCells = function(layout, vertices, inter
 mxSwimlaneModel.prototype.initialRank = function()
 {
 	this.ranksPerGroup = [];
-	
+
 	var startNodes = [];
 	var seen = new Object();
 
@@ -316,7 +316,7 @@ mxSwimlaneModel.prototype.initialRank = function()
 	// Calculate the lower and upper rank bounds of each swimlane
 	var lowerRank = [];
 	var upperRank = [];
-	
+
 	for (var i = this.ranksPerGroup.length - 1; i >= 0; i--)
 	{
 		if (i == this.ranksPerGroup.length - 1)
@@ -327,14 +327,14 @@ mxSwimlaneModel.prototype.initialRank = function()
 		{
 			lowerRank[i] = upperRank[i+1] + 1;
 		}
-		
+
 		upperRank[i] = lowerRank[i] + this.ranksPerGroup[i];
 	}
-	
+
 	this.maxRank = upperRank[0];
 
 	var internalNodes = this.vertexMapper.getValues();
-	
+
 	for (var i=0; i < internalNodes.length; i++)
 	{
 		// Mark the node as not having had a layer assigned
@@ -342,7 +342,7 @@ mxSwimlaneModel.prototype.initialRank = function()
 	}
 
 	var startNodesCopy = startNodes.slice();
-	
+
 	while (startNodes.length > 0)
 	{
 		var internalNode = startNodes[0];
@@ -446,7 +446,7 @@ mxSwimlaneModel.prototype.initialRank = function()
 //		// Mark the node as not having had a layer assigned
 //		internalNode.temp[0] -= this.maxRank;
 //	}
-	
+
 	// Tighten the rank 0 nodes as far as possible
 //	for ( var i = 0; i < startNodesCopy.length; i++)
 //	{
@@ -493,7 +493,7 @@ mxSwimlaneModel.prototype.maxChainDfs = function(parent, root, connectingEdge, s
 		{
 			seen[rootId] = root;
 			var slIndex = root.swimlaneIndex;
-			
+
 			if (this.ranksPerGroup[slIndex] == null || this.ranksPerGroup[slIndex] < chainCount)
 			{
 				this.ranksPerGroup[slIndex] = chainCount;
@@ -673,7 +673,7 @@ mxSwimlaneModel.prototype.dfs = function(parent, root, connectingEdge, visitor, 
 			// Copy the connects as source list so that visitors
 			// can change the original for edge direction inversions
 			var outgoingEdges = root.connectsAsSource.slice();
-			
+
 			for (var i = 0; i< outgoingEdges.length; i++)
 			{
 				var internalEdge = outgoingEdges[i];
@@ -768,7 +768,7 @@ mxSwimlaneModel.prototype.extendedDfs = function(parent, root, connectingEdge, v
 			{
 				var internalEdge = outgoingEdges[i];
 				var targetNode = internalEdge.target;
-				
+
 				// Only navigate in source->target direction within the same
 				// swimlane, or from a lower index swimlane to a higher one
 				if (root.swimlaneIndex <= targetNode.swimlaneIndex)
@@ -777,13 +777,13 @@ mxSwimlaneModel.prototype.extendedDfs = function(parent, root, connectingEdge, v
 							root.hashCode, i, layer + 1);
 				}
 			}
-			
+
 			for (var i = 0; i < incomingEdges.length; i++)
 			{
 				var internalEdge = incomingEdges[i];
 				var targetNode = internalEdge.source;
 
-				// Only navigate in target->source direction from a lower index 
+				// Only navigate in target->source direction from a lower index
 				// swimlane to a higher one
 				if (root.swimlaneIndex < targetNode.swimlaneIndex)
 				{

@@ -82,7 +82,7 @@ function mxGraphHierarchyModel(layout, vertices, roots, parent, tightenToSource)
 							realEdge, true);
 					internalTargetCell = this.vertexMapper.get(targetCell);
 				}
-				
+
 				if (internalTargetCell != null
 						&& internalVertices[i] != internalTargetCell)
 				{
@@ -214,7 +214,7 @@ mxGraphHierarchyModel.prototype.createInternalCells = function(layout, vertices,
 				// We process all edge between this source and its targets
 				// If there are edges going both ways, we need to collect
 				// them all into one internal edges to avoid looping problems
-				// later. We assume this direction (source -> target) is the 
+				// later. We assume this direction (source -> target) is the
 				// natural direction if at least half the edges are going in
 				// that direction.
 
@@ -222,13 +222,13 @@ mxGraphHierarchyModel.prototype.createInternalCells = function(layout, vertices,
 				// in case we've processed this the other way around
 				// (target -> source) and the number of edges in each direction
 				// are the same. All the graph edges will have been assigned to
-				// an internal edge going the other way, so we don't want to 
+				// an internal edge going the other way, so we don't want to
 				// process them again
 				var undirectedEdges = layout.getEdgesBetween(vertices[i],
 						cell, false);
 				var directedEdges = layout.getEdgesBetween(vertices[i],
 						cell, true);
-				
+
 				if (undirectedEdges != null &&
 						undirectedEdges.length > 0 &&
 						this.edgeMapper.get(undirectedEdges[0]) == null &&
@@ -247,8 +247,8 @@ mxGraphHierarchyModel.prototype.createInternalCells = function(layout, vertices,
 
 					    if (layout.disableEdgeStyle)
 					    {
-					    	layout.setEdgeStyleEnabled(edge, false);
-					    	layout.setOrthogonalEdge(edge,true);
+						layout.setEdgeStyleEnabled(edge, false);
+						layout.setOrthogonalEdge(edge,true);
 					    }
 					}
 
@@ -292,7 +292,7 @@ mxGraphHierarchyModel.prototype.initialRank = function()
 	}
 
 	var internalNodes = this.vertexMapper.getValues();
-	
+
 	for (var i=0; i < internalNodes.length; i++)
 	{
 		// Mark the node as not having had a layer assigned
@@ -399,7 +399,7 @@ mxGraphHierarchyModel.prototype.initialRank = function()
 		// Mark the node as not having had a layer assigned
 		internalNodes[i].temp[0] -= this.maxRank;
 	}
-	
+
 	// Tighten the rank 0 nodes as far as possible
 	for ( var i = 0; i < startNodesCopy.length; i++)
 	{
@@ -416,7 +416,7 @@ mxGraphHierarchyModel.prototype.initialRank = function()
 			currentMaxLayer = internalNode.temp[0];
 		}
 	}
-	
+
 	// Reset the maxRank to that which would be expected for a from-sink
 	// scan
 	this.maxRank = this.SOURCESCANSTARTRANK - this.maxRank;
@@ -572,7 +572,7 @@ mxGraphHierarchyModel.prototype.dfs = function(parent, root, connectingEdge, vis
 			// Copy the connects as source list so that visitors
 			// can change the original for edge direction inversions
 			var outgoingEdges = root.connectsAsSource.slice();
-			
+
 			for (var i = 0; i< outgoingEdges.length; i++)
 			{
 				var internalEdge = outgoingEdges[i];

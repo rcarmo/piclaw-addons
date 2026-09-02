@@ -7,7 +7,7 @@
  *
  * Extends <mxPoint> to implement a 2-dimensional rectangle with double
  * precision coordinates.
- * 
+ *
  * Constructor: mxRectangle
  *
  * Constructs a new rectangle for the optional parameters. If no parameters
@@ -43,7 +43,7 @@ mxRectangle.prototype.height = null;
 
 /**
  * Function: setRect
- * 
+ *
  * Sets this rectangle to the specified values
  */
 mxRectangle.prototype.setRect = function(x, y, w, h)
@@ -56,7 +56,7 @@ mxRectangle.prototype.setRect = function(x, y, w, h)
 
 /**
  * Function: getCenterX
- * 
+ *
  * Returns the x-coordinate of the center point.
  */
 mxRectangle.prototype.getCenterX = function ()
@@ -66,7 +66,7 @@ mxRectangle.prototype.getCenterX = function ()
 
 /**
  * Function: getCenterY
- * 
+ *
  * Returns the y-coordinate of the center point.
  */
 mxRectangle.prototype.getCenterY = function ()
@@ -87,7 +87,7 @@ mxRectangle.prototype.add = function(rect)
 		var minY = Math.min(this.y, rect.y);
 		var maxX = Math.max(this.x + this.width, rect.x + rect.width);
 		var maxY = Math.max(this.y + this.height, rect.y + rect.height);
-		
+
 		this.x = minX;
 		this.y = minY;
 		this.width = maxX - minX;
@@ -97,7 +97,7 @@ mxRectangle.prototype.add = function(rect)
 
 /**
  * Function: intersect
- * 
+ *
  * Changes this rectangle to where it overlaps with the given rectangle.
  */
 mxRectangle.prototype.intersect = function(rect)
@@ -106,10 +106,10 @@ mxRectangle.prototype.intersect = function(rect)
 	{
 		var r1 = this.x + this.width;
 		var r2 = rect.x + rect.width;
-		
+
 		var b1 = this.y + this.height;
 		var b2 = rect.y + rect.height;
-		
+
 		this.x = Math.max(this.x, rect.x);
 		this.y = Math.max(this.y, rect.y);
 		this.width = Math.min(r1, r2) - this.x;
@@ -119,7 +119,7 @@ mxRectangle.prototype.intersect = function(rect)
 
 /**
  * Function: intersectsPoint
- * 
+ *
  * Returns true if the given point is inside this rectangle.
  */
 mxRectangle.prototype.intersectsPoint = function(x, y)
@@ -141,13 +141,13 @@ mxRectangle.prototype.grow = function(amount)
 	this.y -= amount;
 	this.width += 2 * amount;
 	this.height += 2 * amount;
-	
+
 	return this;
 };
 
 /**
  * Function: getPoint
- * 
+ *
  * Returns the top, left corner as a new <mxPoint>.
  */
 mxRectangle.prototype.getPoint = function()
@@ -157,7 +157,7 @@ mxRectangle.prototype.getPoint = function()
 
 /**
  * Function: rotate90
- * 
+ *
  * Rotates this rectangle by 90 degree around its center point.
  */
 mxRectangle.prototype.rotate90 = function()
@@ -172,7 +172,7 @@ mxRectangle.prototype.rotate90 = function()
 
 /**
  * Function: equals
- * 
+ *
  * Returns true if the given object equals this rectangle.
  */
 mxRectangle.prototype.equals = function(obj)
@@ -183,7 +183,7 @@ mxRectangle.prototype.equals = function(obj)
 
 /**
  * Function: fromPoint
- * 
+ *
  * Returns a new <mxRectangle> from the given <mxPoint>.
  */
 mxRectangle.fromPoint = function(pt)
@@ -193,7 +193,7 @@ mxRectangle.fromPoint = function(pt)
 
 /**
  * Function: fromRectangle
- * 
+ *
  * Returns a new <mxRectangle> which is a copy of the given rectangle.
  */
 mxRectangle.fromRectangle = function(rect)

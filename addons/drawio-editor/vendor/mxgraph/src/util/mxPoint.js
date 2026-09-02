@@ -6,7 +6,7 @@
  * Class: mxPoint
  *
  * Implements a 2-dimensional vector with double precision coordinates.
- * 
+ *
  * Constructor: mxPoint
  *
  * Constructs a new point for the optional x and y coordinates. If no
@@ -34,7 +34,7 @@ mxPoint.prototype.y = null;
 
 /**
  * Function: equals
- * 
+ *
  * Returns true if the given object equals this point.
  */
 mxPoint.prototype.equals = function(obj)

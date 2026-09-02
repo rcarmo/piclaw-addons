@@ -20,40 +20,40 @@ function mxPanningManager(graph)
 	this.scrollbars = false;
 	this.scrollLeft = 0;
 	this.scrollTop = 0;
-	
+
 	this.mouseListener =
 	{
 	    mouseDown: function(sender, me) { },
 	    mouseMove: function(sender, me) { },
 	    mouseUp: mxUtils.bind(this, function(sender, me)
 	    {
-	    	if (this.active)
-	    	{
-	    		this.stop();
-	    	}
+		if (this.active)
+		{
+			this.stop();
+		}
 	    })
 	};
-	
+
 	graph.addMouseListener(this.mouseListener);
-	
+
 	this.mouseUpListener = mxUtils.bind(this, function()
 	{
-	    	if (this.active)
-	    	{
-	    		this.stop();
-	    	}
+		if (this.active)
+		{
+			this.stop();
+		}
 	});
-	
+
 	// Stops scrolling on every mouseup anywhere in the document
 	mxEvent.addListener(document, 'mouseup', this.mouseUpListener);
-	
+
 	var createThread = mxUtils.bind(this, function()
 	{
-	    	this.scrollbars = mxUtils.hasScrollbars(graph.container);
-	    	this.scrollLeft = graph.container.scrollLeft;
-	    	this.scrollTop = graph.container.scrollTop;
-	
-	    	return window.setInterval(mxUtils.bind(this, function()
+		this.scrollbars = mxUtils.hasScrollbars(graph.container);
+		this.scrollLeft = graph.container.scrollLeft;
+		this.scrollTop = graph.container.scrollTop;
+
+		return window.setInterval(mxUtils.bind(this, function()
 		{
 			this.tdx -= this.dx;
 			this.tdy -= this.dy;
@@ -74,45 +74,45 @@ function mxPanningManager(graph)
 			}
 		}), this.delay);
 	});
-	
+
 	this.isActive = function()
 	{
 		return active;
 	};
-	
+
 	this.getDx = function()
 	{
 		return Math.round(this.tdx);
 	};
-	
+
 	this.getDy = function()
 	{
 		return Math.round(this.tdy);
 	};
-	
+
 	this.start = function()
 	{
 		this.t0x = graph.view.translate.x;
 		this.t0y = graph.view.translate.y;
 		this.active = true;
 	};
-	
+
 	this.panTo = function(x, y, w, h)
 	{
 		if (!this.active)
 		{
 			this.start();
 		}
-		
-    	this.scrollLeft = graph.container.scrollLeft;
-    	this.scrollTop = graph.container.scrollTop;
-		
+
+	this.scrollLeft = graph.container.scrollLeft;
+	this.scrollTop = graph.container.scrollTop;
+
 		w = (w != null) ? w : 0;
 		h = (h != null) ? h : 0;
-		
+
 		var c = graph.container;
 		this.dx = x + w - c.scrollLeft - c.clientWidth;
-		
+
 		if (this.dx < 0 && Math.abs(this.dx) < this.border)
 		{
 			this.dx = this.border + this.dx;
@@ -125,11 +125,11 @@ function mxPanningManager(graph)
 		{
 			this.dx = 0;
 		}
-		
+
 		if (this.dx == 0)
 		{
 			this.dx = x - c.scrollLeft;
-			
+
 			if (this.dx > 0 && this.dx < this.border)
 			{
 				this.dx = this.dx - this.border;
@@ -143,7 +143,7 @@ function mxPanningManager(graph)
 				this.dx = 0;
 			}
 		}
-		
+
 		this.dy = y + h - c.scrollTop - c.clientHeight;
 
 		if (this.dy < 0 && Math.abs(this.dy) < this.border)
@@ -158,11 +158,11 @@ function mxPanningManager(graph)
 		{
 			this.dy = 0;
 		}
-		
+
 		if (this.dy == 0)
 		{
 			this.dy = y - c.scrollTop;
-			
+
 			if (this.dy > 0 && this.dy < this.border)
 			{
 				this.dy = this.dy - this.border;
@@ -170,18 +170,18 @@ function mxPanningManager(graph)
 			else if (this.handleMouseOut)
 			{
 				this.dy = Math.min(0, this.dy);
-			} 
+			}
 			else
 			{
 				this.dy = 0;
 			}
 		}
-		
+
 		if (this.dx != 0 || this.dy != 0)
 		{
 			this.dx *= this.damper;
 			this.dy *= this.damper;
-			
+
 			if (this.thread == null)
 			{
 				this.thread = createThread();
@@ -193,32 +193,32 @@ function mxPanningManager(graph)
 			this.thread = null;
 		}
 	};
-	
+
 	this.stop = function()
 	{
 		if (this.active)
 		{
 			this.active = false;
-		
+
 			if (this.thread != null)
-	    	{
+		{
 				window.clearInterval(this.thread);
 				this.thread = null;
-	    	}
-			
+		}
+
 			this.tdx = 0;
 			this.tdy = 0;
-			
+
 			if (!this.scrollbars)
 			{
 				var px = graph.panDx;
 				var py = graph.panDy;
-		    	
-		    	if (px != 0 || py != 0)
-		    	{
-		    		graph.panGraph(0, 0);
-			    	graph.view.setTranslate(this.t0x + px / graph.view.scale, this.t0y + py / graph.view.scale);
-		    	}
+
+			if (px != 0 || py != 0)
+			{
+				graph.panGraph(0, 0);
+				graph.view.setTranslate(this.t0x + px / graph.view.scale, this.t0y + py / graph.view.scale);
+			}
 			}
 			else
 			{
@@ -228,7 +228,7 @@ function mxPanningManager(graph)
 			}
 		}
 	};
-	
+
 	this.destroy = function()
 	{
 		graph.removeMouseListener(this.mouseListener);
@@ -238,28 +238,28 @@ function mxPanningManager(graph)
 
 /**
  * Variable: damper
- * 
+ *
  * Damper value for the panning. Default is 1/6.
  */
 mxPanningManager.prototype.damper = 1/6;
 
 /**
  * Variable: delay
- * 
+ *
  * Delay in milliseconds for the panning. Default is 10.
  */
 mxPanningManager.prototype.delay = 10;
 
 /**
  * Variable: handleMouseOut
- * 
- * Specifies if mouse events outside of the component should be handled. Default is true. 
+ *
+ * Specifies if mouse events outside of the component should be handled. Default is true.
  */
 mxPanningManager.prototype.handleMouseOut = true;
 
 /**
  * Variable: border
- * 
+ *
  * Border to handle automatic panning inside the component. Default is 0 (disabled).
  */
 mxPanningManager.prototype.border = 0;

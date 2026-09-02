@@ -6,11 +6,11 @@
  * Class: mxStencil
  *
  * Implements a generic shape which is based on a XML node as a description.
- * 
+ *
  * shape:
- * 
+ *
  * The outer element is *shape*, that has attributes:
- * 
+ *
  * - "name", string, required. The stencil name that uniquely identifies the shape.
  * - "w" and "h" are optional decimal view bounds. This defines your co-ordinate
  * system for the graphics operations in the shape. The default is 100,100.
@@ -23,13 +23,13 @@
  * If numeric values are used, the strokeWidth of the cell is changed on both
  * scaling and resizing and the value defines the multiple that is applied to
  * the width.
- * 
+ *
  * connections:
- * 
+ *
  * If you want to define specific fixed connection points on the shape use the
  * *connections* element. Each *constraint* element within connections defines
  * a fixed connection point on the shape. Constraints have attributes:
- * 
+ *
  * - "perimeter", required. 1 or 0. 0 sets the connection point where specified
  * by x,y. 1 Causes the position of the connection point to be extrapolated from
  * the center of the shape, through x,y to the point of intersection with the
@@ -40,84 +40,84 @@
  * bounds, etc. Values may be less than 0 or greater than 1 to be positioned
  * outside of the shape.
  * - "name", optional string. A unique identifier for the port on the shape.
- * 
+ *
  * background and foreground:
- * 
+ *
  * The path of the graphics drawing is split into two elements, *foreground* and
  * *background*. The split is to define which part any shadow applied to the shape
  * is derived from (the background). This, generally, means the background is the
  * line tracing of the outside of the shape, but not always.
- * 
+ *
  * Any stroke, fill or fillstroke of a background must be the first element of the
  * foreground element, they must not be used within *background*. If the background
  * is empty, this is not required.
- * 
+ *
  * Because the background cannot have any fill or stroke, it can contain only one
  * *path*, *rect*, *roundrect* or *ellipse* element (or none). It can also not
  * include *image*, *text* or *include-shape*.
- * 
+ *
  * Note that the state, styling and drawing in mxGraph stencils is very close in
  * design to that of HTML 5 canvas. Tutorials on this subject, if you're not
  * familiar with the topic, will give a good high-level introduction to the
  * concepts used.
- * 
+ *
  * State:
- * 
+ *
  * Rendering within the foreground and background elements has the concept of
  * state. There are two types of operations other than state save/load, styling
  * and drawing. The styling operations change the current state, so you can save
  * the current state with <save/> and pull the last saved state from the state
  * stack using <restore/>.
- * 
+ *
  * Styling:
- * 
+ *
  * The elements that change colors within the current state all take a hash
  * prefixed hex color code (eg. "#FFEA80"), or "fill", "stroke" or "font" to
  * reference the current state.
- * 
+ *
  * - *strokecolor*, this sets the color that drawing paths will be rendered in
  * when a stroke or fillstroke command is issued.
  * - *fillcolor*, this sets the color that the inside of closed paths will be
  * rendered in when a fill or fillstroke command is issued.
  * - *fontcolor*, this sets the color that fonts are rendered in when text is drawn.
- * 
+ *
  * *alpha* defines the degree of transparency used between 1.0 for fully opaque
  * and 0.0 for fully transparent.
- * 
+ *
  * *fillalpha* defines the degree of fill transparency used between 1.0 for fully
  * opaque and 0.0 for fully transparent.
- * 
+ *
  * *strokealpha* defines the degree of stroke transparency used between 1.0 for
  * fully opaque and 0.0 for fully transparent.
- * 
+ *
  * *strokewidth* defines the integer thickness of drawing elements rendered by
  * stroking. Use fixed="1" to apply the value as-is, without scaling.
- * 
+ *
  * *dashed* is "1" for dashing enabled and "0" for disabled.
- * 
+ *
  * When *dashed* is enabled the current dash pattern, defined by *dashpattern*,
  * is used on strokes. dashpattern is a sequence of space separated "on, off"
  * lengths that define what distance to paint the stroke for, then what distance
  * to paint nothing for, repeat... The default is "3 3". You could define a more
  * complex pattern with "5 3 2 6", for example. Generally, it makes sense to have
  * an even number of elements in the dashpattern, but that's not required.
- * 
+ *
  * *linejoin*, *linecap* and *miterlimit* are best explained by the Mozilla page
  * on Canvas styling (about halfway down). The values are all the same except we
  * use "flat" for linecap, instead of Canvas' "butt".
- * 
+ *
  * For font styling there are.
- * 
+ *
  * - *fontsize*, an integer,
  * - *fontstyle*, an ORed bit pattern of bold (1), italic (2) and underline (4),
  * i.e bold underline is "5".
  * - *fontfamily*, is a string defining the typeface to be used.
- * 
+ *
  * Drawing:
- * 
+ *
  * Most drawing is contained within a *path* element. Again, the graphic
  * primitives are very similar to that of HTML 5 canvas.
- * 
+ *
  * - *move* to attributes required decimals (x,y).
  * - *line* to attributes required decimals (x,y).
  * - *quad* to required decimals (x2,y2) via control point required decimals
@@ -130,25 +130,25 @@
  * decimals and all required.
  * - *close* ends the current subpath and causes an automatic straight line to
  * be drawn from the current point to the initial point of the current subpath.
- * 
+ *
  * Complex drawing:
- * 
+ *
  * In addition to the graphics primitive operations there are non-primitive
  * operations. These provide an easy method to draw some basic shapes.
- * 
+ *
  * - *rect*, attributes "x", "y", "w", "h", all required decimals
  * - *roundrect*, attributes "x", "y", "w", "h", all required decimals. Also
  * "arcsize" an optional decimal attribute defining how large, the corner curves
  * are.
  * - *ellipse*, attributes "x", "y", "w", "h", all required decimals.
- * 
+ *
  * Note that these 3 shapes and all paths must be followed by either a fill,
  * stroke, or fillstroke.
- * 
+ *
  * Text:
- * 
+ *
  * *text* elements have the following attributes.
- * 
+ *
  * - "str", the text string to display, required.
  * - "x" and "y", the decimal location (x,y) of the text element, required.
  * - "align", the horizontal alignment of the text element, either "left",
@@ -164,42 +164,42 @@
  * Optional, default is 0.
  * - "align-shape", 0 or 1, if 0 ignore the rotation of the shape when setting
  * the text rotation. Optional, default is 1.
- * 
+ *
  * If <allowEval> is true, then the text content of the this element can define
  * a function which is invoked with the shape as the only argument and returns
  * the value for the text element (ignored if the str attribute is not null).
- * 
+ *
  * Images:
- * 
+ *
  * *image* elements can either be external URLs, or data URIs, where supported
  * (not in IE 7-). Attributes are:
- * 
+ *
  * - "src", required string. Either a data URI or URL.
  * - "x", "y", required decimals. The (x,y) position of the image.
  * - "w", "h", required decimals. The width and height of the image.
  * - "flipH" and "flipV", optional 0 or 1. Whether to flip the image along the
  * horizontal/vertical axis. Default is 0 for both.
- * 
+ *
  * If <allowEval> is true, then the text content of the this element can define
  * a function which is invoked with the shape as the only argument and returns
  * the value for the image source (ignored if the src attribute is not null).
- * 
+ *
  * Sub-shapes:
- * 
+ *
  * *include-shape* allow stencils to be rendered within the current stencil by
  * referencing the sub-stencil by name. Attributes are:
- * 
+ *
  * - "name", required string. The unique shape name of the stencil.
  * - "x", "y", "w", "h", required decimals. The (x,y) position of the sub-shape
  * and its width and height.
- * 
+ *
  * Constructor: mxStencil
- * 
+ *
  * Constructs a new generic shape by setting <desc> to the given XML node and
  * invoking <parseDescription> and <parseConstraints>.
- * 
+ *
  * Parameters:
- * 
+ *
  * desc - XML node that contains the stencil description.
  */
 function mxStencil(desc)
@@ -216,7 +216,7 @@ mxUtils.extend(mxStencil, mxShape);
 
 /**
  * Variable: defaultLocalized
- * 
+ *
  * Static global variable that specifies the default value for the localized
  * attribute of the text element. Default is false.
  */
@@ -224,7 +224,7 @@ mxStencil.defaultLocalized = false;
 
 /**
  * Function: allowEval
- * 
+ *
  * Static global switch that specifies if the use of eval is allowed for
  * evaluating text content and images. Default is false. Set this to true
  * if stencils can not contain user input.
@@ -240,7 +240,7 @@ mxStencil.prototype.desc = null;
 
 /**
  * Variable: constraints
- * 
+ *
  * Holds an array of <mxConnectionConstraints> as defined in the shape.
  */
 mxStencil.prototype.constraints = null;
@@ -299,13 +299,13 @@ mxStencil.prototype.parseDescription = function()
 	this.bgNode = this.desc.getElementsByTagName('background')[0];
 	this.w0 = Number(this.desc.getAttribute('w') || 100);
 	this.h0 = Number(this.desc.getAttribute('h') || 100);
-	
+
 	// Possible values for aspect are: variable and fixed where
 	// variable means fill the available space and fixed means
 	// use w0 and h0 to compute the aspect.
 	var aspect = this.desc.getAttribute('aspect');
 	this.aspect = (aspect != null) ? aspect : 'variable';
-	
+
 	// Possible values for strokewidth are all numbers and "inherit"
 	// where the inherit means take the value from the style (ie. the
 	// user-defined stroke-width). Note that the strokewidth is scaled
@@ -323,15 +323,15 @@ mxStencil.prototype.parseDescription = function()
 mxStencil.prototype.parseConstraints = function()
 {
 	var conns = this.desc.getElementsByTagName('connections')[0];
-	
+
 	if (conns != null)
 	{
 		var tmp = mxUtils.getChildNodes(conns);
-		
+
 		if (tmp != null && tmp.length > 0)
 		{
 			this.constraints = [];
-			
+
 			for (var i = 0; i < tmp.length; i++)
 			{
 				this.constraints.push(this.parseConstraint(tmp[i]));
@@ -351,13 +351,13 @@ mxStencil.prototype.parseConstraint = function(node)
 	var y = Number(node.getAttribute('y'));
 	var perimeter = node.getAttribute('perimeter') == '1';
 	var name = node.getAttribute('name');
-	
+
 	return new mxConnectionConstraint(new mxPoint(x, y), perimeter, name);
 };
 
 /**
  * Function: evaluateTextAttribute
- * 
+ *
  * Gets the given attribute as a text. The return value from <evaluateAttribute>
  * is used as a key to <mxResources.get> if the localized attribute in the text
  * node is 1 or if <defaultLocalized> is true.
@@ -366,7 +366,7 @@ mxStencil.prototype.evaluateTextAttribute = function(node, attribute, shape)
 {
 	var result = this.evaluateAttribute(node, attribute, shape);
 	var loc = node.getAttribute('localized');
-	
+
 	if ((mxStencil.defaultLocalized && loc == null) || loc == '1')
 	{
 		result = mxResources.get(result);
@@ -386,22 +386,22 @@ mxStencil.prototype.evaluateTextAttribute = function(node, attribute, shape)
 mxStencil.prototype.evaluateAttribute = function(node, attribute, shape)
 {
 	var result = node.getAttribute(attribute);
-	
+
 	if (result == null)
 	{
 		var text = mxUtils.getTextContent(node);
-		
+
 		if (text != null && mxStencil.allowEval)
 		{
 			var funct = mxUtils.eval(text);
-			
+
 			if (typeof(funct) == 'function')
 			{
 				result = funct(shape);
 			}
 		}
 	}
-	
+
 	return result;
 };
 
@@ -415,7 +415,7 @@ mxStencil.prototype.drawShape = function(canvas, shape, x, y, w, h, graph)
 	graph = (graph != null) ? graph : ((shape != null &&
 		shape.state != null) ? shape.state.view.graph : null);
 	var stack = canvas.states.slice();
-	
+
 	// TODO: Internal structure (array of special structs?), relative and absolute
 	// coordinates (eg. note shape, process vs star, actor etc.), text rendering
 	// and non-proportional scaling, how to implement pluggable edge shapes
@@ -443,7 +443,7 @@ mxStencil.prototype.drawShape = function(canvas, shape, x, y, w, h, graph)
 	this.drawChildren(canvas, shape, x, y, w, h, this.fgNode, aspect, true,
 		!shape.outline || shape.style == null || mxUtils.getValue(
 		shape.style, mxConstants.STYLE_BACKGROUND_OUTLINE, 0) == 0, graph);
-	
+
 	// Restores stack for unequal count of save/restore calls
 	if (canvas.states.length != stack.length)
 	{
@@ -461,14 +461,14 @@ mxStencil.prototype.drawChildren = function(canvas, shape, x, y, w, h, node, asp
 	if (node != null && w > 0 && h > 0)
 	{
 		var tmp = node.firstChild;
-		
+
 		while (tmp != null)
 		{
 			if (tmp.nodeType == mxConstants.NODETYPE_ELEMENT)
 			{
 				this.drawNode(canvas, shape, tmp, aspect, disableShadow, paint, graph);
 			}
-			
+
 			tmp = tmp.nextSibling;
 		}
 	}
@@ -480,9 +480,9 @@ mxStencil.prototype.drawChildren = function(canvas, shape, x, y, w, h, node, asp
  * Returns a rectangle that contains the offset in x and y and the horizontal
  * and vertical scale in width and height used to draw this shape inside the
  * given <mxRectangle>.
- * 
+ *
  * Parameters:
- * 
+ *
  * shape - <mxShape> to be drawn.
  * bounds - <mxRectangle> that should contain the stencil.
  * direction - Optional direction of the shape to be darwn.
@@ -493,14 +493,14 @@ mxStencil.prototype.computeAspect = function(shape, x, y, w, h, direction)
 	var y0 = y;
 	var sx = w / this.w0;
 	var sy = h / this.h0;
-	
+
 	var inverse = (direction == mxConstants.DIRECTION_NORTH || direction == mxConstants.DIRECTION_SOUTH);
 
 	if (inverse)
 	{
 		sy = w / this.h0;
 		sx = h / this.w0;
-		
+
 		var delta = (w - h) / 2;
 
 		x0 += delta;
@@ -511,7 +511,7 @@ mxStencil.prototype.computeAspect = function(shape, x, y, w, h, direction)
 	{
 		sy = Math.min(sx, sy);
 		sx = sy;
-		
+
 		// Centers the shape inside the available space
 		if (inverse)
 		{
@@ -551,7 +551,7 @@ mxStencil.prototype.parseColor = function(canvas, shape, node, value, graph)
 	else if (shape.style != null && !mxUtils.isValidColor(value))
 	{
 		value = this.getColorValue(shape, node, value, graph);
-		
+
 		if (value == 'default')
 		{
 			value = this.getDefaultColorValue(node, graph);
@@ -563,7 +563,7 @@ mxStencil.prototype.parseColor = function(canvas, shape, node, value, graph)
 
 /**
  * Function: getStyleWithNone
- * 
+ *
  * Returns the given style including 'none' values.
  */
 mxStencil.prototype.getStyleWithNone = function(shape, key, graph)
@@ -583,7 +583,7 @@ mxStencil.prototype.getStyleWithNone = function(shape, key, graph)
 
 /**
  * Function: getColorValue
- * 
+ *
  * Returns the value for the given color node. If the value in the default
  * attribute is 'none', then 'default' is returned and is not replaced.
  */
@@ -603,7 +603,7 @@ mxStencil.prototype.getColorValue = function(shape, node, value, graph)
 	{
 		result = defaultValue;
 	}
-	
+
 	return result;
 };
 
@@ -627,7 +627,7 @@ mxStencil.prototype.getDefaultColorValue = function(node, graph)
 			result = graph.shapeForegroundColor;
 		}
 	}
-	
+
 	return result;
 };
 
@@ -644,7 +644,7 @@ mxStencil.prototype.drawNode = function(canvas, shape, node, aspect, disableShad
 	var sx = aspect.width;
 	var sy = aspect.height;
 	var minScale = Math.min(sx, sy);
-	
+
 	if (name == 'save')
 	{
 		canvas.save();
@@ -658,33 +658,33 @@ mxStencil.prototype.drawNode = function(canvas, shape, node, aspect, disableShad
 		if (name == 'path')
 		{
 			canvas.begin();
-			
+
 			var parseRegularly = true;
-			
+
 			if (node.getAttribute('rounded') == '1')
 			{
 				parseRegularly = false;
-				
+
 				var arcSize = Number(node.getAttribute('arcSize'));
 				var pointCount = 0;
 				var segs = [];
-				
+
 				// Renders the elements inside the given path
 				var childNode = node.firstChild;
-				
+
 				while (childNode != null)
 				{
 					if (childNode.nodeType == mxConstants.NODETYPE_ELEMENT)
 					{
 						var childName = childNode.nodeName;
-						
+
 						if (childName == 'move' || childName == 'line')
 						{
 							if (childName == 'move' || segs.length == 0)
 							{
 								segs.push([]);
 							}
-							
+
 							segs[segs.length - 1].push(new mxPoint(x0 + Number(childNode.getAttribute('x')) * sx,
 								y0 + Number(childNode.getAttribute('y')) * sy));
 							pointCount++;
@@ -696,7 +696,7 @@ mxStencil.prototype.drawNode = function(canvas, shape, node, aspect, disableShad
 							break;
 						}
 					}
-					
+
 					childNode = childNode.nextSibling;
 				}
 
@@ -705,13 +705,13 @@ mxStencil.prototype.drawNode = function(canvas, shape, node, aspect, disableShad
 					for (var i = 0; i < segs.length; i++)
 					{
 						var close = false, ps = segs[i][0], pe = segs[i][segs[i].length - 1];
-						
-						if (ps.x == pe.x && ps.y == pe.y) 
+
+						if (ps.x == pe.x && ps.y == pe.y)
 						{
 							segs[i].pop();
 							close = true;
 						}
-						
+
 						this.addPoints(canvas, segs[i], true, arcSize, close);
 					}
 				}
@@ -720,19 +720,19 @@ mxStencil.prototype.drawNode = function(canvas, shape, node, aspect, disableShad
 					parseRegularly = true;
 				}
 			}
-			
+
 			if (parseRegularly)
 			{
 				// Renders the elements inside the given path
 				var childNode = node.firstChild;
-				
+
 				while (childNode != null)
 				{
 					if (childNode.nodeType == mxConstants.NODETYPE_ELEMENT)
 					{
 						this.drawNode(canvas, shape, childNode, aspect, disableShadow, paint, graph);
 					}
-					
+
 					childNode = childNode.nextSibling;
 				}
 			}
@@ -785,17 +785,17 @@ mxStencil.prototype.drawNode = function(canvas, shape, node, aspect, disableShad
 		else if (name == 'roundrect')
 		{
 			var arcsize = Number(node.getAttribute('arcsize'));
-	
+
 			if (arcsize == 0)
 			{
 				arcsize = mxConstants.RECTANGLE_ROUNDING_FACTOR * 100;
 			}
-			
+
 			var w = Number(node.getAttribute('w')) * sx;
 			var h = Number(node.getAttribute('h')) * sy;
 			var factor = Number(arcsize) / 100;
 			var r = Math.min(w * factor, h * factor);
-			
+
 			canvas.roundrect(x0 + Number(node.getAttribute('x')) * sx,
 					y0 + Number(node.getAttribute('y')) * sy,
 					w, h, r, r);
@@ -812,7 +812,7 @@ mxStencil.prototype.drawNode = function(canvas, shape, node, aspect, disableShad
 			if (!shape.outline)
 			{
 				var src = this.evaluateAttribute(node, 'src', shape);
-				
+
 				canvas.image(x0 + Number(node.getAttribute('x')) * sx,
 					y0 + Number(node.getAttribute('y')) * sy,
 					Number(node.getAttribute('w')) * sx,
@@ -827,15 +827,15 @@ mxStencil.prototype.drawNode = function(canvas, shape, node, aspect, disableShad
 			{
 				var str = this.evaluateTextAttribute(node, 'str', shape);
 				var rotation = node.getAttribute('vertical') == '1' ? -90 : 0;
-				
+
 				if (node.getAttribute('align-shape') == '0')
 				{
 					var dr = shape.rotation;
-		
+
 					// Depends on flipping
 					var flipH = mxUtils.getValue(shape.style, mxConstants.STYLE_FLIPH, 0) == 1;
 					var flipV = mxUtils.getValue(shape.style, mxConstants.STYLE_FLIPV, 0) == 1;
-					
+
 					if (flipH && flipV)
 					{
 						rotation -= dr;
@@ -849,9 +849,9 @@ mxStencil.prototype.drawNode = function(canvas, shape, node, aspect, disableShad
 						rotation -= dr;
 					}
 				}
-		
+
 				rotation -= node.getAttribute('rotation');
-		
+
 				canvas.text(x0 + Number(node.getAttribute('x')) * sx,
 						y0 + Number(node.getAttribute('y')) * sy,
 						0, 0, str, node.getAttribute('align') || 'left',
@@ -862,14 +862,14 @@ mxStencil.prototype.drawNode = function(canvas, shape, node, aspect, disableShad
 		else if (name == 'include-shape')
 		{
 			var stencil = mxStencilRegistry.getStencil(node.getAttribute('name'));
-			
+
 			if (stencil != null)
 			{
 				var x = x0 + Number(node.getAttribute('x')) * sx;
 				var y = y0 + Number(node.getAttribute('y')) * sy;
 				var w = Number(node.getAttribute('w')) * sx;
 				var h = Number(node.getAttribute('h')) * sy;
-				
+
 				stencil.drawShape(canvas, shape, x, y, w, h, graph);
 			}
 		}
@@ -897,12 +897,12 @@ mxStencil.prototype.drawNode = function(canvas, shape, node, aspect, disableShad
 		else if (name == 'dashpattern')
 		{
 			var value = node.getAttribute('pattern');
-			
+
 			if (value != null)
 			{
 				var tmp = value.split(' ');
 				var pat = [];
-				
+
 				for (var i = 0; i < tmp.length; i++)
 				{
 					if (tmp[i].length > 0)
@@ -910,7 +910,7 @@ mxStencil.prototype.drawNode = function(canvas, shape, node, aspect, disableShad
 						pat.push(Number(tmp[i]) * minScale);
 					}
 				}
-				
+
 				value = pat.join(' ');
 				canvas.setDashPattern(value);
 			}
@@ -966,7 +966,7 @@ mxStencil.prototype.drawNode = function(canvas, shape, node, aspect, disableShad
 		{
 			canvas.setFontSize(Number(node.getAttribute('size')) * minScale);
 		}
-		
+
 		if (disableShadow && (name == 'fillstroke' || name == 'fill' || name == 'stroke'))
 		{
 			disableShadow = false;

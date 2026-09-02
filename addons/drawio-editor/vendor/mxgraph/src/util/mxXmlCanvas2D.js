@@ -7,11 +7,11 @@
  *
  * Base class for all canvases. The following methods make up the public
  * interface of the canvas 2D for all painting in mxGraph:
- * 
+ *
  * - <save>, <restore>
  * - <scale>, <translate>, <rotate>
  * - <setAlpha>, <setFillAlpha>, <setStrokeAlpha>, <setFillColor>, <setGradient>,
- *   <setStrokeColor>, <setStrokeWidth>, <setDashed>, <setDashPattern>, <setLineCap>, 
+ *   <setStrokeColor>, <setStrokeWidth>, <setDashed>, <setDashPattern>, <setLineCap>,
  *   <setLineJoin>, <setMiterLimit>
  * - <setFontColor>, <setFontBackgroundColor>, <setFontBorderColor>, <setFontSize>,
  *   <setFontFamily>, <setFontStyle>
@@ -19,11 +19,11 @@
  * - <rect>, <roundrect>, <ellipse>, <image>, <text>
  * - <begin>, <moveTo>, <lineTo>, <quadTo>, <curveTo>
  * - <stroke>, <fill>, <fillAndStroke>
- * 
+ *
  * <mxAbstractCanvas2D.arcTo> is an additional method for drawing paths. This is
  * a synthetic method, meaning that it is turned into a sequence of curves by
  * default. Subclassers may add native support for arcs.
- * 
+ *
  * Constructor: mxXmlCanvas2D
  *
  * Constructs a new abstract canvas.
@@ -34,7 +34,7 @@ function mxXmlCanvas2D(root)
 
 	/**
 	 * Variable: root
-	 * 
+	 *
 	 * Reference to the container for the SVG content.
 	 */
 	this.root = root;
@@ -50,14 +50,14 @@ mxUtils.extend(mxXmlCanvas2D, mxAbstractCanvas2D);
 
 /**
  * Variable: textEnabled
- * 
+ *
  * Specifies if text output should be enabled. Default is true.
  */
 mxXmlCanvas2D.prototype.textEnabled = true;
 
 /**
  * Variable: compressed
- * 
+ *
  * Specifies if the output should be compressed by removing redundant calls.
  * Default is true.
  */
@@ -65,31 +65,31 @@ mxXmlCanvas2D.prototype.compressed = true;
 
 /**
  * Function: writeDefaults
- * 
+ *
  * Writes the rendering defaults to <root>:
  */
 mxXmlCanvas2D.prototype.writeDefaults = function()
 {
 	var elem;
-	
+
 	// Writes font defaults
 	elem = this.createElement('fontfamily');
 	elem.setAttribute('family', mxConstants.DEFAULT_FONTFAMILY);
 	this.root.appendChild(elem);
-	
+
 	elem = this.createElement('fontsize');
 	elem.setAttribute('size', mxConstants.DEFAULT_FONTSIZE);
 	this.root.appendChild(elem);
-	
+
 	// Writes shadow defaults
 	elem = this.createElement('shadowcolor');
 	elem.setAttribute('color', mxConstants.SHADOWCOLOR);
 	this.root.appendChild(elem);
-	
+
 	elem = this.createElement('shadowalpha');
 	elem.setAttribute('alpha', mxConstants.SHADOW_OPACITY);
 	this.root.appendChild(elem);
-	
+
 	elem = this.createElement('shadowoffset');
 	elem.setAttribute('dx', mxConstants.SHADOW_OFFSET_X);
 	elem.setAttribute('dy', mxConstants.SHADOW_OFFSET_Y);
@@ -98,7 +98,7 @@ mxXmlCanvas2D.prototype.writeDefaults = function()
 
 /**
  * Function: format
- * 
+ *
  * Returns a formatted number with 2 decimal places.
  */
 mxXmlCanvas2D.prototype.format = function(value)
@@ -108,7 +108,7 @@ mxXmlCanvas2D.prototype.format = function(value)
 
 /**
  * Function: createElement
- * 
+ *
  * Creates the given element using the owner document of <root>.
  */
 mxXmlCanvas2D.prototype.createElement = function(name)
@@ -118,7 +118,7 @@ mxXmlCanvas2D.prototype.createElement = function(name)
 
 /**
  * Function: save
- * 
+ *
  * Saves the drawing state.
  */
 mxXmlCanvas2D.prototype.save = function()
@@ -127,13 +127,13 @@ mxXmlCanvas2D.prototype.save = function()
 	{
 		mxAbstractCanvas2D.prototype.save.apply(this, arguments);
 	}
-	
+
 	this.root.appendChild(this.createElement('save'));
 };
 
 /**
  * Function: restore
- * 
+ *
  * Restores the drawing state.
  */
 mxXmlCanvas2D.prototype.restore = function()
@@ -142,33 +142,33 @@ mxXmlCanvas2D.prototype.restore = function()
 	{
 		mxAbstractCanvas2D.prototype.restore.apply(this, arguments);
 	}
-	
+
 	this.root.appendChild(this.createElement('restore'));
 };
 
 /**
  * Function: scale
- * 
+ *
  * Scales the output.
- * 
+ *
  * Parameters:
- * 
+ *
  * scale - Number that represents the scale where 1 is equal to 100%.
  */
 mxXmlCanvas2D.prototype.scale = function(value)
 {
-        var elem = this.createElement('scale');
-        elem.setAttribute('scale', value);
-        this.root.appendChild(elem);
+	var elem = this.createElement('scale');
+	elem.setAttribute('scale', value);
+	this.root.appendChild(elem);
 };
 
 /**
  * Function: translate
- * 
+ *
  * Translates the output.
- * 
+ *
  * Parameters:
- * 
+ *
  * dx - Number that specifies the horizontal translation.
  * dy - Number that specifies the vertical translation.
  */
@@ -182,12 +182,12 @@ mxXmlCanvas2D.prototype.translate = function(dx, dy)
 
 /**
  * Function: rotate
- * 
+ *
  * Rotates and/or flips the output around a given center. (Note: Due to
  * limitations in VML, the rotation cannot be concatenated.) // TODO, no longer a limit
- * 
+ *
  * Parameters:
- * 
+ *
  * theta - Number that represents the angle of the rotation (in degrees).
  * flipH - Boolean indicating if the output should be flipped horizontally.
  * flipV - Boolean indicating if the output should be flipped vertically.
@@ -197,7 +197,7 @@ mxXmlCanvas2D.prototype.translate = function(dx, dy)
 mxXmlCanvas2D.prototype.rotate = function(theta, flipH, flipV, cx, cy)
 {
 	var elem = this.createElement('rotate');
-	
+
 	if (theta != 0 || flipH || flipV)
 	{
 		elem.setAttribute('theta', this.format(theta));
@@ -211,11 +211,11 @@ mxXmlCanvas2D.prototype.rotate = function(theta, flipH, flipV, cx, cy)
 
 /**
  * Function: setAlpha
- * 
+ *
  * Sets the current alpha.
- * 
+ *
  * Parameters:
- * 
+ *
  * value - Number that represents the new alpha. Possible values are between
  * 1 (opaque) and 0 (transparent).
  */
@@ -227,10 +227,10 @@ mxXmlCanvas2D.prototype.setAlpha = function(value)
 		{
 			return;
 		}
-		
+
 		mxAbstractCanvas2D.prototype.setAlpha.apply(this, arguments);
 	}
-	
+
 	var elem = this.createElement('alpha');
 	elem.setAttribute('alpha', this.format(value));
 	this.root.appendChild(elem);
@@ -238,11 +238,11 @@ mxXmlCanvas2D.prototype.setAlpha = function(value)
 
 /**
  * Function: setFillAlpha
- * 
+ *
  * Sets the current fill alpha.
- * 
+ *
  * Parameters:
- * 
+ *
  * value - Number that represents the new fill alpha. Possible values are between
  * 1 (opaque) and 0 (transparent).
  */
@@ -254,10 +254,10 @@ mxXmlCanvas2D.prototype.setFillAlpha = function(value)
 		{
 			return;
 		}
-		
+
 		mxAbstractCanvas2D.prototype.setFillAlpha.apply(this, arguments);
 	}
-	
+
 	var elem = this.createElement('fillalpha');
 	elem.setAttribute('alpha', this.format(value));
 	this.root.appendChild(elem);
@@ -265,11 +265,11 @@ mxXmlCanvas2D.prototype.setFillAlpha = function(value)
 
 /**
  * Function: setStrokeAlpha
- * 
+ *
  * Sets the current stroke alpha.
- * 
+ *
  * Parameters:
- * 
+ *
  * value - Number that represents the new stroke alpha. Possible values are between
  * 1 (opaque) and 0 (transparent).
  */
@@ -281,10 +281,10 @@ mxXmlCanvas2D.prototype.setStrokeAlpha = function(value)
 		{
 			return;
 		}
-		
+
 		mxAbstractCanvas2D.prototype.setStrokeAlpha.apply(this, arguments);
 	}
-	
+
 	var elem = this.createElement('strokealpha');
 	elem.setAttribute('alpha', this.format(value));
 	this.root.appendChild(elem);
@@ -292,11 +292,11 @@ mxXmlCanvas2D.prototype.setStrokeAlpha = function(value)
 
 /**
  * Function: setFillColor
- * 
+ *
  * Sets the current fill color.
- * 
+ *
  * Parameters:
- * 
+ *
  * value - Hexadecimal representation of the color or 'none'.
  */
 mxXmlCanvas2D.prototype.setFillColor = function(value)
@@ -305,17 +305,17 @@ mxXmlCanvas2D.prototype.setFillColor = function(value)
 	{
 		value = null;
 	}
-	
+
 	if (this.compressed)
 	{
 		if (this.state.fillColor == value)
 		{
 			return;
 		}
-		
+
 		mxAbstractCanvas2D.prototype.setFillColor.apply(this, arguments);
 	}
-	
+
 	var elem = this.createElement('fillcolor');
 	elem.setAttribute('color', (value != null) ? value : mxConstants.NONE);
 	this.root.appendChild(elem);
@@ -323,11 +323,11 @@ mxXmlCanvas2D.prototype.setFillColor = function(value)
 
 /**
  * Function: setGradient
- * 
+ *
  * Sets the gradient. Note that the coordinates may be ignored by some implementations.
- * 
+ *
  * Parameters:
- * 
+ *
  * color1 - Hexadecimal representation of the start color.
  * color2 - Hexadecimal representation of the end color.
  * x - X-coordinate of the gradient region.
@@ -346,7 +346,7 @@ mxXmlCanvas2D.prototype.setGradient = function(color1, color2, x, y, w, h, direc
 	if (color1 != null && color2 != null)
 	{
 		mxAbstractCanvas2D.prototype.setGradient.apply(this, arguments);
-		
+
 		var elem = this.createElement('gradient');
 		elem.setAttribute('c1', color1);
 		elem.setAttribute('c2', color2);
@@ -354,34 +354,34 @@ mxXmlCanvas2D.prototype.setGradient = function(color1, color2, x, y, w, h, direc
 		elem.setAttribute('y', this.format(y));
 		elem.setAttribute('w', this.format(w));
 		elem.setAttribute('h', this.format(h));
-		
+
 		// Default direction is south
 		if (direction != null)
 		{
 			elem.setAttribute('direction', direction);
 		}
-		
+
 		if (alpha1 != null)
 		{
 			elem.setAttribute('alpha1', alpha1);
 		}
-		
+
 		if (alpha2 != null)
 		{
 			elem.setAttribute('alpha2', alpha2);
 		}
-		
+
 		this.root.appendChild(elem);
 	}
 };
 
 /**
  * Function: setStrokeColor
- * 
+ *
  * Sets the current stroke color.
- * 
+ *
  * Parameters:
- * 
+ *
  * value - Hexadecimal representation of the color or 'none'.
  */
 mxXmlCanvas2D.prototype.setStrokeColor = function(value)
@@ -390,17 +390,17 @@ mxXmlCanvas2D.prototype.setStrokeColor = function(value)
 	{
 		value = null;
 	}
-	
+
 	if (this.compressed)
 	{
 		if (this.state.strokeColor == value)
 		{
 			return;
 		}
-		
+
 		mxAbstractCanvas2D.prototype.setStrokeColor.apply(this, arguments);
 	}
-	
+
 	var elem = this.createElement('strokecolor');
 	elem.setAttribute('color', (value != null) ? value : mxConstants.NONE);
 	this.root.appendChild(elem);
@@ -408,11 +408,11 @@ mxXmlCanvas2D.prototype.setStrokeColor = function(value)
 
 /**
  * Function: setStrokeWidth
- * 
+ *
  * Sets the current stroke width.
- * 
+ *
  * Parameters:
- * 
+ *
  * value - Numeric representation of the stroke width.
  */
 mxXmlCanvas2D.prototype.setStrokeWidth = function(value)
@@ -423,10 +423,10 @@ mxXmlCanvas2D.prototype.setStrokeWidth = function(value)
 		{
 			return;
 		}
-		
+
 		mxAbstractCanvas2D.prototype.setStrokeWidth.apply(this, arguments);
 	}
-	
+
 	var elem = this.createElement('strokewidth');
 	elem.setAttribute('width', this.format(value));
 	this.root.appendChild(elem);
@@ -434,11 +434,11 @@ mxXmlCanvas2D.prototype.setStrokeWidth = function(value)
 
 /**
  * Function: setDashed
- * 
+ *
  * Enables or disables dashed lines.
- * 
+ *
  * Parameters:
- * 
+ *
  * value - Boolean that specifies if dashed lines should be enabled.
  * value - Boolean that specifies if the stroke width should be ignored
  * for the dash pattern. Default is false.
@@ -451,28 +451,28 @@ mxXmlCanvas2D.prototype.setDashed = function(value, fixDash)
 		{
 			return;
 		}
-		
+
 		mxAbstractCanvas2D.prototype.setDashed.apply(this, arguments);
 	}
-	
+
 	var elem = this.createElement('dashed');
 	elem.setAttribute('dashed', (value) ? '1' : '0');
-	
+
 	if (fixDash != null)
 	{
 		elem.setAttribute('fixDash', (fixDash) ? '1' : '0');
 	}
-	
+
 	this.root.appendChild(elem);
 };
 
 /**
  * Function: setDashPattern
- * 
+ *
  * Sets the current dash pattern. Default is '3 3'.
- * 
+ *
  * Parameters:
- * 
+ *
  * value - String that represents the dash pattern, which is a sequence of
  * numbers defining the length of the dashes and the length of the spaces
  * between the dashes. The lengths are relative to the line width - a length
@@ -486,10 +486,10 @@ mxXmlCanvas2D.prototype.setDashPattern = function(value)
 		{
 			return;
 		}
-		
+
 		mxAbstractCanvas2D.prototype.setDashPattern.apply(this, arguments);
 	}
-	
+
 	var elem = this.createElement('dashpattern');
 	elem.setAttribute('pattern', value);
 	this.root.appendChild(elem);
@@ -497,11 +497,11 @@ mxXmlCanvas2D.prototype.setDashPattern = function(value)
 
 /**
  * Function: setLineCap
- * 
+ *
  * Sets the line cap. Default is 'flat' which corresponds to 'butt' in SVG.
- * 
+ *
  * Parameters:
- * 
+ *
  * value - String that represents the line cap. Possible values are flat, round
  * and square.
  */
@@ -513,10 +513,10 @@ mxXmlCanvas2D.prototype.setLineCap = function(value)
 		{
 			return;
 		}
-		
+
 		mxAbstractCanvas2D.prototype.setLineCap.apply(this, arguments);
 	}
-	
+
 	var elem = this.createElement('linecap');
 	elem.setAttribute('cap', value);
 	this.root.appendChild(elem);
@@ -524,11 +524,11 @@ mxXmlCanvas2D.prototype.setLineCap = function(value)
 
 /**
  * Function: setLineJoin
- * 
+ *
  * Sets the line join. Default is 'miter'.
- * 
+ *
  * Parameters:
- * 
+ *
  * value - String that represents the line join. Possible values are miter,
  * round and bevel.
  */
@@ -540,10 +540,10 @@ mxXmlCanvas2D.prototype.setLineJoin = function(value)
 		{
 			return;
 		}
-		
+
 		mxAbstractCanvas2D.prototype.setLineJoin.apply(this, arguments);
 	}
-	
+
 	var elem = this.createElement('linejoin');
 	elem.setAttribute('join', value);
 	this.root.appendChild(elem);
@@ -551,11 +551,11 @@ mxXmlCanvas2D.prototype.setLineJoin = function(value)
 
 /**
  * Function: setMiterLimit
- * 
+ *
  * Sets the miter limit. Default is 10.
- * 
+ *
  * Parameters:
- * 
+ *
  * value - Number that represents the miter limit.
  */
 mxXmlCanvas2D.prototype.setMiterLimit = function(value)
@@ -566,10 +566,10 @@ mxXmlCanvas2D.prototype.setMiterLimit = function(value)
 		{
 			return;
 		}
-		
+
 		mxAbstractCanvas2D.prototype.setMiterLimit.apply(this, arguments);
 	}
-	
+
 	var elem = this.createElement('miterlimit');
 	elem.setAttribute('limit', value);
 	this.root.appendChild(elem);
@@ -577,11 +577,11 @@ mxXmlCanvas2D.prototype.setMiterLimit = function(value)
 
 /**
  * Function: setFontColor
- * 
+ *
  * Sets the current font color. Default is '#000000'.
- * 
+ *
  * Parameters:
- * 
+ *
  * value - Hexadecimal representation of the color or 'none'.
  */
 mxXmlCanvas2D.prototype.setFontColor = function(value)
@@ -592,17 +592,17 @@ mxXmlCanvas2D.prototype.setFontColor = function(value)
 		{
 			value = null;
 		}
-		
+
 		if (this.compressed)
 		{
 			if (this.state.fontColor == value)
 			{
 				return;
 			}
-			
+
 			mxAbstractCanvas2D.prototype.setFontColor.apply(this, arguments);
 		}
-		
+
 		var elem = this.createElement('fontcolor');
 		elem.setAttribute('color', (value != null) ? value : mxConstants.NONE);
 		this.root.appendChild(elem);
@@ -611,11 +611,11 @@ mxXmlCanvas2D.prototype.setFontColor = function(value)
 
 /**
  * Function: setFontBackgroundColor
- * 
+ *
  * Sets the current font background color.
- * 
+ *
  * Parameters:
- * 
+ *
  * value - Hexadecimal representation of the color or 'none'.
  */
 mxXmlCanvas2D.prototype.setFontBackgroundColor = function(value)
@@ -626,14 +626,14 @@ mxXmlCanvas2D.prototype.setFontBackgroundColor = function(value)
 		{
 			value = null;
 		}
-		
+
 		if (this.compressed)
 		{
 			if (this.state.fontBackgroundColor == value)
 			{
 				return;
 			}
-			
+
 			mxAbstractCanvas2D.prototype.setFontBackgroundColor.apply(this, arguments);
 		}
 
@@ -645,11 +645,11 @@ mxXmlCanvas2D.prototype.setFontBackgroundColor = function(value)
 
 /**
  * Function: setFontBorderColor
- * 
+ *
  * Sets the current font border color.
- * 
+ *
  * Parameters:
- * 
+ *
  * value - Hexadecimal representation of the color or 'none'.
  */
 mxXmlCanvas2D.prototype.setFontBorderColor = function(value)
@@ -660,17 +660,17 @@ mxXmlCanvas2D.prototype.setFontBorderColor = function(value)
 		{
 			value = null;
 		}
-		
+
 		if (this.compressed)
 		{
 			if (this.state.fontBorderColor == value)
 			{
 				return;
 			}
-			
+
 			mxAbstractCanvas2D.prototype.setFontBorderColor.apply(this, arguments);
 		}
-		
+
 		var elem = this.createElement('fontbordercolor');
 		elem.setAttribute('color', (value != null) ? value : mxConstants.NONE);
 		this.root.appendChild(elem);
@@ -679,11 +679,11 @@ mxXmlCanvas2D.prototype.setFontBorderColor = function(value)
 
 /**
  * Function: setFontSize
- * 
+ *
  * Sets the current font size. Default is <mxConstants.DEFAULT_FONTSIZE>.
- * 
+ *
  * Parameters:
- * 
+ *
  * value - Numeric representation of the font size.
  */
 mxXmlCanvas2D.prototype.setFontSize = function(value)
@@ -696,10 +696,10 @@ mxXmlCanvas2D.prototype.setFontSize = function(value)
 			{
 				return;
 			}
-			
+
 			mxAbstractCanvas2D.prototype.setFontSize.apply(this, arguments);
 		}
-		
+
 		var elem = this.createElement('fontsize');
 		elem.setAttribute('size', value);
 		this.root.appendChild(elem);
@@ -708,11 +708,11 @@ mxXmlCanvas2D.prototype.setFontSize = function(value)
 
 /**
  * Function: setFontFamily
- * 
+ *
  * Sets the current font family. Default is <mxConstants.DEFAULT_FONTFAMILY>.
- * 
+ *
  * Parameters:
- * 
+ *
  * value - String representation of the font family. This handles the same
  * values as the CSS font-family property.
  */
@@ -726,10 +726,10 @@ mxXmlCanvas2D.prototype.setFontFamily = function(value)
 			{
 				return;
 			}
-			
+
 			mxAbstractCanvas2D.prototype.setFontFamily.apply(this, arguments);
 		}
-		
+
 		var elem = this.createElement('fontfamily');
 		elem.setAttribute('family', value);
 		this.root.appendChild(elem);
@@ -738,11 +738,11 @@ mxXmlCanvas2D.prototype.setFontFamily = function(value)
 
 /**
  * Function: setFontStyle
- * 
+ *
  * Sets the current font style.
- * 
+ *
  * Parameters:
- * 
+ *
  * value - Numeric representation of the font family. This is the sum of the
  * font styles from <mxConstants>.
  */
@@ -754,17 +754,17 @@ mxXmlCanvas2D.prototype.setFontStyle = function(value)
 		{
 			value = 0;
 		}
-		
+
 		if (this.compressed)
 		{
 			if (this.state.fontStyle == value)
 			{
 				return;
 			}
-			
+
 			mxAbstractCanvas2D.prototype.setFontStyle.apply(this, arguments);
 		}
-		
+
 		var elem = this.createElement('fontstyle');
 		elem.setAttribute('style', value);
 		this.root.appendChild(elem);
@@ -773,11 +773,11 @@ mxXmlCanvas2D.prototype.setFontStyle = function(value)
 
 /**
  * Function: setShadow
- * 
+ *
  * Enables or disables shadows.
- * 
+ *
  * Parameters:
- * 
+ *
  * value - Boolean that specifies if shadows should be enabled.
  */
 mxXmlCanvas2D.prototype.setShadow = function(value)
@@ -788,10 +788,10 @@ mxXmlCanvas2D.prototype.setShadow = function(value)
 		{
 			return;
 		}
-		
+
 		mxAbstractCanvas2D.prototype.setShadow.apply(this, arguments);
 	}
-	
+
 	var elem = this.createElement('shadow');
 	elem.setAttribute('enabled', (value) ? '1' : '0');
 	this.root.appendChild(elem);
@@ -799,11 +799,11 @@ mxXmlCanvas2D.prototype.setShadow = function(value)
 
 /**
  * Function: setShadowColor
- * 
+ *
  * Sets the current shadow color. Default is <mxConstants.SHADOWCOLOR>.
- * 
+ *
  * Parameters:
- * 
+ *
  * value - Hexadecimal representation of the color or 'none'.
  */
 mxXmlCanvas2D.prototype.setShadowColor = function(value)
@@ -814,15 +814,15 @@ mxXmlCanvas2D.prototype.setShadowColor = function(value)
 		{
 			value = null;
 		}
-		
+
 		if (this.state.shadowColor == value)
 		{
 			return;
 		}
-		
+
 		mxAbstractCanvas2D.prototype.setShadowColor.apply(this, arguments);
 	}
-	
+
 	var elem = this.createElement('shadowcolor');
 	elem.setAttribute('color', (value != null) ? value : mxConstants.NONE);
 	this.root.appendChild(elem);
@@ -830,11 +830,11 @@ mxXmlCanvas2D.prototype.setShadowColor = function(value)
 
 /**
  * Function: setShadowAlpha
- * 
+ *
  * Sets the current shadows alpha. Default is <mxConstants.SHADOW_OPACITY>.
- * 
+ *
  * Parameters:
- * 
+ *
  * value - Number that represents the new alpha. Possible values are between
  * 1 (opaque) and 0 (transparent).
  */
@@ -846,23 +846,23 @@ mxXmlCanvas2D.prototype.setShadowAlpha = function(value)
 		{
 			return;
 		}
-		
+
 		mxAbstractCanvas2D.prototype.setShadowAlpha.apply(this, arguments);
 	}
-	
+
 	var elem = this.createElement('shadowalpha');
 	elem.setAttribute('alpha', value);
 	this.root.appendChild(elem);
-	
+
 };
 
 /**
  * Function: setShadowOffset
- * 
+ *
  * Sets the current shadow offset.
- * 
+ *
  * Parameters:
- * 
+ *
  * dx - Number that represents the horizontal offset of the shadow.
  * dy - Number that represents the vertical offset of the shadow.
  */
@@ -874,24 +874,24 @@ mxXmlCanvas2D.prototype.setShadowOffset = function(dx, dy)
 		{
 			return;
 		}
-		
+
 		mxAbstractCanvas2D.prototype.setShadowOffset.apply(this, arguments);
 	}
-	
+
 	var elem = this.createElement('shadowoffset');
 	elem.setAttribute('dx', dx);
 	elem.setAttribute('dy', dy);
 	this.root.appendChild(elem);
-	
+
 };
 
 /**
  * Function: rect
- * 
+ *
  * Puts a rectangle into the drawing buffer.
- * 
+ *
  * Parameters:
- * 
+ *
  * x - Number that represents the x-coordinate of the rectangle.
  * y - Number that represents the y-coordinate of the rectangle.
  * w - Number that represents the width of the rectangle.
@@ -909,11 +909,11 @@ mxXmlCanvas2D.prototype.rect = function(x, y, w, h)
 
 /**
  * Function: roundrect
- * 
+ *
  * Puts a rounded rectangle into the drawing buffer.
- * 
+ *
  * Parameters:
- * 
+ *
  * x - Number that represents the x-coordinate of the rectangle.
  * y - Number that represents the y-coordinate of the rectangle.
  * w - Number that represents the width of the rectangle.
@@ -935,11 +935,11 @@ mxXmlCanvas2D.prototype.roundrect = function(x, y, w, h, dx, dy)
 
 /**
  * Function: ellipse
- * 
+ *
  * Puts an ellipse into the drawing buffer.
- * 
+ *
  * Parameters:
- * 
+ *
  * x - Number that represents the x-coordinate of the ellipse.
  * y - Number that represents the y-coordinate of the ellipse.
  * w - Number that represents the width of the ellipse.
@@ -957,11 +957,11 @@ mxXmlCanvas2D.prototype.ellipse = function(x, y, w, h)
 
 /**
  * Function: image
- * 
+ *
  * Paints an image.
- * 
+ *
  * Parameters:
- * 
+ *
  * x - Number that represents the x-coordinate of the image.
  * y - Number that represents the y-coordinate of the image.
  * w - Number that represents the width of the image.
@@ -974,7 +974,7 @@ mxXmlCanvas2D.prototype.ellipse = function(x, y, w, h)
 mxXmlCanvas2D.prototype.image = function(x, y, w, h, src, aspect, flipH, flipV)
 {
 	src = this.converter.convert(src);
-	
+
 	// LATER: Add option for embedding images as base64.
 	var elem = this.createElement('image');
 	elem.setAttribute('x', this.format(x));
@@ -990,7 +990,7 @@ mxXmlCanvas2D.prototype.image = function(x, y, w, h, src, aspect, flipH, flipV)
 
 /**
  * Function: begin
- * 
+ *
  * Starts a new path and puts it into the drawing buffer.
  */
 mxXmlCanvas2D.prototype.begin = function()
@@ -1002,11 +1002,11 @@ mxXmlCanvas2D.prototype.begin = function()
 
 /**
  * Function: moveTo
- * 
+ *
  * Moves the current path the given point.
- * 
+ *
  * Parameters:
- * 
+ *
  * x - Number that represents the x-coordinate of the point.
  * y - Number that represents the y-coordinate of the point.
  */
@@ -1022,11 +1022,11 @@ mxXmlCanvas2D.prototype.moveTo = function(x, y)
 
 /**
  * Function: lineTo
- * 
+ *
  * Draws a line to the given coordinates.
- * 
+ *
  * Parameters:
- * 
+ *
  * x - Number that represents the x-coordinate of the endpoint.
  * y - Number that represents the y-coordinate of the endpoint.
  */
@@ -1042,11 +1042,11 @@ mxXmlCanvas2D.prototype.lineTo = function(x, y)
 
 /**
  * Function: quadTo
- * 
+ *
  * Adds a quadratic curve to the current path.
- * 
+ *
  * Parameters:
- * 
+ *
  * x1 - Number that represents the x-coordinate of the control point.
  * y1 - Number that represents the y-coordinate of the control point.
  * x2 - Number that represents the x-coordinate of the endpoint.
@@ -1066,11 +1066,11 @@ mxXmlCanvas2D.prototype.quadTo = function(x1, y1, x2, y2)
 
 /**
  * Function: curveTo
- * 
+ *
  * Adds a bezier curve to the current path.
- * 
+ *
  * Parameters:
- * 
+ *
  * x1 - Number that represents the x-coordinate of the first control point.
  * y1 - Number that represents the y-coordinate of the first control point.
  * x2 - Number that represents the x-coordinate of the second control point.
@@ -1094,7 +1094,7 @@ mxXmlCanvas2D.prototype.curveTo = function(x1, y1, x2, y2, x3, y3)
 
 /**
  * Function: close
- * 
+ *
  * Closes the current path.
  */
 mxXmlCanvas2D.prototype.close = function()
@@ -1104,14 +1104,14 @@ mxXmlCanvas2D.prototype.close = function()
 
 /**
  * Function: text
- * 
+ *
  * Paints the given text. Possible values for format are empty string for
  * plain text and html for HTML markup. HTML labels
  * are not available as part of shapes with no foreignObject support in SVG
  * (eg. IE9, IE10).
- * 
+ *
  * Parameters:
- * 
+ *
  * x - Number that represents the x-coordinate of the text.
  * y - Number that represents the y-coordinate of the text.
  * w - Number that represents the available width for the text or 0 for automatic width.
@@ -1134,60 +1134,60 @@ mxXmlCanvas2D.prototype.text = function(x, y, w, h, str, align, valign, wrap, fo
 		{
 			str = mxUtils.getOuterHtml(str);
 		}
-		
+
 		var elem = this.createElement('text');
 		elem.setAttribute('x', this.format(x));
 		elem.setAttribute('y', this.format(y));
 		elem.setAttribute('w', this.format(w));
 		elem.setAttribute('h', this.format(h));
 		elem.setAttribute('str', str);
-		
+
 		if (align != null)
 		{
 			elem.setAttribute('align', align);
 		}
-		
+
 		if (valign != null)
 		{
 			elem.setAttribute('valign', valign);
 		}
-		
+
 		elem.setAttribute('wrap', (wrap) ? '1' : '0');
-		
+
 		if (format == null)
 		{
 			format = '';
 		}
-		
+
 		elem.setAttribute('format', format);
-		
+
 		if (overflow != null)
 		{
 			elem.setAttribute('overflow', overflow);
 		}
-		
+
 		if (clip != null)
 		{
 			elem.setAttribute('clip', (clip) ? '1' : '0');
 		}
-		
+
 		if (rotation != null)
 		{
 			elem.setAttribute('rotation', rotation);
 		}
-		
+
 		if (dir != null)
 		{
 			elem.setAttribute('dir', dir);
 		}
-		
+
 		this.root.appendChild(elem);
 	}
 };
 
 /**
  * Function: stroke
- * 
+ *
  * Paints the outline of the current drawing buffer.
  */
 mxXmlCanvas2D.prototype.stroke = function()
@@ -1197,7 +1197,7 @@ mxXmlCanvas2D.prototype.stroke = function()
 
 /**
  * Function: fill
- * 
+ *
  * Fills the current drawing buffer.
  */
 mxXmlCanvas2D.prototype.fill = function()
@@ -1207,7 +1207,7 @@ mxXmlCanvas2D.prototype.fill = function()
 
 /**
  * Function: fillAndStroke
- * 
+ *
  * Fills the current drawing buffer and its outline.
  */
 mxXmlCanvas2D.prototype.fillAndStroke = function()

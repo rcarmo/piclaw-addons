@@ -4,37 +4,37 @@
  */
 /**
  * Class: mxWindow
- * 
+ *
  * Basic window inside a document.
- * 
+ *
  * Examples:
- * 
+ *
  * Creating a simple window.
  *
  * (code)
  * var tb = document.createElement('div');
  * var wnd = new mxWindow('Title', tb, 100, 100, 200, 200, true, true);
- * wnd.setVisible(true); 
+ * wnd.setVisible(true);
  * (end)
  *
- * Creating a window that contains an iframe. 
- * 
+ * Creating a window that contains an iframe.
+ *
  * (code)
  * var frame = document.createElement('iframe');
  * frame.setAttribute('width', '192px');
  * frame.setAttribute('height', '172px');
  * frame.setAttribute('src', 'http://www.example.com/');
  * frame.style.backgroundColor = 'white';
- * 
+ *
  * var w = document.body.clientWidth;
  * var h = (document.body.clientHeight || document.documentElement.clientHeight);
  * var wnd = new mxWindow('Title', frame, (w-200)/2, (h-200)/3, 200, 200);
  * wnd.setVisible(true);
  * (end)
- * 
+ *
  * To limit the movement of a window, eg. to keep it from being moved beyond
  * the top, left corner the following method can be overridden (recommended):
- * 
+ *
  * (code)
  * wnd.setLocation = function(x, y)
  * {
@@ -43,37 +43,37 @@
  *   mxWindow.prototype.setLocation.apply(this, arguments);
  * };
  * (end)
- * 
+ *
  * Or the following event handler can be used:
- * 
+ *
  * (code)
  * wnd.addListener(mxEvent.MOVE, function(e)
  * {
  *   wnd.setLocation(Math.max(0, wnd.getX()), Math.max(0, wnd.getY()));
  * });
  * (end)
- * 
+ *
  * To keep a window inside the current window:
- * 
+ *
  * (code)
  * mxEvent.addListener(window, 'resize', mxUtils.bind(this, function()
  * {
  *   var iw = window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth;
  *   var ih = window.innerHeight || document.documentElement.clientHeight || document.body.clientHeight;
- *   
+ *
  *   var x = this.window.getX();
  *   var y = this.window.getY();
- *   
+ *
  *   if (x + this.window.table.clientWidth > iw)
  *   {
  *     x = Math.max(0, iw - this.window.table.clientWidth);
  *   }
- *   
+ *
  *   if (y + this.window.table.clientHeight > ih)
  *   {
  *     y = Math.max(0, ih - this.window.table.clientHeight);
  *   }
- *   
+ *
  *   if (this.window.getX() != x || this.window.getY() != y)
  *   {
  *     this.window.setLocation(x, y);
@@ -112,64 +112,64 @@
  * the corresponding mouse event.
  *
  * Event: mxEvent.MAXIMIZE
- * 
+ *
  * Fires after the window is maximized. The <code>event</code> property
  * contains the corresponding mouse event.
- * 
+ *
  * Event: mxEvent.MINIMIZE
- * 
+ *
  * Fires after the window is minimized. The <code>event</code> property
  * contains the corresponding mouse event.
- * 
+ *
  * Event: mxEvent.NORMALIZE
- * 
+ *
  * Fires after the window is normalized, that is, it returned from
  * maximized or minimized state. The <code>event</code> property contains the
  * corresponding mouse event.
- *  
+ *
  * Event: mxEvent.ACTIVATE
- * 
+ *
  * Fires after a window is activated. The <code>previousWindow</code> property
  * contains the previous window. The event sender is the active window.
- * 
+ *
  * Event: mxEvent.SHOW
- * 
+ *
  * Fires after the window is shown. This event has no properties.
- * 
+ *
  * Event: mxEvent.HIDE
- * 
+ *
  * Fires after the window is hidden. This event has no properties.
- * 
+ *
  * Event: mxEvent.CLOSE
- * 
+ *
  * Fires before the window is closed. The <code>event</code> property contains
  * the corresponding mouse event.
- * 
+ *
  * Event: mxEvent.DESTROY
- * 
+ *
  * Fires before the window is destroyed. This event has no properties.
- * 
+ *
  * Constructor: mxWindow
- * 
+ *
  * Constructs a new window with the given dimension and title to display
  * the specified content. The window elements use the given style as a
  * prefix for the classnames of the respective window elements, namely,
  * the window title and window pane. The respective postfixes are appended
  * to the given stylename as follows:
- * 
+ *
  *   style - Base style for the window.
  *   style+Title - Style for the window title.
  *   style+Pane - Style for the window pane.
- * 
+ *
  * The default value for style is mxWindow, resulting in the following
  * classnames for the window elements: mxWindow, mxWindowTitle and
  * mxWindowPane.
- * 
+ *
  * If replaceNode is given then the window replaces the given DOM node in
  * the document.
- * 
+ *
  * Parameters:
- * 
+ *
  * title - String that represents the title of the new window.
  * content - DOM node that is used as the window content.
  * x - X-coordinate of the window location.
@@ -192,13 +192,13 @@ function mxWindow(title, content, x, y, width, height, minimizable, movable, rep
 		minimizable = (minimizable != null) ? minimizable : true;
 		this.content = content;
 		this.init(x, y, width, height, style);
-		
+
 		this.installMaximizeHandler();
 		this.installMinimizeHandler();
 		this.installCloseHandler();
 		this.setMinimizable(minimizable);
 		this.setTitle(title);
-		
+
 		if (movable == null || movable)
 		{
 			this.installMoveHandler();
@@ -223,35 +223,35 @@ mxWindow.prototype.constructor = mxWindow;
 
 /**
  * Variable: closeImage
- * 
+ *
  * URL of the image to be used for the close icon in the titlebar.
  */
 mxWindow.prototype.closeImage = mxClient.imageBasePath + '/close.gif';
 
 /**
  * Variable: minimizeImage
- * 
+ *
  * URL of the image to be used for the minimize icon in the titlebar.
  */
 mxWindow.prototype.minimizeImage = mxClient.imageBasePath + '/minimize.gif';
-	
+
 /**
  * Variable: normalizeImage
- * 
+ *
  * URL of the image to be used for the normalize icon in the titlebar.
  */
 mxWindow.prototype.normalizeImage = mxClient.imageBasePath + '/normalize.gif';
-	
+
 /**
  * Variable: maximizeImage
- * 
+ *
  * URL of the image to be used for the maximize icon in the titlebar.
  */
 mxWindow.prototype.maximizeImage = mxClient.imageBasePath + '/maximize.gif';
 
 /**
  * Variable: resizeImage
- * 
+ *
  * URL of the image to be used for the resize icon.
  */
 mxWindow.prototype.resizeImage = mxClient.imageBasePath + '/resize.gif';
@@ -274,7 +274,7 @@ mxWindow.prototype.visible = false;
 
 /**
  * Variable: minimumSize
- * 
+ *
  * <mxRectangle> that specifies the minimum width and height of the window.
  * Default is (50, 40).
  */
@@ -282,7 +282,7 @@ mxWindow.prototype.minimumSize = new mxRectangle(0, 0, 50, 40);
 
 /**
  * Variable: destroyOnClose
- * 
+ *
  * Specifies if the window should be destroyed when it is closed. If this
  * is false then the window is hidden using <setVisible>. Default is true.
  */
@@ -290,7 +290,7 @@ mxWindow.prototype.destroyOnClose = true;
 
 /**
  * Variable: contentHeightCorrection
- * 
+ *
  * Defines the correction factor for computing the height of the contentWrapper.
  * Default is 6 for IE 7/8 standards mode and 2 for all other browsers and modes.
  */
@@ -298,27 +298,27 @@ mxWindow.prototype.contentHeightCorrection = (document.documentMode == 8 || docu
 
 /**
  * Variable: title
- * 
+ *
  * Reference to the DOM node (TD) that contains the title.
  */
 mxWindow.prototype.title = null;
 
 /**
  * Variable: content
- * 
+ *
  * Reference to the DOM node that represents the window content.
  */
 mxWindow.prototype.content = null;
 
 /**
  * Function: init
- * 
+ *
  * Initializes the DOM tree that represents the window.
  */
 mxWindow.prototype.init = function(x, y, width, height, style)
 {
 	style = (style != null) ? style : 'mxWindow';
-	
+
 	this.div = document.createElement('div');
 	this.div.className = style;
 
@@ -332,41 +332,41 @@ mxWindow.prototype.init = function(x, y, width, height, style)
 	{
 		this.div.style.touchAction = 'none';
 	}
-	
+
 	// Workaround for table size problems in FF
 	if (width != null)
 	{
-		this.div.style.width = width + 'px'; 
+		this.div.style.width = width + 'px';
 		this.table.style.width = width + 'px';
-	} 
-	
+	}
+
 	if (height != null)
 	{
 		this.div.style.height = height + 'px';
 		this.table.style.height = height + 'px';
-	}		
-	
+	}
+
 	// Creates title row
 	var tbody = document.createElement('tbody');
 	var tr = document.createElement('tr');
-	
+
 	this.title = document.createElement('td');
 	this.title.className = style + 'Title';
-	
+
 	this.buttons = document.createElement('div');
 	this.buttons.style.position = 'absolute';
 	this.buttons.style.display = 'inline-block';
 	this.buttons.style.right = '4px';
 	this.title.appendChild(this.buttons);
-	
+
 	tr.appendChild(this.title);
 	tbody.appendChild(tr);
-	
+
 	// Creates content row and table cell
 	tr = document.createElement('tr');
 	this.td = document.createElement('td');
 	this.td.className = style + 'Pane';
-	
+
 	if (document.documentMode == 7)
 	{
 		this.td.style.height = '100%';
@@ -390,13 +390,13 @@ mxWindow.prototype.init = function(x, y, width, height, style)
 	tbody.appendChild(tr);
 	this.table.appendChild(tbody);
 	this.div.appendChild(this.table);
-	
+
 	// Puts the window on top of other windows when clicked
 	var activator = mxUtils.bind(this, function(evt)
 	{
 		this.activate();
 	});
-	
+
 	mxEvent.addGestureListeners(this.title, activator);
 	mxEvent.addGestureListeners(this.table, activator);
 
@@ -405,7 +405,7 @@ mxWindow.prototype.init = function(x, y, width, height, style)
 
 /**
  * Function: setTitle
- * 
+ *
  * Sets the window title to the given string. HTML markup inside the title
  * will be escaped.
  */
@@ -427,14 +427,14 @@ mxWindow.prototype.setTitle = function(title)
 
 		child = next;
 	}
-	
+
 	mxUtils.write(this.title, title || '');
 	this.title.appendChild(this.buttons);
 };
 
 /**
  * Function: setScrollable
- * 
+ *
  * Sets if the window contents should be scrollable.
  */
 mxWindow.prototype.setScrollable = function(scrollable)
@@ -456,7 +456,7 @@ mxWindow.prototype.setScrollable = function(scrollable)
 
 /**
  * Function: activate
- * 
+ *
  * Puts the window on top of all other windows.
  */
 mxWindow.prototype.activate = function()
@@ -469,24 +469,24 @@ mxWindow.prototype.activate = function()
 		if (mxWindow.activeWindow)
 		{
 			var elt = mxWindow.activeWindow.getElement();
-			
+
 			if (elt != null && elt.style != null)
 			{
 				elt.style.zIndex = index;
 			}
 		}
-		
+
 		var previousWindow = mxWindow.activeWindow;
 		this.getElement().style.zIndex = parseInt(index) + 1;
 		mxWindow.activeWindow = this;
-		
+
 		this.fireEvent(new mxEventObject(mxEvent.ACTIVATE, 'previousWindow', previousWindow));
 	}
 };
 
 /**
  * Function: getElement
- * 
+ *
  * Returuns the outermost DOM node that makes up the window.
  */
 mxWindow.prototype.getElement = function()
@@ -496,7 +496,7 @@ mxWindow.prototype.getElement = function()
 
 /**
  * Function: fit
- * 
+ *
  * Makes sure the window is inside the client area of the window.
  */
 mxWindow.prototype.fit = function()
@@ -506,7 +506,7 @@ mxWindow.prototype.fit = function()
 
 /**
  * Function: isResizable
- * 
+ *
  * Returns true if the window is resizable.
  */
 mxWindow.prototype.isResizable = function()
@@ -515,17 +515,17 @@ mxWindow.prototype.isResizable = function()
 	{
 		return this.resize.style.display != 'none';
 	}
-	
+
 	return false;
 };
 
 /**
  * Function: setResizable
- * 
+ *
  * Sets if the window should be resizable. To avoid interference with some
  * built-in features of IE10 and later, the use of the following code is
  * recommended if there are resizable <mxWindow>s in the page:
- * 
+ *
  * (code)
  * if (mxClient.IS_POINTER)
  * {
@@ -547,12 +547,12 @@ mxWindow.prototype.setResizable = function(resizable)
 
 			this.resize.setAttribute('src', this.resizeImage);
 			this.resize.style.cursor = 'nwse-resize';
-			
+
 			var startX = null;
 			var startY = null;
 			var width = null;
 			var height = null;
-			
+
 			var start = mxUtils.bind(this, function(evt)
 			{
 				// LATER: pointerdown starting on border of resize does start
@@ -564,7 +564,7 @@ mxWindow.prototype.setResizable = function(resizable)
 				startY = mxEvent.getClientY(evt);
 				width = this.div.offsetWidth;
 				height = this.div.offsetHeight;
-				
+
 				mxEvent.addGestureListeners(document, null, dragHandler, dropHandler);
 				this.fireEvent(new mxEventObject(mxEvent.RESIZE_START, 'event', evt));
 				mxEvent.consume(evt);
@@ -578,14 +578,14 @@ mxWindow.prototype.setResizable = function(resizable)
 				{
 					var dx = mxEvent.getClientX(evt) - startX;
 					var dy = mxEvent.getClientY(evt) - startY;
-	
+
 					this.setSize(width + dx, height + dy);
-	
+
 					this.fireEvent(new mxEventObject(mxEvent.RESIZE, 'event', evt));
 					mxEvent.consume(evt);
 				}
 			});
-			
+
 			var dropHandler = mxUtils.bind(this, function(evt)
 			{
 				if (startX != null && startY != null)
@@ -597,11 +597,11 @@ mxWindow.prototype.setResizable = function(resizable)
 					mxEvent.consume(evt);
 				}
 			});
-			
+
 			mxEvent.addGestureListeners(this.resize, start, dragHandler, dropHandler);
 			this.div.appendChild(this.resize);
 		}
-		else 
+		else
 		{
 			this.resize.style.display = 'inline';
 		}
@@ -611,10 +611,10 @@ mxWindow.prototype.setResizable = function(resizable)
 		this.resize.style.display = 'none';
 	}
 };
-	
+
 /**
  * Function: setSize
- * 
+ *
  * Sets the size of the window.
  */
 mxWindow.prototype.setSize = function(width, height)
@@ -625,17 +625,17 @@ mxWindow.prototype.setSize = function(width, height)
 	// Workaround for table size problems in FF
 	this.div.style.width =  width + 'px';
 	this.div.style.height = height + 'px';
-	
+
 	this.table.style.width =  width + 'px';
 	this.table.style.height = height + 'px';
 
 	this.contentWrapper.style.height = (this.div.offsetHeight -
 		this.title.offsetHeight - this.contentHeightCorrection) + 'px';
 };
-	
+
 /**
  * Function: setMinimizable
- * 
+ *
  * Sets if the window is minimizable.
  */
 mxWindow.prototype.setMinimizable = function(minimizable)
@@ -645,7 +645,7 @@ mxWindow.prototype.setMinimizable = function(minimizable)
 
 /**
  * Function: getMinimumSize
- * 
+ *
  * Returns an <mxRectangle> that specifies the size for the minimized window.
  * A width or height of 0 means keep the existing width or height. This
  * implementation returns the height of the window title and keeps the width.
@@ -657,55 +657,55 @@ mxWindow.prototype.getMinimumSize = function()
 
 /**
  * Function: toggleMinimized
- * 
+ *
  * Minimizes the window.
  */
 mxWindow.prototype.toggleMinimized = function(evt)
 {
 	this.activate();
-	
+
 	if (!this.minimized)
 	{
 		this.minimized = true;
-		
+
 		this.minimizeImg.setAttribute('src', this.normalizeImage);
 		this.minimizeImg.setAttribute('title', mxResources.get('restore', null, 'Restore'));
 		this.contentWrapper.style.display = 'none';
 		this.maxDisplay = this.maximize.style.display;
-		
+
 		this.maximize.style.display = 'none';
 		this.height = this.table.style.height;
-		
+
 		var minSize = this.getMinimumSize();
-		
+
 		if (minSize.height > 0)
 		{
 			this.div.style.height = minSize.height + 'px';
 			this.table.style.height = minSize.height + 'px';
 		}
-		
+
 		if (minSize.width > 0)
 		{
 			this.div.style.width = minSize.width + 'px';
 			this.table.style.width = minSize.width + 'px';
 		}
-		
+
 		if (this.resize != null)
 		{
 			this.resize.style.visibility = 'hidden';
 		}
-		
+
 		this.fireEvent(new mxEventObject(mxEvent.MINIMIZE, 'event', evt));
 	}
 	else
 	{
 		this.minimized = false;
-		
+
 		this.minimizeImg.setAttribute('src', this.minimizeImage);
 		this.minimizeImg.setAttribute('title', mxResources.get('minimize', null, 'Minimize'));
 		this.contentWrapper.style.display = ''; // default
 		this.maximize.style.display = this.maxDisplay;
-		
+
 		this.div.style.height = this.height;
 		this.table.style.height = this.height;
 
@@ -713,28 +713,28 @@ mxWindow.prototype.toggleMinimized = function(evt)
 		{
 			this.resize.style.visibility = '';
 		}
-		
+
 		this.fireEvent(new mxEventObject(mxEvent.NORMALIZE, 'event', evt));
 	}
 };
 
 /**
  * Function: installMinimizeHandler
- * 
+ *
  * Installs the event listeners required for minimizing the window.
  */
 mxWindow.prototype.installMinimizeHandler = function()
 {
 	this.minimizeImg = document.createElement('img');
-	
+
 	this.minimizeImg.setAttribute('src', this.minimizeImage);
 	this.minimizeImg.setAttribute('title', mxResources.get('minimize', null, 'Minimize'));
 	this.minimizeImg.style.cursor = 'pointer';
 	this.minimizeImg.style.marginLeft = '2px';
 	this.minimizeImg.style.display = 'none';
-	
+
 	this.buttons.appendChild(this.minimizeImg);
-	
+
 	this.minimized = false;
 	this.maxDisplay = null;
 	this.height = null;
@@ -744,13 +744,13 @@ mxWindow.prototype.installMinimizeHandler = function()
 		this.toggleMinimized(evt);
 		mxEvent.consume(evt);
 	});
-	
+
 	mxEvent.addGestureListeners(this.minimizeImg, funct);
 };
-	
+
 /**
  * Function: setMaximizable
- * 
+ *
  * Sets if the window is maximizable.
  */
 mxWindow.prototype.setMaximizable = function(maximizable)
@@ -760,22 +760,22 @@ mxWindow.prototype.setMaximizable = function(maximizable)
 
 /**
  * Function: installMaximizeHandler
- * 
+ *
  * Installs the event listeners required for maximizing the window.
  */
 mxWindow.prototype.installMaximizeHandler = function()
 {
 	this.maximize = document.createElement('img');
-	
+
 	this.maximize.setAttribute('src', this.maximizeImage);
 	this.maximize.setAttribute('title', mxResources.get('maximize', null, 'Maximize'));
 	this.maximize.style.cursor = 'default';
 	this.maximize.style.marginLeft = '2px';
 	this.maximize.style.cursor = 'pointer';
 	this.maximize.style.display = 'none';
-	
+
 	this.buttons.appendChild(this.maximize);
-	
+
 	var maximized = false;
 	var x = null;
 	var y = null;
@@ -786,19 +786,19 @@ mxWindow.prototype.installMaximizeHandler = function()
 	var funct = mxUtils.bind(this, function(evt)
 	{
 		this.activate();
-		
+
 		if (this.maximize.style.display != 'none')
 		{
 			if (!maximized)
 			{
 				maximized = true;
-				
+
 				this.maximize.setAttribute('src', this.normalizeImage);
 				this.maximize.setAttribute('title', mxResources.get('restore', null, 'Restore'))
 				this.contentWrapper.style.display = '';
 				minDisplay = this.minimizeImg.style.display;
 				this.minimizeImg.style.display = 'none';
-				
+
 				// Saves window state
 				x = parseInt(this.div.style.left);
 				y = parseInt(this.div.style.top);
@@ -814,14 +814,14 @@ mxWindow.prototype.installMaximizeHandler = function()
 
 				this.table.style.width = (document.body.clientWidth - 2) + 'px';
 				this.table.style.height = (docHeight - 2) + 'px';
-				
+
 				if (this.resize != null)
 				{
 					this.resize.style.visibility = 'hidden';
 				}
 
 				var style = mxUtils.getCurrentStyle(this.contentWrapper);
-	
+
 				if (style.overflow == 'auto' || this.resize != null)
 				{
 					this.contentWrapper.style.height = (this.div.offsetHeight -
@@ -833,7 +833,7 @@ mxWindow.prototype.installMaximizeHandler = function()
 			else
 			{
 				maximized = false;
-				
+
 				this.maximize.setAttribute('src', this.maximizeImage);
 				this.maximize.setAttribute('title', mxResources.get('maximize', null, 'Maximize'));
 				this.contentWrapper.style.display = '';
@@ -847,13 +847,13 @@ mxWindow.prototype.installMaximizeHandler = function()
 				this.div.style.width = width;
 
 				var style = mxUtils.getCurrentStyle(this.contentWrapper);
-	
+
 				if (style.overflow == 'auto' || this.resize != null)
 				{
 					this.contentWrapper.style.height = (this.div.offsetHeight -
 						this.title.offsetHeight - this.contentHeightCorrection) + 'px';
 				}
-				
+
 				this.table.style.height = height;
 				this.table.style.width = width;
 
@@ -861,27 +861,27 @@ mxWindow.prototype.installMaximizeHandler = function()
 				{
 					this.resize.style.visibility = '';
 				}
-				
+
 				this.fireEvent(new mxEventObject(mxEvent.NORMALIZE, 'event', evt));
 			}
-			
+
 			mxEvent.consume(evt);
 		}
 	});
-	
+
 	mxEvent.addGestureListeners(this.maximize, funct);
 	mxEvent.addListener(this.title, 'dblclick', funct);
 };
-	
+
 /**
  * Function: installMoveHandler
- * 
+ *
  * Installs the event listeners required for moving the window.
  */
 mxWindow.prototype.installMoveHandler = function()
 {
 	this.title.style.cursor = 'move';
-	
+
 	mxEvent.addGestureListeners(this.title,
 		mxUtils.bind(this, function(evt)
 		{
@@ -889,7 +889,7 @@ mxWindow.prototype.installMoveHandler = function()
 			var startY = mxEvent.getClientY(evt);
 			var x = this.getX();
 			var y = this.getY();
-						
+
 			// Adds a temporary pair of listeners to intercept
 			// the gesture event in the document
 			var dragHandler = mxUtils.bind(this, function(evt)
@@ -900,19 +900,19 @@ mxWindow.prototype.installMoveHandler = function()
 				this.fireEvent(new mxEventObject(mxEvent.MOVE, 'event', evt));
 				mxEvent.consume(evt);
 			});
-			
+
 			var dropHandler = mxUtils.bind(this, function(evt)
 			{
 				mxEvent.removeGestureListeners(document, null, dragHandler, dropHandler);
 				this.fireEvent(new mxEventObject(mxEvent.MOVE_END, 'event', evt));
 				mxEvent.consume(evt);
 			});
-			
+
 			mxEvent.addGestureListeners(document, null, dragHandler, dropHandler);
 			this.fireEvent(new mxEventObject(mxEvent.MOVE_START, 'event', evt));
 			mxEvent.consume(evt);
 		}));
-	
+
 	// Disables built-in pan and zoom in IE10 and later
 	if (mxClient.IS_POINTER)
 	{
@@ -922,7 +922,7 @@ mxWindow.prototype.installMoveHandler = function()
 
 /**
  * Function: setLocation
- * 
+ *
  * Sets the upper, left corner of the window.
  */
 mxWindow.prototype.setLocation = function(x, y)
@@ -963,20 +963,20 @@ mxWindow.prototype.getY = function()
 mxWindow.prototype.installCloseHandler = function()
 {
 	this.closeImg = document.createElement('img');
-	
+
 	this.closeImg.setAttribute('src', this.closeImage);
 	this.closeImg.setAttribute('title', mxResources.get('close', null, 'Close'));
 	this.closeImg.style.marginLeft = '2px';
 	this.closeImg.style.cursor = 'pointer';
 	this.closeImg.style.display = 'none';
-	
+
 	this.buttons.appendChild(this.closeImg);
 
 	mxEvent.addGestureListeners(this.closeImg,
 		mxUtils.bind(this, function(evt)
 		{
 			this.fireEvent(new mxEventObject(mxEvent.CLOSE, 'event', evt));
-			
+
 			if (this.destroyOnClose)
 			{
 				this.destroy();
@@ -985,18 +985,18 @@ mxWindow.prototype.installCloseHandler = function()
 			{
 				this.setVisible(false);
 			}
-			
+
 			mxEvent.consume(evt);
 		}));
 };
 
 /**
  * Function: setImage
- * 
+ *
  * Sets the image associated with the window.
- * 
+ *
  * Parameters:
- * 
+ *
  * image - URL of the image to be used.
  */
 mxWindow.prototype.setImage = function(image)
@@ -1007,17 +1007,17 @@ mxWindow.prototype.setImage = function(image)
 	this.image.style.marginRight = '4px';
 	this.image.style.marginLeft = '0px';
 	this.image.style.marginTop = '-2px';
-	
+
 	this.title.insertBefore(this.image, this.title.firstChild);
 };
 
 /**
  * Function: setClosable
- * 
+ *
  * Sets the image associated with the window.
- * 
+ *
  * Parameters:
- * 
+ *
  * closable - Boolean specifying if the window should be closable.
  */
 mxWindow.prototype.setClosable = function(closable)
@@ -1027,7 +1027,7 @@ mxWindow.prototype.setClosable = function(closable)
 
 /**
  * Function: isVisible
- * 
+ *
  * Returns true if the window is visible.
  */
 mxWindow.prototype.isVisible = function()
@@ -1036,7 +1036,7 @@ mxWindow.prototype.isVisible = function()
 	{
 		return this.div.style.display != 'none';
 	}
-	
+
 	return false;
 };
 
@@ -1044,9 +1044,9 @@ mxWindow.prototype.isVisible = function()
  * Function: setVisible
  *
  * Shows or hides the window depending on the given flag.
- * 
+ *
  * Parameters:
- * 
+ *
  * visible - Boolean indicating if the window should be made visible.
  */
 mxWindow.prototype.setVisible = function(visible)
@@ -1081,16 +1081,16 @@ mxWindow.prototype.show = function()
 {
 	this.div.style.display = '';
 	this.activate();
-	
+
 	var style = mxUtils.getCurrentStyle(this.contentWrapper);
-	
+
 	if ((style.overflow == 'auto' || this.resize != null) &&
 		this.contentWrapper.style.display != 'none')
 	{
 		this.contentWrapper.style.height = (this.div.offsetHeight -
 				this.title.offsetHeight - this.contentHeightCorrection) + 'px';
 	}
-	
+
 	this.fireEvent(new mxEventObject(mxEvent.SHOW));
 };
 
@@ -1114,14 +1114,14 @@ mxWindow.prototype.hide = function()
 mxWindow.prototype.destroy = function()
 {
 	this.fireEvent(new mxEventObject(mxEvent.DESTROY));
-	
+
 	if (this.div != null)
 	{
 		mxEvent.release(this.div);
 		this.div.parentNode.removeChild(this.div);
 		this.div = null;
 	}
-	
+
 	this.title = null;
 	this.content = null;
 	this.contentWrapper = null;

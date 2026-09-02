@@ -18,7 +18,7 @@
  * Reference Fields:
  *
  * - cell
- * 
+ *
  * Constructor: mxGenericChangeCodec
  *
  * Factory function that creates a <mxObjectCodec> for
@@ -51,7 +51,7 @@ var mxGenericChangeCodec = function(obj, variable)
 
 		return obj;
 	};
-	
+
 	return codec;
 };
 
