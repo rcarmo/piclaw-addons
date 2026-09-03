@@ -14,7 +14,8 @@
   },
   "include": [
     "addons/autoresearch/supervisor.ts",
-    "addons/cheapskate/**/*.ts",
+    "addons/cheapskate/*.ts",
+    "addons/cheapskate/web/**/*.ts",
     "addons/codex-conversion/**/*.ts",
     "addons/delegate/**/*.ts",
     "addons/skill-model-effort/**/*.ts",
