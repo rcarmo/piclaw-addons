@@ -41,7 +41,7 @@ async function installMock(ctx: any): Promise<void> {
   if (ctx.state.cheapskateRouteInstalled) return;
   ctx.state.cheapskateRouteInstalled = true;
   ctx.state.cheapskateConfig = {};
-  await ctx.page.route('**/agent/addons/api/cheapskate/config**', async (route: Route) => {
+  await ctx.page.context().route('**/agent/addons/api/cheapskate/config**', async (route: Route) => {
     if (route.request().method() === 'POST') {
       const patch = route.request().postDataJSON() || {};
       const current = ctx.state.cheapskateConfig || {};
@@ -52,6 +52,10 @@ async function installMock(ctx: any): Promise<void> {
       };
     }
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(status(ctx.state.cheapskateConfig)) });
+  });
+  await ctx.page.evaluate(async () => {
+    const registrations = await navigator.serviceWorker?.getRegistrations?.() || [];
+    await Promise.all(registrations.map((registration) => registration.unregister()));
   });
   await ctx.page.reload();
   await ctx.page.waitForLoadState('domcontentloaded');
