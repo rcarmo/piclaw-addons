@@ -21,6 +21,7 @@ interface FunctionToolPayload {
 
 interface ResponsesPayload {
 	tools?: unknown[];
+	include?: unknown[];
 	[key: string]: unknown;
 }
 
@@ -81,9 +82,14 @@ export function rewriteNativeWebSearchTool(payload: unknown, model: ExtensionCon
 		return payload;
 	}
 
+	const payloadInclude = (payload as ResponsesPayload).include;
+	const include = Array.isArray(payloadInclude)
+		? payloadInclude.filter((value): value is string => typeof value === "string")
+		: [];
 	return {
 		...(payload as ResponsesPayload),
 		tools: nextTools,
+		include: [...new Set([...include, "web_search_call.action.sources", "web_search_call.results"])],
 	};
 }
 
