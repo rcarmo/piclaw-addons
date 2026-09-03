@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, mock, test } from "bun:test";
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -23,9 +23,22 @@ import {
   registerOpenAICodexNativeOutputObserver,
   requiresNativeOutputCapture,
 } from "./src/providers/openai-codex-native-output-observer.ts";
-import codexConversion from "./src/index.ts";
 
 const addonDir = import.meta.dir;
+let codexConversionPromise: Promise<(pi: any) => void> | undefined;
+
+function loadCodexConversion(): Promise<(pi: any) => void> {
+  mock.module("web-tree-sitter", () => ({
+    Language: { load: async () => ({}) },
+    Parser: class {
+      static async init() {}
+      parse() { return undefined; }
+      setLanguage() {}
+    },
+  }));
+  codexConversionPromise ??= import("./src/index.ts").then((module) => module.default);
+  return codexConversionPromise;
+}
 
 function collectTsFiles(dir: string): string[] {
   const out: string[] = [];
@@ -375,6 +388,7 @@ test("profile controller restores an intentionally empty tool set", () => {
 });
 
 test("registered lifecycle handlers never emit status outside TUI", async () => {
+  const codexConversion = await loadCodexConversion();
   const handlers = new Map<string, Function[]>();
   let activeTools = ["read", "bash", "edit", "write", "messages"];
   const pi = {
@@ -398,6 +412,7 @@ test("registered lifecycle handlers never emit status outside TUI", async () => 
 });
 
 test("registered handlers apply TUI status and provider-scoped headers", async () => {
+  const codexConversion = await loadCodexConversion();
   const handlers = new Map<string, Function[]>();
   const statuses: Array<[string, string | undefined]> = [];
   let activeTools = ["read", "bash", "edit", "write"];
