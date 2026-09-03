@@ -1,269 +1,382 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import {
+  createAssistantMessageEventStream,
+  type AssistantMessage,
+  type AssistantMessageEvent,
+  type Context,
+  type Model,
+  type SimpleStreamOptions,
+} from "@earendil-works/pi-ai";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import cheapskate, { BACKENDS, buildProviderConfig, currentBackendId, resetCheapskateForTests } from "./index.ts";
-import { createAssistantMessageEventStream } from "@earendil-works/pi-ai";
+import cheapskate, { resetCheapskateForTests } from "./index.ts";
+import { includesQuery, stateLabel } from "./web/index.ts";
+import {
+  classifyCatalogueCost,
+  estimateRequestTokens,
+  modelSupportsRequest,
+  requestRequirements,
+  resolveEligibleModels,
+} from "./catalogue.ts";
+import { applyCheapskateConfigPatch, defaultCheapskateConfig, normalizeCheapskateConfig, saveCheapskateConfig } from "./config.ts";
+import { getCandidateHealth, parseRetryAfterMs, recordCandidateFailure, resetCandidateHealth, resetCheapskateHealthForTests, responseFromErrorMessage } from "./health.ts";
+import { createCheapskateStream, resetCheapskateRouterForTests } from "./router.ts";
+import { buildCheapskateStatus } from "./status.ts";
+import type { CanonicalModelRef, RuntimeModelRegistry, ScopedModelLike } from "./shared.ts";
 
-type ProviderRegistration = { name: string; config: any };
+const savedInterop = (globalThis as any).__piclawRuntimeInterop;
+const savedRegistrar = (globalThis as any).__piclaw_registerAddonConfigApi;
 
-const ENV_KEYS = [
-  "GOOGLE_GENERATIVE_AI_API_KEY",
-  "GROQ_API_KEY",
-  "CEREBRAS_API_KEY",
-  "SAMBANOVA_API_KEY",
-  "OPENROUTER_API_KEY",
-  "OPENCODE_API_KEY",
-  "NVIDIA_API_KEY",
-  "CLOUDFLARE_API_TOKEN",
-  "CLOUDFLARE_ACCOUNT_ID",
-];
-
-const savedEnv = new Map<string, string | undefined>();
-const savedGlobals = {
-  runtimeInterop: (globalThis as any).__piclawRuntimeInterop,
-  addonConfigApi: (globalThis as any).__piclaw_registerAddonConfigApi,
-};
-
-for (const key of ENV_KEYS) savedEnv.set(key, process.env[key]);
-
-afterEach(() => {
+beforeEach(() => {
   resetCheapskateForTests();
-  for (const key of ENV_KEYS) {
-    const value = savedEnv.get(key);
-    if (value === undefined) delete process.env[key];
-    else process.env[key] = value;
-  }
-
-  if (savedGlobals.runtimeInterop === undefined) delete (globalThis as any).__piclawRuntimeInterop;
-  else (globalThis as any).__piclawRuntimeInterop = savedGlobals.runtimeInterop;
-
-  if (savedGlobals.addonConfigApi === undefined) delete (globalThis as any).__piclaw_registerAddonConfigApi;
-  else (globalThis as any).__piclaw_registerAddonConfigApi = savedGlobals.addonConfigApi;
+  resetCheapskateHealthForTests();
+  resetCheapskateRouterForTests();
 });
 
-function createHarness() {
-  const providers: ProviderRegistration[] = [];
-  const tools = new Map<string, any>();
-  const handlers = new Map<string, (...args: any[]) => any>();
+afterEach(() => {
+  if (savedInterop === undefined) delete (globalThis as any).__piclawRuntimeInterop;
+  else (globalThis as any).__piclawRuntimeInterop = savedInterop;
+  if (savedRegistrar === undefined) delete (globalThis as any).__piclaw_registerAddonConfigApi;
+  else (globalThis as any).__piclaw_registerAddonConfigApi = savedRegistrar;
+});
 
-  const api = {
-    on(event: string, handler: (...args: any[]) => any) { handlers.set(event, handler); },
-    registerProvider(name: string, config: any) { providers.push({ name, config }); },
-    unregisterProvider() {},
-    registerTool(tool: any) { tools.set(tool.name, tool); },
-    registerCommand() {},
-    registerShortcut() {},
-    registerFlag() {},
-    getFlag() { return undefined; },
-    registerMessageRenderer() {},
-    sendMessage() {},
-    sendUserMessage() {},
-    appendEntry() {},
-    setSessionName() {},
-    getSessionName() { return undefined; },
-    setLabel() {},
-    exec: async () => ({ exitCode: 0, stdout: "", stderr: "" }),
-    getActiveTools: () => [],
-    getAllTools: () => [],
-    setActiveTools() {},
-    getCommands: () => [],
-    setModel: async () => true,
-    getThinkingLevel: () => "off",
-    setThinkingLevel() {},
-  } as any;
-
-  return { api, providers, tools, handlers };
+function model(overrides: Partial<Model<any>> & Pick<Model<any>, "provider" | "id">): Model<any> {
+  return {
+    name: overrides.id,
+    api: "openai-completions",
+    baseUrl: `https://${overrides.provider}.test/v1`,
+    reasoning: false,
+    input: ["text"],
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    contextWindow: 128_000,
+    maxTokens: 16_384,
+    ...overrides,
+  };
 }
 
-function getActiveModel(registrations: ProviderRegistration[]) {
-  const latest = registrations.at(-1);
-  expect(latest?.name).toBe("cheapskate");
-  return latest!.config.models[0];
+function messageFor(requestModel: Model<any>, options: Partial<AssistantMessage> = {}): AssistantMessage {
+  return {
+    role: "assistant",
+    content: [{ type: "text", text: "ok" }],
+    api: requestModel.api,
+    provider: requestModel.provider,
+    model: requestModel.id,
+    usage: { input: 10, output: 2, cacheRead: 0, cacheWrite: 0, totalTokens: 12, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+    stopReason: "stop",
+    timestamp: Date.now(),
+    ...options,
+  };
 }
 
-const addonDir = import.meta.dir;
+type StreamPlan = (requestModel: Model<any>, options?: SimpleStreamOptions) => AssistantMessageEvent[] | Promise<AssistantMessageEvent[]>;
 
-describe("cheapskate addon", () => {
-  test("exposes OpenCode Zen and NVIDIA free backends", () => {
-    const opencode = BACKENDS.find((backend) => backend.id === "opencode");
-    const nvidia = BACKENDS.find((backend) => backend.id === "nvidia");
-
-    expect(opencode?.apiKeyEnv).toBe("OPENCODE_API_KEY");
-    expect(opencode?.baseUrl).toBe("https://api.opencode.ai/v1");
-    expect(opencode?.modelId).toBe("openai/gpt-oss-120b");
-
-    expect(nvidia?.apiKeyEnv).toBe("NVIDIA_API_KEY");
-    expect(nvidia?.baseUrl).toBe("https://integrate.api.nvidia.com/v1");
-    expect(nvidia?.modelId).toBe("meta/llama-3.3-70b-instruct");
-  });
-
-  test("settings pane lists OpenCode Zen and NVIDIA keychain entries without workspace source imports", () => {
-    const source = readFileSync(resolve(addonDir, "web", "index.ts"), "utf8");
-    const kvSource = readFileSync(resolve(addonDir, "compat", "extension-kv.ts"), "utf8");
-    expect(source).toContain("opencode/api-key");
-    expect(source).toContain("nvidia/api-key");
-    expect(source).not.toContain("../../components/settings/pane-registry");
-    expect(source).not.toContain("require(");
-    expect(kvSource).not.toContain("require(");
-    expect(kvSource).not.toContain("piclaw/runtime/src");
-  });
-
-  test("does not ship the obsolete standalone settings page or legacy API route", () => {
-    const packageSource = readFileSync(resolve(addonDir, "package.json"), "utf8");
-    const indexSource = readFileSync(resolve(addonDir, "index.ts"), "utf8");
-    expect(() => readFileSync(resolve(addonDir, "settings.html"), "utf8")).toThrow();
-    expect(packageSource).not.toContain("settings.html");
-    expect(indexSource).not.toContain("/cheapskate/api/config");
-  });
-
-  test("uses a Google-compatible string enum for tool actions", () => {
-    const source = readFileSync(resolve(addonDir, "index.ts"), "utf8");
-    expect(source).toContain("Type.String({");
-    expect(source).toContain('enum: ["status", "list", "usage", "rotate"]');
-    expect(source).not.toContain("Type.Union([");
-    expect(source).not.toContain("Type.Literal(\"status\")");
-  });
-
-  test("advertises image input only for backends that support it", () => {
-    const google = BACKENDS.find((backend) => backend.id === "google")!;
-    const cerebras = BACKENDS.find((backend) => backend.id === "cerebras")!;
-
-    expect(buildProviderConfig(google, [google]).models![0]!.input).toEqual(["text", "image"]);
-    expect(buildProviderConfig(cerebras, [cerebras]).models![0]!.input).toEqual(["text"]);
-  });
-
-  test("registers in a vanilla runtime without piclaw globals", async () => {
-    delete (globalThis as any).__piclawRuntimeInterop;
-    delete (globalThis as any).__piclaw_registerAddonConfigApi;
-    process.env.GOOGLE_GENERATIVE_AI_API_KEY = "test-google-key";
-
-    const { api, providers, tools } = createHarness();
-    cheapskate(api);
-
-    expect(providers).toHaveLength(1);
-    expect(tools.has("cheapskate")).toBe(true);
-
-    const model = getActiveModel(providers);
-    const google = BACKENDS.find((backend) => backend.id === "google")!;
-    expect(model.id).toBe("auto");
-    expect(model.api).toBe("openai-completions");
-    expect(model.contextWindow).toBe(google.contextWindow);
-    expect(model.maxTokens).toBe(google.maxTokens);
-    expect(model.reasoning).toBe(google.reasoning);
-
-    const status = await tools.get("cheapskate").execute("call-1", { action: "status" });
-    expect(status.details).toEqual({ configured: 1, available: 1, active: "google" });
-  });
-
-  test("builds a typed OpenAI completions provider that keeps the virtual catalog identity", () => {
-    const google = BACKENDS.find((backend) => backend.id === "google")!;
-    const config = buildProviderConfig(google, [google]);
-
-    expect(config).toMatchObject({
-      baseUrl: google.baseUrl,
-      apiKey: `$${google.apiKeyEnv}`,
-      api: "openai-completions",
-    });
-    expect(config.models).toEqual([expect.objectContaining({
-      id: "auto",
-      api: "openai-completions",
-      contextWindow: google.contextWindow,
-      maxTokens: google.maxTokens,
-    })]);
-    expect(typeof config.streamSimple).toBe("function");
-    expect(config.oauth).toBeUndefined();
-  });
-
-  test("routes the virtual model ID while preserving runtime request options", () => {
-    const google = BACKENDS.find((backend) => backend.id === "google")!;
-    let received: { model?: any; context?: any; options?: any } = {};
-    const stream = createAssistantMessageEventStream();
-    const config = buildProviderConfig(google, [google], {
-      streamSimple(model, context, options) {
-        received = { model, context, options };
+function createRegistry(models: Model<any>[], plans: Record<string, StreamPlan> = {}, configured = new Set(models.map((entry) => entry.provider))): RuntimeModelRegistry {
+  const providers = new Map<string, any>();
+  for (const entry of models) {
+    if (providers.has(entry.provider)) continue;
+    providers.set(entry.provider, {
+      id: entry.provider,
+      name: `${entry.provider} provider`,
+      streamSimple(requestModel: Model<any>, _context: Context, options?: SimpleStreamOptions) {
+        const stream = createAssistantMessageEventStream();
+        queueMicrotask(async () => {
+          const events = await (plans[`${requestModel.provider}/${requestModel.id}`]?.(requestModel, options) || [
+            { type: "start", partial: { ...messageFor(requestModel), content: [], stopReason: "pending" } },
+            { type: "done", reason: "stop", message: messageFor(requestModel) },
+          ]);
+          for (const event of events) stream.push(event);
+          const terminal = events.findLast((event) => event.type === "done" || event.type === "error");
+          if (terminal?.type === "done") stream.end(terminal.message);
+          else if (terminal?.type === "error") stream.end(terminal.error);
+          else stream.end(messageFor(requestModel));
+        });
         return stream;
       },
     });
-    const virtualModel = {
-      provider: "cheapskate",
-      id: "auto",
-      name: "Auto",
-      api: "openai-completions",
-      baseUrl: google.baseUrl,
-      reasoning: true,
-      input: ["text"],
-      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-      contextWindow: google.contextWindow,
-      maxTokens: google.maxTokens,
-    } as any;
-    const context = { systemPrompt: "test", messages: [] };
-    const options = {
-      apiKey: "resolved-key",
-      headers: { "x-delete": null, "x-keep": "yes" },
-      env: { HTTPS_PROXY: "http://proxy.test" },
-      signal: new AbortController().signal,
-      maxRetries: 1,
-      onPayload: (payload: unknown) => payload,
-      onResponse: () => {},
-    } as any;
+  }
+  return {
+    getAll: () => models,
+    getAvailable: () => models.filter((entry) => configured.has(entry.provider)),
+    find: (provider, id) => models.find((entry) => entry.provider === provider && entry.id === id),
+    hasConfiguredAuth: (entry) => configured.has(entry.provider),
+    getProvider: (provider) => providers.get(provider),
+    getProviderDisplayName: (provider) => `${provider} provider`,
+    getApiKeyAndHeaders: async (entry) => configured.has(entry.provider) ? { ok: true as const, apiKey: "test-key" } : { ok: false as const, error: "not configured" },
+    registerProvider() {},
+    unregisterProvider() {},
+  };
+}
 
-    expect(config.streamSimple?.(virtualModel, context, options)).toBe(stream);
-    expect(received.model).toEqual({ ...virtualModel, id: google.modelId, api: "openai-completions" });
-    expect(received.context).toBe(context);
-    expect(received.options).toBe(options);
+function enabledConfig(refs: CanonicalModelRef[]) {
+  const config = defaultCheapskateConfig();
+  for (const ref of refs) config.models[ref] = { enabled: true };
+  config.priority = [...refs];
+  return config;
+}
+
+async function collect(stream: ReturnType<typeof createCheapskateStream>): Promise<AssistantMessageEvent[]> {
+  const events: AssistantMessageEvent[] = [];
+  for await (const event of stream) events.push(event);
+  return events;
+}
+
+describe("catalogue zero-cost eligibility", () => {
+  test("requires finite exact-zero base rates and all-zero valid tiers", () => {
+    expect(classifyCatalogueCost(model({ provider: "free", id: "base" }))).toBe("zero");
+    expect(classifyCatalogueCost(model({ provider: "paid", id: "paid", cost: { input: 0, output: 0.01, cacheRead: 0, cacheWrite: 0 } }))).toBe("positive");
+    expect(classifyCatalogueCost(model({ provider: "unknown", id: "missing", cost: { input: 0, output: 0, cacheRead: 0 } as any }))).toBe("unknown_or_malformed");
+    expect(classifyCatalogueCost(model({ provider: "tiered", id: "paid-tier", cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, tiers: [{ inputTokensAbove: 1000, input: 1, output: 0, cacheRead: 0, cacheWrite: 0 }] } }))).toBe("positive");
+    expect(classifyCatalogueCost(model({ provider: "tiered", id: "free-tier", cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, tiers: [{ inputTokensAbove: 1000, input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }] } }))).toBe("zero");
   });
 
-  test("reports the active backend model limits instead of the largest configured backend", async () => {
-    process.env.GOOGLE_GENERATIVE_AI_API_KEY = "test-google-key";
-    process.env.GROQ_API_KEY = "test-groq-key";
-
-    const { api, providers, tools } = createHarness();
-    cheapskate(api);
-
-    const google = BACKENDS.find((backend) => backend.id === "google")!;
-    const groq = BACKENDS.find((backend) => backend.id === "groq")!;
-
-    let model = getActiveModel(providers);
-    expect(providers.at(-1)?.config.api).toBe("openai-completions");
-    expect(model.id).toBe("auto");
-    expect(model.contextWindow).toBe(google.contextWindow);
-    expect(model.maxTokens).toBe(google.maxTokens);
-    expect(currentBackendId).toBe("google");
-
-    await tools.get("cheapskate").execute("call-2", { action: "rotate" });
-
-    model = getActiveModel(providers);
-    expect(model.id).toBe("auto");
-    expect(model.contextWindow).toBe(groq.contextWindow);
-    expect(model.maxTokens).toBe(groq.maxTokens);
-    expect(model.reasoning).toBe(groq.reasoning);
-    expect(currentBackendId).toBe("groq");
+  test("excludes recursion, unauthenticated, disabled, unscoped and incompatible models", () => {
+    const free = model({ provider: "free", id: "text" });
+    const image = model({ provider: "vision", id: "image", input: ["text", "image"] });
+    const paid = model({ provider: "paid", id: "paid", cost: { input: 1, output: 0, cacheRead: 0, cacheWrite: 0 } });
+    const recursive = model({ provider: "cheapskate", id: "auto" });
+    const registry = createRegistry([free, image, paid, recursive]);
+    const config = enabledConfig(["free/text", "vision/image"]);
+    const requirements = { inputTokens: 100, requiresImage: true, outputTokens: 100 };
+    expect(resolveEligibleModels({ registry, hasKnownCost: () => true, config, requirements }).map((entry) => entry.id)).toEqual(["image"]);
+    expect(resolveEligibleModels({ registry, hasKnownCost: () => true, config, scopedModels: [{ model: free }], requirements: { ...requirements, requiresImage: false } }).map((entry) => entry.id)).toEqual(["text"]);
+    config.providers.free = { enabled: false };
+    expect(resolveEligibleModels({ registry, hasKnownCost: () => true, config, scopedModels: [{ model: free }] })).toEqual([]);
   });
 
-  test("context-limit errors rotate toward a backend with a larger window when available", async () => {
-    process.env.GOOGLE_GENERATIVE_AI_API_KEY = "test-google-key";
-    process.env.GROQ_API_KEY = "test-groq-key";
+  test("estimates context conservatively and filters image/context/output capabilities", () => {
+    const context: Context = { systemPrompt: "system", messages: [{ role: "user", content: [{ type: "text", text: "hello" }, { type: "image", mimeType: "image/png", data: "abc" }], timestamp: 1 }] };
+    const requirements = requestRequirements(context, 2_000);
+    expect(estimateRequestTokens(context)).toBeGreaterThan(1_000);
+    expect(requirements.requiresImage).toBe(true);
+    expect(modelSupportsRequest(model({ provider: "ok", id: "ok", input: ["text", "image"], contextWindow: 10_000, maxTokens: 2_000 }), requirements)).toBe(true);
+    expect(modelSupportsRequest(model({ provider: "text", id: "text", contextWindow: 10_000, maxTokens: 2_000 }), requirements)).toBe(false);
+    expect(modelSupportsRequest(model({ provider: "small", id: "small", input: ["text", "image"], contextWindow: 1_000, maxTokens: 2_000 }), requirements)).toBe(false);
+  });
+});
 
-    const { api, providers, tools, handlers } = createHarness();
-    cheapskate(api);
-
-    await tools.get("cheapskate").execute("call-3", { action: "rotate" });
-    expect(currentBackendId).toBe("groq");
-
-    const afterProviderResponse = handlers.get("after_provider_response");
-    expect(typeof afterProviderResponse).toBe("function");
-
-    await afterProviderResponse?.({
-      model: { provider: "cheapskate", id: "auto" },
-      status: 400,
-      error: "Context window exceeded for this model.",
+describe("configuration and status", () => {
+  test("migrates provider enablement but not stale models or safety caps", () => {
+    expect(normalizeCheapskateConfig({ backends: { groq: { enabled: false, safetyCap: false } }, models: { "old/model": { enabled: true } } })).toEqual({
+      version: 2,
+      enabled: true,
+      providers: { groq: { enabled: false } },
+      models: { "old/model": { enabled: true } },
+      priority: [],
     });
+  });
 
-    const model = getActiveModel(providers);
-    const google = BACKENDS.find((backend) => backend.id === "google")!;
-    expect(model.id).toBe("auto");
-    expect(model.contextWindow).toBe(google.contextWindow);
-    expect(currentBackendId).toBe("google");
+  test("rejects unknown or positive-cost model references", () => {
+    const current = defaultCheapskateConfig();
+    expect(() => applyCheapskateConfigPatch(current, { models: { "paid/model": { enabled: true } } }, new Set(["free"]), new Set(["free/model"]))).toThrow("Unknown zero-cost model");
+    expect(() => applyCheapskateConfigPatch(current, { priority: ["free/model", "free/model"] }, new Set(["free"]), new Set(["free/model"]))).toThrow("unique canonical");
+  });
+
+  test("settings status exposes only zero-cost models and derives metadata from the catalogue", () => {
+    const free = model({ provider: "free", id: "vision", name: "Free Vision", input: ["text", "image"], contextWindow: 262_144, maxTokens: 32_768, reasoning: true });
+    const paid = model({ provider: "paid", id: "paid", cost: { input: 0, output: 1, cacheRead: 0, cacheWrite: 0 } });
+    const config = enabledConfig(["free/vision"]);
+    const status = buildCheapskateStatus(createRegistry([free, paid]), config, [], null, () => true);
+    expect(status.candidates).toHaveLength(1);
+    expect(status.candidates[0]).toMatchObject({ ref: "free/vision", context_window: 262_144, max_tokens: 32_768, reasoning: true, inputs: ["text", "image"], state: "eligible" });
+    expect(status.excluded_costs.positive).toBe(1);
+    expect(status.virtual_model_registered).toBe(true);
+  });
+
+  test("fails closed when a normalised zero cost has no declared provenance", () => {
+    const unknown = model({ provider: "custom", id: "omitted-cost" });
+    const config = enabledConfig(["custom/omitted-cost"]);
+    const status = buildCheapskateStatus(createRegistry([unknown]), config, [], null, () => false);
+    expect(status.candidates).toEqual([]);
+    expect(status.excluded_costs.unknown_or_malformed).toBe(1);
+    expect(status.virtual_model_registered).toBe(false);
+  });
+});
+
+describe("request-local routing", () => {
+  test("retries a 429 before output, preserves virtual identity and records physical responseModel", async () => {
+    const first = model({ provider: "first", id: "zero" });
+    const second = model({ provider: "second", id: "zero" });
+    let firstCalls = 0;
+    let secondCalls = 0;
+    const registry = createRegistry([first, second], {
+      "first/zero": (requestModel, options) => {
+        firstCalls++;
+        void options?.onResponse?.({ status: 429, headers: { "retry-after": "2" } }, requestModel);
+        return [{ type: "error", reason: "error", error: messageFor(requestModel, { content: [], stopReason: "error", errorMessage: "rate limited" }) }];
+      },
+      "second/zero": (requestModel) => {
+        secondCalls++;
+        return [{ type: "start", partial: messageFor(requestModel, { content: [], stopReason: "pending" }) }, { type: "done", reason: "stop", message: messageFor(requestModel) }];
+      },
+    });
+    const config = enabledConfig(["first/zero", "second/zero"]);
+    saveCheapskateConfig(config);
+    (globalThis as any).__piclawRuntimeInterop = { getModelRegistry: () => registry };
+    const virtual = model({ provider: "cheapskate", id: "auto" });
+    let dispatchedOptions: SimpleStreamOptions | undefined;
+    const events = await collect(createCheapskateStream(virtual, { messages: [] }, { sessionId: "s1", apiKey: "virtual-key", headers: { "x-virtual": "remove" }, env: { VIRTUAL: "remove" } }, {
+      registry,
+      hasKnownCost: () => true,
+      scopedModels: () => [],
+      streamSimple: (requestModel, context, options) => {
+        dispatchedOptions = options;
+        return registry.getProvider(requestModel.provider)!.streamSimple(requestModel, context, options);
+      },
+    }));
+    const done = events.findLast((event) => event.type === "done");
+    expect(firstCalls).toBe(1);
+    expect(secondCalls).toBe(1);
+    expect(dispatchedOptions?.apiKey).toBeUndefined();
+    expect(dispatchedOptions?.headers).toBeUndefined();
+    expect(dispatchedOptions?.env).toBeUndefined();
+    expect(dispatchedOptions?.sessionId).toBe("s1");
+    expect(typeof dispatchedOptions?.fetch).toBe("function");
+    expect(events.filter((event) => event.type === "start")).toHaveLength(1);
+    expect(done?.type).toBe("done");
+    if (done?.type === "done") expect(done.message).toMatchObject({ provider: "cheapskate", model: "auto", responseModel: "second/zero" });
+    expect(getCandidateHealth("first/zero").state).toBe("cooldown");
+  });
+
+  test("never replays after text output has started", async () => {
+    const first = model({ provider: "first", id: "zero" });
+    const second = model({ provider: "second", id: "zero" });
+    let secondCalls = 0;
+    const registry = createRegistry([first, second], {
+      "first/zero": (requestModel) => {
+        const partial = messageFor(requestModel, { content: [{ type: "text", text: "partial" }], stopReason: "pending" });
+        return [
+          { type: "start", partial: { ...partial, content: [] } },
+          { type: "text_start", contentIndex: 0, partial },
+          { type: "text_delta", contentIndex: 0, delta: "partial", partial },
+          { type: "error", reason: "error", error: messageFor(requestModel, { content: [{ type: "text", text: "partial" }], stopReason: "error", errorMessage: "temporary network failure" }) },
+        ];
+      },
+      "second/zero": (requestModel) => { secondCalls++; return [{ type: "done", reason: "stop", message: messageFor(requestModel) }]; },
+    });
+    const config = enabledConfig(["first/zero", "second/zero"]);
+    saveCheapskateConfig(config);
+    (globalThis as any).__piclawRuntimeInterop = { getModelRegistry: () => registry };
+    const events = await collect(createCheapskateStream(model({ provider: "cheapskate", id: "auto" }), { messages: [] }, undefined, { registry, hasKnownCost: () => true, scopedModels: () => [], streamSimple: (requestModel, context, options) => registry.getProvider(requestModel.provider)!.streamSimple(requestModel, context, options) }));
+    expect(events.some((event) => event.type === "text_delta")).toBe(true);
+    expect(events.at(-1)?.type).toBe("error");
+    expect(secondCalls).toBe(0);
+  });
+
+  test("uses request-local scope without cross-session candidate leakage", async () => {
+    const alpha = model({ provider: "alpha", id: "zero" });
+    const beta = model({ provider: "beta", id: "zero" });
+    const registry = createRegistry([alpha, beta]);
+    const config = enabledConfig(["alpha/zero", "beta/zero"]);
+    saveCheapskateConfig(config);
+    (globalThis as any).__piclawRuntimeInterop = { getModelRegistry: () => registry };
+    const virtual = model({ provider: "cheapskate", id: "auto" });
+    const run = async (sessionId: string, scopedModels: ScopedModelLike[]) => {
+      const events = await collect(createCheapskateStream(virtual, { messages: [] }, { sessionId }, { registry, hasKnownCost: () => true, scopedModels: () => scopedModels, streamSimple: (requestModel, context, options) => registry.getProvider(requestModel.provider)!.streamSimple(requestModel, context, options) }));
+      const done = events.findLast((event) => event.type === "done");
+      return done?.type === "done" ? done.message.responseModel : null;
+    };
+    expect(await Promise.all([run("alpha-session", [{ model: alpha }]), run("beta-session", [{ model: beta }])])).toEqual(["alpha/zero", "beta/zero"]);
+  });
+
+  test("parses provider reset headers with bounded cooldowns", () => {
+    expect(parseRetryAfterMs({ status: 429, headers: { "retry-after": "12" } }, 1_000)).toBe(12_000);
+    expect(parseRetryAfterMs({ status: 429, headers: { "retry-after": "9999" } }, 1_000)).toBe(300_000);
+  });
+
+  test("captures non-2xx response headers through the physical fetch path", async () => {
+    const limited = model({ provider: "limited", id: "zero" });
+    const fallback = model({ provider: "fallback", id: "zero" });
+    let capturedFetch: typeof fetch | undefined;
+    const registry = createRegistry([limited, fallback], {
+      "limited/zero": async (requestModel, options) => {
+        capturedFetch = options?.fetch;
+        await capturedFetch?.(new Request("https://limited.test"));
+        return [{ type: "error", reason: "error", error: messageFor(requestModel, { content: [], stopReason: "error", errorMessage: "429 rate limited" }) }];
+      },
+      "fallback/zero": (requestModel) => [{ type: "done", reason: "stop", message: messageFor(requestModel) }],
+    });
+    saveCheapskateConfig(enabledConfig(["limited/zero", "fallback/zero"]));
+    const limitedFetch = async () => new Response("limited", { status: 429, headers: { "retry-after": "9" } });
+    await collect(createCheapskateStream(model({ provider: "cheapskate", id: "auto" }), { messages: [] }, {
+      fetch: limitedFetch as unknown as typeof fetch,
+    }, {
+      registry,
+      hasKnownCost: () => true,
+      scopedModels: () => [],
+      streamSimple: (requestModel, context, options) => registry.getProvider(requestModel.provider)!.streamSimple(requestModel, context, options),
+    }));
+    expect(typeof capturedFetch).toBe("function");
+    const health = getCandidateHealth("limited/zero");
+    expect(health.state).toBe("cooldown");
+    expect(health.cooldownUntil - Date.now()).toBeGreaterThan(8_000);
+  });
+
+  test("does not quarantine a model globally for request-specific context overflow", () => {
+    recordCandidateFailure("free/large-prompt", "context", "context window exceeded", { status: 413, headers: {} }, 1_000);
+    expect(getCandidateHealth("free/large-prompt", 1_000)).toMatchObject({ state: "healthy", cooldownUntil: 0, lastError: "context window exceeded" });
+  });
+
+  test("keeps permanent faults quarantined until an explicit model setting change", () => {
+    recordCandidateFailure("free/recovered", "credential", "invalid key", { status: 401, headers: {} });
+    expect(getCandidateHealth("free/recovered").state).toBe("credential_fault");
+    recordCandidateFailure("free/missing", "missing_model", "not found", { status: 404, headers: {} });
+    expect(getCandidateHealth("free/missing").state).toBe("missing_model");
+  });
+
+  test("extracts HTTP status from mapped provider errors when onResponse did not fire", () => {
+    expect(responseFromErrorMessage(messageFor(model({ provider: "free", id: "zero" }), { stopReason: "error", errorMessage: '429: {"message":"limited"}' }))).toEqual({ status: 429, headers: {} });
+  });
+
+  test("allows an explicit model setting change to reset a permanent health quarantine", () => {
+    recordCandidateFailure("free/reset", "credential", "invalid key", { status: 401, headers: {} });
+    expect(getCandidateHealth("free/reset").state).toBe("credential_fault");
+    resetCandidateHealth("free/reset");
+    expect(getCandidateHealth("free/reset").state).toBe("healthy");
+  });
+});
+
+describe("settings filtering", () => {
+  test("filters the already zero-cost candidate DTOs by text and provider", () => {
+    const candidate = buildCheapskateStatus(createRegistry([model({ provider: "free", id: "vision", name: "Zero Vision", input: ["text", "image"] })]), enabledConfig(["free/vision"]), [], null, () => true).candidates[0]!;
+    expect(includesQuery(candidate, "vision", "free")).toBe(true);
+    expect(includesQuery(candidate, "missing", "free")).toBe(false);
+    expect(includesQuery(candidate, "vision", "other")).toBe(false);
+    expect(stateLabel(candidate)).toBe("Eligible now");
+  });
+});
+
+describe("extension integration contract", () => {
+  test("uses real current lifecycle fields and no hardcoded backend catalogue", () => {
+    const source = readFileSync(resolve(import.meta.dir, "index.ts"), "utf8");
+    const web = readFileSync(resolve(import.meta.dir, "web", "index.ts"), "utf8");
+    const readme = readFileSync(resolve(import.meta.dir, "README.md"), "utf8");
+    const skill = readFileSync(resolve(import.meta.dir, "skills", "cheapskate", "SKILL.md"), "utf8");
+    expect(source).not.toContain("event as any");
+    expect(source).not.toContain("after_provider_response");
+    expect(source).not.toContain("qwen-qwq-32b");
+    expect(web).not.toContain("const BACKENDS");
+    expect(web).not.toContain("@ts-nocheck");
+    expect(readme).toContain("exact-zero catalogue price");
+    expect(readme).toContain("normalised zero defaults do not qualify as free");
+    expect(readme).toContain("responseModel");
+    expect(readme).not.toContain("QwQ 32B");
+    expect(skill).toContain("finite zero rates");
+    expect(skill).not.toContain("TPD");
+  });
+
+  test("registers the virtual provider only when an explicitly enabled zero-cost model is available", () => {
+    const free = model({ provider: "free", id: "zero" });
+    const registry = createRegistry([free]);
+    const registrations: string[] = [];
+    const api = {
+      registerProvider(name: string) { registrations.push(name); },
+      unregisterProvider() {},
+      on() {},
+      registerTool() {},
+    } as any;
+    (globalThis as any).__piclawRuntimeInterop = { getModelRegistry: () => registry, getScopedModels: () => [] };
+    cheapskate(api);
+    expect(registrations).toEqual([]);
   });
 });
