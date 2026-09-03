@@ -1,12 +1,12 @@
 {
   "name": "@rcarmo/piclaw-addon-codex-conversion",
-  "version": "0.1.5",
-  "description": "Codex-style prompt and tool adapter for OpenAI/Codex-like models in Piclaw",
+  "version": "0.2.0",
+  "description": "Provider-aware Codex and Copilot prompt and tool profiles for Piclaw",
   "type": "module",
   "main": "src/index.ts",
   "piclaw": {
     "type": "extension",
-    "compatibleVersions": ">=1.8.0",
+    "compatibleVersions": ">=2.15.0",
     "tags": [
       "codex",
       "tools",
@@ -35,7 +35,6 @@
     "@sinclair/typebox": "*"
   },
   "dependencies": {
-    "partial-json": "^0.1.7",
     "tree-sitter-bash": "^0.25.1",
     "web-tree-sitter": "^0.26.7"
   },
