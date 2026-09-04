@@ -25,6 +25,12 @@ import { createExtensionStorage, type ExtensionStorage } from "./compat/extensio
 import { createLogger } from "./compat/logger.js";
 import { exportUsage } from "./usage-telemetry.js";
 import { exportCompactionTelemetry } from "./compaction-telemetry.js";
+import {
+  buildModelSpeedGraphiteMetrics,
+  buildModelSpeedSpanAttributes,
+  deriveModelSpeedTelemetry,
+  type ModelSpeedTelemetry,
+} from "./model-speed-telemetry.js";
 
 const EXTENSION_ID = "observability";
 const baseDir = dirname(fileURLToPath(import.meta.url));
@@ -639,8 +645,8 @@ function modelResponseKey(record: LogRecord, chatJid: string): string {
   return sequence == null ? getTurnKey(record, chatJid) : `${getTurnKey(record, chatJid)}:${sequence}`;
 }
 
-function startModelCallSpan(turnEntry: InflightTurnEntry, sharedAttrs: Record<string, string | number | boolean>, model: string | null, reason?: string | null): void {
-  const sequence = turnEntry.nextModelSequence;
+function startModelCallSpan(turnEntry: InflightTurnEntry, sharedAttrs: Record<string, string | number | boolean>, model: string | null, reason?: string | null, explicitSequence?: number | null): void {
+  const sequence = explicitSequence ?? turnEntry.nextModelSequence;
   const span = getTracer().startSpan("model.call", {
     kind: SpanKind.CLIENT,
     attributes: buildSyntheticDependencyAttributes({
@@ -653,10 +659,18 @@ function startModelCallSpan(turnEntry: InflightTurnEntry, sharedAttrs: Record<st
   const key = `${turnEntry.turnKey}:${sequence}`;
   inflightModelResponses.set(key, { span, turnKey: turnEntry.turnKey });
   turnEntry.activeModelKey = key;
-  turnEntry.nextModelSequence += 1;
+  turnEntry.nextModelSequence = Math.max(turnEntry.nextModelSequence, sequence + 1);
 }
 
-function endModelCallSpan(turnEntry: InflightTurnEntry | null, opts: { stopReason?: string | null; errorMessage?: string | null; durationMs?: number | null; usage?: unknown; level?: string | null } = {}): void {
+function setModelSpeedAttributes(span: Span, telemetry: ModelSpeedTelemetry): void {
+  for (const [name, value] of Object.entries(buildModelSpeedSpanAttributes(telemetry))) span.setAttribute(name, value);
+}
+
+function recordModelSpeedMetrics(model: string | null, telemetry: ModelSpeedTelemetry): void {
+  for (const metric of buildModelSpeedGraphiteMetrics(model, telemetry)) recordMetric(metric.name, metric.value);
+}
+
+function endModelCallSpan(turnEntry: InflightTurnEntry | null, opts: { stopReason?: string | null; errorMessage?: string | null; durationMs?: number | null; usage?: unknown; level?: string | null; speed?: ModelSpeedTelemetry | null } = {}): void {
   if (!turnEntry?.activeModelKey) return;
   const activeKey = turnEntry.activeModelKey;
   const entry = inflightModelResponses.get(activeKey);
@@ -667,6 +681,7 @@ function endModelCallSpan(turnEntry: InflightTurnEntry | null, opts: { stopReaso
   if (opts.durationMs != null) entry.span.setAttribute("piclaw.model.duration_ms", opts.durationMs);
   if (opts.stopReason) entry.span.setAttribute("piclaw.model.stop_reason", opts.stopReason);
   stampUsageAttributes(entry.span, opts.usage);
+  if (opts.speed) setModelSpeedAttributes(entry.span, opts.speed);
   if (opts.errorMessage) {
     entry.span.setStatus({ code: SpanStatusCode.ERROR, message: opts.errorMessage });
     setSyntheticResultCode(entry.span, 400);
@@ -684,10 +699,11 @@ function stampUsageAttributes(span: Span, usage: unknown): void {
   if (!usage || typeof usage !== "object" || Array.isArray(usage)) return;
   const record = usage as Record<string, unknown>;
   const pairs: Array<[string, string[]]> = [
-    ["piclaw.model.input_tokens", ["inputTokens", "input_tokens", "promptTokens", "prompt_tokens"]],
-    ["piclaw.model.output_tokens", ["outputTokens", "output_tokens", "completionTokens", "completion_tokens"]],
-    ["piclaw.model.cache_read_tokens", ["cacheReadTokens", "cache_read_tokens"]],
-    ["piclaw.model.cache_write_tokens", ["cacheWriteTokens", "cache_write_tokens"]],
+    ["piclaw.model.input_tokens", ["input", "inputTokens", "input_tokens", "promptTokens", "prompt_tokens"]],
+    ["piclaw.model.output_tokens", ["output", "outputTokens", "output_tokens", "completionTokens", "completion_tokens"]],
+    ["piclaw.model.reasoning_tokens", ["reasoning", "reasoningTokens", "reasoning_tokens"]],
+    ["piclaw.model.cache_read_tokens", ["cacheRead", "cacheReadTokens", "cache_read_tokens"]],
+    ["piclaw.model.cache_write_tokens", ["cacheWrite", "cacheWriteTokens", "cache_write_tokens"]],
     ["piclaw.model.total_tokens", ["totalTokens", "total_tokens"]],
   ];
   for (const [attr, keys] of pairs) {
@@ -757,15 +773,34 @@ function bridgeSink(record: LogRecord): void {
       activeModelKey: null,
     };
     inflightTurns.set(turnKey, turnEntry);
-    startModelCallSpan(turnEntry, sharedAttrs, record.model ? String(record.model) : null, "initial_prompt");
+    return;
+  }
+
+  if (op === "model.call.start" && chatJid) {
+    const parentEntry = getInflightTurn(record, chatJid);
+    if (parentEntry) {
+      endModelCallSpan(parentEntry, { stopReason: "superseded", level: record.level });
+      startModelCallSpan(
+        parentEntry,
+        sharedAttrs,
+        record.model ? String(record.model) : null,
+        readRecordString(record, "phase") || (parentEntry.nextModelSequence === 1 ? "initial_prompt" : "tool_result"),
+        readRecordNumber(record, "sequence"),
+      );
+    }
     return;
   }
 
   if (op === "model.response.start" && chatJid) {
     const parentEntry = getInflightTurn(record, chatJid);
     if (parentEntry && !parentEntry.activeModelKey) {
-      if (readRecordNumber(record, "sequence") != null) parentEntry.nextModelSequence = readRecordNumber(record, "sequence")!;
-      startModelCallSpan(parentEntry, sharedAttrs, record.model ? String(record.model) : null, readRecordString(record, "phase"));
+      startModelCallSpan(
+        parentEntry,
+        sharedAttrs,
+        record.model ? String(record.model) : null,
+        readRecordString(record, "phase"),
+        readRecordNumber(record, "sequence"),
+      );
     }
     return;
   }
@@ -773,15 +808,18 @@ function bridgeSink(record: LogRecord): void {
   if (op === "model.response.end" && chatJid) {
     const parentEntry = getInflightTurn(record, chatJid);
     const durationMs = readRecordNumber(record, "durationMs", "duration_ms");
+    const speed = deriveModelSpeedTelemetry(record as Record<string, unknown>);
     endModelCallSpan(parentEntry, {
       durationMs,
       stopReason: readRecordString(record, "stopReason", "stop_reason"),
       errorMessage: readRecordString(record, "errorMessage", "error_message"),
       usage: (record as Record<string, unknown>).usage,
       level: record.level,
+      speed,
     });
     recordMetric("model.call.count", 1);
     if (durationMs != null) recordMetric("model.call.duration_ms", durationMs);
+    recordModelSpeedMetrics(readRecordString(record, "model"), speed);
     return;
   }
 
@@ -885,10 +923,6 @@ function bridgeSink(record: LogRecord): void {
     }
     span.end();
     inflightToolCalls.delete(key);
-    const parent = existing?.turnKey ? inflightTurns.get(existing.turnKey) : parentEntry;
-    if (parent && !parent.activeModelKey) {
-      startModelCallSpan(parent, getSharedSpanAttributes(record, chatJid, i), record.model ? String(record.model) : null, "tool_result");
-    }
     const safeName = toolName.replace(/[.\s]/g, "_");
     recordMetric(`tool.${safeName}.count`, 1);
     if (durationMs) recordMetric(`tool.${safeName}.duration_ms`, durationMs);
