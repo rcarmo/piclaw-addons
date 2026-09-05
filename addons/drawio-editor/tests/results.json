@@ -1,0 +1,59 @@
+{
+  "addon": "drawio-editor",
+  "tests": [
+    {
+      "addon": "drawio-editor",
+      "suite": "drawio-editor/editor.spec.ts › drawio-editor: Draw.io 31.4.2 workspace editor",
+      "title": "Real editor exposes only the supported file and export menus",
+      "status": "passed",
+      "duration": 5700,
+      "error": "",
+      "attachments": []
+    },
+    {
+      "addon": "drawio-editor",
+      "suite": "drawio-editor/editor.spec.ts › drawio-editor: Draw.io 31.4.2 workspace editor",
+      "title": "XML edits autosave and survive editor reload",
+      "status": "passed",
+      "duration": 8350,
+      "error": "",
+      "attachments": []
+    },
+    {
+      "addon": "drawio-editor",
+      "suite": "drawio-editor/editor.spec.ts › drawio-editor: Draw.io 31.4.2 workspace editor",
+      "title": "Manual save acknowledges and persists XML",
+      "status": "passed",
+      "duration": 6252,
+      "error": "",
+      "attachments": []
+    },
+    {
+      "addon": "drawio-editor",
+      "suite": "drawio-editor/editor.spec.ts › drawio-editor: Draw.io 31.4.2 workspace editor",
+      "title": "Reduced export menu writes PNG JPEG and SVG siblings",
+      "status": "passed",
+      "duration": 8371,
+      "error": "",
+      "attachments": []
+    },
+    {
+      "addon": "drawio-editor",
+      "suite": "drawio-editor/editor.spec.ts › drawio-editor: Draw.io 31.4.2 workspace editor",
+      "title": "Embedded PNG and SVG diagrams round-trip after reload",
+      "status": "passed",
+      "duration": 12503,
+      "error": "",
+      "attachments": []
+    },
+    {
+      "addon": "drawio-editor",
+      "suite": "drawio-editor/editor.spec.ts › drawio-editor: Draw.io 31.4.2 workspace editor",
+      "title": "Attachment preview remains read-only",
+      "status": "passed",
+      "duration": 4076,
+      "error": "",
+      "attachments": []
+    }
+  ]
+}

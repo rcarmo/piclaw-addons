@@ -1,0 +1,32 @@
+{
+  "addon": "cheapskate",
+  "tests": [
+    {
+      "addon": "cheapskate",
+      "suite": "cheapskate/settings.spec.ts › cheapskate: Cheapskate zero-cost catalogue settings",
+      "title": "Settings pane shows only zero-cost candidates",
+      "status": "passed",
+      "duration": 4067,
+      "error": "",
+      "attachments": []
+    },
+    {
+      "addon": "cheapskate",
+      "suite": "cheapskate/settings.spec.ts › cheapskate: Cheapskate zero-cost catalogue settings",
+      "title": "Free-model text and provider filters work",
+      "status": "passed",
+      "duration": 3465,
+      "error": "",
+      "attachments": []
+    },
+    {
+      "addon": "cheapskate",
+      "suite": "cheapskate/settings.spec.ts › cheapskate: Cheapskate zero-cost catalogue settings",
+      "title": "Model enablement and priority persist",
+      "status": "passed",
+      "duration": 6876,
+      "error": "",
+      "attachments": []
+    }
+  ]
+}
