@@ -52,6 +52,16 @@ test("process runtime is not torn down by individual session shutdown hooks", ()
   expect(source).not.toContain('pi.on("session_shutdown"');
 });
 
+test("model spans start from authoritative model.call.start records and export speed telemetry", () => {
+  const source = readFileSync(join(import.meta.dir, "index.ts"), "utf8");
+  expect(source).toContain('op === "model.call.start"');
+  expect(source).toContain("deriveModelSpeedTelemetry");
+  expect(source).toContain("buildModelSpeedSpanAttributes");
+  expect(source).toContain("buildModelSpeedGraphiteMetrics");
+  const toolEndBlock = source.slice(source.indexOf('if (op === "tool.call.end"'), source.indexOf('if (op === "run_agent.attempt_failed"'));
+  expect(toolEndBlock).not.toContain("startModelCallSpan");
+});
+
 test("buildSyntheticRequestAttributes adds request-style semantics for agent turns", () => {
   const attrs = buildSyntheticRequestAttributes({ "piclaw.chat_jid": "web:default" }, "/agent/turn", "smith");
   expect(attrs).toMatchObject({

@@ -182,7 +182,7 @@ Browser telemetry is intentionally absent. The web entry only registers the Sett
 | `run_agent.prompt` → `run_agent.complete` | `agent.turn` (**request-style** span; paired by `turnId`, fallback `chatJid`) | `agent.turn.count`, `agent.turn.duration_ms`, `agent.turn.success` |
 | `run_agent.prompt` → `run_agent` (error) | `agent.turn` (**request-style** span; ERROR + exception) | `agent.turn.count`, `agent.turn.error` |
 | `run_agent.no_terminal_reply` | `agent.turn` (**request-style** span; ERROR) | `agent.turn.error` |
-| `model.response.start/end` | `model.call` (**dependency-style** child span of `agent.turn`) | `model.call.count`, `model.call.duration_ms` |
+| `model.call.start` → `model.response.end` | `model.call` (**dependency-style** child span of `agent.turn`) with latency, generation, usage and throughput dimensions | legacy `model.call.*` plus provider/model-dimensional `model.<provider>.<model>.*` |
 | `run_agent.attempt_failed` | `provider.error` (exception) | `recovery.attempts`, `provider.error.<classifier>` |
 | `tool.call.start/end` | `tool.call` (**dependency-style** child span of `agent.turn`) | `tool.<name>.count`, `tool.<name>.duration_ms` |
 | `dream.complete` | `dream` | `dream.duration_ms` |
@@ -273,6 +273,15 @@ These interactions should be emitted by the backend as structured log records an
     "piclaw.turn_id": "turn_abcd1234",
     "piclaw.model": "azure-openai/gpt-5-4",
     "piclaw.model.sequence": 2,
+    "piclaw.model.call_duration_ms": 1680,
+    "piclaw.model.response_duration_ms": 1280,
+    "piclaw.model.response_start_latency_ms": 400,
+    "piclaw.model.time_to_first_output_ms": 520,
+    "piclaw.model.time_to_first_text_ms": 840,
+    "piclaw.model.generation_duration_ms": 720,
+    "piclaw.model.text_generation_duration_ms": 400,
+    "piclaw.model.output_tokens_per_second": 50,
+    "piclaw.model.non_reasoning_output_tokens_per_second": 45,
     "piclaw.model.stop_reason": "toolUse",
     "piclaw.model.duration_ms": 1280
   }
@@ -312,6 +321,26 @@ These interactions should be emitted by the backend as structured log records an
 }
 ```
 
+### Model speed telemetry
+
+Piclaw emits one `model.call.start` and one `model.response.end` record for each provider call, including calls resumed after tool results. The add-on uses those records for the `model.call` span and exports provider/model-dimensional Graphite metrics.
+
+| Measurement | Definition |
+|---|---|
+| Call duration | Model-call start through assistant completion; includes context conversion, auth, request dispatch and provider work |
+| Response duration | Provider stream start through assistant completion |
+| Response-start latency | Model-call start through provider stream start |
+| First observed output | Model-call start through the first non-empty thinking/text/tool-call delta, or a tool-call start when no argument delta has arrived |
+| First visible text | Model-call start through the first non-empty text delta |
+| Generation duration | First-to-last observed output interval |
+| Text generation duration | First-to-last non-empty text interval |
+| Reported output tokens/s | Provider-reported output tokens divided by response duration; output may include reasoning tokens |
+| Non-reasoning output tokens/s | `(output - reasoning)` divided by response duration; emitted only when the provider reports a reasoning-token subset |
+
+These are client-observed measurements. A provider that keeps reasoning encrypted or hidden cannot expose its true first internally generated token, so `first_output_ms` is not a universal server-side TTFT measurement. Zero-duration and missing-usage samples omit rates instead of emitting infinity or fabricated values.
+
+Piclaw versions without `model.call.start` and the detailed `model.response.end` timing fields retain legacy `model.call.duration_ms` telemetry. Detailed latency, generation and provider/model speed metrics appear after the core timing contract is available.
+
 ### Compaction telemetry
 
 Piclaw persists one bounded `compaction_telemetry` row per physical compaction generation. Joined callers do not create duplicate rows. The add-on converts live `compaction.telemetry` records to OTel spans and polls the durable table for restart-safe Graphite delivery.
@@ -326,6 +355,15 @@ Duration metrics use milliseconds. For one provider request, deterministic and p
 # Agent turns
 piclaw.smith.agent.turn.count 1 1745828400
 piclaw.smith.agent.turn.duration_ms 4523 1745828400
+
+# Model speed (provider/model dimensional)
+piclaw.smith.model.github-copilot.gpt-5_6-sol.call.count 1 1745828400
+piclaw.smith.model.github-copilot.gpt-5_6-sol.duration.call_ms 1680 1745828400
+piclaw.smith.model.github-copilot.gpt-5_6-sol.duration.response_ms 1280 1745828400
+piclaw.smith.model.github-copilot.gpt-5_6-sol.latency.first_output_ms 520 1745828400
+piclaw.smith.model.github-copilot.gpt-5_6-sol.latency.first_text_ms 840 1745828400
+piclaw.smith.model.github-copilot.gpt-5_6-sol.throughput.output_tokens_per_second 50 1745828400
+piclaw.smith.model.github-copilot.gpt-5_6-sol.throughput.non_reasoning_output_tokens_per_second 45 1745828400
 piclaw.smith.agent.turn.success 1 1745828400
 
 # Tool calls
@@ -360,6 +398,8 @@ Queryable as:
 piclaw.*.agent.turn.error          # errors across all instances
 piclaw.smith.tool.*.duration_ms    # all tool durations on smith
 piclaw.relay.provider.error.*      # all provider errors on relay
+piclaw.*.model.*.*.throughput.output_tokens_per_second  # reported output throughput by provider/model
+piclaw.*.model.*.*.latency.first_text_ms                # visible-text latency by provider/model
 piclaw.*.usage.*.*.tokens.total    # usage across all instances
 piclaw.*.compaction.*.*.*.*.*.*.*.duration.ttft_ms  # TTFT across bounded compaction dimensions
 ```
@@ -561,7 +601,29 @@ dependencies
 | order by total_tokens desc
 ```
 
-#### 10) One-instance drill-down (`smith`)
+#### 10) Model latency and throughput
+
+```kusto
+dependencies
+| extend piclaw_instance = coalesce(tostring(customDimensions["piclaw.instance"]), cloud_RoleInstance)
+| where timestamp > ago(24h)
+| where name == "model.call"
+| extend model = tostring(customDimensions["piclaw.model"]),
+         first_output_ms = todouble(customDimensions["piclaw.model.time_to_first_output_ms"]),
+         first_text_ms = todouble(customDimensions["piclaw.model.time_to_first_text_ms"]),
+         output_tps = todouble(customDimensions["piclaw.model.output_tokens_per_second"]),
+         non_reasoning_tps = todouble(customDimensions["piclaw.model.non_reasoning_output_tokens_per_second"])
+| summarize calls = count(),
+            p50_first_output_ms = percentile(first_output_ms, 50),
+            p95_first_output_ms = percentile(first_output_ms, 95),
+            p50_first_text_ms = percentile(first_text_ms, 50),
+            p50_output_tps = percentile(output_tps, 50),
+            p50_non_reasoning_tps = percentile(non_reasoning_tps, 50)
+  by piclaw_instance, model
+| order by calls desc
+```
+
+#### 11) One-instance drill-down (`smith`)
 
 ```kusto
 union withsource=table requests, dependencies, traces, exceptions
@@ -573,7 +635,7 @@ union withsource=table requests, dependencies, traces, exceptions
 | order by timestamp desc
 ```
 
-#### 11) If Live Metrics only shows requests, confirm the exporter is still sending custom telemetry
+#### 12) If Live Metrics only shows requests, confirm the exporter is still sending custom telemetry
 
 ```kusto
 union withsource=table requests, dependencies, traces
