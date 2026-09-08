@@ -13,10 +13,13 @@ on:
       - 'assets/**'
       - 'addons/**'
       - 'addons/**/package.json'
+  pull_request:
+    paths:
+      - '.github/workflows/build.yml'
   workflow_dispatch:
 
 concurrency:
-  group: gh-pages-deploy
+  group: gh-pages-deploy-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -29,6 +32,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      - name: Pin browser cache before isolating HOME
+        # GITHUB_ENV keeps install and lookup aligned after HOME/XDG_CACHE_HOME change.
+        run: echo "PLAYWRIGHT_BROWSERS_PATH=$RUNNER_TEMP/piclaw-addon-playwright" >> "$GITHUB_ENV"
       - name: Resolve Bun version
         id: bun-version
         run: |
@@ -132,16 +138,16 @@ jobs:
         if: always() && steps.addon_tests.outputs.present == 'true'
         run: kill $SERVER_PID 2>/dev/null || true
       - name: Build site and package tarballs
-        if: always()
+        if: always() && github.event_name != 'pull_request'
         run: bun run build.ts
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
       - name: Copy assets into docs
-        if: always()
+        if: always() && github.event_name != 'pull_request'
         run: mkdir -p docs/assets && cp -r assets/* docs/assets/
       - name: Deploy to GitHub Pages
-        if: always()
+        if: always() && github.event_name != 'pull_request'
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
