@@ -1,4 +1,5 @@
 node_modules/
+.tmp/
 docs/
 tests/addon-e2e/.generated/
 tests/addon-e2e/reports/

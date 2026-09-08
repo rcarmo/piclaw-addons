@@ -2,6 +2,7 @@ import { mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 
 import { chromium } from "playwright";
+import { requireDisposableTestTarget } from "./lib/test-target.js";
 
 type Args = {
   url: string;
@@ -22,7 +23,7 @@ function parseArgs(argv: string[]): Args {
     i += 1;
   }
 
-  const url = values.get("url")?.trim() || "http://192.168.1.78:8080";
+  const url = requireDisposableTestTarget(values.get("url")?.trim() || process.env.PICLAW_E2E_URL);
   const pane = values.get("pane")?.trim();
   const out = values.get("out")?.trim();
   const timeoutMs = Number(values.get("timeout") || 30000);

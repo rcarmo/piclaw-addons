@@ -77,16 +77,22 @@ jobs:
           export PICLAW_KEYCHAIN_KEY=$(openssl rand -hex 32)
           echo "PICLAW_KEYCHAIN_KEY=$PICLAW_KEYCHAIN_KEY" >> "$GITHUB_ENV"
           export PICLAW_WEB_PORT=3000
-          export PICLAW_WEB_HOST=0.0.0.0
+          export PICLAW_WEB_HOST=127.0.0.1
 
-          export PICLAW_WORKSPACE=$(mktemp -d)
-          echo "PICLAW_WORKSPACE=$PICLAW_WORKSPACE" >> "$GITHUB_ENV"
-          mkdir -p "$PICLAW_WORKSPACE/.piclaw"
-          echo '{"sessionAutoRotate":true}' > "$PICLAW_WORKSPACE/.piclaw/config.json"
+          # Preparation owns the root. Consume only its explicit path fields, never eval output.
+          prepared=$(PICLAW_ADDON=all PICLAW_RUNTIME_ROOT="$GITHUB_WORKSPACE/.piclaw-runtime/runtime" bun run tests/addon-e2e/scripts/prepare-addon-test-instance.ts)
+          while IFS='=' read -r name value; do
+            case "$name" in
+              PICLAW_PREP_ROOT|PICLAW_WORKSPACE|HOME|PICLAW_STORE|PICLAW_DATA|PICLAW_PI_AGENT_DIR|PI_CODING_AGENT_DIR|XDG_CONFIG_HOME|XDG_CACHE_HOME|XDG_DATA_HOME|TMPDIR|TMP|TEMP)
+                export "$name=$value"
+                printf '%s=%s\n' "$name" "$value" >> "$GITHUB_ENV"
+                ;;
+            esac
+          done <<< "$prepared"
+          test -n "$PICLAW_PREP_ROOT" && test -d "$PICLAW_WORKSPACE"
 
-          PICLAW_ADDON=all PICLAW_RUNTIME_ROOT="$GITHUB_WORKSPACE/.piclaw-runtime/runtime" bun run tests/addon-e2e/scripts/prepare-addon-test-instance.ts
-
-          bun run .piclaw-runtime/runtime/src/index.ts > /tmp/piclaw-addon-e2e.log 2>&1 &
+          PICLAW_E2E_INTERNAL_SECRET="$PICLAW_INTERNAL_SECRET" PICLAW_E2E_KEYCHAIN_KEY="$PICLAW_KEYCHAIN_KEY" \
+            bun run scripts/run-test-instance.ts -- bun run .piclaw-runtime/runtime/src/index.ts > /tmp/piclaw-addon-e2e.log 2>&1 &
           SERVER_PID=$!
           echo "SERVER_PID=$SERVER_PID" >> "$GITHUB_ENV"
 
@@ -106,7 +112,8 @@ jobs:
         working-directory: tests/addon-e2e
         env:
           PICLAW_E2E_URL: http://localhost:3000
-          PICLAW_INTERNAL_SECRET: ${{ env.PICLAW_INTERNAL_SECRET }}
+          PICLAW_E2E_DISPOSABLE: '1'
+          PICLAW_E2E_INTERNAL_SECRET: ${{ env.PICLAW_INTERNAL_SECRET }}
       - name: Generate add-on UX PDF reports
         if: always() && steps.addon_tests.outputs.present == 'true' && hashFiles('tests/addon-e2e/reports/results.json') != ''
         run: bun run report
