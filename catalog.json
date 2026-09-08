@@ -20,7 +20,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-ast-grep-0.1.6.tgz"
       },
-      "updatedAt": "2026-07-26"
+      "updatedAt": "2026-09-08"
     },
     {
       "slug": "autoresearch",
@@ -42,7 +42,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-autoresearch-0.1.3.tgz"
       },
-      "updatedAt": "2026-07-26"
+      "updatedAt": "2026-09-08"
     },
     {
       "slug": "cheapskate",
@@ -64,7 +64,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-cheapskate-0.5.0.tgz"
       },
-      "updatedAt": "2026-09-03"
+      "updatedAt": "2026-09-08"
     },
     {
       "slug": "code-validator",
@@ -84,7 +84,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-code-validator-0.1.2.tgz"
       },
-      "updatedAt": "2026-07-26"
+      "updatedAt": "2026-09-08"
     },
     {
       "slug": "codex-conversion",
@@ -106,7 +106,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-codex-conversion-0.2.0.tgz"
       },
-      "updatedAt": "2026-09-03"
+      "updatedAt": "2026-09-08"
     },
     {
       "slug": "delegate",
@@ -129,7 +129,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-delegate-0.2.8.tgz"
       },
-      "updatedAt": "2026-08-26"
+      "updatedAt": "2026-09-08"
     },
     {
       "slug": "dev-tools",
@@ -149,7 +149,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-dev-tools-0.1.3.tgz"
       },
-      "updatedAt": "2026-07-26"
+      "updatedAt": "2026-09-08"
     },
     {
       "slug": "diagram-tools",
@@ -190,7 +190,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-drawio-editor-31.4.2.tgz"
       },
-      "updatedAt": "2026-09-02"
+      "updatedAt": "2026-09-08"
     },
     {
       "slug": "editable-table",
@@ -214,7 +214,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-editable-table-0.1.3.tgz"
       },
-      "updatedAt": "2026-07-26"
+      "updatedAt": "2026-09-08"
     },
     {
       "slug": "eml-viewer",
@@ -254,7 +254,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-export-timeline-pdf-0.1.1.tgz"
       },
-      "updatedAt": "2026-07-26"
+      "updatedAt": "2026-09-08"
     },
     {
       "slug": "ghostty-terminal",
@@ -276,7 +276,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-ghostty-terminal-0.1.0.tgz"
       },
-      "updatedAt": "2026-07-26"
+      "updatedAt": "2026-09-08"
     },
     {
       "slug": "git-query-tools",
@@ -296,7 +296,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-git-query-tools-0.1.4.tgz"
       },
-      "updatedAt": "2026-07-26"
+      "updatedAt": "2026-09-08"
     },
     {
       "slug": "goal",
@@ -319,7 +319,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-goal-0.1.46.tgz"
       },
-      "updatedAt": "2026-08-24"
+      "updatedAt": "2026-09-08"
     },
     {
       "slug": "image-processing",
@@ -340,7 +340,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-image-processing-0.1.3.tgz"
       },
-      "updatedAt": "2026-07-26"
+      "updatedAt": "2026-09-08"
     },
     {
       "slug": "imap",
@@ -361,7 +361,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-imap-0.1.9.tgz"
       },
-      "updatedAt": "2026-07-26"
+      "updatedAt": "2026-09-08"
     },
     {
       "slug": "kanban-board-widget",
@@ -404,7 +404,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-kanban-editor-0.1.2.tgz"
       },
-      "updatedAt": "2026-07-26"
+      "updatedAt": "2026-09-08"
     },
     {
       "slug": "late-night-regrets",
@@ -427,7 +427,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-late-night-regrets-0.1.3.tgz"
       },
-      "updatedAt": "2026-08-31"
+      "updatedAt": "2026-09-08"
     },
     {
       "slug": "lite-term",
@@ -449,7 +449,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-lite-term-0.1.2.tgz"
       },
-      "updatedAt": "2026-07-26"
+      "updatedAt": "2026-09-08"
     },
     {
       "slug": "m365",
@@ -486,7 +486,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-m365-0.1.0.tgz"
       },
-      "updatedAt": "2026-08-19"
+      "updatedAt": "2026-09-08"
     },
     {
       "slug": "mindmap",
@@ -507,7 +507,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-mindmap-0.1.2.tgz"
       },
-      "updatedAt": "2026-07-26"
+      "updatedAt": "2026-09-08"
     },
     {
       "slug": "observability",
@@ -535,7 +535,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-observability-0.1.15.tgz"
       },
-      "updatedAt": "2026-09-04"
+      "updatedAt": "2026-09-08"
     },
     {
       "slug": "office-tools",
@@ -558,7 +558,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-office-tools-0.1.3.tgz"
       },
-      "updatedAt": "2026-07-26"
+      "updatedAt": "2026-09-08"
     },
     {
       "slug": "office-viewer",
@@ -603,7 +603,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-plan-sidebar-0.1.24.tgz"
       },
-      "updatedAt": "2026-08-24"
+      "updatedAt": "2026-09-08"
     },
     {
       "slug": "portainer",
@@ -624,7 +624,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-portainer-0.1.7.tgz"
       },
-      "updatedAt": "2026-07-26"
+      "updatedAt": "2026-09-08"
     },
     {
       "slug": "proxmox",
@@ -645,7 +645,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-proxmox-0.1.8.tgz"
       },
-      "updatedAt": "2026-07-26"
+      "updatedAt": "2026-09-08"
     },
     {
       "slug": "remote-peer",
@@ -668,7 +668,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-remote-peer-0.2.0.tgz"
       },
-      "updatedAt": "2026-08-29",
+      "updatedAt": "2026-09-08",
       "owner": {
         "login": "rcarmo",
         "url": "https://github.com/rcarmo"
@@ -693,7 +693,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-sample-addon-0.1.10.tgz"
       },
-      "updatedAt": "2026-07-26"
+      "updatedAt": "2026-09-08"
     },
     {
       "slug": "session-dashboard",
@@ -715,7 +715,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-session-dashboard-0.2.4.tgz"
       },
-      "updatedAt": "2026-08-24"
+      "updatedAt": "2026-09-08"
     },
     {
       "slug": "session-tree",
@@ -736,7 +736,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-session-tree-0.2.0.tgz"
       },
-      "updatedAt": "2026-08-25"
+      "updatedAt": "2026-09-08"
     },
     {
       "slug": "settings-dialog-screenshot",
@@ -780,7 +780,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-skill-model-effort-0.1.2.tgz"
       },
-      "updatedAt": "2026-07-26"
+      "updatedAt": "2026-09-08"
     },
     {
       "slug": "smart-compaction",
@@ -801,7 +801,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-smart-compaction-0.1.4.tgz"
       },
-      "updatedAt": "2026-08-20"
+      "updatedAt": "2026-09-08"
     },
     {
       "slug": "stealth-browser",
@@ -844,7 +844,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-telegram-0.1.1.tgz"
       },
-      "updatedAt": "2026-07-26"
+      "updatedAt": "2026-09-08"
     },
     {
       "slug": "vent",
@@ -866,7 +866,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-vent-0.1.2.tgz"
       },
-      "updatedAt": "2026-07-26"
+      "updatedAt": "2026-09-08"
     },
     {
       "slug": "voice-pipeline",
@@ -888,7 +888,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-voice-pipeline-0.2.1.tgz"
       },
-      "updatedAt": "2026-07-26"
+      "updatedAt": "2026-09-08"
     },
     {
       "slug": "web-viewer",
@@ -930,7 +930,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-whatsapp-0.1.1.tgz"
       },
-      "updatedAt": "2026-07-26"
+      "updatedAt": "2026-09-08"
     },
     {
       "slug": "win-ui",
@@ -951,7 +951,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-win-ui-0.1.0.tgz"
       },
-      "updatedAt": "2026-07-26"
+      "updatedAt": "2026-09-08"
     },
     {
       "slug": "writer-fonts",
@@ -994,7 +994,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-yolo-vibe-0.1.7.tgz"
       },
-      "updatedAt": "2026-07-26"
+      "updatedAt": "2026-09-08"
     },
     {
       "slug": "yolochat",
