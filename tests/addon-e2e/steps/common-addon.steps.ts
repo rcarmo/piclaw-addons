@@ -2,6 +2,7 @@ import { expect } from '../support/world';
 import { sel } from '../support/selectors';
 import type { StepDefinition } from '../support/gherkin-runner';
 import type { Page } from '@playwright/test';
+import { requireDisposableTestTarget } from '../../../scripts/lib/test-target.js';
 
 async function openSettings(page: Page): Promise<void> {
   await page.keyboard.press('Meta+Comma');
@@ -50,7 +51,7 @@ export const steps: StepDefinition[] = [
   {
     pattern: /^I am on the main chat$/,
     async handler(ctx) {
-      await ctx.page.goto(process.env.PICLAW_E2E_URL || 'http://localhost:3000');
+      await ctx.page.goto(requireDisposableTestTarget(process.env.PICLAW_E2E_URL));
       await ctx.page.waitForLoadState('domcontentloaded');
       await ctx.page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => undefined);
     },

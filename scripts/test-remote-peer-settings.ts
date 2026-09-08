@@ -1,6 +1,7 @@
 import { chromium } from "playwright";
+import { requireDisposableTestTarget } from "./lib/test-target.js";
 
-const url = process.argv[2] || "http://192.168.1.78:8080";
+const url = requireDisposableTestTarget(process.argv[2] || process.env.PICLAW_E2E_URL);
 const browser = await chromium.launch({ headless: true });
 try {
   const page = await browser.newPage({ viewport: { width: 1180, height: 820 } });

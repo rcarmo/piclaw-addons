@@ -1,5 +1,6 @@
 import { test as base, expect, type Page } from '@playwright/test';
 import { authenticatedContext } from './auth';
+import { requireDisposableTestTarget } from '../../../scripts/lib/test-target.js';
 
 export interface AddonWorldState {
   addonSlug?: string;
@@ -15,7 +16,7 @@ export interface AddonStepContext {
 
 export const test = base.extend<{ authedPage: Page }>({
   authedPage: async ({ browser }, use) => {
-    const baseURL = process.env.PICLAW_E2E_URL || 'http://localhost:3000';
+    const baseURL = requireDisposableTestTarget(process.env.PICLAW_E2E_URL);
     const context = await authenticatedContext(browser, baseURL);
     const page = await context.newPage();
     await page.goto(baseURL);

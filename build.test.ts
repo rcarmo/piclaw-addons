@@ -34,11 +34,6 @@ test("only the selected foundational add-ons carry the core tag", () => {
   const catalog = JSON.parse(readFileSync(join(repoRoot, "catalog.json"), "utf8"));
   const catalogCoreSlugs = catalog.addons.filter((addon: any) => addon.tags?.includes("core")).map((addon: any) => addon.slug).sort();
   expect(catalogCoreSlugs).toEqual(coreSlugs);
-  expect(Object.fromEntries(catalog.addons.filter((addon: any) => catalogCoreSlugs.includes(addon.slug)).map((addon: any) => [addon.slug, addon.version]))).toEqual({
-    delegate: "0.2.8",
-    goal: "0.1.46",
-    observability: "0.1.14",
-    "plan-sidebar": "0.1.24",
-    "session-dashboard": "0.2.4",
-  });
+  const manifestVersions = Object.fromEntries(coreSlugs.map((slug) => [slug, JSON.parse(readFileSync(join(repoRoot, "addons", slug!, "package.json"), "utf8")).version]));
+  expect(Object.fromEntries(catalog.addons.filter((addon: any) => catalogCoreSlugs.includes(addon.slug)).map((addon: any) => [addon.slug, addon.version]))).toEqual(manifestVersions);
 });

@@ -238,6 +238,10 @@ Use `/agent/keychain` only for secrets. Do **not** build new settings panes arou
 
 ## Testing
 
+Unit tests must retain the repository and test-directory `bunfig.toml` preloads. Each run isolates workspace, database, home, Pi profile and temporary directories before add-on imports; inherited production credentials are removed. New test directories need their own preload (checked automatically). Browser tests require an explicit disposable `PICLAW_E2E_URL`, `PICLAW_E2E_DISPOSABLE=1`, and test-only `PICLAW_E2E_INTERNAL_SECRET` if authentication is enabled. Never use the active instance as an implicit test target.
+
+`prepare-addon-test-instance.ts` always creates a fresh temporary workspace and prints its paths. It never installs into inherited `PICLAW_WORKSPACE`. Preserve that prepared directory until the disposable runtime is stopped; remove only the printed owned root afterwards.
+
 ### Standalone import test
 
 ```bash

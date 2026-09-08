@@ -1,7 +1,8 @@
 import type { Browser, BrowserContext } from '@playwright/test';
+import { requireDisposableTestTarget } from '../../../scripts/lib/test-target.js';
 
 function internalSecret(): string {
-  return process.env.PICLAW_INTERNAL_SECRET || process.env.PICLAW_WEB_INTERNAL_SECRET || '';
+  return process.env.PICLAW_E2E_INTERNAL_SECRET || '';
 }
 
 function parseCookie(setCookie: string, baseURL: string) {
@@ -16,11 +17,13 @@ function parseCookie(setCookie: string, baseURL: string) {
 }
 
 export async function authenticatedContext(browser: Browser, baseURL: string): Promise<BrowserContext> {
+  baseURL = requireDisposableTestTarget(baseURL);
   const secret = internalSecret();
-  if (!secret) throw new Error('PICLAW_INTERNAL_SECRET is required for add-on E2E auth');
+  if (!secret) throw new Error('PICLAW_E2E_INTERNAL_SECRET is required for add-on E2E auth');
 
   const resp = await fetch(`${baseURL}/auth/e2e/bootstrap`, {
     method: 'POST',
+    redirect: 'error',
     headers: {
       'Content-Type': 'application/json',
       'X-Piclaw-Internal-Secret': secret,

@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
+import { requireDisposableTestTarget } from '../../scripts/lib/test-target.js';
 
 export default defineConfig({
   testDir: './.generated',
@@ -10,7 +11,7 @@ export default defineConfig({
     ['json', { outputFile: './reports/results.json' }],
   ],
   use: {
-    baseURL: process.env.PICLAW_E2E_URL || 'http://localhost:3000',
+    baseURL: requireDisposableTestTarget(process.env.PICLAW_E2E_URL),
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
     trace: 'retain-on-failure',
