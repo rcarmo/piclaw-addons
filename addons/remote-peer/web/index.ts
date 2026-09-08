@@ -58,11 +58,21 @@ function RemotePeerSettings() {
   async function config(patch) {
     setBusy(true);
     setError("");
+    // Keep controlled fields stable while endpoint/discovery resources restart.
+    setState((current) =>
+      current
+        ? { ...current, config: { ...current.config, ...patch } }
+        : current,
+    );
     try {
-      await api("config", patch);
+      const result = await api("config", patch);
+      setState((current) =>
+        current ? { ...current, config: result.config } : current,
+      );
       await refresh();
     } catch (e) {
       setError(e.message);
+      await refresh();
     } finally {
       setBusy(false);
     }
