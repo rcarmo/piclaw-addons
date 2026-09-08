@@ -6,6 +6,10 @@ This is a clean break from Remote Peer 0.2: no old clients, HTTP peer routes, da
 
 ## Pair in Settings
 
+![Fresh Remote Peer Settings with client ID and discovery off](assets/settings-fresh.png)
+
+![Paired Remote Peer Settings with restricted permissions](assets/settings-paired.png)
+
 1. Enable Remote Peer on both instances and set their names.
 2. Copy the **Your client ID** value (`PCL1-…`).
 3. For internet ID-only pairing, explicitly enable **Internet address lookup** on both instances. This publishes/resolves endpoint addresses through Iroh's n0 services; it does not enumerate or trust peers.
@@ -41,7 +45,7 @@ Work requests remain operator-mediated. Neither a pairing nor an `execute` reque
 
 Fresh state lives under `<addon-data>/iroh-v1/`: `secret-key.bin` (32 bytes, mode 0600), `peers.db` and SQLite WAL files. The Iroh Ed25519 public key is the client identity, displayed with a checksum for copying. The secret is never returned by Settings or tools. Old `state.db` and `identity.json` are not read or changed.
 
-Pinned dependencies: `@number0/iroh@1.1.0` (prebuilt N-API) and `bonjour-service@1.4.4`. No local Rust/native compiler is required. The published Iroh entrypoint layout is handled by loading its explicit root `index.js`. Unsupported native targets receive an error rather than a source-build attempt. Target runtime: Bun 1.4.1 and Piclaw 3.1.0 or newer with add-on lifecycle API v1 (core PRs #1285 and #1288).
+Pinned dependencies: `@number0/iroh@1.1.0` (prebuilt N-API) and `bonjour-service@1.4.4`. No local Rust/native compiler is required. The published Iroh entrypoint layout is handled by loading its explicit root `index.js`. Unsupported native targets receive an error rather than a source-build attempt. Target runtime: Bun 1.4.1 and Piclaw 3.0.1 or newer with add-on lifecycle API v1 (core PRs #1285 and #1288).
 
 Custom relays require HTTPS URLs. Authentication is an optional keychain entry name, never a secret pasted into configuration. Do not enable public address lookup if private address publication is unacceptable. Iroh relay networking may itself use HTTP/WebSocket internally; the removed HTTP transport is Remote Peer's application transport.
 

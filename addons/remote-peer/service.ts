@@ -57,6 +57,7 @@ export class PeerService {
   discovery: PeerDiscovery | null = null;
   private closing = false;
   private closed = false;
+  private closePromise: Promise<void> | null = null;
   private transitions: Promise<void> = Promise.resolve();
   private rate = new Map<string, { count: number; until: number }>();
   constructor(private options: PeerServiceOptions) {
@@ -157,23 +158,35 @@ export class PeerService {
   }
   async close() {
     if (this.closed) return;
-    if (this.closing) return this.transitions;
+    if (this.closePromise) return this.closePromise;
     this.closing = true;
-    const cleanup = this.transitions.then(async () => {
+    this.closePromise = this.transitions.then(async () => {
+      const errors: unknown[] = [];
       try {
         await this.discovery?.stop();
-      } finally {
-        this.discovery = null;
-        await this.transport.close();
-        this.state.close();
-        this.closed = true;
+      } catch (error) {
+        errors.push(error);
       }
+      this.discovery = null;
+      try {
+        await this.transport.close();
+      } catch (error) {
+        errors.push(error);
+      }
+      try {
+        this.state.close();
+      } catch (error) {
+        errors.push(error);
+      }
+      this.closed = true;
+      if (errors.length)
+        throw new AggregateError(errors, "Remote Peer cleanup failed");
     });
-    this.transitions = cleanup.then(
+    this.transitions = this.closePromise.then(
       () => undefined,
       () => undefined,
     );
-    return cleanup;
+    return this.closePromise;
   }
   identity() {
     return { clientId: this.transport.clientId, endpointId: this.transport.id };

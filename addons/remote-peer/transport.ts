@@ -5,7 +5,7 @@ import type { RemotePeerConfig } from "./config.js";
 const require = createRequire(import.meta.url);
 export const ALPN = "piclaw-remote-peer/iroh/1";
 export const MAX_BYTES = 32 * 1024 * 1024;
-const CLOSE_DRAIN_TIMEOUT_MS = 5000;
+const CLOSE_DRAIN_TIMEOUT_MS = 3500;
 const HEADER_LIMIT = 192 * 1024;
 const ALPN_BYTES = Array.from(Buffer.from(ALPN));
 let native: any;
@@ -52,6 +52,31 @@ function canonical(value: Packet) {
 function hash(bytes: Uint8Array) {
   return createHash("sha256").update(bytes).digest("hex");
 }
+export async function resolveRelayConfigs(
+  config: RemotePeerConfig,
+  env: Record<string, string | undefined> = process.env,
+  interop: any = (globalThis as any).__piclawRuntimeInterop,
+): Promise<Array<{ url: string; authToken?: string }>> {
+  if (config.relayMode !== "custom") return [];
+  const output: Array<{ url: string; authToken?: string }> = [];
+  for (const relay of config.relays) {
+    let authToken: string | undefined;
+    if (relay.authTokenKeychain) {
+      const name = relay.authTokenKeychain;
+      authToken = env[name.replace(/[/.-]/g, "_").toUpperCase()];
+      if (!authToken) {
+        const entry = await interop?.getKeychainEntry?.(name);
+        authToken = typeof entry === "string" ? entry : entry?.secret;
+      }
+      if (!authToken)
+        throw new Error(
+          "Configured relay credential is unavailable in keychain.",
+        );
+    }
+    output.push({ url: relay.url, ...(authToken ? { authToken } : {}) });
+  }
+  return output;
+}
 export class IrohTransport {
   readonly id: string;
   readonly clientId: string;
@@ -96,23 +121,7 @@ export class IrohTransport {
     else if (c.relayMode === "n0") builder.relayMode(RelayMode.defaultMode());
     else {
       const map = RelayMap.empty();
-      for (const relay of c.relays) {
-        let authToken: string | undefined;
-        if (relay.authTokenKeychain) {
-          const name = relay.authTokenKeychain;
-          authToken = process.env[name.replace(/[/.-]/g, "_").toUpperCase()];
-          if (!authToken) {
-            const bridge = (globalThis as any).__piclawRuntimeInterop;
-            const entry = await bridge?.getKeychainEntry?.(name);
-            authToken = typeof entry === "string" ? entry : entry?.secret;
-          }
-          if (!authToken)
-            throw new Error(
-              "Configured relay credential is unavailable in keychain.",
-            );
-        }
-        map.insert({ url: relay.url, ...(authToken ? { authToken } : {}) });
-      }
+      for (const relay of await resolveRelayConfigs(c)) map.insert(relay);
       builder.relayMode(RelayMode.custom(map));
     }
     const endpoint = await builder.bind();
@@ -441,13 +450,17 @@ export class IrohTransport {
     this.closed = true;
     for (const c of this.connections) c.close(0n, []);
     this.connections.clear();
-    const e = this.endpoint;
+    const endpoint = this.endpoint;
     this.endpoint = null;
-    if (e) await e.close();
-    if (this.pendingStart) await this.pendingStart.catch(() => {});
     let timer: ReturnType<typeof setTimeout> | undefined;
+    const nativeCleanup = Promise.allSettled([
+      ...(endpoint ? [Promise.resolve().then(() => endpoint.close())] : []),
+      ...(this.pendingStart ? [this.pendingStart] : []),
+      ...this.dialing,
+      ...this.serving,
+    ]);
     await Promise.race([
-      Promise.allSettled([...this.dialing, ...this.serving]),
+      nativeCleanup,
       new Promise<void>((resolve) => {
         timer = setTimeout(resolve, CLOSE_DRAIN_TIMEOUT_MS);
       }),

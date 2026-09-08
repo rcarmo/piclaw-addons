@@ -226,6 +226,48 @@ test("real loopback Iroh pair, approve, policy, bytes, retry receipt, restart an
     await expect(
       a.send({ ...request, idempotency_key: "two" }),
     ).rejects.toThrow("paired");
+    // Same endpoint IDs may pair again only after both operators remove their
+    // revoked records. The old private-chat token must remain invalid.
+    expect(b.state.peer(a.identity().endpointId)?.status).toBe("revoked");
+    a.forget("beta", b.identity().clientId);
+    b.forget(a.identity().endpointId, a.identity().clientId);
+    await a.pair({
+      clientId: b.identity().clientId,
+      alias: "beta",
+      ticket: b.transport.ticket(),
+    });
+    await b.accept(a.identity().endpointId, a.identity().clientId);
+    await expect(
+      b.send({ ...oldReplyRequest, idempotency_key: "old-reply-after-repair" }),
+    ).rejects.toThrow();
+    const freshRequest = {
+      ...request,
+      address: {
+        kind: "bang",
+        raw: "beta!inbox",
+        peer: "beta",
+        target: "inbox",
+      },
+      attachments: [],
+      content: "FRESH",
+      idempotency_key: "fresh-after-repair",
+    };
+    await a.send(freshRequest);
+    const freshReply = bRuntime.messages.at(-1).source.reply_address;
+    const [freshPeer, freshTarget] = freshReply.split("!");
+    await b.send({
+      source_chat_jid: "web:remote",
+      address: {
+        kind: "bang",
+        raw: freshReply,
+        peer: freshPeer,
+        target: freshTarget,
+      },
+      content: "FRESH_REPLY",
+      mode: "queue",
+    });
+    expect(aRuntime.messages.at(-1).target_chat_jid).toBe("web:origin");
+    await a.revoke("beta", b.identity().clientId);
     const rotated = await a.rotateIdentity(a.identity().clientId);
     expect(rotated.clientId).not.toBe(aid);
     expect(a.state.peers()).toEqual([]);

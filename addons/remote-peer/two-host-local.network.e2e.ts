@@ -13,6 +13,7 @@ const remote = process.env.PICLAW_IROH_REMOTE_ID,
   resultDir = requireOwnedFixtureRoot(
     process.env.PICLAW_IROH_RESULT_DIR,
     "iroh-two-host-",
+    process.env.PICLAW_IROH_FIXTURE_TOKEN,
   );
 const root = mkdtempSync(join(tmpdir(), "iroh-local-"));
 const received: any[] = [];

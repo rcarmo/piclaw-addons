@@ -8,6 +8,7 @@ if (
 const root = requireOwnedFixtureRoot(
   process.env.PICLAW_IROH_TWO_HOST_ROOT,
   "iroh-remote-peer-validation",
+  process.env.PICLAW_IROH_FIXTURE_TOKEN,
 );
 const iface = process.env.PICLAW_IROH_MDNS_INTERFACE || "";
 const received: any[] = [];

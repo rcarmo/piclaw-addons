@@ -1,5 +1,5 @@
-import { copyFile, mkdtemp, mkdir, realpath, rm } from "node:fs/promises";
-import { constants } from "node:fs";
+import { mkdtemp, mkdir, realpath, rm } from "node:fs/promises";
+import { copyEvidence } from "./fixture-ownership.js";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { createRequire } from "node:module";
@@ -162,9 +162,9 @@ try {
   if (errors.length) throw new Error(errors.join("\n"));
   let freshPublished = false;
   try {
-    await copyFile(temporaryFresh, freshOutput, constants.COPYFILE_EXCL);
+    copyEvidence(temporaryFresh, freshOutput);
     freshPublished = true;
-    await copyFile(temporaryPaired, pairedOutput, constants.COPYFILE_EXCL);
+    copyEvidence(temporaryPaired, pairedOutput);
   } catch (error) {
     if (freshPublished) await rm(freshOutput, { force: true });
     throw error;

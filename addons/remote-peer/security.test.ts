@@ -3,7 +3,13 @@ import { randomBytes } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { IrohTransport, ALPN, iroh, MAX_BYTES } from "./transport.js";
+import {
+  IrohTransport,
+  ALPN,
+  iroh,
+  MAX_BYTES,
+  resolveRelayConfigs,
+} from "./transport.js";
 import { normalizeRemotePeerConfig } from "./config.js";
 import { PeerService } from "./service.js";
 const config = normalizeRemotePeerConfig({
@@ -17,6 +23,40 @@ const make = () =>
     bindAddr: "127.0.0.1:0",
     handler: async () => ({ body: { ok: true } }),
   });
+test("custom relay credentials resolve from keychain references without entering config", async () => {
+  const config = normalizeRemotePeerConfig({
+    relayMode: "custom",
+    relays: [
+      { url: "https://relay.example", authTokenKeychain: "iroh/relay-token" },
+    ],
+  });
+  const fromEnv = await resolveRelayConfigs(
+    config,
+    { IROH_RELAY_TOKEN: "secret" },
+    null,
+  );
+  expect(fromEnv).toEqual([
+    { url: "https://relay.example/", authToken: "secret" },
+  ]);
+  const fromBridge = await resolveRelayConfigs(
+    config,
+    {},
+    {
+      getKeychainEntry: async (name: string) => ({
+        name,
+        secret: "bridge-secret",
+      }),
+    },
+  );
+  expect(fromBridge).toEqual([
+    { url: "https://relay.example/", authToken: "bridge-secret" },
+  ]);
+  await expect(resolveRelayConfigs(config, {}, null)).rejects.toThrow(
+    "unavailable",
+  );
+  expect(JSON.stringify(config)).not.toContain("secret");
+});
+
 test("signed envelopes reject altered bytes, identity, replay, timestamp and operation fields", async () => {
   const a = make(),
     b = make();

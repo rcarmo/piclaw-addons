@@ -16,6 +16,8 @@ on:
   pull_request:
     paths:
       - '.github/workflows/build.yml'
+      - 'addons/**'
+      - 'tests/addon-e2e/**'
   workflow_dispatch:
 
 concurrency:
@@ -96,6 +98,14 @@ jobs:
             esac
           done <<< "$prepared"
           test -n "$PICLAW_PREP_ROOT" && test -d "$PICLAW_WORKSPACE"
+
+          # Prepared packages are source copies. Install Remote Peer's pinned
+          # prebuilt runtime dependencies inside the owned fixture, with the
+          # same sanitised environment used by the test server.
+          remote_peer_dir="$PICLAW_WORKSPACE/.pi/extensions/node_modules/@rcarmo/piclaw-addon-remote-peer"
+          test -f "$remote_peer_dir/bun.lock"
+          bun run scripts/run-test-instance.ts -- \
+            bun --cwd "$remote_peer_dir" install --frozen-lockfile --omit peer --ignore-scripts
 
           PICLAW_E2E_INTERNAL_SECRET="$PICLAW_INTERNAL_SECRET" PICLAW_E2E_KEYCHAIN_KEY="$PICLAW_KEYCHAIN_KEY" \
             bun run scripts/run-test-instance.ts -- bun run .piclaw-runtime/runtime/src/index.ts > /tmp/piclaw-addon-e2e.log 2>&1 &

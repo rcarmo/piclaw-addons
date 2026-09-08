@@ -6,7 +6,7 @@
   "main": "index.ts",
   "piclaw": {
     "type": "extension",
-    "compatibleVersions": ">=3.1.0",
+    "compatibleVersions": ">=3.0.1",
     "tags": [
       "remote",
       "agents",

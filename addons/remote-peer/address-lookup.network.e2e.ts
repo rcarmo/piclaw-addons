@@ -60,7 +60,18 @@ try {
     }),
   );
 } finally {
-  await a.close();
-  await b.close();
-  rmSync(root, { recursive: true, force: true });
+  const errors: unknown[] = [];
+  for (const service of [a, b])
+    try {
+      await service.close();
+    } catch (error) {
+      errors.push(error);
+    }
+  try {
+    rmSync(root, { recursive: true, force: true });
+  } catch (error) {
+    errors.push(error);
+  }
+  if (errors.length)
+    throw new AggregateError(errors, "Address-lookup fixture cleanup failed");
 }
