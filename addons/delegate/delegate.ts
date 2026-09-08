@@ -333,6 +333,10 @@ const MODEL_CLASSIFICATION_RULES: ClassificationRule[] = [
   rule("claude-sonnet-5", 3, "claude", 25, "Claude Sonnet 5 general-purpose model", /^claude-sonnet-5(?:-|$)/),
   rule("claude-sonnet", 3, "claude", 30, "Claude Sonnet general-purpose family", /^claude-sonnet(?:-|$)/),
 
+  // Enumerated Astra variants only; do not approve unknown GPT-6 families/suffixes.
+  // OpenRouter retains the upstream publisher namespace in its model IDs.
+  rule("gpt-6-astra-pro", 4, "gpt", 46, "GPT 6 Astra Pro high-capability variant", /^(?:openai\/)?gpt-6-astra-pro(?::batch)?$/),
+  rule("gpt-6-astra", 3, "gpt", 52, "GPT 6 Astra general-purpose model", /^(?:openai\/)?gpt-6-astra(?::batch)?$/),
   rule("gpt-codex-mini", 2, "gpt", 20, "GPT Codex Mini fast coding family", /^gpt-5(?:-[0-9]+)?-codex-mini(?:-|$)/),
   rule("gpt-codex-spark", 4, "gpt", 30, "GPT Codex Spark coding specialist", /^gpt-5(?:-[0-9]+)?-codex-spark(?:-|$)/),
   rule("gpt-codex-max", 4, "gpt", 35, "GPT Codex Max coding specialist", /^gpt-5(?:-[0-9]+)?-codex-max(?:-|$)/),

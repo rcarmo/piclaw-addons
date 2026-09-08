@@ -228,6 +228,97 @@ anthropic       claude-sonnet-4.6  200K     32K      yes       yes
     expect(candidates[0]).toMatchObject({ id: "openai/gpt-5.4", tier: 3, sourceId: "gpt-5-4", matchScore: 100 });
   });
 
+  test("Astra policy covers exact direct and routed IDs without accepting unknown variants", () => {
+    const expected: Record<string, [number, string]> = {
+      "github-copilot/gpt-6-astra": [3, "gpt-6-astra"],
+      "openai-codex/gpt-6-astra": [3, "gpt-6-astra"],
+      "openai/gpt-6-astra": [3, "gpt-6-astra"],
+      "openrouter/openai/gpt-6-astra": [3, "gpt-6-astra"],
+      "openrouter/openai/gpt-6-astra:batch": [3, "gpt-6-astra"],
+      "openrouter/openai/gpt-6-astra-pro": [4, "gpt-6-astra-pro"],
+      "openrouter/openai/gpt-6-astra-pro:batch": [4, "gpt-6-astra-pro"],
+      "openai/gpt-6-astra-pro": [4, "gpt-6-astra-pro"],
+      "azure-openai/GPT_6_ASTRA": [3, "gpt-6-astra"],
+    };
+    for (const [id, [tier, policyRule]] of Object.entries(expected)) {
+      expect(classifyModel(id)).toMatchObject({ status: "classified", tier, family: "gpt", rule: policyRule, confidence: "exact-policy" });
+    }
+    for (const id of ["gpt-6", "gpt-6-other", "gpt-6-astra-mini", "gpt-6-astra-pro-preview", "gpt-6-astra:unknown", "gpt-6-astral", "other/gpt-6-astra"]) {
+      expect(classifyModel(`openrouter/${id}`)).toMatchObject({ status: "unclassified", tier: null });
+    }
+  });
+
+  test("Astra current model enables tier-capped automatic selection without bypassing approval", () => {
+    const current = { provider: "github-copilot", id: "gpt-6-astra" };
+    const maxTier = getCurrentTier({ model: current });
+    expect(maxTier).toBe(3);
+    const models = [current,
+      { provider: "github-copilot", id: "gpt-5.4-mini" },
+      { provider: "github-copilot", id: "claude-sonnet-5" },
+      { provider: "openrouter", id: "openai/gpt-6-astra-pro" },
+      { provider: "github-copilot", id: "claude-opus-4.8" },
+    ].map(model => ({ ...model, fullId: `${model.provider}/${model.id}` }));
+    const config = { searchable_providers: ["github-copilot", "openrouter"], excluded_providers: [], excluded_models: [] };
+    const candidates = buildModelCandidates(models, config);
+    expect(buildModelCandidates(models)).toEqual([]);
+    expect(selectModel("quick", maxTier!, "github-copilot/gpt-6-astra", candidates)).toBe("github-copilot/gpt-5.4-mini");
+    expect(selectModel("judge", maxTier!, "github-copilot/gpt-6-astra", candidates)).toBe("github-copilot/claude-sonnet-5");
+    const chain = buildDelegateModelChain("code", maxTier!, "github-copilot/gpt-6-astra", candidates, 10);
+    expect(chain).toContain("github-copilot/gpt-6-astra");
+    expect(chain.every(id => candidates.find(candidate => candidate.id === id)!.tier <= 3)).toBe(true);
+    expect(validateExplicitDelegateModel("github-copilot/gpt-6-astra", models, models, config).approved).toBe(true);
+    expect(validateExplicitDelegateModel("github-copilot/gpt-6-astra", models, models, { ...config, searchable_providers: [] }).approved).toBe(false);
+    expect(validateExplicitDelegateModel("github-copilot/gpt-6-astra", models, models, { ...config, excluded_models: ["*astra*"] }).approved).toBe(false);
+    expect(validateExplicitDelegateModel("github-copilot/gpt-6-astra", models.slice(1), models, config).approved).toBe(false);
+    expect(getCurrentTier({ model: { provider: "github-copilot", id: "gpt-6-unknown" } })).toBeNull();
+  });
+
+  test("Astra automatic tool execution reaches an approved child and retains fail-closed guards", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "delegate-astra-execute-"));
+    const previousCli = process.env.PI_DELEGATE_CLI;
+    const globals = globalThis as Record<string, any>;
+    const previousRegistrar = globals.__piclaw_registerAddonConfigApi;
+    let configApi: any;
+    try {
+      const marker = resolve(dir, "launches.txt");
+      const script = resolve(dir, "cli.ts");
+      writeFileSync(script, `
+        import { appendFileSync } from "node:fs";
+        if (process.argv.includes("--list-models")) {
+          console.log("provider model context max-out thinking images");
+          console.log("github-copilot gpt-5.4-mini 272K 128K yes yes");
+          process.exit(0);
+        }
+        await Bun.stdin.text();
+        const model = process.argv[process.argv.indexOf("--model") + 1];
+        appendFileSync(${JSON.stringify(marker)}, model + "\\n");
+        console.log(JSON.stringify({type:"message_end", message:{role:"assistant", provider:"github-copilot", model:"gpt-5.4-mini", content:[{type:"text",text:"ASTRA_AUTO_OK"}], stopReason:"stop"}}));
+      `);
+      process.env.PI_DELEGATE_CLI = `${process.execPath} ${script}`;
+      globals.__piclaw_registerAddonConfigApi = (_addon: string, action: string, handlers: any) => { if (action === "config") configApi = handlers; };
+      // A fresh module gives this test an isolated in-memory config and catalog.
+      const module = await import(`./delegate.ts?astra-execute=${encodeURIComponent(dir)}`);
+      globals.__piclaw_registerAddonConfigApi = previousRegistrar;
+      let tool: any;
+      module.default({ on() {}, registerTool(value: any) { tool = value; } });
+      await configApi.set({ searchable_providers: ["github-copilot"] });
+      const ctx = { model: { provider: "github-copilot", id: "gpt-6-astra" }, modelRegistry: { getAvailable() { return []; } } };
+      const result = await tool.execute("astra-auto", { prompt: "fixture only", task_category: "quick", tools: "read" }, undefined, undefined, ctx);
+      expect(result.content).toEqual([{ type: "text", text: expect.stringContaining("ASTRA_AUTO_OK") }]);
+      expect(readFileSync(marker, "utf8")).toBe("github-copilot/gpt-5.4-mini\n");
+      await expect(tool.execute("unknown", { prompt: "must not launch" }, undefined, undefined, { ...ctx, model: { provider: "github-copilot", id: "gpt-6-unknown" } })).rejects.toThrow("unclassified current model");
+      await configApi.set({ searchable_providers: [] });
+      await expect(tool.execute("denied", { prompt: "must not launch" }, undefined, undefined, ctx)).rejects.toThrow("No approved executable");
+      expect(readFileSync(marker, "utf8")).toBe("github-copilot/gpt-5.4-mini\n");
+    } finally {
+      if (previousRegistrar === undefined) delete globals.__piclaw_registerAddonConfigApi;
+      else globals.__piclaw_registerAddonConfigApi = previousRegistrar;
+      if (previousCli === undefined) delete process.env.PI_DELEGATE_CLI;
+      else process.env.PI_DELEGATE_CLI = previousCli;
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   test("classifies every current runtime and executable fixture exactly once", () => {
     const runtimeFixture = JSON.parse(readFileSync(resolve(addonDir, "fixtures/runtime-models-42.json"), "utf8")) as {
       current: string;
