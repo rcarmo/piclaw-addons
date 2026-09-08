@@ -30,11 +30,11 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      # Install and lookup must agree after preparation replaces HOME/XDG_CACHE_HOME.
-      PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/piclaw-addon-playwright
     steps:
       - uses: actions/checkout@v7
+      - name: Pin browser cache before isolating HOME
+        # GITHUB_ENV keeps install and lookup aligned after HOME/XDG_CACHE_HOME change.
+        run: echo "PLAYWRIGHT_BROWSERS_PATH=$RUNNER_TEMP/piclaw-addon-playwright" >> "$GITHUB_ENV"
       - name: Resolve Bun version
         id: bun-version
         run: |

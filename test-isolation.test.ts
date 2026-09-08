@@ -31,8 +31,8 @@ test('CI launches the workspace returned by preparation and uses test-only auth'
 
 test('CI browser cache survives isolated HOME and workflow PRs cannot deploy', () => {
   const workflow = readFileSync(new URL('./.github/workflows/build.yml', import.meta.url), 'utf8');
-  expect(workflow).toContain("PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/piclaw-addon-playwright");
-  expect(workflow.indexOf('PLAYWRIGHT_BROWSERS_PATH:')).toBeLessThan(workflow.indexOf('    steps:'));
+  expect(workflow).toContain('echo "PLAYWRIGHT_BROWSERS_PATH=$RUNNER_TEMP/piclaw-addon-playwright" >> "$GITHUB_ENV"');
+  expect(workflow.indexOf('PLAYWRIGHT_BROWSERS_PATH=')).toBeLessThan(workflow.indexOf('- name: Install Playwright browser'));
   expect(workflow).toContain("  pull_request:\n    paths:\n      - '.github/workflows/build.yml'");
   for (const step of ['Build site and package tarballs', 'Copy assets into docs', 'Deploy to GitHub Pages']) {
     expect(workflow).toContain(`- name: ${step}\n        if: always() && github.event_name != 'pull_request'`);
