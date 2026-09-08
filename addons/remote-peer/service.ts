@@ -55,8 +55,9 @@ export class PeerService {
   readonly state: PeerState;
   transport: IrohTransport;
   discovery: PeerDiscovery | null = null;
+  private closing = false;
   private closed = false;
-  private transitions = Promise.resolve();
+  private transitions: Promise<void> = Promise.resolve();
   private rate = new Map<string, { count: number; until: number }>();
   constructor(private options: PeerServiceOptions) {
     this.state = new PeerState(options.dataDir);
@@ -89,34 +90,48 @@ export class PeerService {
     });
   }
   private enabled() {
-    if (this.closed || !this.state.config().enabled)
+    if (this.closing || this.closed || !this.state.config().enabled)
       throw new Error("Remote Peer is disabled.");
   }
-  async start() {
+  private transition<T>(operation: () => Promise<T>): Promise<T> {
+    if (this.closing || this.closed)
+      return Promise.reject(new Error("Remote Peer is closing."));
+    // Once accepted, an operation runs before a later close. closing gates only
+    // operations submitted after close begins.
+    const result = this.transitions.then(operation);
+    this.transitions = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    return result;
+  }
+  private async startUnlocked() {
     if (!this.state.config().enabled) return;
     await this.transport.start();
     await this.refreshDiscovery();
   }
+  async start() {
+    return this.transition(() => this.startUnlocked());
+  }
   async configure(patch: Partial<RemotePeerConfig>) {
-    const change = async () => {
-      const next = normalizeRemotePeerConfig({
-        ...this.state.config(),
-        ...patch,
-      });
+    return this.transition(async () => {
+      const previous = this.state.config();
+      const next = normalizeRemotePeerConfig({ ...previous, ...patch });
       await this.discovery?.stop();
       this.discovery = null;
       await this.transport.close();
-      this.state.saveConfig(next);
-      this.transport = this.createTransport();
-      await this.start();
-      return next;
-    };
-    const result = this.transitions.then(change);
-    this.transitions = result.then(
-      () => {},
-      () => {},
-    );
-    return result;
+      try {
+        this.state.saveConfig(next);
+        this.transport = this.createTransport();
+        await this.startUnlocked();
+        return next;
+      } catch (error) {
+        this.state.saveConfig(previous);
+        this.transport = this.createTransport();
+        await this.startUnlocked().catch(() => undefined);
+        throw error;
+      }
+    });
   }
   private async refreshDiscovery() {
     const c = this.state.config();
@@ -142,15 +157,23 @@ export class PeerService {
   }
   async close() {
     if (this.closed) return;
-    this.closed = true;
-    await this.transitions;
-    try {
-      await this.discovery?.stop();
-    } finally {
-      this.discovery = null;
-      await this.transport.close();
-      this.state.close();
-    }
+    if (this.closing) return this.transitions;
+    this.closing = true;
+    const cleanup = this.transitions.then(async () => {
+      try {
+        await this.discovery?.stop();
+      } finally {
+        this.discovery = null;
+        await this.transport.close();
+        this.state.close();
+        this.closed = true;
+      }
+    });
+    this.transitions = cleanup.then(
+      () => undefined,
+      () => undefined,
+    );
+    return cleanup;
   }
   identity() {
     return { clientId: this.transport.clientId, endpointId: this.transport.id };
@@ -311,6 +334,7 @@ export class PeerService {
     peer.status = "revoked";
     peer.epoch = id();
     this.state.put(peer);
+    this.state.db.query("DELETE FROM replies WHERE peer=?").run(peer.id);
   }
   async revoke(reference: string, confirmation: string) {
     const peer = this.paired(reference);
@@ -321,6 +345,7 @@ export class PeerService {
     peer.status = "revoked";
     peer.epoch = id();
     this.state.put(peer);
+    this.state.db.query("DELETE FROM replies WHERE peer=?").run(peer.id);
     try {
       await this.transport.request(
         peer.id,
@@ -338,12 +363,40 @@ export class PeerService {
       throw new Error(
         "Revoke first, then confirm the full client ID to remove the record.",
       );
-    this.state.db.query("DELETE FROM peers WHERE id=?").run(peer.id);
+    this.state.db
+      .transaction(() => {
+        this.state.db.query("DELETE FROM replies WHERE peer=?").run(peer.id);
+        this.state.db.query("DELETE FROM peers WHERE id=?").run(peer.id);
+      })
+      .immediate();
     this.state.audit(
       "peer-removed",
       peer.id,
       "Operator removed block; new approval required",
     );
+  }
+  async rotateIdentity(confirmation: string) {
+    return this.transition(async () => {
+      this.enabled();
+      if (endpointId(confirmation) !== this.transport.id)
+        throw new Error(
+          "Confirm the full current client ID before rotating identity.",
+        );
+      // Preflight before stopping networking. A rejected rotation must leave the
+      // current endpoint and discovery service running.
+      this.state.assertIdentityRotationAllowed();
+      await this.discovery?.stop();
+      this.discovery = null;
+      await this.transport.close();
+      try {
+        this.state.rotateIdentity();
+      } finally {
+        // Recreate from the durable key (old or new) after any rotation fault.
+        this.transport = this.createTransport();
+        await this.startUnlocked().catch(() => undefined);
+      }
+      return this.identity();
+    });
   }
   setPolicy(reference: string, input: any) {
     const peer = this.paired(reference);
@@ -569,10 +622,11 @@ export class PeerService {
         .query("DELETE FROM replies WHERE expires<?")
         .run(Date.now());
       this.state.db
-        .query("INSERT INTO replies VALUES (?,?,?,?)")
+        .query("INSERT INTO replies VALUES (?,?,?,?,?)")
         .run(
           token,
           peer.id,
+          peer.epoch,
           request.source_chat_jid,
           Date.now() + 7 * 86400000,
         );
@@ -701,8 +755,8 @@ export class PeerService {
         throw new Error("Peer limit reached.");
       if (
         !Number.isFinite(body.expires) ||
-        body.expires <= Date.now() ||
-        body.expires > Date.now() + 3600000 ||
+        body.expires <= Date.now() - 90000 ||
+        body.expires > Date.now() + 3600000 + 90000 ||
         !body.request ||
         !body.epoch
       )
@@ -770,6 +824,7 @@ export class PeerService {
       peer.status = "revoked";
       peer.epoch = id();
       this.state.put(peer);
+      this.state.db.query("DELETE FROM replies WHERE peer=?").run(peer.id);
       return { body: { ok: true } };
     }
     if (packet.op === "message")
@@ -808,9 +863,9 @@ export class PeerService {
     } else if (target.startsWith("reply.")) {
       const reply = this.state.db
         .query(
-          "SELECT target FROM replies WHERE token=? AND peer=? AND expires>?",
+          "SELECT target FROM replies WHERE token=? AND peer=? AND epoch=? AND expires>?",
         )
-        .get(target.slice(6), peer.id, Date.now()) as any;
+        .get(target.slice(6), peer.id, peer.epoch, Date.now()) as any;
       if (!reply) throw new Error("Reply capability expired or invalid.");
       targetChat = reply.target;
     } else if (target !== "inbox") throw new Error("Invalid target.");
@@ -994,35 +1049,89 @@ export class PeerService {
     return reply;
   }
   private async receiveWorkResult(peer: Peer, body: any) {
+    const workId = text(body.id, 80);
     const row = this.state.db
       .query(
         "SELECT * FROM work WHERE id=? AND peer=? AND direction='outbound'",
       )
-      .get(text(body.id, 80), peer.id) as any;
+      .get(workId, peer.id) as any;
     if (!row) throw new Error("Unknown work request.");
-    if (row.status !== "pending") return { ok: true };
     const result = text(body.result, 32768);
-    const requested = JSON.parse(row.data).capabilities;
+    if (!["completed", "rejected"].includes(body.status))
+      throw new Error("Invalid work result.");
+    if (!Array.isArray(body.capabilities))
+      throw new Error("Invalid work capabilities.");
+    const data = JSON.parse(row.data);
+    const requested = data.capabilities;
     if (
-      !Array.isArray(body.capabilities) ||
       body.capabilities.some(
         (c: unknown) => typeof c !== "string" || !requested.includes(c),
       )
     )
       throw new Error("Invalid work capabilities.");
-    if (!["completed", "rejected"].includes(body.status))
-      throw new Error("Invalid work result.");
-    const data = JSON.parse(row.data);
+    const terminal = {
+      status: body.status,
+      result,
+      capabilities: body.capabilities,
+    };
+    if (
+      data.terminal &&
+      JSON.stringify(data.terminal) !== JSON.stringify(terminal)
+    )
+      throw new Error("Conflicting terminal work result.");
+    if (row.status === "completed" || row.status === "rejected")
+      return { ok: true };
+
+    // Store the exact terminal payload before performing the local side effect.
+    // A failed enqueue returns to notification-pending for retry. A process
+    // crash after enqueue is deliberately left notification-delivering and is
+    // never replayed blindly because enqueue has no idempotency contract.
+    if (
+      row.status === "notification-delivering" ||
+      row.status === "notification-unknown"
+    )
+      throw new Error(
+        "Work notification outcome is unknown; inspect the origin chat before resolving manually.",
+      );
     this.state.db
-      .query("UPDATE work SET status=?,data=? WHERE id=?")
-      .run(body.status, JSON.stringify({ ...data, result }), row.id);
-    if (data.chat)
-      await this.options.runtime.enqueueAgentMessage?.({
-        chatJid: data.chat,
-        content: `Remote work ${row.id}: ${body.status}\n${result}`,
-        mode: "queue",
-        source: "addon.remote-peer",
-      });
+      .query("UPDATE work SET status='notification-pending',data=? WHERE id=?")
+      .run(JSON.stringify({ ...data, terminal }), row.id);
+    const claim = this.state.db
+      .query(
+        "UPDATE work SET status='notification-delivering' WHERE id=? AND status='notification-pending'",
+      )
+      .run(row.id);
+    if (claim.changes !== 1)
+      throw new Error("Work notification delivery is already in progress.");
+    try {
+      if (data.chat) {
+        const enqueue = this.options.runtime.enqueueAgentMessage;
+        if (!enqueue)
+          throw new Error("Piclaw agent-message enqueue API is unavailable.");
+        await enqueue({
+          chatJid: data.chat,
+          content: `Remote work ${row.id}: ${body.status}\n${result}`,
+          mode: "queue",
+          source: "addon.remote-peer",
+        });
+      }
+    } catch (error) {
+      this.state.db
+        .query(
+          "UPDATE work SET status='notification-pending' WHERE id=? AND status='notification-delivering'",
+        )
+        .run(row.id);
+      throw error;
+    }
+    this.state.db
+      .query(
+        "UPDATE work SET status=?,data=? WHERE id=? AND status='notification-delivering'",
+      )
+      .run(
+        body.status,
+        JSON.stringify({ ...data, terminal, notificationDelivered: true }),
+        row.id,
+      );
     return { ok: true };
   }
   async ping(reference: string) {

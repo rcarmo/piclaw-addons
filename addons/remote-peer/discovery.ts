@@ -205,8 +205,17 @@ export class PeerDiscovery {
   private async startInternal(): Promise<void> {
     this.error = null;
     try {
+      // multicast-dns otherwise binds port 5353 to the interface's unicast address.
+      // On Linux that socket does not receive packets addressed to 224.0.0.251.
+      // Bind all IPv4 addresses for reception while selecting the configured
+      // interface for membership and outbound multicast.
       const mdnsOptions = this.options.interfaceAddress
-        ? { interface: this.options.interfaceAddress }
+        ? {
+            interface: this.options.interfaceAddress,
+            bind: "0.0.0.0",
+            ip: "224.0.0.251",
+            port: 5353,
+          }
         : {};
       if (this.options.factory) {
         this.bonjour = await this.options.factory(mdnsOptions);

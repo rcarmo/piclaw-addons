@@ -21,8 +21,10 @@ function fixture() {
       cb();
     },
   };
-  const factory = async () => {
+  let options: any;
+  const factory = async (value: any) => {
     calls++;
+    options = value;
     return bonjour;
   };
   const discovery = new PeerDiscovery({
@@ -39,6 +41,7 @@ function fixture() {
     browser,
     calls: () => calls,
     closed: () => closed,
+    options: () => options,
   };
 }
 const candidate = (id = "22".repeat(32)) => ({
@@ -57,6 +60,12 @@ test("discovery construction does not import Bonjour, open sockets or timers; li
   expect(f.closed()).toBe(0);
   await f.discovery.start();
   expect(f.calls()).toBe(1);
+  expect(f.options()).toEqual({
+    interface: "192.168.1.2",
+    bind: "0.0.0.0",
+    ip: "224.0.0.251",
+    port: 5353,
+  });
   expect(f.service.records()).toEqual([
     { type: "A", data: "192.168.1.2", ttl: 120 },
   ]);

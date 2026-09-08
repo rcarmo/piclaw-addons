@@ -13,6 +13,7 @@ test("direct settings API, client-ID tool and no peer HTTP route registration", 
   let transports = 0,
     routes = 0;
   global.__piclaw_runtime = {
+    lifecycle: { version: 1, onShutdown: () => () => {} },
     messaging: {
       version: 1,
       getAddonDataDir: () => root,

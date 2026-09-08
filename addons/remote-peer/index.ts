@@ -3,8 +3,10 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { getPeerService } from "./runtime-service.js";
 const baseDir = dirname(fileURLToPath(import.meta.url));
-export async function runAction(input: Record<string, any>) {
-  const service = getPeerService();
+export async function runAction(
+  input: Record<string, any>,
+  service = getPeerService(),
+) {
   switch (input.action) {
     case "status":
       return service.dashboard();
@@ -34,6 +36,12 @@ export async function runAction(input: Record<string, any>) {
         String(input.confirmation ?? ""),
       );
       break;
+    case "rotate":
+      return {
+        identity: await service.rotateIdentity(
+          String(input.confirmation ?? ""),
+        ),
+      };
     case "forget":
       service.forget(
         String(input.peer ?? ""),
@@ -133,6 +141,7 @@ export default function remotePeer(pi: ExtensionAPI) {
             "deny",
             "revoke",
             "forget",
+            "rotate",
             "alias",
             "policy",
             "advertise",

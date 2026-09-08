@@ -10,6 +10,13 @@ test("startup contributes only Iroh chat transport, disabled until configured", 
   let registered: any;
   let routes = 0;
   global.__piclaw_runtime = {
+    lifecycle: {
+      version: 1,
+      onShutdown: (handler: () => Promise<void>) => {
+        global.__peerShutdown = handler;
+        return () => {};
+      },
+    },
     messaging: {
       version: 1,
       getAddonDataDir: () => root,
@@ -32,10 +39,12 @@ test("startup contributes only Iroh chat transport, disabled until configured", 
     expect(registered.id).toBe("remote-peer");
     expect(registered.kind).toBe("bang");
     expect(routes).toBe(0);
+    expect(typeof global.__peerShutdown).toBe("function");
     expect(getPeerService().transport.status().active).toBe(false);
     expect((await registered.directory()).entries).toEqual([]);
   } finally {
     await closePeerService();
+    delete global.__peerShutdown;
     global.__piclaw_runtime = old;
     rmSync(root, { recursive: true, force: true });
   }

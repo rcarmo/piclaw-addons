@@ -133,7 +133,23 @@ function RemotePeerSettings() {
       <div style=${row}>
         <code style="overflow-wrap:anywhere">${state.identity.clientId}</code
         ><button onClick=${() => copy(state.identity.clientId)}>Copy ID</button>
+        <button
+          disabled=${busy ||
+          state.peers.some((peer) => peer.status !== "revoked")}
+          onClick=${() => {
+            const confirmation =
+              prompt(
+                `This creates a new client ID and clears all fresh Iroh trust, queues and advertised agents. Legacy files are untouched. Paste the current ID to confirm:\n${state.identity.clientId}`,
+              ) || "";
+            run({ action: "rotate", confirmation });
+          }}
+        >
+          Rotate identity
+        </button>
       </div>
+      <p>
+        Rotation requires every peer and pending request to be revoked first.
+      </p>
       <p>
         ${state.transport.active ? "Listening" : "Stopped"} ·
         ${state.transport.relay ? "Relay connected" : "No relay yet"} · last

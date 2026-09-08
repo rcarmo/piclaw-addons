@@ -97,6 +97,57 @@ test("wrong ALPN and ticket identity rejected on real loopback endpoints", async
     await b.close();
   }
 }, 20000);
+test("pair expiry accepts bounded clock skew but rejects stale and far-future requests", async () => {
+  const root = mkdtempSync(join(tmpdir(), "iroh-skew-"));
+  const service = new PeerService({
+    dataDir: root,
+    runtime: {
+      messaging: {
+        version: 1,
+        listAdvertisableAgents: async () => [],
+        deliverPeerMessage: async () => ({}),
+      },
+    } as any,
+  });
+  const packet = (expires: number) =>
+    ({
+      body: {
+        request: "request",
+        epoch: "epoch",
+        expires,
+        name: "peer",
+        ticket: "bad",
+      },
+    }) as any;
+  try {
+    await service.configure({ enabled: true, relayMode: "disabled" });
+    await expect(
+      service.receive(
+        "22".repeat(32),
+        { ...packet(Date.now() - 91000), op: "pair" },
+        new Uint8Array(),
+      ),
+    ).rejects.toThrow("Invalid pairing request");
+    await expect(
+      service.receive(
+        "33".repeat(32),
+        { ...packet(Date.now() + 3600000 + 91000), op: "pair" },
+        new Uint8Array(),
+      ),
+    ).rejects.toThrow("Invalid pairing request");
+    await expect(
+      service.receive(
+        "44".repeat(32),
+        { ...packet(Date.now() - 30000), op: "pair" },
+        new Uint8Array(),
+      ),
+    ).rejects.toThrow();
+  } finally {
+    await service.close();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("default-off discovery, settings toggle and disable release resources with no native multicast", async () => {
   const root = mkdtempSync(join(tmpdir(), "iroh-toggle-"));
   let starts = 0,

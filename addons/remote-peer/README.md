@@ -41,7 +41,7 @@ Work requests remain operator-mediated. Neither a pairing nor an `execute` reque
 
 Fresh state lives under `<addon-data>/iroh-v1/`: `secret-key.bin` (32 bytes, mode 0600), `peers.db` and SQLite WAL files. The Iroh Ed25519 public key is the client identity, displayed with a checksum for copying. The secret is never returned by Settings or tools. Old `state.db` and `identity.json` are not read or changed.
 
-Pinned dependencies: `@number0/iroh@1.1.0` (prebuilt N-API) and `bonjour-service@1.4.4`. No local Rust/native compiler is required. The published Iroh entrypoint layout is handled by loading its explicit root `index.js`. Unsupported native targets receive an error rather than a source-build attempt. Target runtime: Bun 1.4.1, Piclaw >=2.15.0.
+Pinned dependencies: `@number0/iroh@1.1.0` (prebuilt N-API) and `bonjour-service@1.4.4`. No local Rust/native compiler is required. The published Iroh entrypoint layout is handled by loading its explicit root `index.js`. Unsupported native targets receive an error rather than a source-build attempt. Target runtime: Bun 1.4.1 and Piclaw 3.1.0 or newer with add-on lifecycle API v1 (core PRs #1285 and #1288).
 
 Custom relays require HTTPS URLs. Authentication is an optional keychain entry name, never a secret pasted into configuration. Do not enable public address lookup if private address publication is unacceptable. Iroh relay networking may itself use HTTP/WebSocket internally; the removed HTTP transport is Remote Peer's application transport.
 
@@ -53,4 +53,4 @@ Settings uses `/agent/addons/api/remote-peer/config` and `/dashboard`. The old `
 
 ## Validation status
 
-See [test evidence](docs/e2e-matrix.md). Local Bun1.4.1 tests cover real loopback QUIC pairing/messages/files/replies, persistence, permission gates, frame/signature rejection and mocked discovery lifecycle. A separate same-host n0 probe passed bare-client-ID pairing with mDNS off. Internet-separated NAT/relay operation and real multi-device multicast remain separate acceptance gates, not implied by those tests.
+See [test evidence](docs/e2e-matrix.md). Local Bun 1.4.1 tests cover real loopback QUIC pairing/messages/files/replies, persistence, permission gates, frame/signature rejection and discovery lifecycle. A same-host n0 probe passed bare-client-ID pairing with mDNS off. Smith and VM 900 passed real two-device multicast discovery, explicit approval and one message over a direct Iroh path. Separate Docker networks with peer-address UDP rejected passed one message over the selected EU n0 relay. These owned fixtures were removed after verification.

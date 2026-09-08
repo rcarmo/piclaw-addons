@@ -5,6 +5,7 @@ import type { RemotePeerConfig } from "./config.js";
 const require = createRequire(import.meta.url);
 export const ALPN = "piclaw-remote-peer/iroh/1";
 export const MAX_BYTES = 32 * 1024 * 1024;
+const CLOSE_DRAIN_TIMEOUT_MS = 5000;
 const HEADER_LIMIT = 192 * 1024;
 const ALPN_BYTES = Array.from(Buffer.from(ALPN));
 let native: any;
@@ -132,6 +133,7 @@ export class IrohTransport {
       clientId: this.clientId,
       endpointId: this.id,
       relay: this.endpoint?.addr().relayUrl() ?? null,
+      directAddresses: this.endpoint?.addr().directAddresses() ?? [],
       lastPath: this.lastPath,
       error: this.error,
     };
@@ -285,7 +287,7 @@ export class IrohTransport {
       const incoming = await this.endpoint.acceptNext();
       if (!incoming) return;
       if (this.active >= 16) {
-        incoming.refuse();
+        await incoming.refuse().catch(() => undefined);
         continue;
       }
       this.active++;
@@ -443,6 +445,13 @@ export class IrohTransport {
     this.endpoint = null;
     if (e) await e.close();
     if (this.pendingStart) await this.pendingStart.catch(() => {});
-    await Promise.allSettled([...this.dialing, ...this.serving]);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    await Promise.race([
+      Promise.allSettled([...this.dialing, ...this.serving]),
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, CLOSE_DRAIN_TIMEOUT_MS);
+      }),
+    ]);
+    clearTimeout(timer);
   }
 }

@@ -8,6 +8,6 @@ Use Settings to set aliases, advertise agents, grant receiver permissions and in
 
 Failed outbound messages retain their payload and message ID. Retry after connectivity returns. Do not create a new ID merely because an acknowledgement was lost. Unknown receiver outcomes require investigation, not blind resend.
 
-Settings changes stop the old Iroh/discovery resources before creating new ones. This can interrupt in-flight requests; failed sends remain recorded. mDNS failures do not enable HTTP fallback or auto-pair anything.
+Piclaw's process-level lifecycle API closes and awaits Iroh, mDNS and the database during graceful shutdown. Agent-session shutdown does not stop global peer networking. Settings changes stop the old Iroh/discovery resources before creating new ones. This can interrupt in-flight requests; failed sends remain recorded. mDNS failures do not enable HTTP fallback or auto-pair anything.
 
 Back up the entire `iroh-v1` directory while the instance is stopped or use a consistent SQLite backup. Retain the secret key with its database. Losing it changes the client ID. There is no migration from old Remote Peer state and no in-place compatibility rollback. Uninstall must preserve this data; destructive reset is a separately confirmed operator task.

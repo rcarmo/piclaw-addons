@@ -178,12 +178,13 @@ test("real loopback Iroh pair, approve, policy, bytes, retry receipt, restart an
     const replyAddress = bRuntime.messages[0].source.reply_address;
     expect(replyAddress).toContain("!reply.");
     const [peer, target] = replyAddress.split("!");
-    await b.send({
+    const oldReplyRequest: any = {
       source_chat_jid: "web:remote",
       address: { kind: "bang", raw: replyAddress, peer, target },
       content: "REPLY",
       mode: "queue",
-    });
+    };
+    await b.send(oldReplyRequest);
     expect(aRuntime.messages[0].target_chat_jid).toBe("web:origin");
     const work = await a.workSend(
       "beta",
@@ -211,11 +212,29 @@ test("real loopback Iroh pair, approve, policy, bytes, retry receipt, restart an
     await a.start();
     await a.send(request);
     expect(bRuntime.messages.length).toBe(1);
+    await expect(a.rotateIdentity("00".repeat(32))).rejects.toThrow("Confirm");
     await a.revoke("beta", b.identity().clientId);
     expect(a.state.peers()[0].status).toBe("revoked");
+    expect(
+      a.state.db
+        .query("SELECT COUNT(*) AS n FROM replies WHERE peer=?")
+        .get(b.identity().endpointId),
+    ).toEqual({ n: 0 });
+    await expect(
+      b.send({ ...oldReplyRequest, idempotency_key: "old-reply-after-revoke" }),
+    ).rejects.toThrow();
     await expect(
       a.send({ ...request, idempotency_key: "two" }),
     ).rejects.toThrow("paired");
+    const rotated = await a.rotateIdentity(a.identity().clientId);
+    expect(rotated.clientId).not.toBe(aid);
+    expect(a.state.peers()).toEqual([]);
+    expect(
+      a.state.db.query("SELECT COUNT(*) AS n FROM outbound").get(),
+    ).toEqual({ n: 0 });
+    expect(
+      a.state.db.query("SELECT COUNT(*) AS n FROM advertised").get(),
+    ).toEqual({ n: 0 });
   } finally {
     await a.close();
     await b.close();
