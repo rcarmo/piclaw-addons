@@ -36,6 +36,20 @@ test("fixture roots require fresh real owned directories and exclusive evidence"
     ).toThrow();
     expect(() =>
       requireOwnedFixtureRoot(
+        "/workspace/iroh-two-host-test-owned",
+        "iroh-two-host-",
+        token,
+      ),
+    ).toThrow("canonical /tmp");
+    expect(() =>
+      requireOwnedFixtureRoot(
+        "/tmpfoo/iroh-two-host-test-owned",
+        "iroh-two-host-",
+        token,
+      ),
+    ).toThrow("canonical /tmp");
+    expect(() =>
+      requireOwnedFixtureRoot(
         root + "/../../workspace",
         "iroh-two-host-",
         token,

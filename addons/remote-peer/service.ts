@@ -1179,7 +1179,9 @@ export class PeerService {
             prompt: d.prompt,
             type: d.type,
             capabilities: d.capabilities,
-            result: d.result,
+            result: d.terminal?.result ?? d.result,
+            terminal_status: d.terminal?.status,
+            notification_delivered: d.notificationDelivered === true,
           },
         };
       }),

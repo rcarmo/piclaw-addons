@@ -98,9 +98,10 @@ export class IrohTransport {
     this.clientId = clientId(this.id);
   }
   async start() {
+    if (this.closed)
+      throw new Error("Iroh transport is closed and cannot be restarted.");
     if (this.endpoint) return;
     if (this.pendingStart) return this.pendingStart;
-    this.closed = false;
     this.pendingStart = this.bind();
     try {
       await this.pendingStart;

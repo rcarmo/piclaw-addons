@@ -116,6 +116,18 @@ test("malformed/oversized frame denied before allocating body or calling applica
     await t.close();
   }
 });
+test("closed transports are terminal and cannot reopen native endpoints", async () => {
+  const transport = make();
+  await transport.start();
+  expect(transport.status().active).toBe(true);
+  await transport.close();
+  expect(transport.status().active).toBe(false);
+  await expect(transport.start()).rejects.toThrow("closed");
+  await expect(
+    transport.request("22".repeat(32), "ping", {}, new Uint8Array(), "bad"),
+  ).rejects.toThrow("closed");
+});
+
 test("wrong ALPN and ticket identity rejected on real loopback endpoints", async () => {
   const a = make(),
     b = make();

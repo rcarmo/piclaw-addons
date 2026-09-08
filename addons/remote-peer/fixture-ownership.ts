@@ -21,10 +21,12 @@ export function requireOwnedFixtureRoot(
   if (!value || !validToken(token))
     throw new Error("Owned temporary root and token required.");
   const path = resolve(value),
-    tmp = realpathSync("/tmp"),
-    relative = path.slice(tmp.length + 1),
+    tmp = realpathSync("/tmp");
+  if (path === tmp || !path.startsWith(tmp + sep))
+    throw new Error("Fixture root is outside canonical /tmp.");
+  const relative = path.slice(tmp.length + 1),
     first = relative.split(sep)[0];
-  if (!first?.startsWith(prefix) || path === tmp)
+  if (!first?.startsWith(prefix))
     throw new Error("Fixture root is outside the allowed temporary prefix.");
   const stat = lstatSync(path);
   if (
@@ -37,7 +39,10 @@ export function requireOwnedFixtureRoot(
   while (current !== tmp) {
     if (lstatSync(current).isSymbolicLink())
       throw new Error("Fixture root has a symlink ancestor.");
-    current = resolve(current, "..");
+    const parent = resolve(current, "..");
+    if (parent === current || !parent.startsWith(tmp))
+      throw new Error("Fixture ancestry escaped canonical /tmp.");
+    current = parent;
   }
   const markerPath = join(path, ".piclaw-iroh-fixture");
   let marker: any = null;

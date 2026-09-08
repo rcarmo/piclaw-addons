@@ -68,6 +68,52 @@ test("failed work notification retries the same terminal result exactly once and
     expect(
       service.state.db.query("SELECT status FROM work WHERE id=?").get(id),
     ).toEqual({ status: "completed" });
+    const dashboard = await service.dashboard();
+    expect(dashboard.work[0].data).toMatchObject({
+      result: "reviewed",
+      terminal_status: "completed",
+      notification_delivered: true,
+    });
+  } finally {
+    await service.close();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("terminal work result remains visible without an origin chat", async () => {
+  const root = mkdtempSync(join(tmpdir(), "iroh-work-visible-"));
+  const service = new PeerService({ dataDir: root, runtime: runtime() });
+  try {
+    const peer = "44".repeat(32);
+    service.state.db
+      .query("INSERT INTO work VALUES (?,?,?,?,?)")
+      .run(
+        "visible",
+        peer,
+        "outbound",
+        "pending",
+        JSON.stringify({
+          prompt: "p",
+          type: "proposal",
+          capabilities: [],
+          chat: "",
+        }),
+      );
+    await (service as any).receiveWorkResult(
+      { id: peer },
+      {
+        id: "visible",
+        status: "completed",
+        result: "visible result",
+        capabilities: [],
+      },
+    );
+    const row = (await service.dashboard()).work[0];
+    expect(row.status).toBe("completed");
+    expect(row.data).toMatchObject({
+      result: "visible result",
+      terminal_status: "completed",
+    });
   } finally {
     await service.close();
     rmSync(root, { recursive: true, force: true });
