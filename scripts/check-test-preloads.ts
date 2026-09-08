@@ -14,6 +14,6 @@ function walk(dir: string) {
 walk(root);
 for (const dir of dirs) {
   const expected = `[test]\npreload = ["${relative(dir, preload).replaceAll('\\', '/').replace(/^(?!\.)/, './')}"]\n`;
-  if (!existsSync(join(dir, 'bunfig.toml')) || readFileSync(join(dir, 'bunfig.toml'), 'utf8') !== expected) throw new Error(`Missing test preload in ${relative(root, dir) || '.'}`);
+  if (!existsSync(join(dir, 'bunfig.toml')) || readFileSync(join(dir, 'bunfig.toml'), 'utf8').replace(/\r\n/g, '\n') !== expected) throw new Error(`Missing test preload in ${relative(root, dir) || '.'}`);
 }
 console.log(`Test preload coverage: ${dirs.size} directories`);
