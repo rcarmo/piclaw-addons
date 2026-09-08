@@ -115,9 +115,8 @@ export function getPiclawRuntimeApi(): PiclawRuntimeApi | null {
   return ((globalThis as typeof globalThis & { __piclaw_runtime?: PiclawRuntimeApi }).__piclaw_runtime) ?? null;
 }
 
-export function requirePiclawRuntimeApi(): PiclawRuntimeApi & Required<Pick<PiclawRuntimeApi, "messaging" | "externalRoutes">> {
+export function requirePiclawRuntimeApi(): PiclawRuntimeApi & Required<Pick<PiclawRuntimeApi, "messaging">> {
   const api = getPiclawRuntimeApi();
   if (api?.messaging?.version !== 1) throw new Error("Remote Peer requires Piclaw messaging API v1.");
-  if (api?.externalRoutes?.version !== 1) throw new Error("Remote Peer requires Piclaw external routes API v1.");
-  return api as PiclawRuntimeApi & Required<Pick<PiclawRuntimeApi, "messaging" | "externalRoutes">>;
+  return api as PiclawRuntimeApi & Required<Pick<PiclawRuntimeApi, "messaging">>;
 }

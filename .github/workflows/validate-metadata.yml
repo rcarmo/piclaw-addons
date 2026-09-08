@@ -33,6 +33,9 @@ jobs:
       - name: Validate catalog and root package metadata
         run: bun run check:catalog
 
+      - name: Install Iroh prebuilt test dependency
+        working-directory: addons/remote-peer
+        run: bun install --frozen-lockfile --omit peer --ignore-scripts
       - name: Type-check Earendil compatibility surface
         run: bun run typecheck:earendil-compat
 
@@ -41,6 +44,8 @@ jobs:
 
       - name: Test standalone add-on imports
         run: bun test standalone-import.test.ts
+      - name: Test Iroh-only Remote Peer on isolated loopback
+        run: bun test addons/remote-peer
 
       - name: Validate package can be packed
         run: bun pm pack --dry-run >/dev/null

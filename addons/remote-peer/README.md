@@ -1,112 +1,56 @@
-# Remote Peer
+# Remote Peer — Iroh
 
-`@rcarmo/piclaw-addon-remote-peer` makes Piclaw's existing `chat` tool work across a small trusted group of instances. Operators pair peers and choose which inboxes, agents, modes and file limits are exposed; agents discover exact usable addresses and send text or files without learning the pairing protocol.
+Connect Piclaw instances by client ID using Iroh QUIC. All peer traffic uses Iroh, with direct connections and encrypted relay fallback. No public inbound HTTP endpoint is needed.
 
-## Agent workflow
+This is a clean break from Remote Peer 0.2: no old clients, HTTP peer routes, database migration or identity import. Existing installed files are left untouched. Both ends must install the new version and pair again.
+
+## Pair in Settings
+
+1. Enable Remote Peer on both instances and set their names.
+2. Copy the **Your client ID** value (`PCL1-…`).
+3. For internet ID-only pairing, explicitly enable **Internet address lookup** on both instances. This publishes/resolves endpoint addresses through Iroh's n0 services; it does not enumerate or trust peers.
+4. Paste the other client ID under **Add peer**, choose a local alias, and request pairing.
+5. On the recipient, compare the client ID with its owner and explicitly accept. Initial permissions are inbox-only, queue mode, files off.
+
+Address lookup and mDNS are separate controls. Both default off. Without internet lookup, exchange an endpoint ticket using the advanced field, or opt into nearby discovery. A bare public key contains no routable address.
+
+## Optional mDNS
+
+**Enable mDNS on this network** is off by default. Disabled means no multicast socket, advertisement, browser query or discovery timer. Enabling advertises minimal public ID/version hints and displays nearby, untrusted candidates. Selecting a candidate fills the pairing ID; it never grants trust.
+
+An optional IPv4 interface restricts advertisements. mDNS typically stays on one multicast segment; VLANs, VPNs, containers and access points may block it. Manual ticket pairing still works. The implementation uses `bonjour-service@1.4.4` on Bun's `node:dgram` compatibility; no system Bonjour/Avahi service is required.
+
+## Chat and permissions
+
+Agents use the normal `chat` tool:
 
 ```text
 chat({ action: "directory" })
-chat({ target_address: "lab!inbox", content: "Please review this.", mode: "queue", idempotency_key: "review-2026-08-29" })
-chat({ target_address: "lab!@research", content: "CSV attached.", files: ["exports/data.csv"], mode: "queue", idempotency_key: "csv-2026-08-29" })
+chat({ target_address: "lab!inbox", content: "Please review this", mode: "queue", idempotency_key: "review-1" })
 ```
 
-The directory is the allowlist. It returns directly usable local addresses, allowed modes, reachability/roster freshness and receiver-owned file limits. Remote sends default to `queue`. Files use bounded raw binary transfer with SHA-256 verification and become ordinary Piclaw attachments at the receiver; binary data is never put in message text.
+Advertise a local agent and explicitly grant it before using `lab!@research`. Reply to supplied opaque `lab!reply.…` addresses without decoding them. Queue/auto/steer and file permissions remain receiver-controlled. Broader permissions require `ALLOW REMOTE ACCESS` confirmation.
 
-Inbound messages identify the authenticated peer and source agent and include an opaque reply address. Reply to that address exactly as supplied.
+Files are sent as raw bytes inside bounded Iroh frames: four files maximum, 16 MiB each, 32 MiB total. SHA-256 is checked at both ends. Outbound payloads are stored until acknowledged; retries reuse message IDs and return a stored receipt without duplicating normal completed delivery.
 
-## Requirements
+If the receiver crashes between calling Piclaw delivery and recording the receipt, its record remains `delivering`. Retries report an unknown outcome rather than risking duplicate tool-triggering messages. Inspect that record before taking further action; exactly-once delivery across that crash boundary is not claimed.
 
-- Piclaw `>=2.12.0`
-- Messaging runtime API v1
-- External routes API v1
+Work requests remain operator-mediated. Neither a pairing nor an `execute` request grants tool execution. Reviewed results may be returned from Settings or the management tool.
 
-The add-on does not import Piclaw runtime internals.
+## Storage and dependencies
 
-## Storage
+Fresh state lives under `<addon-data>/iroh-v1/`: `secret-key.bin` (32 bytes, mode 0600), `peers.db` and SQLite WAL files. The Iroh Ed25519 public key is the client identity, displayed with a checksum for copying. The secret is never returned by Settings or tools. Old `state.db` and `identity.json` are not read or changed.
 
-The add-on uses Piclaw's scoped data directory:
+Pinned dependencies: `@number0/iroh@1.1.0` (prebuilt N-API) and `bonjour-service@1.4.4`. No local Rust/native compiler is required. The published Iroh entrypoint layout is handled by loading its explicit root `index.js`. Unsupported native targets receive an error rather than a source-build attempt. Target runtime: Bun 1.4.1, Piclaw >=2.15.0.
 
-```text
-<PICLAW_DATA>/addons/remote-peer/
-├── identity.json
-├── state.db
-├── state.db-wal
-├── state.db-shm
-└── backups/
-```
+Custom relays require HTTPS URLs. Authentication is an optional keychain entry name, never a secret pasted into configuration. Do not enable public address lookup if private address publication is unacceptable. Iroh relay networking may itself use HTTP/WebSocket internally; the removed HTTP transport is Remote Peer's application transport.
 
-`identity.json` is written with mode `0600` where supported. `state.db` uses WAL, foreign keys, secure delete, a five-second busy timeout, integrity checks and explicit checksummed migrations.
+## Management API
 
-Peer, message, proposal, receipt and audit ledgers are relational tables in `state.db`. They are not stored in extension KV and are not added to Piclaw's `messages.db`.
+`remote_peer` actions: `status`, `identity`, `ticket`, `pair`, `accept`, `deny`, `revoke`, `forget`, `alias`, `policy`, `advertise`, `unadvertise`, `ping`, `retry`, `work_send`, `work_review`.
 
-Normal add-on uninstall preserves the scoped data directory. Destructive identity/database reset will be an explicit confirmed Settings action in a later release.
+Settings uses `/agent/addons/api/remote-peer/config` and `/dashboard`. The old `/pair` command and HTTP pairing protocol are removed. Removing a revoked record requires full-ID confirmation and only permits a new explicit pairing attempt.
 
-## Pairing and management
+## Validation status
 
-```text
-remote_peer({ action: "status" })
-remote_peer({ action: "identity" })
-remote_peer({ action: "list_peers" })
-remote_peer({ action: "pending" })
-remote_peer({ action: "pair_request", url: "https://peer.example" })
-remote_peer({ action: "accept_pair", request_id: "pair_..." })
-remote_peer({ action: "deny_pair", request_id: "pair_..." })
-remote_peer({ action: "ping", peer: "peer-alias" })
-remote_peer({ action: "set_alias", peer: "peer-alias", alias: "new-alias" })
-remote_peer({ action: "roster" })
-remote_peer({ action: "roster", peer: "peer-alias" })
-remote_peer({ action: "advertise_agent", local_agent: "research", alias: "research", modes: ["queue", "auto"] })
-remote_peer({ action: "set_policy", peer: "peer-alias", scope: "named-agents", mode_ceiling: "queue-auto", agents: ["research"] })
-remote_peer({ action: "message_status", message_id: "rmsg_..." })
-remote_peer({ action: "message_failures" })
-remote_peer({ action: "revoke", peer: "peer-alias" })
-```
-
-The `/pair` command provides equivalent pairing actions. Only public identity metadata is returned. The private key is never returned through tools, commands, external routes, or the Settings API.
-
-## Operator setup and pairing
-
-After setup, use Piclaw's built-in `chat` tool with an address returned by `chat({ action: "directory" })`:
-
-```text
-chat({ target_address: "lab!inbox", content: "Please review this finding.", mode: "queue" })
-```
-
-Use `peer!inbox` for the default inbox or `peer!@alias` for an operator-advertised agent. Replies use an opaque `peer!reply.<capability>` address embedded in the authenticated peer-message block; it routes back to the original source context without disclosing a raw chat JID.
-
-The add-on persists outbound/inbound ledgers, signs the exact request body, verifies the authenticated peer, calls core's safe peer-delivery ABI, and returns a signed durable receipt. Supplying an `idempotency_key` makes safe retries return the original receipt without a second timeline row.
-
-Pairing defaults to `inbox-only`, `queue`, and file transfer disabled. Operators must explicitly advertise local aliases, grant each peer `named-agents` or `all-advertised` scope, raise the mode ceiling, and enable a bounded file policy. Both sender-side directory validation and receiver-side policy enforcement apply.
-
-Detailed documentation:
-
-- [Protocol](docs/protocol.md)
-- [Security model](docs/security.md)
-- [Mediated work](docs/mediated-work.md)
-- [Operator guide](docs/operator-guide.md)
-- [Troubleshooting](docs/troubleshooting.md)
-- [Architecture diagram](docs/architecture.svg)
-- [Release E2E matrix](docs/e2e-matrix.md)
-- [0.2.0 three-instance MVP evidence](docs/e2e-mvp-0.2.0.md)
-
-## Settings
-
-The **Remote Peer** Settings pane provides:
-
-- health, public identity, endpoint configuration, peer/pending/failure counts;
-- immutable fingerprint/origin review for inbound pairing;
-- peer aliases, messaging scopes, mode ceilings, revocation, and risk confirmations;
-- operator-selected advertised local agents;
-- pending requests, last-seen state, and failed-receipt status.
-
-Fingerprint confirmation is required for acceptance and revocation. `all-advertised` and `steer` require the typed phrase `ALLOW REMOTE ACCESS`. Key rotation requires every peer be revoked first, then `ROTATE <current fingerprint>`; it archives the old identity and requires restart/re-pair. Runtime endpoint changes require a Piclaw restart. Browser payloads are redacted and never contain private keys, raw chat JIDs, reply capabilities, internal database paths, or unselected local agents.
-
-![Remote Peer Settings pane](assets/settings-pane-microvm.png)
-
-## Deferred beyond the chat MVP
-
-Mediated `work_*` actions remain available for compatibility but are not part of the agent-chat MVP or default agent guidance. The MVP proves one-hop text/file conversation, opaque replies, delivery receipts and retry. It does not grant direct remote tool execution or multi-hop federation.
-
-## Current scope
-
-This release registers pairing, signed ping/revoke/message/roster/proposal/execute/result endpoints, the one-hop bang-address transport, and mediated work review. It does not grant a remote peer direct Piclaw tool execution.
+See [test evidence](docs/e2e-matrix.md). Local Bun1.4.1 tests cover real loopback QUIC pairing/messages/files/replies, persistence, permission gates, frame/signature rejection and mocked discovery lifecycle. A separate same-host n0 probe passed bare-client-ID pairing with mDNS off. Internet-separated NAT/relay operation and real multi-device multicast remain separate acceptance gates, not implied by those tests.

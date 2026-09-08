@@ -1,83 +1,12 @@
-# Troubleshooting Remote Peer
+# Troubleshooting
 
-## Pair request fails
+- **ID-only pairing cannot find the endpoint:** enable Internet address lookup on both instances, or paste a ticket. A bare public key is not an IP address.
+- **No nearby candidates:** mDNS defaults off. Enable it explicitly, check the interface and multicast network, or use manual pairing. VPNs/VLANs/containers may block multicast.
+- **Prebuilt package unavailable:** install the exact Iroh native dependency for the supported platform; no source build is attempted. Intel macOS is not among the 1.1.0 published targets.
+- **Pair request remains pending:** the recipient must accept. Failed matching requests can be retried. To change the pairing attempt, cancel and explicitly remove the revoked record first.
+- **No chat directory entry:** pairing is incomplete, the peer is unreachable, or its receiver-owned policy does not expose the destination.
+- **Files fail:** enable file permission at the receiver and respect four files, 16 MiB each, 32 MiB total. Hash/size mismatches are rejected.
+- **Interrupted/unknown delivery:** retry the same stored outbound ID. If the receiver reports an ambiguous outcome, inspect the destination timeline before proceeding.
+- **Old peer URLs/settings rejected:** intentional clean break. Configure and pair the new clients; no old state is imported.
 
-- Confirm both add-ons are enabled and External URL is reachable from the other host.
-- HTTPS is required unless both HTTP and private-network development overrides are explicitly enabled.
-- Compare `/agent/addons/api/remote-peer/dashboard` health: database must be `ok`, external URL configured, and pending count should change.
-- Private, loopback, link-local, credential-bearing, unresolved, or mixed public/private DNS targets are rejected by default.
-
-## Pair confirmation fails
-
-- Verify immutable fingerprints out of band.
-- Check that each origin points to the correct instance and identity.
-- Revoke stale peer records before re-pairing after identity rotation.
-- The receiver revokes provisional trust if signed confirmation fails; retry with a new request.
-
-## Address or mode is rejected
-
-Run `chat({ action: "directory" })` and use an exact listed address and mode. A missing named agent usually means its signed roster is stale, the alias is not advertised, or the peer lacks permission. Refresh/ping the peer from Settings.
-
-## File transfer is rejected or interrupted
-
-- Confirm the selected directory entry reports files enabled.
-- Respect its per-file and total byte limits.
-- Retry uncertain delivery with the same idempotency key; do not create a new key for the same logical message.
-- Inspect `message_status` or `message_failures`. Use `retry_message` only for a persisted failed outbound message.
-- SHA-256, byte-count, signature, policy or transfer-ID mismatches fail closed and never enter the target timeline.
-
-## Message is queued but no timeline row appears yet
-
-Core preserves normal queue semantics. `queue` and `auto` can remain follow-ups while the target chat is active; `steer` enters the active lane only when explicitly allowed. The signed receipt and add-on ledgers remain durable even when `row_id` is null.
-
-Use:
-
-```text
-remote_peer({ action: "message_status", message_id: "rmsg_..." })
-remote_peer({ action: "message_failures" })
-```
-
-## Alias is rejected
-
-- The receiver must advertise the alias.
-- The authenticated peer needs `named-agents` permission for that alias or `all-advertised` scope.
-- Both the peer mode ceiling and alias mode list must allow the requested mode.
-- Signed rosters intentionally omit unselected local agents and local mapping names.
-
-## Opaque reply fails
-
-Opaque reply capabilities are signed, peer-bound, and expire after seven days. Do not edit the `peer!reply.<token>` address. A capability is invalid after expiry, key rotation, wrong-peer use, or destructive data reset.
-
-## Mediated work stays pending
-
-This is expected until a local operator approves or rejects it. Both proposal and execute request types are mediated.
-
-```text
-remote_peer({ action: "work_inbox" })
-remote_peer({ action: "work_status", request_id: "rwork_..." })
-remote_peer({ action: "work_wait", request_id: "rwork_...", timeout_ms: 30000 })
-```
-
-Capability profile failures mean the requested labels exceed the local allowlist. Chain-loop/hop failures require a new chain or lower hop count.
-
-## Result callback is delayed
-
-Failed callbacks persist with bounded backoff: 30 seconds, 2 minutes, 10 minutes, then 1 hour. The startup worker retries due attempts. Operators can trigger:
-
-```text
-remote_peer({ action: "work_retry_callbacks" })
-```
-
-Unknown, duplicate, and conflicting callbacks are rejected and never overwrite a terminal request.
-
-## Identity rotation is blocked
-
-Revoke every paired peer first while the old key can still notify them. Then rotate with `ROTATE <current fingerprint>`, restart Piclaw, and re-pair. The prior identity is archived at mode `0600` under `backups/`.
-
-## Database or migration error
-
-Stop Piclaw and preserve the entire scoped add-on directory. Do not delete `state.db`. Restore the identity and database together from a consistent backup. Migrations are checksummed and create an online backup before upgrades.
-
-## Uninstall/reinstall
-
-Normal uninstall removes code/registrations but preserves `<PICLAW_DATA>/addons/remote-peer/`. Reinstalling the same package restores access to the existing identity/state. Destructive reset is a separate explicit operation; there is no legacy core-state import.
+Never disable certificate/identity checks or turn on discovery as a workaround for a permission failure.
