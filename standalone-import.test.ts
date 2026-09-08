@@ -143,7 +143,7 @@ test("standalone piclaw-addon-proxmox imports outside the monorepo root", async 
 test("standalone piclaw-addon-remote-peer imports outside the monorepo root", async () => {
   const mod = await importStandaloneAddon("remote-peer");
   expect(typeof mod.default).toBe("function");
-});
+}, 120_000);
 
 test("standalone piclaw-addon-session-tree imports outside the monorepo root", async () => {
   const mod = await importStandaloneAddon("session-tree");

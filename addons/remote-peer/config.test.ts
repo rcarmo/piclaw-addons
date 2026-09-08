@@ -1,29 +1,34 @@
-import { describe, expect, test } from "bun:test";
-import { DEFAULT_REMOTE_PEER_CONFIG, normalizeRemotePeerConfig } from "./config.js";
-
-describe("remote-peer config", () => {
-  test("defaults to disabled secure settings", () => {
-    expect(normalizeRemotePeerConfig({})).toEqual(DEFAULT_REMOTE_PEER_CONFIG);
+import { test, expect } from "bun:test";
+import {
+  normalizeRemotePeerConfig,
+  DEFAULT_REMOTE_PEER_CONFIG,
+} from "./config.js";
+test("all network services are disabled by default; no legacy settings", () => {
+  expect(normalizeRemotePeerConfig({})).toEqual(DEFAULT_REMOTE_PEER_CONFIG);
+  expect(DEFAULT_REMOTE_PEER_CONFIG.enabled).toBe(false);
+  expect(DEFAULT_REMOTE_PEER_CONFIG.mdnsEnabled).toBe(false);
+  expect(DEFAULT_REMOTE_PEER_CONFIG.addressLookup).toBe(false);
+  for (const key of ["allowHttp", "externalUrl", "allowPrivateNetwork"])
+    expect(() => normalizeRemotePeerConfig({ [key]: true })).toThrow();
+});
+test("validates relay credentials, type, interface and DNS-SD label limits", () => {
+  for (const input of [
+    { enabled: "false" },
+    { mdnsInterface: "host.local" },
+    { relayMode: "custom" },
+    { relays: [{ url: "http://relay.local" }] },
+    { relays: [{ url: "https://user:secret@example.com" }] },
+    { instanceName: "x".repeat(64) },
+    { instanceName: "line\nbreak" },
+  ])
+    expect(() => normalizeRemotePeerConfig(input)).toThrow();
+  const config = normalizeRemotePeerConfig({
+    enabled: true,
+    mdnsEnabled: true,
+    addressLookup: true,
+    mdnsInterface: "192.168.1.2",
+    relayMode: "custom",
+    relays: [{ url: "https://relay.example", authTokenKeychain: "iroh/relay" }],
   });
-
-  test("normalizes names and external URLs", () => {
-    expect(normalizeRemotePeerConfig({
-      enabled: true,
-      instanceName: "  Lab  ",
-      externalUrl: "https://peer.example.test/base///?ignored=1#x",
-      allowHttp: true,
-      allowPrivateNetwork: true,
-    })).toEqual({
-      enabled: true,
-      instanceName: "Lab",
-      externalUrl: "https://peer.example.test/base",
-      allowHttp: true,
-      allowPrivateNetwork: true,
-    });
-  });
-
-  test("rejects unsupported URL schemes and oversized names", () => {
-    expect(() => normalizeRemotePeerConfig({ externalUrl: "file:///tmp/test" })).toThrow("https or http");
-    expect(() => normalizeRemotePeerConfig({ instanceName: "x".repeat(129) })).toThrow("128");
-  });
+  expect(config.relays[0].authTokenKeychain).toBe("iroh/relay");
 });

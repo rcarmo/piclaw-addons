@@ -1,64 +1,17 @@
 ---
 name: remote-peer
-description: Pair and manage Piclaw peers, inspect message delivery, and send durable signed peer!inbox messages through the chat tool.
+description: Manage Iroh client-ID pairing in Remote Peer Settings and use chat for trusted one-hop peer conversations.
 distribution: public
 ---
 
-# Remote Peer
+# Iroh Remote Peer
 
-Operators use `remote_peer` for pairing and trust management. Agents should use the built-in `chat` tool for ordinary remote conversations and file delivery.
+Operators pair clients in Settings by pasting `PCL1-…` client IDs, comparing identity with the owner and explicitly approving requests. Internet address lookup is a separate opt-in for bare-ID dialing. Advanced endpoint tickets work without lookup. mDNS is off by default, settable in Settings, and never auto-pairs.
 
-## Agent chat workflow
+Agents use `chat({action:"directory"})` and only returned addresses/modes, such as `lab!inbox` and `lab!@research`. Send workspace `files` or `media_ids`; do not encode binary in message text. Use stable `idempotency_key` values for uncertain retries. Reply to supplied `peer!reply.…` addresses unchanged.
 
-1. Call `chat({ action: "directory" })` when you do not already have an exact remote address.
-2. Use only an address and mode returned by that directory, such as `lab!inbox` or `lab!@research`.
-3. Send text with `content` and files with `files` or `media_ids`. Never paste binary or base64 into message text.
-4. Use a stable `idempotency_key` when retrying an uncertain delivery.
-5. Reply through the opaque `peer!reply.<capability>` address supplied on the inbound message. Do not inspect or rewrite it.
+Operator `remote_peer` actions: `status`, `identity`, `ticket`, `pair`, `accept`, `deny`, `revoke`, `forget`, `alias`, `policy`, `advertise`, `unadvertise`, `ping`, `retry`, `work_send`, `work_review`. Pair uses `client_id` with optional `alias` and `ticket`. Acceptance/revocation/removal require full client-ID confirmation. Wider incoming permissions require `ALLOW REMOTE ACCESS`.
 
-```text
-chat({ action: "directory" })
-chat({ target_address: "lab!inbox", content: "Please review this.", mode: "queue", idempotency_key: "review-2026-08-29" })
-chat({ target_address: "lab!@research", content: "Data attached.", files: ["exports/data.csv"], mode: "queue", idempotency_key: "data-2026-08-29" })
-```
+Pairing grants no direct remote tool execution. Work proposals and execute-labelled requests both require review and a locally supplied result.
 
-File transfer is receiver-controlled. The directory reports whether it is enabled and the exact count/size limits.
-
-## Operator management
-
-```text
-remote_peer({ action: "status" })
-remote_peer({ action: "identity" })
-remote_peer({ action: "list_peers" })
-remote_peer({ action: "pending" })
-remote_peer({ action: "pair_request", url: "https://peer.example" })
-remote_peer({ action: "accept_pair", request_id: "pair_..." })
-remote_peer({ action: "deny_pair", request_id: "pair_..." })
-remote_peer({ action: "ping", peer: "peer-alias" })
-remote_peer({ action: "set_alias", peer: "peer-alias", alias: "new-alias" })
-remote_peer({ action: "roster" })
-remote_peer({ action: "roster", peer: "peer-alias" })
-remote_peer({ action: "advertise_agent", local_agent: "research", alias: "research", modes: ["queue", "auto"] })
-remote_peer({ action: "set_policy", peer: "peer-alias", scope: "named-agents", mode_ceiling: "queue-auto", agents: ["research"] })
-remote_peer({ action: "message_status", message_id: "rmsg_..." })
-remote_peer({ action: "message_failures" })
-remote_peer({ action: "revoke", peer: "peer-alias" })
-```
-
-Review the pending request's instance ID, fingerprint, display name, and callback URL before acceptance. Compare fingerprints out of band for sensitive peers. Never enable HTTP/private-network overrides without an explicit controlled-network reason.
-
-The add-on owns a dedicated SQLite database and Ed25519 identity under Piclaw's scoped add-on data directory. It does not store peer or message ledgers in extension KV and never exposes the private key.
-
-Send a durable inbox message with Piclaw's existing chat tool:
-
-```text
-chat({ target_address: "lab!inbox", content: "Please review this finding.", mode: "queue", idempotency_key: "stable-key" })
-```
-
-Use `@alias` for local agents, `peer!inbox` for a paired remote inbox, and `peer!@alias` only when that alias appears in the peer's signed roster. Bang addresses are one hop only. Use opaque `peer!reply.<capability>` addresses exactly as supplied when replying; never inspect or rewrite them.
-
-Pair trust does not imply agent or mode access. Operators advertise aliases and set per-peer scope/ceilings. `steer` requires both a `queue-auto-steer` peer ceiling and an advertised alias that allows `steer`. Prefer a stable idempotency key when retrying uncertain deliveries.
-
-For operator-mediated work, use `remote_peer` actions `work_send`, `work_status`, `work_wait`, `work_inbox`, `work_approve`, or `work_reject`. Both proposal and execute request types require local review; never imply that pairing grants remote tool execution. Approvals must provide a reviewed result and may only approve a subset of requested capability labels.
-
-The add-on's `/pair` command is supported for operator pairing. Do not use removed legacy core `/ask` or `/api/remote/*` surfaces.
+This implementation uses only Iroh peer transport and fresh state. HTTP URLs, the old /pair command, old tool actions and old peer databases are unsupported. Do not migrate or delete legacy installed data. Do not enable networking, public lookup or mDNS without operator direction.

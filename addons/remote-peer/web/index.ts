@@ -1,186 +1,558 @@
 // @ts-nocheck
-const ADDON_ID = "remote-peer";
-const API = `/agent/addons/api/${ADDON_ID}`;
-const preactHtm = globalThis.__piclawPreactHtm || globalThis.__piclawPreact || null;
-const html = preactHtm?.html;
-const useState = preactHtm?.useState;
-const useEffect = preactHtm?.useEffect;
-const useCallback = preactHtm?.useCallback;
-const HAS_RUNTIME = Boolean(html && useState && useEffect && useCallback);
-
-async function api(action, method = "GET", payload) {
-  const response = await fetch(`${API}/${action}`, {
-    method,
-    ...(payload === undefined ? {} : { headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }),
+const ui = globalThis.__piclawPreactHtm || globalThis.__piclawPreact;
+const html = ui?.html,
+  useState = ui?.useState,
+  useEffect = ui?.useEffect;
+async function api(action, body) {
+  const response = await fetch("/agent/addons/api/remote-peer/" + action, {
+    method: body === undefined ? "GET" : "POST",
+    ...(body === undefined
+      ? {}
+      : {
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        }),
   });
-  let body = {};
-  try { body = await response.json(); }
-  catch (error) { console.debug("[remote-peer] non-JSON API response", error); }
-  if (!response.ok) throw new Error(body.error || `Request failed (${response.status})`);
-  return body;
+  const data = await response.json();
+  if (!response.ok) throw Error(data.error || "Request failed");
+  return data;
 }
-
 function RemotePeerSettings() {
-  if (!HAS_RUNTIME) return null;
-  const [dashboard, setDashboard] = useState(null);
-  const [config, setConfig] = useState(null);
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("");
-  const [pairUrl, setPairUrl] = useState("");
-  const [agentForm, setAgentForm] = useState({ local_agent: "", alias: "", modes: ["queue"] });
-  const [testForm, setTestForm] = useState({ address: "", content: "Hello from Remote Peer Settings", media_id: "" });
-
-  const refresh = useCallback(async () => {
+  const [state, setState] = useState(null),
+    [error, setError] = useState(""),
+    [busy, setBusy] = useState(false),
+    [client, setClient] = useState(""),
+    [alias, setAlias] = useState(""),
+    [ticket, setTicket] = useState(""),
+    [localTicket, setLocalTicket] = useState(""),
+    [relayText, setRelayText] = useState("");
+  async function refresh() {
     try {
-      const [dash, foundation] = await Promise.all([api("dashboard"), api("config")]);
-      setDashboard(dash);
-      setConfig(foundation.config || {});
-      setMessage("");
-    } catch (error) { setMessage(error.message || String(error)); }
-  }, []);
-  useEffect(() => { void refresh(); }, [refresh]);
-
-  const mutate = useCallback(async (payload, success = "Updated.") => {
-    setBusy(true); setMessage("");
-    try { setDashboard(await api("dashboard", "POST", payload)); setMessage(success); }
-    catch (error) { setMessage(error.message || String(error)); }
-    finally { setBusy(false); }
-  }, []);
-
-  const saveConfig = useCallback(async (patch) => {
-    setBusy(true); setMessage("");
-    try {
-      const result = await api("config", "POST", patch);
-      setConfig(result.config);
-      await refresh();
-      setMessage("Saved. Restart Piclaw after changing runtime endpoint settings.");
-    } catch (error) { setMessage(error.message || String(error)); }
-    finally { setBusy(false); }
-  }, [refresh]);
-
-  if (!dashboard || !config) return html`<div style="padding:1rem;color:var(--text-secondary)">${message || "Loading Remote Peer…"}</div>`;
-
-  const C = {
-    section: { margin: "0 0 0.85rem", padding: "0.8rem", border: "1px solid var(--border-color)", borderRadius: "9px", background: "color-mix(in srgb, var(--bg-secondary) 76%, transparent)" },
-    title: { margin: "0 0 0.65rem", fontSize: "0.9rem", letterSpacing: "0.01em" },
-    grid: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: "0.5rem" },
-    stat: { padding: "0.55rem", border: "1px solid var(--border-color)", borderRadius: "7px", background: "var(--bg-primary)" },
-    label: { display: "block", color: "var(--text-secondary)", fontSize: "0.69rem", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.2rem" },
-    row: { display: "flex", alignItems: "center", gap: "0.5rem", margin: "0.45rem 0", flexWrap: "wrap" },
-    input: { flex: 1, minWidth: "150px", padding: "5px 8px", color: "var(--text-primary)", background: "var(--bg-primary)", border: "1px solid var(--border-color)", borderRadius: "6px" },
-    button: { padding: "5px 10px", border: "1px solid var(--border-color)", borderRadius: "6px", background: "var(--bg-secondary)", color: "var(--text-primary)", cursor: "pointer", fontSize: "0.78rem" },
-    danger: { padding: "5px 10px", border: "1px solid color-mix(in srgb,var(--danger-color,#dc2626) 55%,var(--border-color))", borderRadius: "6px", background: "transparent", color: "var(--danger-color,#dc2626)", cursor: "pointer", fontSize: "0.78rem" },
-    muted: { color: "var(--text-secondary)", fontSize: "0.75rem" },
-    code: { fontFamily: "var(--font-mono,ui-monospace,monospace)", fontSize: "0.75rem", overflowWrap: "anywhere" },
-  };
-  const health = dashboard.health || {};
-  const identity = dashboard.foundation?.identity || {};
-  const statusColor = health.enabled && health.database === "ok" ? "var(--accent-color,#0f766e)" : "var(--danger-color,#dc2626)";
-  const confirmFingerprint = (verb, item) => globalThis.prompt?.(`${verb} peer?\n\nFingerprint: ${item.fingerprint}\nOrigin: ${item.origin || "unknown"}\n\nType the fingerprint to confirm:`) || "";
-  const confirmRisk = () => globalThis.prompt?.("This grants broader remote access. Type ALLOW REMOTE ACCESS to confirm:") || "";
-  const directoryEntries = dashboard.directory?.entries || [];
-  const copy = async (value) => { try { await navigator.clipboard.writeText(value); setMessage(`Copied ${value}`); } catch { setMessage(value); } };
-  const readiness = [
-    ["Runtime enabled", config.enabled === true],
-    ["Instance name set", Boolean(config.instanceName)],
-    ["External URL set", Boolean(config.externalUrl)],
-    ["Database healthy", health.database === "ok"],
-    ["At least one paired peer", health.paired > 0],
-  ];
-
-  const peerCard = (peer) => html`<div style=${{ ...C.stat, marginBottom: "0.55rem" }}>
-    <div style="display:flex;justify-content:space-between;gap:.5rem;align-items:flex-start">
-      <div><strong>${peer.peer_alias}</strong> <span style=${C.muted}>${peer.display_name || ""}</span><div style=${C.code}>${peer.fingerprint}</div></div>
-      <span style=${{ fontSize: "0.68rem", color: peer.status === "paired" ? statusColor : "var(--text-secondary)" }}>${peer.status}</span>
-    </div>
-    <div style=${{ ...C.row, marginTop: "0.65rem" }}>
-      <select style=${C.input} value=${peer.messaging_scope} onChange=${e => {
-        const scope = e.target.value; const confirmation = scope === "named-agents" || scope === "all-advertised" ? confirmRisk() : "";
-        mutate({ action: "set_policy", peer: peer.instance_id, scope, mode_ceiling: peer.mode_ceiling, agents: peer.allowed_agents, confirmation }, "Peer scope updated.");
-      }} disabled=${busy}>
-        <option value="none">No messaging</option><option value="inbox-only">Inbox only</option><option value="named-agents">Named agents</option><option value="all-advertised">All advertised</option>
-      </select>
-      <select style=${C.input} value=${peer.mode_ceiling} onChange=${e => {
-        const mode_ceiling = e.target.value; const confirmation = mode_ceiling === "queue" ? "" : confirmRisk();
-        mutate({ action: "set_policy", peer: peer.instance_id, scope: peer.messaging_scope, mode_ceiling, agents: peer.allowed_agents, confirmation }, "Mode ceiling updated.");
-      }} disabled=${busy}>
-        <option value="queue">Queue</option><option value="queue-auto">Queue + auto</option><option value="queue-auto-steer">Queue + auto + steer</option>
-      </select>
-      <button style=${C.button} onClick=${() => mutate({ action: "ping", peer: peer.instance_id }, "Peer responded to signed ping.")} disabled=${busy}>Ping</button>
-      <button style=${C.button} onClick=${() => mutate({ action: "refresh_roster", peer: peer.instance_id }, "Signed roster refreshed.")} disabled=${busy}>Roster</button>
-      <label style=${C.muted}><input type="checkbox" checked=${peer.attachments_enabled === true} onChange=${e => mutate({ action: "set_attachment_policy", peer: peer.instance_id, enabled: e.target.checked, max_attachment_bytes: 16 * 1024 * 1024, confirmation: globalThis.prompt?.("Type ALLOW FILE TRANSFER to change file policy:") || "" }, "File policy updated.")}/> Files</label>
-      <button style=${C.button} onClick=${() => mutate({ action: "set_alias", peer: peer.instance_id, alias: globalThis.prompt?.("New local peer alias:", peer.peer_alias) || "" }, "Alias updated.")} disabled=${busy}>Alias</button>
-      <button style=${C.danger} onClick=${() => mutate({ action: "revoke", peer: peer.instance_id, confirmation: confirmFingerprint("Revoke", peer) }, "Peer revoked.")} disabled=${busy || peer.status !== "paired"}>Revoke</button>
-    </div>
-    ${peer.messaging_scope === "named-agents" && html`<div style=${{ ...C.row, alignItems: "flex-start" }}><span style=${C.muted}>Allowed aliases:</span>${(dashboard.advertised_agents || []).filter(agent => agent.enabled).map(agent => html`<label style=${C.muted}><input type="checkbox" checked=${peer.allowed_agents.includes(agent.alias)} onChange=${e => { const agents = e.target.checked ? [...new Set([...peer.allowed_agents, agent.alias])] : peer.allowed_agents.filter(value => value !== agent.alias); mutate({ action: "set_policy", peer: peer.instance_id, scope: peer.messaging_scope, mode_ceiling: peer.mode_ceiling, agents, confirmation: confirmRisk() }, "Named-agent access updated."); }}/> @${agent.alias}</label>`)}</div>`}
-    <div style=${C.muted}>${peer.origin || "No origin"} · last seen ${peer.last_seen_at || "never"}</div>
-  </div>`;
-
-  return html`<div style="padding:.35rem 0;max-width:920px">
-    <section style=${C.section}>
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem"><h4 style=${C.title}>MVP readiness</h4><button style=${C.button} onClick=${refresh} disabled=${busy}>Refresh</button></div>
-      <div style=${C.grid}>${readiness.map(([label, ready]) => html`<div style=${C.stat}><span style=${C.label}>${label}</span><strong style=${{ color: ready ? "var(--accent-color,#0f766e)" : "var(--danger-color,#dc2626)" }}>${ready ? "Ready" : "Required"}</strong></div>`)}</div>
-      <div style=${{ ...C.muted, marginTop: ".55rem" }}>Agents can use Remote Peer when paired addresses appear below. Text and file delivery default to queue mode.</div>
-    </section>
-
-    <section style=${C.section}>
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem"><h4 style=${C.title}>Health & identity</h4></div>
-      <div style=${C.grid}>
-        <div style=${C.stat}><span style=${C.label}>Runtime</span><strong style=${{ color: statusColor }}>${health.enabled ? "Enabled" : "Disabled"}</strong></div>
-        <div style=${C.stat}><span style=${C.label}>Database</span><strong>${health.database}</strong> · schema ${dashboard.foundation?.database?.schema_version}</div>
-        <div style=${C.stat}><span style=${C.label}>Peers</span><strong>${health.paired}</strong> paired · ${health.pending} pending</div>
-        <div style=${C.stat}><span style=${C.label}>Failed receipts</span><strong>${health.failed_receipts}</strong></div>
-      </div>
-      <div style=${{ ...C.row, marginTop: ".65rem" }}><span style=${C.label}>Fingerprint</span><code style=${C.code}>${identity.fingerprint}</code><button style=${C.danger} onClick=${() => mutate({ action: "rotate_identity", confirmation: globalThis.prompt?.(`Revoke every paired peer first. Then type ROTATE ${identity.fingerprint} to confirm:`) || "" }, "Identity rotated. Restart Piclaw and re-pair every peer.")} disabled=${busy || health.paired > 0}>Rotate key</button></div>
-      <div style=${C.row}><label><input type="checkbox" checked=${config.enabled === true} onChange=${e => saveConfig({ enabled: e.target.checked })} disabled=${busy}/> Enabled</label><input style=${C.input} value=${config.instanceName || ""} placeholder="Instance name" onBlur=${e => saveConfig({ instanceName: e.target.value })}/><input style=${C.input} value=${config.externalUrl || ""} placeholder="https://peer.example" onBlur=${e => saveConfig({ externalUrl: e.target.value })}/></div>
-      <div style=${C.row}><label><input type="checkbox" checked=${config.allowHttp === true} onChange=${e => saveConfig({ allowHttp: e.target.checked })}/> Allow HTTP</label><label><input type="checkbox" checked=${config.allowPrivateNetwork === true} onChange=${e => saveConfig({ allowPrivateNetwork: e.target.checked })}/> Allow private network</label><button style=${C.button} disabled=${busy || !config.externalUrl} onClick=${() => mutate({ action: "endpoint_test" }, "External endpoint is reachable.")}>Test endpoint</button></div>
-    </section>
-
-    <section style=${C.section}>
-      <h4 style=${C.title}>Pairing & peers</h4>
-      <div style=${C.row}><input style=${C.input} value=${pairUrl} onInput=${e => setPairUrl(e.target.value)} placeholder="https://peer.example"/><button style=${C.button} onClick=${() => mutate({ action: "pair_request", url: pairUrl }, "Pair request sent.")} disabled=${busy || !pairUrl.trim()}>Request pairing</button></div>
-      ${(dashboard.pending || []).map(item => html`<div style=${{ ...C.stat, margin: ".5rem 0", borderColor: "color-mix(in srgb,var(--accent-color,#0f766e) 40%,var(--border-color))" }}>
-        <strong>${item.display_name || "Unnamed peer"}</strong><div style=${C.code}>${item.fingerprint}</div><div style=${C.muted}>${item.origin} · expires ${item.expires_at}</div>
-        <div style=${C.row}><button style=${C.button} onClick=${() => mutate({ action: "accept_pair", request_id: item.request_id, confirmation: confirmFingerprint("Accept", item) }, "Peer accepted.")} disabled=${busy}>Accept</button><button style=${C.danger} onClick=${() => mutate({ action: "deny_pair", request_id: item.request_id }, "Pair request denied.")} disabled=${busy}>Deny</button></div>
-      </div>`)}
-      ${(dashboard.peers || []).map(peerCard)}
-      ${!(dashboard.pending || []).length && !(dashboard.peers || []).length && html`<div style=${C.muted}>No pair requests or peer records.</div>`}
-    </section>
-
-    <section style=${C.section}>
-      <h4 style=${C.title}>Agent-ready addresses</h4>
-      ${directoryEntries.length === 0 && html`<div style=${C.muted}>No usable remote addresses yet. Complete setup and pairing first.</div>`}
-      ${directoryEntries.map(entry => html`<div style=${{ ...C.stat, marginBottom: ".45rem" }}>
-        <div style=${C.row}><code style=${C.code}>${entry.address}</code><button style=${C.button} onClick=${() => copy(entry.address)}>Copy</button><span style=${C.muted}>${entry.status} · ${entry.modes.join(", ")}${entry.attachments?.enabled ? ` · files up to ${Math.round(entry.attachments.max_file_bytes / 1024 / 1024)} MiB` : " · files off"}</span></div>
-      </div>`)}
-      ${directoryEntries.length > 0 && html`<div style=${C.row}><select style=${C.input} value=${testForm.address} onChange=${e => setTestForm({ ...testForm, address: e.target.value })}><option value="">Choose address…</option>${directoryEntries.map(entry => html`<option value=${entry.address}>${entry.address}</option>`)}</select><input style=${C.input} value=${testForm.content} onInput=${e => setTestForm({ ...testForm, content: e.target.value })}/><input style=${{ ...C.input, maxWidth: "130px" }} type="number" min="1" value=${testForm.media_id} placeholder="Media ID (optional)" onInput=${e => setTestForm({ ...testForm, media_id: e.target.value })}/><button style=${C.button} disabled=${busy || !testForm.address} onClick=${() => mutate({ action: "send_test", address: testForm.address, content: testForm.content, media_id: Number(testForm.media_id || 0) }, "Test message/file queued.")}>Send test</button></div>`}
-    </section>
-
-    <section style=${C.section}>
-      <h4 style=${C.title}>Advertised agents & delivery</h4>
-      <div style=${C.row}>
-        <select style=${C.input} value=${agentForm.local_agent} onChange=${e => setAgentForm({ ...agentForm, local_agent: e.target.value, alias: agentForm.alias || e.target.value })}><option value="">Choose local agent…</option>${(dashboard.local_agents || []).map(agent => html`<option value=${agent.agent_name}>${agent.agent_name}${agent.active ? " · active" : ""}</option>`)}</select>
-        <input style=${C.input} value=${agentForm.alias} onInput=${e => setAgentForm({ ...agentForm, alias: e.target.value })} placeholder="Public alias"/>
-        <label><input type="checkbox" checked=${agentForm.modes.includes("auto")} onChange=${e => setAgentForm({ ...agentForm, modes: e.target.checked ? ["queue", "auto"] : ["queue"] })}/> Allow auto</label>
-        <button style=${C.button} onClick=${() => mutate({ action: "advertise_agent", ...agentForm }, "Agent advertised.")} disabled=${busy || !agentForm.local_agent}>Advertise</button>
-      </div>
-      ${(dashboard.advertised_agents || []).map(agent => html`<div style=${{ ...C.row, ...C.stat }}><strong>@${agent.alias}</strong><span style=${C.muted}>→ ${agent.local_agent} · ${agent.allowed_modes.join(", ")}</span><button style=${C.danger} onClick=${() => mutate({ action: "unadvertise_agent", alias: agent.alias }, "Agent hidden.")} disabled=${busy}>Hide</button></div>`)}
-      ${health.failed_receipts > 0 && html`<div style=${{ ...C.stat, marginTop: ".6rem", borderColor: "color-mix(in srgb,var(--danger-color,#dc2626) 45%,var(--border-color))" }}><strong>${health.failed_receipts} failed delivery receipt(s)</strong><div style=${C.muted}>Review the failed records below; retry reuses the same message, transfer IDs and idempotency key.</div></div>`}
-      ${[...(dashboard.failures?.outbound || []), ...(dashboard.failures?.inbound || [])].map(item => html`<div style=${{ ...C.stat, marginTop: ".45rem" }}><div style=${C.row}><code style=${C.code}>${item.message_id}</code><span style=${C.muted}>${item.status} · ${item.target_address || item.target_agent_name || "target"}</span>${item.target_address && html`<button style=${C.button} disabled=${busy} onClick=${() => mutate({ action: "retry_message", message_id: item.message_id }, "Delivery retried.")}>Retry</button>`}</div><div style=${C.muted}>${item.error || "No error detail"}${item.attachments?.length ? ` · ${item.attachments.map(file => `${file.filename} (${file.size} B, ${String(file.sha256).slice(0, 12)}…)`).join(", ")}` : ""}</div></div>`)}
-    </section>
-    ${message && html`<div role="status" style=${{ padding: ".55rem .7rem", borderRadius: "7px", background: "var(--bg-secondary)", color: /failed|requires|invalid|error/i.test(message) ? "var(--danger-color,#dc2626)" : "var(--accent-color,#0f766e)", fontSize: ".8rem" }}>${message}</div>`}
-  </div>`;
-}
-
-try {
-  if (HAS_RUNTIME) {
-    const registry = globalThis.__piclawSettingsPaneRegistry;
-    const register = registry?.registerSettingsPane || globalThis.__piclaw_web?.registerSettingsPane;
-    if (register) {
-      register({ id: ADDON_ID, label: "Remote Peer", component: RemotePeerSettings, order: 190 });
-      registry?.notifySettingsPanesChanged?.();
+      const value = await api("dashboard");
+      setState(value);
+      setRelayText(
+        (previous) => previous || JSON.stringify(value.config.relays, null, 2),
+      );
+    } catch (e) {
+      setError(e.message);
     }
   }
-} catch (error) {
-  console.warn("[remote-peer] failed to register Settings pane", error);
+  useEffect(() => {
+    void refresh();
+    const t = setInterval(() => void refresh(), 5000);
+    return () => clearInterval(t);
+  }, []);
+  async function run(body) {
+    setBusy(true);
+    setError("");
+    try {
+      const value = await api("dashboard", body);
+      setState(value);
+      if (body.action === "ticket") setLocalTicket(value.result.ticket);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function config(patch) {
+    setBusy(true);
+    setError("");
+    // Keep controlled fields stable while endpoint/discovery resources restart.
+    setState((current) =>
+      current
+        ? { ...current, config: { ...current.config, ...patch } }
+        : current,
+    );
+    try {
+      const result = await api("config", patch);
+      setState((current) =>
+        current ? { ...current, config: result.config } : current,
+      );
+      await refresh();
+    } catch (e) {
+      setError(e.message);
+      await refresh();
+    } finally {
+      setBusy(false);
+    }
+  }
+  const confirm = (peer) =>
+    prompt(
+      "Verify the client ID with its owner. Paste the complete ID to confirm:\n" +
+        peer.clientId,
+    ) || "";
+  const copy = async (value) => {
+    try {
+      await navigator.clipboard.writeText(value);
+    } catch {
+      prompt("Copy this value:", value);
+    }
+  };
+  if (!state) return html`<p>${error || "Loading Remote Peer…"}</p>`;
+  const c = state.config;
+  const box = {
+    border: "1px solid var(--border-color)",
+    borderRadius: "8px",
+    padding: "12px",
+    marginBottom: "12px",
+  };
+  const row = {
+    display: "flex",
+    gap: "8px",
+    flexWrap: "wrap",
+    alignItems: "center",
+    margin: "8px 0",
+  };
+  const input = {
+    background: "var(--bg-primary)",
+    color: "var(--text-primary)",
+    border: "1px solid var(--border-color)",
+    padding: "6px",
+    borderRadius: "5px",
+    minWidth: "180px",
+    flex: 1,
+  };
+  return html`<div style="max-width:900px">
+    <section style=${box}>
+      <h4>Iroh Remote Peer</h4>
+      <p>
+        Fresh client identity and Iroh-only peer connections. Older HTTP peers
+        and databases are not supported.
+      </p>
+      <div style=${row}>
+        <label
+          ><input
+            type="checkbox"
+            checked=${c.enabled}
+            disabled=${busy}
+            onChange=${(e) => config({ enabled: e.target.checked })}
+          />
+          Enable Remote Peer</label
+        ><input
+          style=${input}
+          placeholder="Instance name"
+          defaultValue=${c.instanceName}
+          onBlur=${(e) => {
+            if (e.target.value !== c.instanceName)
+              config({ instanceName: e.target.value });
+          }}
+        />
+      </div>
+      <label>Your client ID</label>
+      <div style=${row}>
+        <code style="overflow-wrap:anywhere">${state.identity.clientId}</code
+        ><button onClick=${() => copy(state.identity.clientId)}>Copy ID</button>
+        <button
+          disabled=${busy ||
+          state.peers.some((peer) => peer.status !== "revoked")}
+          onClick=${() => {
+            const confirmation =
+              prompt(
+                `This creates a new client ID and clears all fresh Iroh trust, queues and advertised agents. Legacy files are untouched. Paste the current ID to confirm:\n${state.identity.clientId}`,
+              ) || "";
+            run({ action: "rotate", confirmation });
+          }}
+        >
+          Rotate identity
+        </button>
+      </div>
+      <p>
+        Rotation requires every peer and pending request to be revoked first.
+      </p>
+      <p>
+        ${state.transport.active ? "Listening" : "Stopped"} ·
+        ${state.transport.relay ? "Relay connected" : "No relay yet"} · last
+        path ${state.transport.lastPath || "none"}
+      </p>
+      ${state.transport.error &&
+      html`<p role="alert">${state.transport.error}</p>`}
+      <label
+        ><input
+          type="checkbox"
+          checked=${c.addressLookup}
+          disabled=${busy}
+          onChange=${(e) => config({ addressLookup: e.target.checked })}
+        />
+        Internet address lookup for pasted IDs</label
+      >
+      <p>
+        When enabled, Iroh publishes and resolves endpoint address records
+        through n0 discovery services. This does not grant trust. When off, use
+        a ticket or opt-in nearby discovery.
+      </p>
+      <details>
+        <summary>Advanced: endpoint ticket</summary>
+        <button
+          disabled=${busy || !c.enabled}
+          onClick=${() => run({ action: "ticket" })}
+        >
+          Generate ticket</button
+        >${localTicket &&
+        html`<textarea
+            readonly
+            rows="3"
+            style=${input}
+            value=${localTicket}
+          /><button onClick=${() => copy(localTicket)}>Copy ticket</button>`}
+      </details>
+    </section>
+    <section style=${box}>
+      <h4>Add peer</h4>
+      <div style=${row}>
+        <input
+          aria-label="Peer client ID"
+          style=${input}
+          value=${client}
+          onInput=${(e) => setClient(e.target.value)}
+          placeholder="Paste client ID: PCL1-…"
+        /><input
+          aria-label="Peer alias"
+          style=${input}
+          value=${alias}
+          onInput=${(e) => setAlias(e.target.value)}
+          placeholder="Local alias (optional)"
+        />
+      </div>
+      <details>
+        <summary>Optional endpoint ticket</summary>
+        <textarea
+          style=${input}
+          rows="2"
+          value=${ticket}
+          onInput=${(e) => setTicket(e.target.value)}
+        />
+      </details>
+      <button
+        disabled=${busy || !c.enabled || !client.trim()}
+        onClick=${() =>
+          run({
+            action: "pair",
+            client_id: client.trim(),
+            ...(alias ? { alias } : {}),
+            ...(ticket ? { ticket } : {}),
+          })}
+      >
+        Request pairing
+      </button>
+      <p>
+        The other instance must explicitly accept. Knowing a client ID never
+        grants access.
+      </p>
+    </section>
+    <section style=${box}>
+      <h4>Local discovery</h4>
+      <label
+        ><input
+          type="checkbox"
+          checked=${c.mdnsEnabled}
+          disabled=${busy}
+          onChange=${(e) => config({ mdnsEnabled: e.target.checked })}
+        />
+        Enable mDNS on this network (off by default)</label
+      >
+      <p>
+        Advertises the public client ID locally and lists untrusted nearby
+        candidates. Does not auto-pair.
+      </p>
+      <input
+        style=${input}
+        placeholder="IPv4 interface (optional)"
+        defaultValue=${c.mdnsInterface}
+        onBlur=${(e) => {
+          if (e.target.value !== c.mdnsInterface)
+            config({ mdnsInterface: e.target.value });
+        }}
+      />
+      <p>
+        ${state.discovery.active ? "Discovery active" : "Discovery stopped"}
+        ${state.discovery.error || ""}
+      </p>
+      ${state.candidates.map(
+        (candidate) =>
+          html`<div style=${row}>
+            <span>${candidate.name}</span><code>${candidate.clientId}</code
+            ><button
+              disabled=${busy}
+              onClick=${() => {
+                setClient(candidate.clientId);
+              }}
+            >
+              Use ID
+            </button>
+          </div>`,
+      )}
+    </section>
+    <section style=${box}>
+      <h4>Peers and requests</h4>
+      ${!state.peers.length && html`<p>No paired clients.</p>`}
+      ${state.peers.map(
+        (peer) =>
+          html`<div style=${box}>
+            <strong>${peer.alias}</strong> ${peer.name} · ${peer.status}
+            <div style="overflow-wrap:anywhere">
+              <code>${peer.clientId}</code>
+            </div>
+            <div style=${row}>
+              ${peer.status === "incoming" &&
+              html`<button
+                disabled=${busy}
+                onClick=${() =>
+                  run({
+                    action: "accept",
+                    peer: peer.id,
+                    confirmation: confirm(peer),
+                  })}
+              >
+                Accept
+              </button>`}
+              ${["incoming", "outgoing"].includes(peer.status) &&
+              html`<button
+                disabled=${busy}
+                onClick=${() => run({ action: "deny", peer: peer.id })}
+              >
+                Deny / cancel
+              </button>`}
+              ${peer.status === "paired" &&
+              html`<button
+                  disabled=${busy}
+                  onClick=${() => run({ action: "ping", peer: peer.id })}
+                >
+                  Ping</button
+                ><button
+                  disabled=${busy}
+                  onClick=${() =>
+                    run({
+                      action: "revoke",
+                      peer: peer.id,
+                      confirmation: confirm(peer),
+                    })}
+                >
+                  Revoke
+                </button>`}
+              ${peer.status === "revoked" &&
+              html`<button
+                disabled=${busy}
+                onClick=${() =>
+                  run({
+                    action: "forget",
+                    peer: peer.id,
+                    confirmation: confirm(peer),
+                  })}
+              >
+                Remove revoked record
+              </button>`}
+              <button
+                disabled=${busy}
+                onClick=${() => {
+                  const name = prompt("Local alias", peer.alias);
+                  if (name)
+                    run({ action: "alias", peer: peer.id, alias: name });
+                }}
+              >
+                Rename
+              </button>
+            </div>
+            ${peer.status === "paired" &&
+            html`<details>
+              <summary>Incoming permissions</summary>
+              <p>
+                ${peer.scope} · ${peer.modes.join(", ")} · files
+                ${peer.files ? "on" : "off"}
+              </p>
+              <button
+                disabled=${busy}
+                onClick=${() => {
+                  const scope = prompt(
+                    "Scope: none, inbox-only, named-agents, all-advertised",
+                    peer.scope,
+                  );
+                  if (!scope) return;
+                  const modes = prompt(
+                    "Modes (comma-separated): queue, auto, steer",
+                    peer.modes.join(","),
+                  );
+                  if (!modes) return;
+                  const agents = prompt(
+                    "Named aliases (comma-separated)",
+                    peer.agents.join(","),
+                  );
+                  const files = window.confirm("Allow bounded file transfers?");
+                  const confirmation =
+                    prompt("Type ALLOW REMOTE ACCESS for wider permissions") ||
+                    "";
+                  run({
+                    action: "policy",
+                    peer: peer.id,
+                    scope,
+                    modes: modes.split(",").map((s) => s.trim()),
+                    agents: (agents || "")
+                      .split(",")
+                      .map((s) => s.trim())
+                      .filter(Boolean),
+                    files,
+                    confirmation,
+                  });
+                }}
+              >
+                Edit permissions
+              </button>
+            </details>`}
+          </div>`,
+      )}
+    </section>
+    <section style=${box}>
+      <h4>Advertised agents</h4>
+      ${state.advertised.map(
+        (a) =>
+          html`<div style=${row}>
+            @${a.alias} → ${a.local_agent}<button
+              onClick=${() => run({ action: "unadvertise", alias: a.alias })}
+            >
+              Hide
+            </button>
+          </div>`,
+      )}
+      <select
+        style=${input}
+        defaultValue=""
+        onChange=${(e) => {
+          const local = e.target.value;
+          if (!local) return;
+          const name = prompt("Public alias", local);
+          if (name)
+            run({
+              action: "advertise",
+              local_agent: local,
+              alias: name,
+              modes: ["queue"],
+            });
+          e.target.value = "";
+        }}
+      >
+        <option value="">Advertise a local agent…</option>
+        ${state.localAgents.map(
+          (a) => html`<option value=${a.agent_name}>${a.agent_name}</option>`,
+        )}
+      </select>
+    </section>
+    <section style=${box}>
+      <h4>Relays</h4>
+      <select
+        style=${input}
+        value=${c.relayMode}
+        disabled=${busy}
+        onChange=${(e) => {
+          try {
+            config({
+              relayMode: e.target.value,
+              relays: JSON.parse(relayText || "[]"),
+            });
+          } catch {
+            setError("Invalid relay JSON");
+          }
+        }}
+      >
+        <option value="n0">n0 relays</option>
+        <option value="custom">Custom relays</option>
+        <option value="disabled">No relays (direct only)</option>
+      </select>
+      <p>
+        Custom list: HTTPS URL and optional authTokenKeychain reference. Never
+        paste a secret here.
+      </p>
+      <textarea
+        style=${input}
+        rows="3"
+        value=${relayText}
+        onInput=${(e) => setRelayText(e.target.value)}
+      /><button
+        disabled=${busy}
+        onClick=${() => {
+          try {
+            config({ relays: JSON.parse(relayText) });
+          } catch {
+            setError("Invalid relay JSON");
+          }
+        }}
+      >
+        Save relay list
+      </button>
+    </section>
+    <section style=${box}>
+      <h4>Delivery</h4>
+      ${state.messages.map(
+        (m) =>
+          html`<div style=${row}>
+            <code>${m.id}</code> ${m.status}
+            ${m.error || ""}${m.status === "failed" &&
+            html`<button
+              disabled=${busy}
+              onClick=${() => run({ action: "retry", message_id: m.id })}
+            >
+              Retry
+            </button>`}
+          </div>`,
+      )}
+    </section>
+    <section style=${box}>
+      <h4>Mediated work</h4>
+      <p>Remote requests never execute tools automatically.</p>
+      ${state.work
+        .filter(
+          (w) =>
+            w.direction === "inbound" &&
+            ["pending", "response-pending"].includes(w.status),
+        )
+        .map(
+          (w) =>
+            html`<div style=${box}>
+              <code>${w.id}</code>
+              <pre style="white-space:pre-wrap">${w.data.prompt}</pre>
+              <button
+                disabled=${busy}
+                onClick=${() => {
+                  const result = prompt("Reviewed result");
+                  if (result !== null)
+                    run({
+                      action: "work_review",
+                      request_id: w.id,
+                      result,
+                      capabilities: [],
+                      approve: true,
+                    });
+                }}
+              >
+                Approve with reviewed result</button
+              ><button
+                disabled=${busy}
+                onClick=${() =>
+                  run({
+                    action: "work_review",
+                    request_id: w.id,
+                    result: "Rejected by operator",
+                    capabilities: [],
+                    approve: false,
+                  })}
+              >
+                Reject
+              </button>
+            </div>`,
+        )}
+    </section>
+    ${error && html`<p role="alert">${error}</p>`}
+  </div>`;
+}
+if (html && useState && useEffect) {
+  const registry = globalThis.__piclawSettingsPaneRegistry;
+  const register =
+    registry?.registerSettingsPane ||
+    globalThis.__piclaw_web?.registerSettingsPane;
+  register?.({
+    id: "remote-peer",
+    label: "Remote Peer",
+    component: RemotePeerSettings,
+    order: 190,
+  });
+  registry?.notifySettingsPanesChanged?.();
 }

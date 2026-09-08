@@ -761,7 +761,7 @@ for (const addon of addons) {
   const addonDir = join(ROOT, addon.path);
   const baseName = addon.name.replace(/^@[^/]+\//, '');
   const outPath  = join(OUT, "packages", `${baseName}-${addon.version}.tgz`);
-  Bun.spawnSync(["tar", "czf", outPath, "-C", addonDir, "."], {
+  Bun.spawnSync(["tar", "czf", outPath, "-C", addonDir, "--exclude=./node_modules", "--exclude=./.tmp", "."], {
     stdout: "inherit",
     stderr: "inherit",
   });

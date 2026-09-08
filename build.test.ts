@@ -23,6 +23,12 @@ test("core-tagged cards render an accessible top-right bookmark", () => {
   expect(buildSource).toContain(">CORE</text>");
 });
 
+test("public tarball builder excludes local dependency and temporary trees", () => {
+  const source = readFileSync(join(repoRoot, "build.ts"), "utf8");
+  expect(source).toContain('"--exclude=./node_modules"');
+  expect(source).toContain('"--exclude=./.tmp"');
+});
+
 test("only the selected foundational add-ons carry the core tag", () => {
   const packageFiles = Array.from(new Bun.Glob("addons/*/package.json").scanSync({ cwd: repoRoot })).sort();
   const coreSlugs = packageFiles.flatMap((path) => {

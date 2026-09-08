@@ -1,54 +1,34 @@
-# Remote Peer end-to-end evidence
+# Iroh implementation evidence
 
-The table below records the `0.1.0` two-instance release baseline. The completed `0.2.0` three-instance agent-chat run—including directory discovery, named-agent text/file conversations, opaque replies, retry, restart persistence and measured transfer integrity—is documented in [e2e-mvp-0.2.0.md](e2e-mvp-0.2.0.md).
+Local validation uses Bun 1.4.1, owned temporary state and explicit loopback sockets. No installed Piclaw state is read or modified. mDNS tests use injected fake services, not LAN advertisements.
 
-## 0.1.0 two-instance baseline
+Passing development checks:
 
-Date: 2026-07-28
+- checksummed client IDs and strict legacy-setting rejection;
+- fresh empty state, legacy-file sentinels unchanged, key persistence and permissions;
+- real two-endpoint loopback Iroh pairing, explicit approval and ping;
+- receiver-owned named-agent/mode/file policy, binary hashes and opaque replies;
+- completed receipt deduplication, restart identity and revocation;
+- signed-envelope tamper/replay/time/identity checks;
+- wrong ALPN, ticket-ID mismatch and malformed/oversized frames;
+- mDNS default-off, toggle cleanup, candidate limits, expiry and interface record filtering;
+- direct Settings/transport registration with no peer HTTP routes.
 
-## Fixture
+Additional local evidence (Bun 1.4.1):
 
-Two real Proxmox microVMs on node `borg` ran the same Piclaw `origin/main` source build and the same `@rcarmo/piclaw-addon-remote-peer` 0.1.0 release candidate.
+- Full repository suite after review fixes: 498 pass / zero fail, 3,005 assertions, including standalone package imports.
+- Remote Peer focused tests: 20 pass / zero fail, 133 assertions after token-bound fixture ownership; lifecycle serialization, reply-epoch invalidation, mediated-result recovery and fixture ownership are covered.
+- Isolated Chromium Settings fixture: client-ID entry, default-off mDNS/lookup and Iroh enable/disable passed; no live Piclaw target.
+- Two ephemeral endpoints using n0 address lookup paired with bare client IDs, mDNS off, and pinged successfully. Both reached the EU n0 relay; selected data path was direct on the same host.
+- Extracted 0.3.0 archive installed/imported with prebuilt native dependencies and lifecycle scripts disabled. No legacy HTTP modules were packaged.
+- Remote Peer/root compatibility typecheck, catalogue validation and diff whitespace checks passed.
 
-| Peer | VMID | Address | State |
-|---|---:|---|---|
-| A | 900 | `192.168.1.78:8080` | existing microVM fixture, add-on data reset |
-| B | 901 | `192.168.1.70:8080` | full clone of VM 900, add-on data reset |
+Further acceptance evidence:
 
-Each instance used a separate fresh scoped identity and `state.db`. HTTP/private-network overrides were enabled only for this controlled LAN test.
+- Real two-device mDNS: Smith LXC (`192.168.1.152`) and disposable `/tmp` process on VM 900 (`192.168.1.236`) joined `224.0.0.251`; Smith discovered the VM ID/address, sent a pairing request, VM accepted through its loopback control API, and one message was received. A raw multicast probe also passed bidirectionally. Both existing Piclaw services remained active; all temporary VM/local state was removed.
+- Forced relay: two token-bound disposable containers ran on separate Docker networks. Both established the explicit EU n0 relay. Each namespace rejected UDP to the other endpoint's advertised direct address. Pairing and one message passed with Iroh reporting selected path `relay`; receiver count was one. Containers, networks and roots were removed by the fixture trap.
+- Full isolated Settings pairing: pasted ID and ticket, recipient approval and restricted policy edit passed.
+- Fresh and paired Settings screenshots were generated from actual temporary Iroh state.
+- Independent read-only review identified lifecycle races, unbounded shutdown, reply-token epoch revival, mediated-result recovery and fixture ownership issues. Dedicated fixes/regressions cover them. Core shutdown API/deadline PRs #1285/#1288 merged green; exact add-on follow-up-head re-review remains required before merge.
 
-## Results
-
-| Case | Result | Evidence |
-|---|---|---|
-| Fresh identity/store | Pass | Distinct fingerprints; schema v5; no core-state import |
-| Pair request/review/accept | Pass | Signed callback proof and confirm; both peers `paired`, epoch 1 |
-| Restart persistence | Pass | Both services restarted; identity, peer, and schema state preserved |
-| `peer!inbox` | Pass | Signed request delivered to core `web:default`; receipt row ID 847 |
-| Idempotency retry | Pass | Same idempotency key returned byte-equivalent signed receipt; one timeline row and one inbound ledger row |
-| `peer!@alias` | Pass | B advertised only `research → default`; receiver routed signed alias request without exposing local mapping |
-| Queue / auto / steer | Pass | Receiver policy accepted all three only after named-agent and mode-ceiling approval; queue/auto followed active-lane semantics, steer entered active handling |
-| Opaque reply | Pass | B received only `peer-a!reply.<capability>`; reply returned to A `web:default` with `in_reply_to`; no raw JID crossed instances |
-| Mediated work | Pass | A proposal appeared in B inbox; B approved reviewed result with `analyze`; A persisted one completed callback |
-| Callback outage/retry | Pass | A stopped during approval; attempt 1 failed, automatic worker delivered attempt 2 after restart/backoff; A completed request |
-| Revoke | Pass | A local revoke epoch increment reached B; both records became revoked |
-| Re-pair | Pass | Re-pair negotiated epoch 3 after bilateral revoke |
-| Rotation guard | Pass | Rotation while paired returned an error; old-key revoke was required first |
-| Key rotation | Pass | Previous identity archived mode 0600; fresh fingerprint active after restart |
-| Reload | Pass | Runtime restart retained paired/state data and route/transport registrations |
-| Uninstall | Pass | Package removal removed dashboard/route while preserving identity and `state.db` |
-| Reinstall | Pass | Same fingerprint and schema v5 returned after reinstall |
-| Retention/redaction | Pass | Automated maintenance test expires reply tokens, prunes delivered callback attempts/old audit rows, and nulls terminal prompts while retaining SHA-256 hashes |
-
-## Additional automated gates
-
-- focused add-on tests cover signatures, exact-body verification, SSRF, replay, trust epochs, pair state transitions, aliases, reply capabilities, policy ceilings, idempotency, work loops/allowlists, callback conflicts/retries, migrations, identity rotation, dashboard redaction, and startup registration;
-- Earendil compatibility suite;
-- standalone package import suite;
-- catalog synchronization check;
-- package dry-run and public tarball build;
-- Settings Playwright flow and microVM screenshot.
-
-## Fixture cleanup
-
-VM 900's original portable service command and Cheapskate fixture were restored after the Settings screenshot test. The final two-instance release test used reversible source-run systemd drop-ins. VM 901 was destroyed after release verification. Neither peer was the production Smith instance.
+Not yet live-verified: a custom authenticated relay and the full add-on installed in a complete disposable Piclaw Settings UI. Custom relay map and keychain reference handling have unit/type coverage. Previous HTTP release evidence was removed because it does not validate this protocol.
