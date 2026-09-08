@@ -6,9 +6,19 @@ This is a clean break from Remote Peer 0.2: no old clients, HTTP peer routes, da
 
 ## Pair in Settings
 
+The [operator guide](docs/operator-guide.md) provides the complete Settings walkthrough, including discovery, relay choices, permissions, rotation and recovery.
+
+### Fresh setup
+
 ![Fresh Remote Peer Settings with client ID and discovery off](assets/settings-fresh.png)
 
+The fresh pane exposes the stable `PCL1-…` client ID and pasted-ID pairing. Internet address lookup and mDNS are separate controls and both start off.
+
+### Paired client
+
 ![Paired Remote Peer Settings with restricted permissions](assets/settings-paired.png)
+
+New pairings start with inbox-only, queue-only access and files disabled. Broader incoming permissions require explicit confirmation.
 
 1. Enable Remote Peer on both instances and set their names.
 2. Copy the **Your client ID** value (`PCL1-…`).
@@ -54,6 +64,15 @@ Custom relays require HTTPS URLs. Authentication is an optional keychain entry n
 `remote_peer` actions: `status`, `identity`, `ticket`, `pair`, `accept`, `deny`, `revoke`, `forget`, `alias`, `policy`, `advertise`, `unadvertise`, `ping`, `retry`, `work_send`, `work_review`.
 
 Settings uses `/agent/addons/api/remote-peer/config` and `/dashboard`. The old `/pair` command and HTTP pairing protocol are removed. Removing a revoked record requires full-ID confirmation and only permits a new explicit pairing attempt.
+
+## Documentation
+
+- [Operator guide](docs/operator-guide.md) — installation requirements, Settings, pairing, discovery, relays, policies, recovery and identity rotation
+- [Protocol](docs/protocol.md) — framing, signatures, operations and pairing semantics
+- [Security boundaries](docs/security.md) — trust, limits, secrets and crash behavior
+- [Troubleshooting](docs/troubleshooting.md) — common connection and pairing failures
+- [Mediated work](docs/mediated-work.md) — reviewed proposal/result flow
+- [Implementation evidence](docs/e2e-matrix.md) — local, hosted, mDNS and forced-relay validation
 
 ## Validation status
 
