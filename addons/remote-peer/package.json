@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-remote-peer",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Iroh-only client-ID peer chat with explicit pairing, default-off mDNS, durable delivery and files",
   "type": "module",
   "main": "index.ts",

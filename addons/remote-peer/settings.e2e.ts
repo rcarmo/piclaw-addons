@@ -33,7 +33,7 @@ export async function testSettings() {
     const shim = join(root, "entry.js");
     await Bun.write(
       shim,
-      `import * as preact from ${JSON.stringify(require.resolve("preact").replace("preact.js", "preact.module.js"))};import * as hooks from ${JSON.stringify(require.resolve("preact/hooks").replace("hooks.js", "hooks.module.js"))};import htm from ${JSON.stringify(require.resolve("htm"))};globalThis.__piclawPreactHtm={html:htm.bind(preact.h),...hooks};globalThis.__piclawSettingsPaneRegistry={registerSettingsPane:({component})=>preact.render(preact.h(component),document.getElementById('app')),notifySettingsPanesChanged:()=>{}};await import(${JSON.stringify(join(import.meta.dir, "web/index.ts"))});`,
+      `import * as preact from ${JSON.stringify(require.resolve("preact").replace("preact.js", "preact.module.js"))};import * as hooks from ${JSON.stringify(require.resolve("preact/hooks").replace("hooks.js", "hooks.module.js"))};import htm from ${JSON.stringify(require.resolve("htm"))};globalThis.__piclawPreactHtm={html:htm.bind(preact.h),...hooks};globalThis.__piclawSettingsPaneRegistry={registerSettingsPane:({component,icon,label})=>{preact.render(preact.h('button',null,icon,label),document.getElementById('nav'));preact.render(preact.h(component),document.getElementById('app'));},notifySettingsPanesChanged:()=>{}};await import(${JSON.stringify(join(import.meta.dir, "web/index.ts"))});`,
     );
     const built = await Bun.build({
       entrypoints: [shim],
@@ -50,7 +50,7 @@ export async function testSettings() {
         const p = new URL(req.url).pathname;
         if (p === "/")
           return new Response(
-            '<!doctype html><html><head><style>:root{--bg-primary:#fff;--text-primary:#222;--border-color:#aaa;}body{font:14px system-ui;margin:16px}</style></head><body><div id="app"></div><script type="module" src="/ui.js"></script></body></html>',
+            '<!doctype html><html><head><style>:root{--bg-primary:#fff;--text-primary:#222;--border-color:#aaa;}body{font:14px system-ui;margin:16px}</style></head><body><nav id="nav"></nav><div id="app"></div><script type="module" src="/ui.js"></script></body></html>',
             { headers: { "Content-Type": "text/html" } },
           );
         if (p === "/ui.js")
@@ -105,6 +105,14 @@ export async function testSettings() {
     );
     await page.goto(server.url.href);
     await page.getByText("Your client ID", { exact: true }).waitFor();
+    const icon = page.getByRole("button", { name: "Remote Peer", exact: true }).locator("svg");
+    await icon.waitFor({ state: "visible" });
+    if (
+      (await icon.getAttribute("viewBox")) !== "0 0 24 24" ||
+      (await icon.getAttribute("stroke")) !== "currentColor" ||
+      (await icon.getAttribute("aria-hidden")) !== "true" ||
+      (await icon.locator("rect").count()) !== 3
+    ) throw new Error("Settings navigation requires the peer-network SVG icon");
     if (await page.getByRole("checkbox", { name: /Enable mDNS/ }).isChecked())
       throw new Error("mDNS default must be off");
     if (
@@ -136,7 +144,7 @@ export async function testSettings() {
     );
     if (errors.length) throw new Error(errors.join("\n"));
     console.log(
-      "PASS isolated Settings render, client-ID field, default-off discovery/lookup, enable/disable Iroh without multicast",
+      "PASS isolated Settings render, navigation SVG icon, client-ID field, default-off discovery/lookup, enable/disable Iroh without multicast",
     );
   } finally {
     await browser?.close();
