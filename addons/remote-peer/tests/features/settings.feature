@@ -10,7 +10,8 @@ Feature: Iroh Remote Peer settings
 
   Scenario: Fresh client ID and network discovery default to off
     Given the "Remote Peer" settings pane is open
-    Then I should see a checksummed Remote Peer client ID
+    Then the Remote Peer settings navigation should show its icon
+    And I should see a checksummed Remote Peer client ID
     And the Remote Peer client-ID pairing field should be available
     And Remote Peer mDNS should be off
     And Remote Peer internet address lookup should be off

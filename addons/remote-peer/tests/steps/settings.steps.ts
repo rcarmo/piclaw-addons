@@ -23,6 +23,18 @@ export const steps: StepDefinition[] = [
     },
   },
   {
+    pattern: /^the Remote Peer settings navigation should show its icon$/,
+    async handler(ctx) {
+      const icon = ctx.page
+        .getByRole("button", { name: "Remote Peer", exact: true })
+        .locator("svg");
+      await expect(icon).toBeVisible();
+      await expect(icon).toHaveAttribute("viewBox", "0 0 24 24");
+      await expect(icon).toHaveAttribute("stroke", "currentColor");
+      await expect(icon).toHaveAttribute("aria-hidden", "true");
+    },
+  },
+  {
     pattern: /^I should see a checksummed Remote Peer client ID$/,
     async handler(ctx) {
       await expect(
