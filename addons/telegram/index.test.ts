@@ -1,6 +1,7 @@
 import { afterEach, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { TelegramChannel } from "./telegram.ts";
 
 const previousRegistrar = (globalThis as any).__piclaw_registerAddonConfigApi;
 const registrations: any[] = [];
@@ -16,6 +17,18 @@ afterEach(() => {
 test("manifest declares the supported Piclaw version range", () => {
   const manifest = JSON.parse(readFileSync(join(import.meta.dir, "package.json"), "utf8"));
   expect(manifest.piclaw.compatibleVersions).toBe(">=2.0.0");
+  expect(manifest.dependencies?.grammy).toBe("1.46.0");
+});
+
+test("channel initializes from package-local callbacks without touching runtime config", () => {
+  const channel = new TelegramChannel({
+    botToken: " token ",
+    pollingTimeoutSeconds: 30,
+    chatJids: () => new Set(),
+    onMessage: () => {},
+    onChatMetadata: () => {},
+  });
+  expect(channel.isConnected()).toBeFalse();
 });
 
 test("registers the current module-scope config API contract", () => {
