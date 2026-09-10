@@ -893,7 +893,7 @@
     {
       "slug": "web-viewer",
       "name": "@rcarmo/piclaw-addon-web-viewer",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "type": "extension",
       "description": "HTML, image, and video viewer panes and routes for Piclaw",
       "path": "addons/web-viewer",
@@ -908,9 +908,9 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-web-viewer-0.1.0.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-web-viewer-0.1.1.tgz"
       },
-      "updatedAt": "2026-07-26"
+      "updatedAt": "2026-09-10"
     },
     {
       "slug": "whatsapp",
