@@ -6,6 +6,7 @@
  */
 
 import { createFileConflictMonitor, type FileConflictMonitor } from './file-conflict-monitor.ts';
+import type { PaneCapability, PaneContext, PaneInstance, WebPaneExtension } from './pane-types.js';
 
 const MINDMAP_EXTENSION = /\.mindmap\.ya?ml$/i;
 const OPEN_WORKSPACE_FILE_ACTION = 'open_workspace_file';

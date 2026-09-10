@@ -4,6 +4,7 @@ import {
   findExistingMindmapTab,
   handleMindmapDuplicateOpenRequest,
   isMindmapPath,
+  mindmapPaneExtension,
   mountExclusiveMindmapPane,
   normalizeMindmapOpenWorkspaceFileRequest,
   normalizeMindmapPanePath,
@@ -35,6 +36,11 @@ function createTab(title: string) {
 }
 
 describe("mindmap web duplicate-open guard", () => {
+  test("uses the standalone pane contract", () => {
+    expect(mindmapPaneExtension.canHandle?.({ path: "notes/plan.mindmap.yaml", mode: "edit" })).toBe(50);
+    expect(mindmapPaneExtension.canHandle?.({ path: "notes/plan.yaml", mode: "edit" })).toBeFalse();
+  });
+
   test("mount ownership disposes and replaces an existing editor in the same pane host", () => {
     let clears = 0;
     const container = {
