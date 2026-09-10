@@ -42,7 +42,7 @@ function normalizeName(name: string): string {
   return name.trim().toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
 }
 
-function sanitizeConfig(config: Record<string, unknown>): ImapAccountConfig {
+function sanitizeConfig(config: Record<string, unknown> | ImapAccountConfig): ImapAccountConfig {
   const host = typeof config.host === "string" ? config.host.trim() : "";
   const user = typeof config.user === "string" ? config.user.trim() : "";
   if (!host || !user) throw new Error("host and user are required");
@@ -87,7 +87,7 @@ export async function listAccounts(): Promise<{ accounts: ImapStoredAccount[]; d
     const name = key.slice(ACCOUNT_PREFIX.length);
     const stored = kv.get<ImapAccountConfig>(key, "global");
     if (!stored) continue;
-    const config = sanitizeConfig(stored as Record<string, unknown>);
+    const config = sanitizeConfig(stored);
     const password = await keychainGetSecret(passwordKeychainName(name));
     accounts.set(name, { name, ...config, hasPassword: typeof password === "string" && password.length > 0 });
   }
@@ -102,7 +102,7 @@ export async function getAccount(name: string): Promise<(ImapStoredAccount & { p
   const kv = getStorage();
   const stored = kv.get<ImapAccountConfig>(accountKvKey(normalized), "global");
   if (stored) {
-    const config = sanitizeConfig(stored as Record<string, unknown>);
+    const config = sanitizeConfig(stored);
     const password = await keychainGetSecret(passwordKeychainName(normalized));
     return { name: normalized, ...config, hasPassword: typeof password === "string" && password.length > 0, password: typeof password === "string" ? password : undefined };
   }
