@@ -11,7 +11,7 @@ test("skill-model-effort package keeps upstream attribution and Piclaw metadata"
   expect(manifest.name).toBe("@rcarmo/piclaw-addon-skill-model-effort");
   expect(manifest.pi.extensions).toEqual(["src/index.ts"]);
   expect(manifest.peerDependencies["@earendil-works/pi-coding-agent"]).toBe("*");
-  expect(manifest.peerDependencies["@sinclair/typebox"]).toBe("*");
+  expect(manifest.peerDependencies["@sinclair/typebox"]).toBeUndefined();
   expect(manifest.piclaw.tags).toContain("skills");
   expect(manifest.piclaw.tags).toContain("thinking");
 
