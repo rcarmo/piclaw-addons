@@ -9,7 +9,8 @@
  * browsers. This tool manages its own headless Chromium lifecycle.
  */
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { Type } from "@sinclair/typebox";
+import { StringEnum } from "@earendil-works/pi-ai";
+import { Type } from "typebox";
 
 // ---------------------------------------------------------------------------
 // Lazy-loaded mochi module
@@ -244,6 +245,10 @@ async function actionStatus(): Promise<string> {
 
 const ACTIONS = ["goto", "click", "type", "scroll", "screenshot", "evaluate", "text", "fetch", "cookies", "status", "close"] as const;
 
+function textResult(text: string) {
+  return { content: [{ type: "text" as const, text }], details: {} };
+}
+
 export default function register(pi: ExtensionAPI) {
   pi.registerTool({
     name: "stealth_browser",
@@ -256,7 +261,7 @@ export default function register(pi: ExtensionAPI) {
       "Stealth browser: goto URL, humanClick/humanType/humanScroll elements, screenshot, evaluate JS, " +
       "fetch through Chrome TLS, manage cookies. Session persists across calls within a turn.",
     parameters: Type.Object({
-      action: Type.String({ description: `One of: ${ACTIONS.join(", ")}` }),
+      action: StringEnum(ACTIONS, { description: `One of: ${ACTIONS.join(", ")}` }),
       url: Type.Optional(Type.String({ description: "URL (for goto/fetch)" })),
       selector: Type.Optional(Type.String({ description: "CSS selector (for click/type/text)" })),
       text: Type.Optional(Type.String({ description: "Text to type (for type action)" })),
@@ -273,26 +278,25 @@ export default function register(pi: ExtensionAPI) {
       load: Type.Optional(Type.String({ description: "Path to load cookies from" })),
       waitUntil: Type.Optional(Type.String({ description: "Navigation wait strategy: load, domcontentloaded" })),
     }),
-    async execute(_id, params: any) {
+    async execute(_id, params) {
       switch (params.action) {
-        case "goto": return { content: [{ type: "text", text: await actionGoto(params) }] };
-        case "click": return { content: [{ type: "text", text: await actionClick(params) }] };
-        case "type": return { content: [{ type: "text", text: await actionType(params) }] };
-        case "scroll": return { content: [{ type: "text", text: await actionScroll(params) }] };
-        case "screenshot": return { content: [{ type: "text", text: await actionScreenshot(params) }] };
-        case "evaluate": return { content: [{ type: "text", text: await actionEvaluate(params) }] };
-        case "text": return { content: [{ type: "text", text: await actionText(params) }] };
-        case "fetch": return { content: [{ type: "text", text: await actionFetch(params) }] };
-        case "cookies": return { content: [{ type: "text", text: await actionCookies(params) }] };
-        case "status": return { content: [{ type: "text", text: await actionStatus() }] };
-        case "close": return { content: [{ type: "text", text: await actionClose() }] };
+        case "goto": return textResult(await actionGoto(params));
+        case "click": return textResult(await actionClick(params));
+        case "type": return textResult(await actionType(params));
+        case "scroll": return textResult(await actionScroll(params));
+        case "screenshot": return textResult(await actionScreenshot(params));
+        case "evaluate": return textResult(await actionEvaluate(params));
+        case "text": return textResult(await actionText(params));
+        case "fetch": return textResult(await actionFetch(params));
+        case "cookies": return textResult(await actionCookies(params));
+        case "status": return textResult(await actionStatus());
+        case "close": return textResult(await actionClose());
         default: throw new Error(`Unknown action: ${params.action}. Use: ${ACTIONS.join(", ")}`);
       }
     },
   });
 
-  // Cleanup hook — close session when the extension is unloaded
-  pi.registerShutdownHook?.(async () => {
+  pi.on("session_shutdown", async () => {
     await closeSession();
   });
 }

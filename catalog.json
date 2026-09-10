@@ -806,7 +806,7 @@
     {
       "slug": "stealth-browser",
       "name": "@rcarmo/piclaw-addon-stealth-browser",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "type": "extension",
       "description": "Stealth browser automation via mochi.js — human-like interactions, fingerprint consistency, anti-detection bypass",
       "path": "addons/stealth-browser",
@@ -822,9 +822,9 @@
       ],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-stealth-browser-0.1.0.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-stealth-browser-0.1.1.tgz"
       },
-      "updatedAt": "2026-08-20"
+      "updatedAt": "2026-09-10"
     },
     {
       "slug": "telegram",
