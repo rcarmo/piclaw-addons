@@ -5,7 +5,7 @@
  * Drop into .pi/extensions/ and /reload.
  */
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { Type } from "@sinclair/typebox";
+import { Type } from "typebox";
 import { resolve, relative, isAbsolute, extname } from "node:path";
 
 /* ── Output collection helpers (from _collect-output.ts) ──────────── */
