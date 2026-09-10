@@ -1,5 +1,6 @@
 import type { ExtensionAPI, ExtensionFactory } from "@earendil-works/pi-coding-agent";
-import { Type } from "@sinclair/typebox";
+import { StringEnum } from "@earendil-works/pi-ai";
+import { Type } from "typebox";
 
 import { getChatJid } from "./compat/chat-context.js";
 import { registerToolStatusHintProvider } from "./compat/tool-status-hints.js";
@@ -376,8 +377,7 @@ const PORTAINER_ACTIONS = [
   "workflow",
 ] as const;
 
-const PortainerWorkflowSchema = Type.String({
-  enum: [...PORTAINER_WORKFLOW_IDS],
+const PortainerWorkflowSchema = StringEnum(PORTAINER_WORKFLOW_IDS, {
   description: "Named higher-level Portainer workflow to run.",
 });
 
@@ -387,16 +387,14 @@ const PortainerRawRequestItemSchema = Type.Object({
   path: Type.String({ description: "Relative Portainer API path for this batched request." }),
   query: Type.Optional(Type.Any({ description: "Optional query-string parameters for this batched request." })),
   body: Type.Optional(Type.Any({ description: "Optional request body for this batched request." })),
-  body_mode: Type.Optional(Type.String({
-    enum: ["json", "text"],
+  body_mode: Type.Optional(StringEnum(["json", "text"] as const, {
     description: "How to encode the request body for this batched request.",
   })),
   headers: Type.Optional(Type.Record(Type.String(), Type.String(), { description: "Optional extra headers for this batched request." })),
 });
 
 const PortainerToolSchema = Type.Object({
-  action: Type.String({
-    enum: [...PORTAINER_ACTIONS],
+  action: StringEnum(PORTAINER_ACTIONS, {
     description: "Operation to perform for the current chat Portainer config, API request, or workflow.",
   }),
   chat_jid: Type.Optional(Type.String({ description: "Target chat JID. Defaults to the current chat context." })),
@@ -407,8 +405,7 @@ const PortainerToolSchema = Type.Object({
   path: Type.Optional(Type.String({ description: "Relative Portainer API path for action=request." })),
   query: Type.Optional(Type.Any({ description: "Optional query-string parameters for action=request." })),
   body: Type.Optional(Type.Any({ description: "Optional request body for action=request." })),
-  body_mode: Type.Optional(Type.String({
-    enum: ["json", "text"],
+  body_mode: Type.Optional(StringEnum(["json", "text"] as const, {
     description: "How to encode the request body for action=request.",
   })),
   headers: Type.Optional(Type.Record(Type.String(), Type.String(), { description: "Optional extra headers for action=request." })),
@@ -421,8 +418,7 @@ const PortainerToolSchema = Type.Object({
   retry_backoff_factor: Type.Optional(Type.Number({ minimum: 1, description: "Backoff multiplier applied to retry_delay_ms for each additional retry." })),
   fail_fast: Type.Optional(Type.Boolean({ description: "Stop a batched request sequence after the first non-retriable or exhausted failure. Defaults to true." })),
   output_path: Type.Optional(Type.String({ description: "Optional workspace-relative output file path for action=request results." })),
-  output_format: Type.Optional(Type.String({
-    enum: ["json", "jsonl"],
+  output_format: Type.Optional(StringEnum(["json", "jsonl"] as const, {
     description: "Optional output file format for action=request results (default json).",
   })),
   workflow: Type.Optional(PortainerWorkflowSchema),
@@ -448,8 +444,7 @@ const PortainerToolSchema = Type.Object({
   timeout_sec: Type.Optional(Type.Integer({ minimum: 1, description: "Stop/restart timeout seconds for container workflows." })),
   command: Type.Optional(Type.String({ description: "Command for bounded container.exec workflows." })),
   command_args: Type.Optional(Type.Array(Type.String(), { description: "Command arguments for bounded container.exec workflows." })),
-  shell_family: Type.Optional(Type.String({
-    enum: ["posix", "powershell"],
+  shell_family: Type.Optional(StringEnum(["posix", "powershell"] as const, {
     description: "Shell wrapper family for exec-style workflows like container.exec.",
   })),
   driver: Type.Optional(Type.String({ description: "Network driver for network.create." })),

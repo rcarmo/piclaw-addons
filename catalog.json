@@ -608,7 +608,7 @@
     {
       "slug": "portainer",
       "name": "@rcarmo/piclaw-addon-portainer",
-      "version": "0.1.7",
+      "version": "0.1.8",
       "type": "extension",
       "description": "Portainer management tool — session-scoped API config, ad-hoc requests, and orchestration workflows for endpoints, stacks, containers, images, networks, and volumes",
       "path": "addons/portainer",
@@ -622,9 +622,9 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-portainer-0.1.7.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-portainer-0.1.8.tgz"
       },
-      "updatedAt": "2026-09-08"
+      "updatedAt": "2026-09-10"
     },
     {
       "slug": "proxmox",
