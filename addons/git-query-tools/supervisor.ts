@@ -6,7 +6,7 @@
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { Type } from "@sinclair/typebox";
+import { Type } from "typebox";
 import { extname, relative } from "node:path";
 
 import { ok, err, collectOutput, stripTrailing } from "./output.js";
