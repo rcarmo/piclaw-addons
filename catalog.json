@@ -175,7 +175,7 @@
     {
       "slug": "drawio-editor",
       "name": "@rcarmo/piclaw-addon-drawio-editor",
-      "version": "31.4.2",
+      "version": "31.4.3",
       "type": "extension",
       "description": "Self-hosted draw.io diagram editor with workspace file integration",
       "path": "addons/drawio-editor",
@@ -188,9 +188,9 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-drawio-editor-31.4.2.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-drawio-editor-31.4.3.tgz"
       },
-      "updatedAt": "2026-09-08"
+      "updatedAt": "2026-09-10"
     },
     {
       "slug": "editable-table",
