@@ -6,7 +6,7 @@
  *   code_rewrite — structural find-and-replace
  */
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { Type } from "@sinclair/typebox";
+import { Type } from "typebox";
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 
