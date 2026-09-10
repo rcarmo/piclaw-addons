@@ -1,5 +1,5 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { Type } from "@sinclair/typebox";
+import { Type } from "typebox";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -66,7 +66,22 @@ export default function editableTableAddon(pi: ExtensionAPI): void {
         ? params.instructions.trim()
         : "Edit the table, then click Insert into chat to send the Markdown table back into the conversation.";
 
-      ctx.ui.setWidget(`editable-table:${Date.now()}`, [normalizedMarkdown], {
+      const webUi = ctx.ui as typeof ctx.ui & {
+        setWidget(
+          key: string,
+          content: string[],
+          options: {
+            extension: string;
+            surface: string;
+            title: string;
+            instructions: string;
+            markdown_table: string;
+            headers: string[];
+            rows: string[][];
+          },
+        ): void;
+      };
+      webUi.setWidget(`editable-table:${Date.now()}`, [normalizedMarkdown], {
         extension: EXTENSION_ID,
         surface: "floating-widget",
         title,
