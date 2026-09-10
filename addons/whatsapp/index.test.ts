@@ -16,6 +16,17 @@ afterEach(() => {
 test("manifest declares the supported Piclaw version range", () => {
   const manifest = JSON.parse(readFileSync(join(import.meta.dir, "package.json"), "utf8"));
   expect(manifest.piclaw.compatibleVersions).toBe(">=2.0.0");
+  expect(manifest.dependencies?.["@whiskeysockets/baileys"]).toBe("7.0.0-rc14");
+  expect(manifest.dependencies?.["qrcode-terminal"]).toBe("0.12.0");
+});
+
+test("channel implementation uses only package-local runtime contracts", () => {
+  const source = readFileSync(join(import.meta.dir, "whatsapp.ts"), "utf8");
+  const presenceSource = readFileSync(join(import.meta.dir, "whatsapp-presence.ts"), "utf8");
+  expect(source).not.toMatch(/from\s+["']\.\.\//);
+  expect(presenceSource).not.toMatch(/from\s+["']\.\.\//);
+  expect(source).toContain("onConnected?: () => void");
+  expect(source).toContain("onDisconnected?: () => void");
 });
 
 test("registers the current module-scope config API contract", () => {

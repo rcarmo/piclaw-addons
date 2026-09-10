@@ -7,6 +7,7 @@
  * Configuration stored via extension KV; env vars override.
  */
 import type { ExtensionAPI, ExtensionFactory } from "@earendil-works/pi-coding-agent";
+import type { NewMessage } from "./channel-types.js";
 
 const ADDON_ID = "whatsapp";
 
@@ -73,11 +74,14 @@ const register: ExtensionFactory = (pi: ExtensionAPI) => {
       channelPromise = import("./whatsapp.js").then((mod) => {
         const channel = new mod.WhatsAppChannel({
           phoneNumber: phone,
-          onMessage: (chatJid: string, content: string, isFromMe: boolean) => {
-            if (!isFromMe && interop?.postMessage) {
-              interop.postMessage(chatJid, content, { source: "whatsapp" });
+          assistantName: process.env.PICLAW_ASSISTANT_NAME?.trim() || "Assistant",
+          chatJids: () => new Set<string>(),
+          onMessage: (chatJid: string, message: NewMessage) => {
+            if (!message.is_from_me && interop?.postMessage) {
+              interop.postMessage(chatJid, message.content, { source: "whatsapp", message });
             }
           },
+          onChatMetadata: () => {},
           onPairingCode: (code: string) => {
             (globalThis as any).__whatsappPairingCode = code;
             console.log(`[whatsapp] Pairing code: ${code}`);

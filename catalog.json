@@ -915,7 +915,7 @@
     {
       "slug": "whatsapp",
       "name": "@rcarmo/piclaw-addon-whatsapp",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "type": "extension",
       "description": "WhatsApp channel for PiClaw via Baileys. Connects to WhatsApp Web, receives/sends messages, and routes them through the agent.",
       "path": "addons/whatsapp",
@@ -928,9 +928,9 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-whatsapp-0.1.1.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-whatsapp-0.1.2.tgz"
       },
-      "updatedAt": "2026-09-08"
+      "updatedAt": "2026-09-10"
     },
     {
       "slug": "win-ui",
