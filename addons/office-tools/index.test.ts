@@ -19,3 +19,10 @@ test("office schemas and extension entrypoint import standalone", () => {
   expect(officeWriteParameters.properties.path).toMatchObject({ type: "string" });
   expect(officeWriteParameters.properties.markdown).toMatchObject({ type: "string" });
 });
+
+test("PDF renderer stays inside the standalone package", () => {
+  const source = readFileSync(join(import.meta.dir, "index.ts"), "utf8");
+  expect(source).toContain('import("./cdp-print.ts")');
+  expect(source).not.toContain("../../browser/cdp-browser/cdp.ts");
+  expect(readFileSync(join(import.meta.dir, "cdp-print.ts"), "utf8")).toContain("export async function printToPdf");
+});

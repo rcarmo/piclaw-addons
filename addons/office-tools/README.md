@@ -19,7 +19,7 @@ Creates `.docx`, `.xlsx`, `.pptx`, or `.pdf` from Markdown. Output paths must re
 - DOCX uses the bundled `assets/docx-template.zip`.
 - XLSX is generated with the packaged spreadsheet implementation.
 - PPTX uses the vendored PptxGenJS build.
-- PDF uses the bundled `assets/md2pdf.css` and the host PDF renderer.
+- PDF uses the bundled `assets/md2pdf.css` and a package-local CDP renderer. It launches an isolated headless Edge/Chrome/Chromium profile on a free debugging port rather than attaching to unrelated browser automation sessions.
 
 ## Assets
 
@@ -27,4 +27,4 @@ Creates `.docx`, `.xlsx`, `.pptx`, or `.pdf` from Markdown. Output paths must re
 - `assets/md2pdf.css` — Markdown-to-PDF stylesheet
 - `vendor/pptxgenjs/pptxgen.cjs.js` — PPTX generator
 
-The package uses the shared `@sinclair/typebox` peer. PDF generation imports Piclaw's `../../browser/cdp-browser/cdp.ts` helper, so this package is not self-contained for that operation.
+The package uses the shared `@sinclair/typebox` peer. PDF generation is self-contained and does not import Piclaw runtime internals.

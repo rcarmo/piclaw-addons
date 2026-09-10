@@ -22,7 +22,7 @@ const XLSX_PACKAGE = "xlsx";
 let cachedXlsx: any | null = null;
 let cachedPptxGenJs: any | null = null;
 let cachedFflate: any | null = null;
-let cachedCdpModule: Promise<typeof import("../../browser/cdp-browser/cdp.ts")> | null = null;
+let cachedCdpModule: Promise<typeof import("./cdp-print.ts")> | null = null;
 const DOCX_TEMPLATE_PATH = resolve(ASSETS_DIR, "docx-template.zip");
 const PDF_CSS_PATH = resolve(ASSETS_DIR, "md2pdf.css");
 
@@ -44,8 +44,8 @@ function getFflate(): any {
   return cachedFflate;
 }
 
-async function getCdpModule(): Promise<typeof import("../../browser/cdp-browser/cdp.ts")> {
-  if (!cachedCdpModule) cachedCdpModule = import("../../browser/cdp-browser/cdp.ts");
+async function getCdpModule(): Promise<typeof import("./cdp-print.ts")> {
+  if (!cachedCdpModule) cachedCdpModule = import("./cdp-print.ts");
   return await cachedCdpModule;
 }
 
