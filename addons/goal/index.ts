@@ -1,6 +1,6 @@
 import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { basename } from "node:path";
-import { Type } from "@sinclair/typebox";
+import { Type } from "typebox";
 import { createExtensionStorage, type ExtensionStorage } from "./compat/extension-kv.js";
 import { getChatJid, getChatTurnId } from "./compat/chat-context.js";
 import { consumeClaimedGoalDeadlineCheckpoint, consumeGoalDeadlineAgentEndSuppression, resetGoalDeadlineCheckpointForTests } from "./deadline-checkpoint.js";
