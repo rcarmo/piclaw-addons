@@ -76,7 +76,7 @@ test("package keeps upstream attribution and runtime dependencies", () => {
   expect(manifest.peerDependencies["@earendil-works/pi-coding-agent"]).toBe("*");
   expect(manifest.peerDependencies["@earendil-works/pi-ai"]).toBe("*");
   expect(manifest.peerDependencies["@earendil-works/pi-tui"]).toBe("*");
-  expect(manifest.peerDependencies["@sinclair/typebox"]).toBe("*");
+  expect(manifest.peerDependencies["typebox"]).toBe("*");
   expect(manifest.dependencies["node-gyp"]).toBeUndefined();
   expect(manifest.dependencies["node-pty"]).toBeUndefined();
   expect(manifest.dependencies["partial-json"]).toBeUndefined();
@@ -91,7 +91,7 @@ test("source imports current package names and keeps one provider observer overl
   const combined = files.map((file) => readFileSync(file, "utf8")).join("\n");
   expect(files.length).toBeGreaterThan(10);
   expect(combined).not.toContain("@mariozechner/");
-  expect(combined).not.toContain('from "typebox"');
+  expect(combined).not.toContain("@sinclair/typebox");
   expect(combined.match(/registerProvider\("openai-codex"/g)).toHaveLength(1);
   expect(combined).toContain("requiresNativeOutputCapture(context)");
   expect(combined).toContain("streamBuiltin ?? streamBuiltinProvider");
@@ -101,7 +101,7 @@ test("source imports current package names and keeps one provider observer overl
   expect(combined).toContain("@earendil-works/pi-coding-agent");
   expect(combined).toContain("@earendil-works/pi-ai");
   expect(combined).toContain("@earendil-works/pi-tui");
-  expect(combined).toContain("@sinclair/typebox");
+  expect(combined).toContain('from "typebox"');
 });
 
 test("resolves explicit provider-aware adapter profiles", () => {
