@@ -360,7 +360,7 @@ function listUnixProcesses(): Array<{ pid: number; command: string }> {
 				if (!match) return null;
 				return { pid: Number(match[1]), command: match[2] };
 			})
-			.filter((entry): entry is { pid: number; command: string } => Boolean(entry) && Number.isFinite(entry.pid) && entry.pid > 0);
+			.filter((entry): entry is { pid: number; command: string } => entry !== null && Number.isFinite(entry.pid) && entry.pid > 0);
 	} catch {
 		return [];
 	}

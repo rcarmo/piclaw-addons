@@ -454,7 +454,7 @@
     {
       "slug": "m365",
       "name": "@rcarmo/piclaw-addon-m365",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "type": "extension",
       "description": "Experimental Microsoft 365 tools for Teams, Graph, Outlook, OneDrive, SharePoint, Calendar, and To Do",
       "path": "addons/m365",
@@ -484,9 +484,9 @@
       ],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-m365-0.1.0.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-m365-0.1.1.tgz"
       },
-      "updatedAt": "2026-09-08"
+      "updatedAt": "2026-09-10"
     },
     {
       "slug": "mindmap",
