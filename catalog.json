@@ -935,7 +935,7 @@
     {
       "slug": "win-ui",
       "name": "@rcarmo/piclaw-addon-win-ui",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "type": "extension",
       "description": "Windows desktop automation tools via Win32 UI Automation and screenshots",
       "path": "addons/win-ui",
@@ -949,9 +949,9 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-win-ui-0.1.0.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-win-ui-0.1.1.tgz"
       },
-      "updatedAt": "2026-09-08"
+      "updatedAt": "2026-09-10"
     },
     {
       "slug": "writer-fonts",

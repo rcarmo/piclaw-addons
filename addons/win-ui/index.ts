@@ -149,8 +149,8 @@
  * export is a no-op. Safe to include in cross-platform piclaw installs.
  */
 
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { Type } from "@sinclair/typebox";
+import type { AgentToolResult, ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { Type } from "typebox";
 import { writeFileSync } from "fs";
 
 function registerToolStatusHintProvider(provider: { id: string; buildHints: (context: { toolName: string; args: unknown }) => unknown }): void {
@@ -772,7 +772,7 @@ export default function register(pi: ExtensionAPI) {
     description: "Enumerate visible windows with titles, class names, PIDs, and bounding rectangles.",
     promptSnippet: "win_list_windows: list visible top-level windows and their bounds to discover Windows UI targets.",
     parameters: Type.Object({}),
-    async execute() {
+    async execute(): Promise<AgentToolResult<unknown>> {
       const wins = listWindows();
       return {
         content: [{ type: "text", text: JSON.stringify(serializeWindowList(wins), null, 2) }],
@@ -790,12 +790,12 @@ export default function register(pi: ExtensionAPI) {
       titleMatch: Type.String({ description: "Window title substring to match" }),
       outPath: Type.String({ description: "Output file path (.bmp or .png)" }),
     }),
-    async execute(_id, params) {
+    async execute(_id, params): Promise<AgentToolResult<unknown>> {
       const wins = listWindows();
       const match = wins.find(w => w.title.toLowerCase().includes(params.titleMatch.toLowerCase()));
-      if (!match) return { content: [{ type: "text", text: `No window matching "${params.titleMatch}". Available: ${wins.map(w => w.title).join(", ")}` }] };
+      if (!match) return { content: [{ type: "text", text: `No window matching "${params.titleMatch}". Available: ${wins.map(w => w.title).join(", ")}` }], details: undefined };
       const result = captureWindow(match.handle, params.outPath);
-      if (!result.ok) return { content: [{ type: "text", text: `Window "${match.title}" could not be captured.` }] };
+      if (!result.ok) return { content: [{ type: "text", text: `Window "${match.title}" could not be captured.` }], details: undefined };
       return { content: [{ type: "text", text: `Captured "${match.title}" → ${params.outPath} (${result.width}x${result.height})` }], details: { outPath: params.outPath, width: result.width, height: result.height } };
     },
   });
@@ -808,9 +808,9 @@ export default function register(pi: ExtensionAPI) {
     parameters: Type.Object({
       outPath: Type.String({ description: "Output file path (.bmp or .png)" }),
     }),
-    async execute(_id, params) {
+    async execute(_id, params): Promise<AgentToolResult<unknown>> {
       const result = captureDesktop(params.outPath);
-      if (!result.ok) return { content: [{ type: "text", text: "Desktop capture failed. Ensure an interactive Windows desktop session is available." }] };
+      if (!result.ok) return { content: [{ type: "text", text: "Desktop capture failed. Ensure an interactive Windows desktop session is available." }], details: undefined };
       return {
         content: [{ type: "text", text: formatDesktopScreenshotSummary(result, params.outPath) }],
         details: { outPath: params.outPath, width: result.width, height: result.height, x: result.x, y: result.y },
@@ -824,7 +824,7 @@ export default function register(pi: ExtensionAPI) {
     description: "Enumerate attached monitors with index, device name, primary flag, and monitor/work-area rectangles.",
     promptSnippet: "win_list_monitors: list attached Windows monitors and their geometry.",
     parameters: Type.Object({}),
-    async execute() {
+    async execute(): Promise<AgentToolResult<unknown>> {
       const monitors = listMonitors();
       return {
         content: [{ type: "text", text: JSON.stringify(serializeMonitorList(monitors), null, 2) }],
@@ -843,12 +843,13 @@ export default function register(pi: ExtensionAPI) {
       monitorIndex: Type.Optional(Type.Number({ description: "1-based monitor index from win_list_monitors" })),
       deviceName: Type.Optional(Type.String({ description: "Monitor device name from win_list_monitors, e.g. \\\\.\\DISPLAY2" })),
     }),
-    async execute(_id, params) {
+    async execute(_id, params): Promise<AgentToolResult<unknown>> {
       const monitors = listMonitors();
+      const deviceName = typeof params.deviceName === "string" ? params.deviceName.trim() : "";
       const monitor = typeof params.monitorIndex === "number"
         ? monitors.find(m => m.index === params.monitorIndex)
-        : (typeof params.deviceName === "string" && params.deviceName.trim())
-          ? monitors.find(m => m.deviceName.toLowerCase() === params.deviceName.toLowerCase())
+        : deviceName
+          ? monitors.find(m => m.deviceName.toLowerCase() === deviceName.toLowerCase())
           : null;
       if (!monitor) {
         return {
@@ -857,7 +858,7 @@ export default function register(pi: ExtensionAPI) {
         };
       }
       const result = captureMonitor(params.outPath, monitor);
-      if (!result.ok) return { content: [{ type: "text", text: `Monitor ${monitor.index} could not be captured.` }] };
+      if (!result.ok) return { content: [{ type: "text", text: `Monitor ${monitor.index} could not be captured.` }], details: undefined };
       return {
         content: [{ type: "text", text: formatMonitorScreenshotSummary(monitor, result, params.outPath) }],
         details: { outPath: params.outPath, width: result.width, height: result.height, x: result.x, y: result.y, monitorIndex: monitor.index, deviceName: monitor.deviceName },
@@ -877,9 +878,9 @@ export default function register(pi: ExtensionAPI) {
       height: Type.Number({ description: "Region height in pixels" }),
       outPath: Type.String({ description: "Output file path (.bmp or .png)" }),
     }),
-    async execute(_id, params) {
+    async execute(_id, params): Promise<AgentToolResult<unknown>> {
       const result = captureScreenRegion(params.outPath, params.x, params.y, params.width, params.height);
-      if (!result.ok) return { content: [{ type: "text", text: "Region capture failed. Ensure the requested width/height are positive and an interactive Windows desktop session is available." }] };
+      if (!result.ok) return { content: [{ type: "text", text: "Region capture failed. Ensure the requested width/height are positive and an interactive Windows desktop session is available." }], details: undefined };
       return {
         content: [{ type: "text", text: formatRegionScreenshotSummary(result, params.outPath) }],
         details: { outPath: params.outPath, width: result.width, height: result.height, x: result.x, y: result.y },
@@ -897,12 +898,12 @@ export default function register(pi: ExtensionAPI) {
       elementName: Type.String({ description: "Element name pattern to search for (case-insensitive)" }),
       maxDepth: Type.Optional(Type.Number({ description: "Max tree depth (default 8)" })),
     }),
-    async execute(_id, params) {
+    async execute(_id, params): Promise<AgentToolResult<unknown>> {
       const wins = listWindows();
       const win = wins.find(w => w.title.toLowerCase().includes(params.windowTitle.toLowerCase()));
-      if (!win) return { content: [{ type: "text", text: `No window matching "${params.windowTitle}".` }] };
+      if (!win) return { content: [{ type: "text", text: `No window matching "${params.windowTitle}".` }], details: undefined };
       const elements = accFindElements(win.handle, params.elementName, 30, params.maxDepth ?? 8);
-      if (elements.length === 0) return { content: [{ type: "text", text: `No elements matching "${params.elementName}" in "${win.title}".` }] };
+      if (elements.length === 0) return { content: [{ type: "text", text: `No elements matching "${params.elementName}" in "${win.title}".` }], details: undefined };
       const summary = elements.map(e => ({ name: e.name, role: e.role, children: e.children }));
       return { content: [{ type: "text", text: JSON.stringify(summary, null, 2) }], details: { count: elements.length } };
     },
@@ -919,25 +920,25 @@ export default function register(pi: ExtensionAPI) {
       windowTitle: Type.Optional(Type.String({ description: "Window title to search in" })),
       elementName: Type.Optional(Type.String({ description: "Element name to click" })),
     }),
-    async execute(_id, params) {
+    async execute(_id, params): Promise<AgentToolResult<unknown>> {
       if (params.x !== undefined && params.y !== undefined) {
         user32.symbols.SetCursorPos(params.x, params.y);
         Bun.sleepSync(50);
         user32.symbols.mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, null);
         Bun.sleepSync(30);
         user32.symbols.mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, null);
-        return { content: [{ type: "text", text: `Clicked at (${params.x}, ${params.y})` }] };
+        return { content: [{ type: "text", text: `Clicked at (${params.x}, ${params.y})` }], details: undefined };
       }
       if (params.windowTitle && params.elementName) {
         const wins = listWindows();
         const win = wins.find(w => w.title.toLowerCase().includes(params.windowTitle!.toLowerCase()));
-        if (!win) return { content: [{ type: "text", text: `Window not found.` }] };
+        if (!win) return { content: [{ type: "text", text: `Window not found.` }], details: undefined };
         const elements = accFindElements(win.handle, params.elementName!, 1, 8);
-        if (elements.length === 0) return { content: [{ type: "text", text: `Element not found.` }] };
+        if (elements.length === 0) return { content: [{ type: "text", text: `Element not found.` }], details: undefined };
 
         // Try accDoDefaultAction first
         if (accDoDefaultAction(elements[0].ptr)) {
-          return { content: [{ type: "text", text: `Clicked "${elements[0].name}" (${elements[0].role}) via accDoDefaultAction` }] };
+          return { content: [{ type: "text", text: `Clicked "${elements[0].name}" (${elements[0].role}) via accDoDefaultAction` }], details: undefined };
         }
 
         // Fallback: get location and click center
@@ -954,7 +955,7 @@ export default function register(pi: ExtensionAPI) {
           user32.symbols.mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, null);
           Bun.sleepSync(30);
           user32.symbols.mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, null);
-          return { content: [{ type: "text", text: `Clicked "${elements[0].name}" at (${cx}, ${cy})` }] };
+          return { content: [{ type: "text", text: `Clicked "${elements[0].name}" at (${cx}, ${cy})` }], details: undefined };
         } catch (error) {
           debugSuppressedError(log, "Failed to resolve element location for click fallback.", error, {
             operation: "win_ui.win_click.acc_location",
@@ -962,10 +963,10 @@ export default function register(pi: ExtensionAPI) {
             elementName: params.elementName,
             element: elements[0].name,
           });
-          return { content: [{ type: "text", text: `Found "${elements[0].name}" but couldn't get location` }] };
+          return { content: [{ type: "text", text: `Found "${elements[0].name}" but couldn't get location` }], details: undefined };
         }
       }
-      return { content: [{ type: "text", text: "Provide (x, y) or (windowTitle + elementName)" }] };
+      return { content: [{ type: "text", text: "Provide (x, y) or (windowTitle + elementName)" }], details: undefined };
     },
   });
 
@@ -981,7 +982,7 @@ export default function register(pi: ExtensionAPI) {
       alt: Type.Optional(Type.Boolean({ description: "Hold Alt" })),
       shift: Type.Optional(Type.Boolean({ description: "Hold Shift" })),
     }),
-    async execute(_id, params) {
+    async execute(_id, params): Promise<AgentToolResult<unknown>> {
       if (params.vk !== undefined) {
         const mods: number[] = [];
         if (params.ctrl) mods.push(0x11);
@@ -992,7 +993,7 @@ export default function register(pi: ExtensionAPI) {
         Bun.sleepSync(30);
         user32.symbols.keybd_event(params.vk, 0, KEYEVENTF_KEYUP, null);
         for (const m of mods.reverse()) user32.symbols.keybd_event(m, 0, KEYEVENTF_KEYUP, null);
-        return { content: [{ type: "text", text: `Sent VK 0x${params.vk.toString(16)}` }] };
+        return { content: [{ type: "text", text: `Sent VK 0x${params.vk.toString(16)}` }], details: undefined };
       }
       if (params.text) {
         // Type Unicode text via SendInput with KEYEVENTF_UNICODE (pure FFI, no PowerShell)
@@ -1016,9 +1017,9 @@ export default function register(pi: ExtensionAPI) {
           buf.writeUInt32LE(KEYEVENTF_UNICODE | KEYEVENTF_KEYUP, 52);
           user32.symbols.SendInput(2, _ptr(buf), 40);
         }
-        return { content: [{ type: "text", text: `Typed "${params.text.substring(0, 50)}"` }] };
+        return { content: [{ type: "text", text: `Typed "${params.text.substring(0, 50)}"` }], details: undefined };
       }
-      return { content: [{ type: "text", text: "Provide text or vk" }] };
+      return { content: [{ type: "text", text: "Provide text or vk" }], details: undefined };
     },
   });
 
@@ -1032,15 +1033,15 @@ export default function register(pi: ExtensionAPI) {
       maxDepth: Type.Optional(Type.Number({ description: "Max tree depth (default 6)" })),
       maxElements: Type.Optional(Type.Number({ description: "Max elements to return (default 50)" })),
     }),
-    async execute(_id, params) {
+    async execute(_id, params): Promise<AgentToolResult<unknown>> {
       const wins = listWindows();
       const win = wins.find(w => w.title.toLowerCase().includes(params.windowTitle.toLowerCase()));
-      if (!win) return { content: [{ type: "text", text: `No window matching "${params.windowTitle}".` }] };
+      if (!win) return { content: [{ type: "text", text: `No window matching "${params.windowTitle}".` }], details: undefined };
 
       const ppAcc = Buffer.alloc(8);
       oleacc.symbols.AccessibleObjectFromWindow(win.handle as any, OBJID_CLIENT, _ptr(IID_IAccessible), _ptr(ppAcc));
       const pAcc = Number(ppAcc.readBigUInt64LE(0));
-      if (!pAcc) return { content: [{ type: "text", text: "Could not get IAccessible for window." }] };
+      if (!pAcc) return { content: [{ type: "text", text: "Could not get IAccessible for window." }], details: undefined };
 
       const maxD = params.maxDepth ?? 6;
       const maxE = params.maxElements ?? 50;
@@ -1075,10 +1076,10 @@ export default function register(pi: ExtensionAPI) {
       titleMatch: Type.String({ description: "Window title substring to match" }),
       force: Type.Optional(Type.Boolean({ description: "Force-kill the owning process (default: false, sends WM_CLOSE)" })),
     }),
-    async execute(_id, params) {
+    async execute(_id, params): Promise<AgentToolResult<unknown>> {
       const wins = listWindows();
       const matches = wins.filter(w => w.title.toLowerCase().includes(params.titleMatch.toLowerCase()));
-      if (matches.length === 0) return { content: [{ type: "text", text: `No window matching "${params.titleMatch}".` }] };
+      if (matches.length === 0) return { content: [{ type: "text", text: `No window matching "${params.titleMatch}".` }], details: undefined };
 
       const results: any[] = [];
       for (const win of matches) {

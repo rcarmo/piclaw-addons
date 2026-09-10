@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-win-ui",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Windows desktop automation tools via Win32 UI Automation and screenshots",
   "type": "module",
   "main": "index.ts",
@@ -21,7 +21,7 @@
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",
-    "@sinclair/typebox": "*"
+    "typebox": "*"
   },
   "keywords": [
     "pi-package",
