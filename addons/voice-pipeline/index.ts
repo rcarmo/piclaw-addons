@@ -13,7 +13,7 @@
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { Type, type Static } from "@sinclair/typebox";
+import { Type, type Static } from "typebox";
 import { loadConfig, type VoiceConfig } from "./config.ts";
 import { ensureTtsChat, closeDb } from "./store/messages.ts";
 import { addWavHeader, EspHomeClient, putTts, ttsUrl } from "./esphome/client.ts";

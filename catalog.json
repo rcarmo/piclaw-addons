@@ -871,7 +871,7 @@
     {
       "slug": "voice-pipeline",
       "name": "@rcarmo/piclaw-addon-voice-pipeline",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "type": "extension",
       "description": "ESPHome-only voice assistant pipeline for ThinkSmart/ESP32-Audio devices using Azure STT/TTS and the Flint chat runtime",
       "path": "addons/voice-pipeline",
@@ -886,9 +886,9 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-voice-pipeline-0.2.1.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-voice-pipeline-0.2.2.tgz"
       },
-      "updatedAt": "2026-09-08"
+      "updatedAt": "2026-09-10"
     },
     {
       "slug": "web-viewer",
