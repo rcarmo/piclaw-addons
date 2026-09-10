@@ -29,13 +29,14 @@ describe("proxmox settings helpers", () => {
 
   test("tool schema uses Google-compatible string enums", () => {
     const source = readFileSync(resolve(addonDir, "extension.ts"), "utf8");
+    expect(source).toContain('import { StringEnum } from "@earendil-works/pi-ai";');
     expect(source).toContain("const PROXMOX_WORKFLOW_IDS = [");
     expect(source).toContain("const PROXMOX_ACTIONS = [");
-    expect(source).toContain("Type.String({\n  enum: [...PROXMOX_WORKFLOW_IDS]");
-    expect(source).toContain("Type.String({\n    enum: [...PROXMOX_ACTIONS]");
-    expect(source).toContain('enum: ["form", "json"]');
-    expect(source).toContain('enum: ["json", "jsonl"]');
-    expect(source).toContain('enum: ["posix", "powershell"]');
-    expect(source).not.toContain("const ProxmoxWorkflowSchema = Type.Union");
+    expect(source).toContain("StringEnum(PROXMOX_WORKFLOW_IDS");
+    expect(source).toContain("StringEnum(PROXMOX_ACTIONS");
+    expect(source).toContain('StringEnum(["form", "json"] as const');
+    expect(source).toContain('StringEnum(["json", "jsonl"] as const');
+    expect(source).toContain('StringEnum(["posix", "powershell"] as const');
+    expect(source).not.toContain("enum:");
   });
 });
