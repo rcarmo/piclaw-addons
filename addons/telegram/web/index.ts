@@ -34,7 +34,7 @@ const ICON = HAS_RUNTIME
 function TelegramSettings() {
   if (!HAS_RUNTIME) return null;
 
-  const [config, setConfig] = useState<any>({ enabled: false, pollingTimeout: 30, connected: false, botTokenConfigured: false });
+  const [config, setConfig] = useState({ enabled: false, pollingTimeout: 30, connected: false, botTokenConfigured: false });
   const [saving, setSaving] = useState(false);
   const [botToken, setBotToken] = useState("");
   const [enabled, setEnabled] = useState(false);

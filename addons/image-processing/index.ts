@@ -1,4 +1,6 @@
-import { Type, type Static } from "@sinclair/typebox";
+/// <reference path="./gifenc.d.ts" />
+
+import { Type, type Static } from "typebox";
 import type {
   AgentToolResult,
   AgentToolUpdateCallback,

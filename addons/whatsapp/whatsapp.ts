@@ -17,8 +17,12 @@
  *   - runtime/message-loop.ts polls for new WhatsApp messages via the DB.
  */
 
-import { mkdirSync } from "fs";
-import { join } from "path";
+/// <reference path="./qrcode-terminal.d.ts" />
+/// <reference path="./baileys.d.ts" />
+
+import { randomUUID } from "node:crypto";
+import { mkdirSync } from "node:fs";
+import { join, resolve } from "node:path";
 
 import makeWASocket, {
   Browsers,
@@ -29,10 +33,8 @@ import makeWASocket, {
 } from "@whiskeysockets/baileys";
 import qrcode from "qrcode-terminal";
 
-import { STORE_DIR, getIdentityConfig, getWhatsAppConfig } from "../core/config.js";
-import type { OnChatMetadata, OnInboundMessage } from "../types.js";
-import { createUuid } from "../utils/ids.js";
-import { createLogger } from "../utils/logger.js";
+import type { OnChatMetadata, OnInboundMessage } from "./channel-types.js";
+import { createLogger } from "./logger.js";
 import { sendWhatsAppTypingUpdate } from "./whatsapp-presence.js";
 
 const log = createLogger("whatsapp");
@@ -75,7 +77,11 @@ export interface WhatsAppChannelOpts {
   onChatMetadata: OnChatMetadata;
   chatJids: () => Set<string>;
   phoneNumber?: string;
+  assistantName?: string;
+  storeDir?: string;
   onPairingCode?: (code: string) => void;
+  onConnected?: () => void;
+  onDisconnected?: () => void;
 }
 
 const MAX_RECONNECT_ATTEMPTS = 5;
@@ -95,10 +101,12 @@ export class WhatsAppChannel {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(opts: WhatsAppChannelOpts) {
-    const whatsAppConfig = getWhatsAppConfig();
     this.opts = {
       ...opts,
-      phoneNumber: opts.phoneNumber || (whatsAppConfig.phoneNumber || undefined),
+      phoneNumber: opts.phoneNumber?.trim() || undefined,
+      assistantName: opts.assistantName?.trim() || "Assistant",
+      storeDir: opts.storeDir?.trim() || process.env.PICLAW_STORE?.trim()
+        || resolve(process.env.PICLAW_WORKSPACE?.trim() || "/workspace", ".piclaw", "store"),
     };
   }
 
@@ -121,7 +129,7 @@ export class WhatsAppChannel {
   }
 
   private async connectInternal(onFirstOpen?: () => void): Promise<void> {
-    const authDir = join(STORE_DIR, "auth");
+    const authDir = join(this.opts.storeDir!, "whatsapp-auth");
     mkdirSync(authDir, { recursive: true });
     const { state, saveCreds } = await useMultiFileAuthState(authDir);
 
@@ -153,7 +161,9 @@ export class WhatsAppChannel {
       }
 
       if (connection === "close") {
+        const wasConnected = this.connected;
         this.connected = false;
+        if (wasConnected) this.opts.onDisconnected?.();
         this.pairingRequested = false;
         const reason = readStatusCode(lastDisconnect?.error);
         const shouldReconnect = reason !== DisconnectReason.loggedOut;
@@ -200,6 +210,7 @@ export class WhatsAppChannel {
         this.connected = true;
         this.reconnectAttempts = 0;
         log.info("Connected", { operation: "connection.update.open" });
+        this.opts.onConnected?.();
         this.sock.sendPresenceUpdate("available").catch((err) => {
           log.warn("Failed to publish availability presence", {
             operation: "connection.update.publish_presence",
@@ -229,9 +240,9 @@ export class WhatsAppChannel {
         const sender = msg.key.participant || msg.key.remoteJid || "";
         const senderName = msg.pushName || sender.split("@")[0];
         const fromMe = msg.key.fromMe || false;
-        const assistantName = getIdentityConfig().assistantName;
+        const assistantName = this.opts.assistantName!;
         const isBotMessage = content.startsWith(`${assistantName}:`);
-        const msgId = msg.key.id || createUuid("fallback");
+        const msgId = msg.key.id || `fallback:${randomUUID()}`;
 
         this.opts.onChatMetadata(chatJid, timestamp);
 
@@ -257,7 +268,7 @@ export class WhatsAppChannel {
   }
 
   async sendMessage(jid: string, text: string): Promise<void> {
-    const prefixed = `${getIdentityConfig().assistantName}: ${text}`;
+    const prefixed = `${this.opts.assistantName}: ${text}`;
     if (!this.connected) {
       this.outgoingQueue.push({ jid, text: prefixed });
       return;
@@ -277,6 +288,7 @@ export class WhatsAppChannel {
   isConnected(): boolean { return this.connected; }
 
   async disconnect(): Promise<void> {
+    const wasConnected = this.connected;
     this.connected = false;
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
@@ -284,6 +296,7 @@ export class WhatsAppChannel {
     }
     this.reconnectAttempts = 0;
     this.sock?.end(undefined);
+    if (wasConnected) this.opts.onDisconnected?.();
   }
 
   async setTyping(jid: string, isTyping: boolean): Promise<void> {

@@ -29,13 +29,14 @@ describe("portainer settings helpers", () => {
 
   test("tool schema uses Google-compatible string enums", () => {
     const source = readFileSync(resolve(addonDir, "extension.ts"), "utf8");
+    expect(source).toContain('import { StringEnum } from "@earendil-works/pi-ai";');
     expect(source).toContain("const PORTAINER_WORKFLOW_IDS = [");
     expect(source).toContain("const PORTAINER_ACTIONS = [");
-    expect(source).toContain("Type.String({\n  enum: [...PORTAINER_WORKFLOW_IDS]");
-    expect(source).toContain("Type.String({\n    enum: [...PORTAINER_ACTIONS]");
-    expect(source).toContain('enum: ["json", "text"]');
-    expect(source).toContain('enum: ["json", "jsonl"]');
-    expect(source).toContain('enum: ["posix", "powershell"]');
-    expect(source).not.toContain("const PortainerWorkflowSchema = Type.Union");
+    expect(source).toContain("StringEnum(PORTAINER_WORKFLOW_IDS");
+    expect(source).toContain("StringEnum(PORTAINER_ACTIONS");
+    expect(source).toContain('StringEnum(["json", "text"] as const');
+    expect(source).toContain('StringEnum(["json", "jsonl"] as const');
+    expect(source).toContain('StringEnum(["posix", "powershell"] as const');
+    expect(source).not.toContain("enum:");
   });
 });

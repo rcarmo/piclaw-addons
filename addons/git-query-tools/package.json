@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-git-query-tools",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Git history and JSON query tools for piclaw agents",
   "type": "module",
   "main": "index.ts",
@@ -26,7 +26,7 @@
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",
-    "@sinclair/typebox": "*"
+    "typebox": "*"
   },
   "license": "MIT",
   "publishConfig": {

@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-plan-sidebar",
-  "version": "0.1.24",
+  "version": "0.1.25",
   "description": "Right-side session plan sidebar with canonical plan action=update and Markdown storage",
   "type": "module",
   "main": "index.ts",
@@ -27,7 +27,7 @@
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",
-    "@sinclair/typebox": "*"
+    "typebox": "*"
   },
   "keywords": [
     "pi-package",

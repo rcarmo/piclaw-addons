@@ -95,10 +95,10 @@ function loadSpool(dbPath: string): CompactionBatch[] {
 function saveSpool(batches: CompactionBatch[], dbPath: string): void {
   const cutoff = Date.now() - MAX_SPOOL_AGE_MS;
   let retained = batches.filter(batch => Date.parse(batch.createdAt) >= cutoff);
-  while (retained.length && Buffer.byteLength(retained.map(JSON.stringify).join("\n"), "utf8") > MAX_SPOOL_BYTES) retained = retained.slice(1);
+  while (retained.length && Buffer.byteLength(retained.map((batch) => JSON.stringify(batch)).join("\n"), "utf8") > MAX_SPOOL_BYTES) retained = retained.slice(1);
   const path = spoolPath(dbPath);
   if (!retained.length) { try { unlinkSync(path); } catch {} return; }
-  atomicWrite(path, `${retained.map(JSON.stringify).join("\n")}\n`);
+  atomicWrite(path, `${retained.map((batch) => JSON.stringify(batch)).join("\n")}\n`);
 }
 async function send(host: string, port: number, points: MetricPoint[]): Promise<void> {
   const payload = points.map(point => `${point.path} ${point.value} ${point.timestamp}`).join("\n") + "\n";

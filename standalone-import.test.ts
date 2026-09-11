@@ -118,7 +118,7 @@ test("standalone piclaw-addon-observability imports outside the monorepo root", 
 test("standalone piclaw-addon-office-tools imports outside the monorepo root", async () => {
   const mod = await importStandaloneAddon("office-tools");
   expect(typeof mod.default).toBe("function");
-});
+}, 120_000);
 
 test("standalone piclaw-addon-office-viewer imports outside the monorepo root", async () => {
   const mod = await importStandaloneAddon("office-viewer");

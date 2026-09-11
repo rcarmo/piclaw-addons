@@ -20,7 +20,7 @@ interface WhatsAppConfig {
 function WhatsAppSettings() {
   if (!HAS_RUNTIME) return null;
 
-  const [config, setConfig] = useState<WhatsAppConfig>({ phone: "", enabled: false, connected: false, pairingCode: null });
+  const [config, setConfig] = useState({ phone: "", enabled: false, connected: false, pairingCode: null } as WhatsAppConfig);
   const [saving, setSaving] = useState(false);
   const [phone, setPhone] = useState("");
   const [enabled, setEnabled] = useState(false);

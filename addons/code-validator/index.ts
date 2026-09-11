@@ -7,7 +7,7 @@
  * Drop into .pi/extensions/ and /reload.
  */
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { Type } from "@sinclair/typebox";
+import { Type } from "typebox";
 import { resolve, extname } from "node:path";
 import { readFileSync, existsSync } from "node:fs";
 

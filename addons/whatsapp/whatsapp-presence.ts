@@ -1,4 +1,4 @@
-import { createLogger, debugSuppressedError } from "../utils/logger.js";
+import { createLogger, debugSuppressedError } from "./logger.js";
 
 const log = createLogger("whatsapp");
 

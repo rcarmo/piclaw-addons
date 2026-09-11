@@ -5,6 +5,8 @@
  * messages in the shared DB pipeline.
  */
 
+/// <reference path="./grammy.d.ts" />
+
 // Config is injected via constructor opts, not imported from core
 
 const log = { info: console.log, warn: console.warn, error: console.error, debug: () => {} };
@@ -12,6 +14,7 @@ function debugSuppressedError(_log: any, msg: string, err: unknown, _ctx?: unkno
 import { isRecoverableTelegramNetworkError } from "./telegram-network-errors.js";
 import { resolveTelegramLongPollTimeoutSeconds } from "./telegram-request-timeouts.js";
 import { buildTelegramChatJid, parseTelegramTarget } from "./telegram-targets.js";
+import type { OnChatMetadata, OnInboundMessage } from "./channel-types.js";
 
 
 
@@ -54,11 +57,10 @@ export class TelegramChannel {
   private opts: TelegramChannelOpts;
 
   constructor(opts: TelegramChannelOpts) {
-    const cfg = { botToken: this.opts.botToken, pollingTimeoutSeconds: this.opts.pollingTimeoutSeconds };
     this.opts = {
       ...opts,
-      botToken: opts.botToken || cfg.botToken,
-      pollingTimeoutSeconds: opts.pollingTimeoutSeconds ?? cfg.pollingTimeoutSeconds,
+      botToken: opts.botToken?.trim(),
+      pollingTimeoutSeconds: opts.pollingTimeoutSeconds,
     };
   }
 

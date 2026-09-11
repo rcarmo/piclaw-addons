@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-whatsapp",
-  "version": "0.1.1",
+  "version": "0.1.3",
   "description": "WhatsApp channel for PiClaw via Baileys. Connects to WhatsApp Web, receives/sends messages, and routes them through the agent.",
   "type": "module",
   "main": "index.ts",
@@ -19,6 +19,10 @@
     "web": {
       "entries": ["web/index.ts"]
     }
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "7.0.0-rc14",
+    "qrcode-terminal": "0.12.0"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"

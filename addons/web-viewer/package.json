@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-web-viewer",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "HTML, image, and video viewer panes and routes for Piclaw",
   "type": "module",
   "main": "index.ts",

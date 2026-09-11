@@ -40,6 +40,7 @@ const CORE_PEER_DEPENDENCIES = [
   '@earendil-works/pi-coding-agent',
   '@earendil-works/pi-tui',
   '@sinclair/typebox',
+  'typebox',
 ] as const;
 
 type CorePeerDependency = (typeof CORE_PEER_DEPENDENCIES)[number];
@@ -107,11 +108,16 @@ function dedupeSorted(values: string[]): string[] {
   return [...new Set(values)].sort();
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 async function listSourceFiles(dir: string): Promise<string[]> {
   const out: string[] = [];
   const entries = await readdir(dir, { withFileTypes: true });
   for (const entry of entries) {
     if (entry.name === 'node_modules' || entry.name === 'vendor' || entry.name.startsWith('.')) continue;
+    if (/\.(?:test|spec|e2e)\.[cm]?[jt]sx?$/.test(entry.name)) continue;
     const fullPath = join(dir, entry.name);
     if (entry.isDirectory()) {
       out.push(...await listSourceFiles(fullPath));
@@ -128,7 +134,9 @@ async function validateCorePeerDependencies(addonRoot: string, slug: string, pkg
   for (const file of files) {
     const content = await readFile(file, 'utf8');
     for (const dep of CORE_PEER_DEPENDENCIES) {
-      if (content.includes(`"${dep}"`) || content.includes(`'${dep}'`)) imported.add(dep);
+      const quotedDependency = `["']${escapeRegExp(dep)}["']`;
+      const importPattern = new RegExp(`(?:from\\s+|import\\s*\\(\\s*|require\\s*\\(\\s*|import\\s+)${quotedDependency}`);
+      if (importPattern.test(content)) imported.add(dep);
     }
   }
   for (const dep of imported) {

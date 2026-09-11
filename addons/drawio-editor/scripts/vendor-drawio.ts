@@ -13,8 +13,8 @@ const CLIENT_DIRS = ["images", "img", "js", "math4", "mxgraph", "resources", "st
 const CLIENT_PATHS = [...CLIENT_FILES, ...CLIENT_DIRS];
 const addonDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const vendorDir = join(addonDir, "vendor");
-const manifest = JSON.parse(readFileSync(join(addonDir, "package.json"), "utf8")) as { version?: string };
-const version = String(manifest.version || "").trim();
+const manifest = JSON.parse(readFileSync(join(addonDir, "package.json"), "utf8")) as { piclaw?: { vendorVersion?: string } };
+const version = String(manifest.piclaw?.vendorVersion || "").trim();
 const expectedSha = EXPECTED_WAR_SHA256[version];
 if (!/^\d+\.\d+\.\d+$/.test(version) || !expectedSha) throw new Error(`No trusted draw.io WAR digest is registered for add-on version ${version || "(missing)"}.`);
 

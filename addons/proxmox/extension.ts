@@ -1,5 +1,6 @@
 import type { ExtensionAPI, ExtensionFactory } from "@earendil-works/pi-coding-agent";
-import { Type } from "@sinclair/typebox";
+import { StringEnum } from "@earendil-works/pi-ai";
+import { Type } from "typebox";
 
 import { getChatJid } from "./compat/chat-context.js";
 import { registerToolStatusHintProvider } from "./compat/tool-status-hints.js";
@@ -396,8 +397,7 @@ const PROXMOX_ACTIONS = [
   "workflow",
 ] as const;
 
-const ProxmoxWorkflowSchema = Type.String({
-  enum: [...PROXMOX_WORKFLOW_IDS],
+const ProxmoxWorkflowSchema = StringEnum(PROXMOX_WORKFLOW_IDS, {
   description: "Named higher-level Proxmox workflow to run.",
 });
 
@@ -412,15 +412,13 @@ const ProxmoxRawRequestItemSchema = Type.Object({
   path: Type.String({ description: "Relative Proxmox API path for this batched request." }),
   query: Type.Optional(Type.Any({ description: "Optional query-string parameters for this batched request." })),
   body: Type.Optional(Type.Any({ description: "Optional request body for this batched request." })),
-  body_mode: Type.Optional(Type.String({
-    enum: ["form", "json"],
+  body_mode: Type.Optional(StringEnum(["form", "json"] as const, {
     description: "How to encode the request body for this batched request.",
   })),
 });
 
 const ProxmoxToolSchema = Type.Object({
-  action: Type.String({
-    enum: [...PROXMOX_ACTIONS],
+  action: StringEnum(PROXMOX_ACTIONS, {
     description: "Operation to perform for the current chat Proxmox config, API request, or workflow.",
   }),
   chat_jid: Type.Optional(Type.String({ description: "Target chat JID. Defaults to the current chat context." })),
@@ -432,8 +430,7 @@ const ProxmoxToolSchema = Type.Object({
   path: Type.Optional(Type.String({ description: "Relative Proxmox API path for action=request." })),
   query: Type.Optional(Type.Any({ description: "Optional query-string parameters for action=request." })),
   body: Type.Optional(Type.Any({ description: "Optional request body for action=request." })),
-  body_mode: Type.Optional(Type.String({
-    enum: ["form", "json"],
+  body_mode: Type.Optional(StringEnum(["form", "json"] as const, {
     description: "How to encode the request body for action=request.",
   })),
   requests: Type.Optional(Type.Array(ProxmoxRawRequestItemSchema, { description: "Optional sequential batch of raw Proxmox requests for action=request. When provided, path/method/body/query apply per item instead of globally." })),
@@ -444,8 +441,7 @@ const ProxmoxToolSchema = Type.Object({
   retry_backoff_factor: Type.Optional(Type.Number({ minimum: 1, description: "Backoff multiplier applied to retry_delay_ms for each additional retry." })),
   fail_fast: Type.Optional(Type.Boolean({ description: "Stop a batched request sequence after the first non-retriable or exhausted failure. Defaults to true." })),
   output_path: Type.Optional(Type.String({ description: "Optional workspace-relative output file path for action=request results." })),
-  output_format: Type.Optional(Type.String({
-    enum: ["json", "jsonl"],
+  output_format: Type.Optional(StringEnum(["json", "jsonl"] as const, {
     description: "Optional output file format for action=request results (default json).",
   })),
   workflow: Type.Optional(ProxmoxWorkflowSchema),
@@ -507,8 +503,7 @@ const ProxmoxToolSchema = Type.Object({
   command: Type.Optional(Type.String({ description: "Guest-agent command for vm.agent.exec." })),
   command_args: Type.Optional(Type.Array(Type.String(), { description: "Command arguments for vm.agent.exec." })),
   input_data: Type.Optional(Type.String({ description: "Optional stdin payload for vm.agent.exec." })),
-  shell_family: Type.Optional(Type.String({
-    enum: ["posix", "powershell"],
+  shell_family: Type.Optional(StringEnum(["posix", "powershell"] as const, {
     description: "Shell wrapper family for exec-style workflows like vm.agent.exec.",
   })),
   limit: Type.Optional(Type.Integer({ minimum: 1, description: "Result limit for workflows like task.list." })),
@@ -1150,7 +1145,6 @@ export const proxmoxTool: ExtensionFactory = (pi: ExtensionAPI) => {
     systemPrompt: `${event.systemPrompt}\n\n${PROXMOX_TOOL_HINT}`,
   }));
 
-  // @ts-expect-error TS2589 — Typebox Union schema depth exceeds TS limit in strict mode
   pi.registerTool({
     name: "proxmox",
     label: "proxmox",

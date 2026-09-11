@@ -10,6 +10,7 @@
  *   - PICLAW_TELEGRAM_POLLING_TIMEOUT: Long poll timeout in seconds (default 30)
  */
 import type { ExtensionAPI, ExtensionFactory } from "@earendil-works/pi-coding-agent";
+import type { NewMessage } from "./channel-types.js";
 
 const ADDON_ID = "telegram";
 const BOT_TOKEN_KEYCHAIN = "telegram/bot-token";
@@ -85,9 +86,9 @@ const register: ExtensionFactory = (pi: ExtensionAPI) => {
           botToken,
           pollingTimeoutSeconds: pollingTimeout,
           chatJids: () => new Set<string>(),
-          onMessage: (chatJid: string, content: string) => {
+          onMessage: (chatJid: string, message: NewMessage) => {
             if (interop?.postMessage) {
-              interop.postMessage(chatJid, content, { source: "telegram" });
+              interop.postMessage(chatJid, message.content, { source: "telegram", message });
             }
           },
           onChatMetadata: () => {},

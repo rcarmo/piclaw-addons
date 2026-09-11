@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-stealth-browser",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Stealth browser automation via mochi.js — human-like interactions, fingerprint consistency, anti-detection bypass",
   "type": "module",
   "main": "index.ts",
@@ -31,8 +31,9 @@
     ]
   },
   "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
     "@earendil-works/pi-coding-agent": "*",
-    "@sinclair/typebox": "*"
+    "typebox": "*"
   },
   "dependencies": {
     "@mochi.js/core": "^0.9.5"

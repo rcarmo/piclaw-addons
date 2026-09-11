@@ -8,6 +8,7 @@
  * In edit/tab mode: loads the viewer in an iframe.
  */
 
+import type { PaneCapability, PaneContext, PaneInstance, WebPaneExtension } from './pane-types.js';
 
 const OFFICE_EXTENSIONS = new Set([
     '.docx', '.doc', '.odt', '.rtf',

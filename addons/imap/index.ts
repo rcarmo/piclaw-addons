@@ -12,7 +12,7 @@
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { Type } from "@sinclair/typebox";
+import { Type } from "typebox";
 import { ImapClient, buildSearchCriteria, type ImapConfig } from "./imap-client.ts";
 import { createMimeMessage } from "./mime.ts";
 import {

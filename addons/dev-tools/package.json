@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-dev-tools",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Developer tools for workspace diagnostics and environment inspection",
   "type": "module",
   "main": "index.ts",
@@ -16,7 +16,7 @@
   "agents": {},
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",
-    "@sinclair/typebox": "*"
+    "typebox": "*"
   },
   "license": "MIT",
   "keywords": [

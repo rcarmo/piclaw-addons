@@ -1,5 +1,5 @@
 import type { ExtensionAPI, ExtensionFactory } from "@earendil-works/pi-coding-agent";
-import { Type } from "@sinclair/typebox";
+import { Type } from "typebox";
 
 import { classifyCatalogueCost, orderedZeroModels } from "./catalogue.js";
 import {

@@ -4,6 +4,8 @@
  * Each pane self-registers via globalThis.__piclaw_web.registerPane on load.
  */
 
+import type { PaneCapability, PaneContext, PaneInstance, WebPaneExtension } from './pane-types.js';
+
 // ── HTML viewer pane ─────────────────────────────────────────────────────────
 /**
  * html-viewer-pane.ts — WebPaneExtension for HTML file preview.
@@ -160,10 +162,6 @@ export const htmlViewerPaneExtension: WebPaneExtension = {
 
 const IMAGE_EXTENSIONS = /\.(png|jpe?g|gif|webp|bmp|ico|svg)$/i;
 
-function esc(s: string): string {
-    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-
 // ── Preview card (workspace browser) ────────────────────────────
 
 class ImagePreviewCard implements PaneInstance {
@@ -284,10 +282,6 @@ export const imageViewerPaneExtension: WebPaneExtension = {
 
 
 const VIDEO_EXTENSIONS = /\.(mp4|m4v|mov|webm|ogv)$/i;
-
-function esc(s: string): string {
-    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
 
 class VideoPreviewCard implements PaneInstance {
     private container: HTMLElement;

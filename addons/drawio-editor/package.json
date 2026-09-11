@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-drawio-editor",
-  "version": "31.4.2",
+  "version": "31.4.3",
   "description": "Self-hosted draw.io diagram editor with workspace file integration",
   "type": "module",
   "main": "index.ts",
@@ -12,13 +12,21 @@
       "editor",
       "drawio"
     ],
-    "vendorUrl": "https://github.com/jgraph/drawio/releases"
+    "vendorUrl": "https://github.com/jgraph/drawio/releases",
+    "vendorVersion": "31.4.2"
   },
   "agents": {},
   "scripts": {
     "vendor:update": "bun run scripts/vendor-drawio.ts",
+    "prepack": "bun run scripts/pack-vendor.ts",
     "test": "bun test index.test.ts"
   },
+  "files": [
+    "index.ts",
+    "web",
+    "vendor.tar.gz",
+    "README.md"
+  ],
   "license": "MIT",
   "keywords": [
     "pi-package"

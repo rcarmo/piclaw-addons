@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-codex-conversion",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Provider-aware Codex and Copilot prompt and tool profiles for Piclaw",
   "type": "module",
   "main": "src/index.ts",
@@ -32,7 +32,7 @@
     "@earendil-works/pi-ai": "*",
     "@earendil-works/pi-coding-agent": "*",
     "@earendil-works/pi-tui": "*",
-    "@sinclair/typebox": "*"
+    "typebox": "*"
   },
   "dependencies": {
     "tree-sitter-bash": "^0.25.1",

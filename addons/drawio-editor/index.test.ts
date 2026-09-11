@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -9,6 +9,7 @@ import drawioEditor, {
   MINIMAL_DRAWIO_EXPORT_ACTIONS,
   MINIMAL_DRAWIO_FILE_MENU_ACTIONS,
   buildEmbeddedDrawioAppUrl,
+  ensureDrawioVendorDir,
   getDrawioVendorDirCandidates,
   handleRoute,
   isBinaryDrawioSaveTarget,
@@ -17,6 +18,12 @@ import drawioEditor, {
   resolveDrawioSavePath,
   resolveDrawioVendorDir,
 } from "./index";
+import {
+  buildDrawioEditorUrl,
+  buildReadonlyAttachmentUrl,
+  drawioPaneExtension,
+  isDrawioFile,
+} from "./web/index";
 
 const addonDir = dirname(fileURLToPath(import.meta.url));
 const packageManifest = JSON.parse(readFileSync(join(addonDir, "package.json"), "utf8"));
@@ -51,7 +58,8 @@ afterEach(() => {
 
 describe("draw.io 31.4.2 vendor integrity", () => {
   test("aligns add-on, metadata, runtime and bundled JavaScript versions", () => {
-    expect(packageManifest.version).toBe("31.4.2");
+    expect(packageManifest.version).toBe("31.4.3");
+    expect(packageManifest.piclaw.vendorVersion).toBe("31.4.2");
     expect(DRAWIO_VERSION).toBe("v31.4.2");
     expect(vendorMetadata.package_version).toBe(DRAWIO_VERSION);
     expect(vendorMetadata.source_url).toBe("https://github.com/jgraph/drawio/releases/download/v31.4.2/draw.war");
@@ -69,10 +77,35 @@ describe("draw.io 31.4.2 vendor integrity", () => {
     ]) expect(statSync(join(addonDir, "vendor", path)).isFile(), path).toBe(true);
     expect(packageManifest.scripts.postinstall).toBeUndefined();
     expect(packageManifest.scripts["vendor:update"]).toBe("bun run scripts/vendor-drawio.ts");
+    expect(packageManifest.scripts.prepack).toBe("bun run scripts/pack-vendor.ts");
+    expect(packageManifest.files).toContain("vendor.tar.gz");
+  });
+
+  test("extracts a packed vendor archive into a persistent cache", async () => {
+    const root = tempWorkspace();
+    const baseDir = join(root, "addon");
+    const cacheDir = join(root, "cache");
+    mkdirSync(baseDir, { recursive: true });
+    await Bun.Archive.write(join(baseDir, "vendor.tar.gz"), {
+      "index.html": "<!doctype html>",
+      "js/app.min.js": "app",
+    }, { compress: "gzip" });
+
+    const resolved = await ensureDrawioVendorDir(baseDir, join(root, "cwd"), cacheDir);
+    expect(resolved).toBe(cacheDir);
+    expect(readFileSync(join(cacheDir, "index.html"), "utf8")).toBe("<!doctype html>");
+    expect(await ensureDrawioVendorDir(baseDir, join(root, "cwd"), cacheDir)).toBe(cacheDir);
   });
 });
 
 describe("draw.io wrapper and route contract", () => {
+  test("ships typed standalone pane and preview URL contracts", () => {
+    expect(isDrawioFile("diagrams/plan.drawio.svg")).toBeTrue();
+    expect(drawioPaneExtension.canHandle?.({ path: "diagrams/plan.drawio", mode: "edit" })).toBe(60);
+    expect(buildDrawioEditorUrl("diagrams/plan.drawio")).toBe("/drawio/edit.html?path=diagrams%2Fplan.drawio");
+    expect(buildReadonlyAttachmentUrl(42, "plan.drawio")).toContain("media=42");
+  });
+
   test("uses the vendored add-on first and version-aligned fallback paths", () => {
     const candidates = getDrawioVendorDirCandidates("/addon", "/workspace");
     expect(candidates).toEqual([

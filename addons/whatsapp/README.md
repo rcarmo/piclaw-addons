@@ -1,6 +1,6 @@
 # @rcarmo/piclaw-addon-whatsapp
 
-WhatsApp channel add-on for Piclaw. The current package is not self-contained for standalone catalog use: its runtime imports Baileys, `qrcode-terminal`, and shared Piclaw channel modules that its manifest does not supply.
+WhatsApp channel add-on for Piclaw. The package declares Baileys and `qrcode-terminal` as runtime dependencies and keeps its channel contracts, logging and storage-path handling inside the package.
 
 Requires Piclaw `>=2.0.0`.
 
@@ -25,3 +25,5 @@ Use **Settings → WhatsApp** to store the phone number and enable the channel t
 - `index.ts` — Addon entry point: env gate, channel detector, lifecycle hooks
 - `whatsapp.ts` — Baileys WhatsApp client (connection, messaging, presence)
 - `whatsapp-presence.ts` — Typing indicator helpers
+- `channel-types.ts` — Package-local inbound message contracts
+- `logger.ts` — Package-local lifecycle logging

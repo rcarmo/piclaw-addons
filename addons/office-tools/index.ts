@@ -1,10 +1,11 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { Type } from "@sinclair/typebox";
+import { Type } from "typebox";
 import { createRequire } from "node:module";
 import { dirname, extname, resolve, basename, join } from "node:path";
 import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { decodeZipEntryText } from "./zip-entry-text.ts";
+import { printHtmlToPdf } from "./browser-pdf.ts";
 
 type MaybeAbortSignal = AbortSignal | null | undefined;
 
@@ -22,7 +23,6 @@ const XLSX_PACKAGE = "xlsx";
 let cachedXlsx: any | null = null;
 let cachedPptxGenJs: any | null = null;
 let cachedFflate: any | null = null;
-let cachedCdpModule: Promise<typeof import("../../browser/cdp-browser/cdp.ts")> | null = null;
 const DOCX_TEMPLATE_PATH = resolve(ASSETS_DIR, "docx-template.zip");
 const PDF_CSS_PATH = resolve(ASSETS_DIR, "md2pdf.css");
 
@@ -42,11 +42,6 @@ function getPptxGenJs(): any {
 function getFflate(): any {
   if (!cachedFflate) cachedFflate = require("fflate");
   return cachedFflate;
-}
-
-async function getCdpModule(): Promise<typeof import("../../browser/cdp-browser/cdp.ts")> {
-  if (!cachedCdpModule) cachedCdpModule = import("../../browser/cdp-browser/cdp.ts");
-  return await cachedCdpModule;
 }
 
 function readTrimmedString(...values: unknown[]): string | null {
@@ -855,29 +850,9 @@ async function mdToPdf(markdown: string, outputPath: string, signal?: MaybeAbort
   writeFileSync(htmlPath, html, "utf-8");
 
   try {
-    const { findCdpPort, ensureBrowser, findBrowser, printToPdf } = await getCdpModule();
-    const port = await findCdpPort(signal) ?? await ensureBrowser(signal);
-    if (!port) {
-      const browser = findBrowser();
-      throw new Error(browser
-        ? `No CDP browser found. ${browser.name} exists at ${browser.command} but could not launch with CDP.`
-        : "No Chromium browser found. Install Edge, Chrome, or Chromium and launch with --remote-debugging-port=9224");
-    }
-
-    await printToPdf({
-      port,
-      outPath: outputPath,
+    await printHtmlToPdf({
+      outputPath,
       url: pathToFileURL(htmlPath).href,
-      waitMs: 2000,
-      printBackground: true,
-      preferCSSPageSize: true,
-      displayHeaderFooter: true,
-      headerTemplate: "<span></span>",
-      footerTemplate: `<div style="font-size:8px; width:100%; text-align:center; color:#666; font-family:Calibri,sans-serif;">\n        <span class="pageNumber"></span> / <span class="totalPages"></span>\n      </div>`,
-      marginTop: 0,
-      marginBottom: 0,
-      marginLeft: 0,
-      marginRight: 0,
       signal,
     });
   } finally {

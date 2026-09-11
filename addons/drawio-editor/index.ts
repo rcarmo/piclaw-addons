@@ -15,11 +15,17 @@
  */
 
 import { resolve, extname, dirname } from "node:path";
-import { existsSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 // Tool status hint registration - uses globalThis if available
-function registerToolStatusHintProvider(provider) {
-    if (typeof globalThis.__piclaw_registerToolStatusHintProvider === "function") {
-        globalThis.__piclaw_registerToolStatusHintProvider(provider);
+interface ToolStatusHintProvider {
+  id: string;
+  buildHints(input: { toolName: string; args: unknown }): Record<string, unknown> | null;
+}
+
+function registerToolStatusHintProvider(provider: ToolStatusHintProvider): void {
+    const register = (globalThis as Record<string, unknown>).__piclaw_registerToolStatusHintProvider;
+    if (typeof register === "function") {
+        (register as (provider: ToolStatusHintProvider) => void)(provider);
     }
 }
 
@@ -51,6 +57,59 @@ export function resolveDrawioVendorDir(baseDir = EXT_DIR, cwd = process.cwd()): 
     }
   }
   return resolve(baseDir, "vendor");
+}
+
+export function getDrawioVendorCacheDir(workspace = process.env.PICLAW_DATA?.trim()
+  || resolve(process.env.PICLAW_WORKSPACE?.trim() || DEFAULT_WORKSPACE_ROOT, ".piclaw", "data")): string {
+  return resolve(workspace, "cache", "drawio", DRAWIO_VERSION);
+}
+
+const vendorExtractionPromises = new Map<string, Promise<string>>();
+
+export async function ensureDrawioVendorDir(
+  baseDir = EXT_DIR,
+  cwd = process.cwd(),
+  cacheDir = getDrawioVendorCacheDir(),
+): Promise<string> {
+  const looseDir = resolveDrawioVendorDir(baseDir, cwd);
+  if (existsSync(resolve(looseDir, "index.html"))) return looseDir;
+
+  const archivePath = resolve(baseDir, "vendor.tar.gz");
+  if (!existsSync(archivePath)) return looseDir;
+  if (existsSync(resolve(cacheDir, "index.html"))) return cacheDir;
+
+  const existing = vendorExtractionPromises.get(cacheDir);
+  if (existing) return existing;
+
+  const extraction = (async () => {
+    const parent = dirname(cacheDir);
+    const temporary = `${cacheDir}.tmp-${process.pid}-${Date.now()}`;
+    mkdirSync(parent, { recursive: true });
+    if (existsSync(cacheDir) && !existsSync(resolve(cacheDir, "index.html"))) {
+      rmSync(cacheDir, { recursive: true, force: true });
+    }
+    try {
+      const archive = new Bun.Archive(await Bun.file(archivePath).arrayBuffer());
+      await archive.extract(temporary);
+      if (!existsSync(resolve(temporary, "index.html"))) {
+        throw new Error(`Draw.io vendor archive is missing index.html: ${archivePath}`);
+      }
+      try {
+        renameSync(temporary, cacheDir);
+      } catch (error) {
+        if (!existsSync(resolve(cacheDir, "index.html"))) throw error;
+      }
+      return cacheDir;
+    } finally {
+      rmSync(temporary, { recursive: true, force: true });
+    }
+  })();
+  vendorExtractionPromises.set(cacheDir, extraction);
+  try {
+    return await extraction;
+  } finally {
+    vendorExtractionPromises.delete(cacheDir);
+  }
 }
 
 const VENDOR_DIR = resolveDrawioVendorDir();
@@ -763,8 +822,12 @@ export function handleRoute(req: Request, pathname: string): Response | Promise<
     return new Response("Forbidden", { status: 403 });
   }
 
-  // Serve vendored draw.io files
-  const filePath = resolve(VENDOR_DIR, relative);
+  return serveVendorFile(relative);
+}
+
+async function serveVendorFile(relative: string): Promise<Response> {
+  const vendorDir = await ensureDrawioVendorDir();
+  const filePath = resolve(vendorDir, relative);
 
   let realPath: string;
   try {
