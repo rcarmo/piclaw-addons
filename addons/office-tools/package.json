@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-office-tools",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Office document read/write tools for Piclaw (docx, xlsx, pptx, odt, md→pdf)",
   "type": "module",
   "main": "index.ts",
@@ -17,8 +17,8 @@
     ]
   },
   "dependencies": {
-    "fflate": "0.8.2",
-    "xlsx": "0.18.5"
+    "fflate": "0.8.3",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",
