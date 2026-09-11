@@ -77,6 +77,32 @@ const CONSUMER_GRAPH_SCOPES = [
 	"https://graph.microsoft.com/MailboxSettings.Read",
 ].join(" ");
 
+export type M365CredentialResource = "graph" | "teams_chatsvc";
+
+export interface M365CredentialRequest {
+	resource: M365CredentialResource;
+	minRemainingSeconds: number;
+}
+
+export interface M365CredentialProviderResult {
+	token: string;
+	/** Unix epoch seconds. The token's JWT expiry remains authoritative when earlier. */
+	expiresAt?: number;
+	tenantId?: string;
+}
+
+export type M365CredentialProvider = (
+	request: M365CredentialRequest,
+) => Promise<M365CredentialProviderResult | null>;
+
+declare global {
+	var __piclaw_m365CredentialProviderV1: M365CredentialProvider | undefined;
+}
+
+export const M365_CREDENTIAL_PROVIDER_GLOBAL = "__piclaw_m365CredentialProviderV1";
+export const M365_CREDENTIAL_MIN_REMAINING_SECONDS = 300;
+const M365_CREDENTIAL_PROVIDER_TIMEOUT_MS = 5_000;
+
 // Tenant ID: env override, or auto-discovered from Graph token on first use.
 // Default to "common" for multi-tenant login; resolved to actual tenant after first auth.
 let _tenantId = process.env["M365_TENANT_ID"] || "";
@@ -99,6 +125,12 @@ function setTenantIdFromToken(token: string): void {
 	} catch (error) {
 		logSuppressedM365("Failed to infer the M365 tenant id from Graph token claims.", error);
 	}
+}
+
+function setTenantIdFromCredential(tenantId: string | undefined): void {
+	if (_tenantId || !tenantId) return;
+	_tenantId = tenantId;
+	_isConsumer = tenantId === CONSUMER_TENANT_ID;
 }
 
 // Chatsvc region: auto-discovered from Teams token or environment.
@@ -315,6 +347,99 @@ export function decodeJwt(token: string): Record<string, any> {
 		return JSON.parse(Buffer.from(padded, "base64url").toString("utf-8"));
 	} catch {
 		return {};
+	}
+}
+
+export interface ValidatedM365Credential {
+	token: string;
+	expiresAt: number;
+	tenantId?: string;
+}
+
+function tokenAudiences(claims: Record<string, any>): string[] {
+	const values = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
+	return values.filter((value): value is string => typeof value === "string").map((value) => value.toLowerCase());
+}
+
+function tokenMatchesResource(resource: M365CredentialResource, claims: Record<string, any>): boolean {
+	const audiences = tokenAudiences(claims);
+	if (resource === "graph") {
+		return audiences.some((audience) =>
+			audience.replace(/\/+$/, "") === "https://graph.microsoft.com"
+			|| audience === "00000003-0000-0000-c000-000000000000"
+		);
+	}
+	return audiences.some((audience) => {
+		const normalized = audience.replace(/\/+$/, "");
+		return normalized === "https://ic3.teams.office.com"
+			|| normalized === "https://chatsvcagg.teams.microsoft.com";
+	});
+}
+
+export function validateHostM365Credential(
+	resource: M365CredentialResource,
+	credential: unknown,
+	minRemainingSeconds = M365_CREDENTIAL_MIN_REMAINING_SECONDS,
+	nowSeconds = Math.floor(Date.now() / 1000),
+): ValidatedM365Credential | null {
+	if (!credential || typeof credential !== "object") return null;
+	const value = credential as Record<string, unknown>;
+	if (typeof value.token !== "string" || !value.token.trim()) return null;
+	const token = value.token.trim();
+
+	const claims = decodeJwt(token);
+	if (!tokenMatchesResource(resource, claims)) return null;
+
+	const claimExpiry = typeof claims.exp === "number" && Number.isFinite(claims.exp) ? claims.exp : null;
+	if (value.expiresAt !== undefined && (typeof value.expiresAt !== "number" || !Number.isFinite(value.expiresAt))) return null;
+	const suppliedExpiry = typeof value.expiresAt === "number" ? value.expiresAt : null;
+	const expiries = [claimExpiry, suppliedExpiry].filter((expiry): expiry is number => expiry !== null);
+	if (expiries.length === 0) return null;
+	const expiresAt = Math.min(...expiries);
+	if (expiresAt <= nowSeconds + minRemainingSeconds) return null;
+
+	const claimTenant = typeof claims.tid === "string" && claims.tid.trim() ? claims.tid.trim() : undefined;
+	const suppliedTenant = typeof value.tenantId === "string" && value.tenantId.trim() ? value.tenantId.trim() : undefined;
+	if (claimTenant && suppliedTenant && claimTenant.toLowerCase() !== suppliedTenant.toLowerCase()) return null;
+	const tenantId = suppliedTenant ?? claimTenant;
+	const configuredTenant = _tenantId.trim();
+	if (configuredTenant && configuredTenant.toLowerCase() !== "common"
+		&& configuredTenant.toLowerCase() !== (tenantId ?? "").toLowerCase()) return null;
+
+	return { token, expiresAt, ...(tenantId ? { tenantId } : {}) };
+}
+
+export async function requestHostM365Credential(
+	resource: M365CredentialResource,
+	minRemainingSeconds = M365_CREDENTIAL_MIN_REMAINING_SECONDS,
+): Promise<ValidatedM365Credential | null> {
+	const provider = (globalThis as Record<string, unknown>)[M365_CREDENTIAL_PROVIDER_GLOBAL];
+	if (typeof provider !== "function") return null;
+
+	const timedOut = Symbol("m365 credential provider timeout");
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	try {
+		const result = await Promise.race([
+			Promise.resolve().then(() => (provider as M365CredentialProvider)({ resource, minRemainingSeconds })),
+			new Promise<typeof timedOut>((resolve) => {
+				timer = setTimeout(() => resolve(timedOut), M365_CREDENTIAL_PROVIDER_TIMEOUT_MS);
+			}),
+		]);
+		if (result === timedOut) {
+			log.debug("Host M365 credential provider timed out; using browser authentication.", { resource });
+			return null;
+		}
+		const validated = validateHostM365Credential(resource, result, minRemainingSeconds);
+		if (!validated && result !== null) {
+			log.debug("Host M365 credential provider returned an unusable credential; using browser authentication.", { resource });
+		}
+		return validated;
+	} catch {
+		// Do not log provider errors: their messages may contain credential material.
+		log.debug("Host M365 credential provider failed; using browser authentication.", { resource });
+		return null;
+	} finally {
+		if (timer) clearTimeout(timer);
 	}
 }
 
@@ -594,9 +719,9 @@ function loadToken(source: string): TokenData | null {
 	return mem;
 }
 
-function saveToken(source: string, token: string, baseUrl?: string) {
+function saveToken(source: string, token: string, baseUrl?: string, expiresAtOverride?: number) {
 	const claims = decodeJwt(token);
-	const expiresAt = claims.exp ?? Math.floor(Date.now() / 1000) + 3000;
+	const expiresAt = expiresAtOverride ?? claims.exp ?? Math.floor(Date.now() / 1000) + 3000;
 	tokenMemCache[source] = {
 		token,
 		expires_at: expiresAt,
@@ -2196,6 +2321,13 @@ export const auth = {
 			const cached = loadToken("graph");
 			if (cached) return cached.token;
 		}
+		const provided = await requestHostM365Credential("graph");
+		if (provided) {
+			saveToken("graph", provided.token, undefined, provided.expiresAt);
+			setTenantIdFromCredential(provided.tenantId);
+			setTenantIdFromToken(provided.token);
+			return provided.token;
+		}
 		return acquireGraphToken();
 	},
 
@@ -2203,6 +2335,13 @@ export const auth = {
 		if (!force) {
 			const cached = loadToken("teams_chatsvc");
 			if (cached?.token && cached.base_url) return { token: cached.token, baseUrl: cached.base_url };
+		}
+		const provided = await requestHostM365Credential("teams_chatsvc");
+		if (provided) {
+			setChatsvcFromToken(provided.token);
+			const baseUrl = getChatsvcBaseUrl();
+			saveToken("teams_chatsvc", provided.token, baseUrl, provided.expiresAt);
+			return { token: provided.token, baseUrl };
 		}
 		return acquireChatsvcToken();
 	},

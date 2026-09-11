@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { afterEach, expect, test } from "bun:test";
 
 import {
   auth,
@@ -6,8 +6,25 @@ import {
   extractImplicitOAuthTokenFromRedirect,
   graphFetch,
   isM365YoloEnabled,
+  M365_CREDENTIAL_MIN_REMAINING_SECONDS,
+  M365_CREDENTIAL_PROVIDER_GLOBAL,
+  requestHostM365Credential,
   resolveGraphAuthMode,
+  validateHostM365Credential,
 } from "../shared.js";
+
+const credentialGlobals = globalThis as Record<string, unknown>;
+const originalCredentialProvider = credentialGlobals[M365_CREDENTIAL_PROVIDER_GLOBAL];
+
+function jwt(claims: Record<string, unknown>): string {
+  return `header.${Buffer.from(JSON.stringify(claims)).toString("base64url")}.signature`;
+}
+
+afterEach(() => {
+  auth.clearAll();
+  if (originalCredentialProvider === undefined) delete credentialGlobals[M365_CREDENTIAL_PROVIDER_GLOBAL];
+  else credentialGlobals[M365_CREDENTIAL_PROVIDER_GLOBAL] = originalCredentialProvider;
+});
 
 test("isM365YoloEnabled accepts common truthy spellings", () => {
   expect(isM365YoloEnabled(undefined)).toBe(false);
@@ -113,6 +130,90 @@ test("resolveGraphAuthMode hard-fails only for known consumer mode", () => {
   expect(resolveGraphAuthMode({ consumerSessionVisible: false })).toEqual({
     useConsumerFlow: false,
     hardFailOnConsumerFailure: false,
+  });
+});
+
+test("host credential validation accepts target audiences and rejects stale, mismatched, or opaque tokens", () => {
+  const now = 1_800_000_000;
+  const graphToken = jwt({ aud: "https://graph.microsoft.com", exp: now + 900, tid: "tenant-a" });
+  expect(validateHostM365Credential("graph", { token: graphToken, expiresAt: now + 800, tenantId: "tenant-a" }, 300, now)).toEqual({
+    token: graphToken,
+    expiresAt: now + 800,
+    tenantId: "tenant-a",
+  });
+  expect(validateHostM365Credential("graph", { token: jwt({ aud: "https://wrong.example", exp: now + 900 }) }, 300, now)).toBeNull();
+  expect(validateHostM365Credential("graph", { token: graphToken, expiresAt: now + 100 }, 300, now)).toBeNull();
+  expect(validateHostM365Credential("graph", { token: graphToken, tenantId: "tenant-b" }, 300, now)).toBeNull();
+  expect(validateHostM365Credential("graph", { token: "opaque-token", expiresAt: now + 900 }, 300, now)).toBeNull();
+
+  const chatsvcToken = jwt({ aud: "https://ic3.teams.office.com", exp: now + 900 });
+  expect(validateHostM365Credential("teams_chatsvc", { token: chatsvcToken }, 300, now)?.token).toBe(chatsvcToken);
+  expect(validateHostM365Credential("teams_chatsvc", {
+    token: jwt({ aud: "https://wrong.example", scp: "Teams.AccessAsUser.All", exp: now + 900 }),
+  }, 300, now)).toBeNull();
+  expect(validateHostM365Credential("teams_chatsvc", {
+    token: jwt({ aud: "https://evil.example/chatsvcagg", exp: now + 900 }),
+  }, 300, now)).toBeNull();
+});
+
+test("host credential provider is optional, bounded by contract, and suppresses provider error contents", async () => {
+  delete credentialGlobals[M365_CREDENTIAL_PROVIDER_GLOBAL];
+  await expect(requestHostM365Credential("graph")).resolves.toBeNull();
+
+  const originalSetTimeout = globalThis.setTimeout;
+  credentialGlobals[M365_CREDENTIAL_PROVIDER_GLOBAL] = () => new Promise(() => {});
+  globalThis.setTimeout = ((callback: (...args: unknown[]) => void) => originalSetTimeout(callback, 0)) as typeof setTimeout;
+  try {
+    await expect(requestHostM365Credential("graph")).resolves.toBeNull();
+  } finally {
+    globalThis.setTimeout = originalSetTimeout;
+  }
+
+  const originalDebug = console.debug;
+  const originalDebugFlag = process.env.DEBUG;
+  const logs: string[] = [];
+  process.env.DEBUG = "1";
+  console.debug = (...args: unknown[]) => logs.push(args.map(String).join(" "));
+  credentialGlobals[M365_CREDENTIAL_PROVIDER_GLOBAL] = async () => {
+    throw new Error("provider-secret-must-not-be-logged");
+  };
+  try {
+    await expect(requestHostM365Credential("graph")).resolves.toBeNull();
+    expect(logs.join("\n")).not.toContain("provider-secret-must-not-be-logged");
+  } finally {
+    console.debug = originalDebug;
+    if (originalDebugFlag === undefined) delete process.env.DEBUG;
+    else process.env.DEBUG = originalDebugFlag;
+  }
+});
+
+test("auth consults and RAM-caches the host provider before browser acquisition", async () => {
+  const now = Math.floor(Date.now() / 1000);
+  const graphToken = jwt({ aud: "00000003-0000-0000-c000-000000000000", exp: now + 900 });
+  let calls = 0;
+  credentialGlobals[M365_CREDENTIAL_PROVIDER_GLOBAL] = async (request: { resource: string; minRemainingSeconds: number }) => {
+    calls += 1;
+    expect(request).toEqual({ resource: "graph", minRemainingSeconds: M365_CREDENTIAL_MIN_REMAINING_SECONDS });
+    return { token: graphToken };
+  };
+
+  await expect(auth.getGraphToken()).resolves.toBe(graphToken);
+  delete credentialGlobals[M365_CREDENTIAL_PROVIDER_GLOBAL];
+  await expect(auth.getGraphToken()).resolves.toBe(graphToken);
+  expect(calls).toBe(1);
+});
+
+test("auth accepts a host chatsvc token and derives its regional endpoint", async () => {
+  const now = Math.floor(Date.now() / 1000);
+  const chatsvcToken = jwt({ aud: "https://ic3.teams.office.com", exp: now + 900, regionGtms: "amer" });
+  credentialGlobals[M365_CREDENTIAL_PROVIDER_GLOBAL] = async (request: { resource: string }) => {
+    expect(request.resource).toBe("teams_chatsvc");
+    return { token: chatsvcToken };
+  };
+
+  await expect(auth.getChatsvcAuth()).resolves.toEqual({
+    token: chatsvcToken,
+    baseUrl: "https://teams.cloud.microsoft/api/chatsvc/amer/v1",
   });
 });
 

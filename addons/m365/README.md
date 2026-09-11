@@ -52,11 +52,32 @@ Most validation has been performed on Windows.
 ## Authentication and safety
 
 - Authentication, token, and cookie caches remain in RAM only.
+- Hosts may provide Graph and Teams chat-service credentials through the optional versioned callback described below.
 - A fresh sign-in shows an explicit consent interstitial unless `PICLAW_M365_YOLO=1`.
 - Existing browser sessions may provide cached tokens and follow their configured MFA and access policies.
 - The add-on supports one active account or browser session at a time.
 - State-changing and send actions require `confirm`; supported flows provide `dryRun` previews.
 - Mail send flows create drafts rather than sending directly.
+
+### Host-provided credential callback
+
+A managed host can register `globalThis.__piclaw_m365CredentialProviderV1` before the add-on first requests authentication:
+
+```ts
+globalThis.__piclaw_m365CredentialProviderV1 = async ({ resource, minRemainingSeconds }) => {
+  // resource is "graph" or "teams_chatsvc".
+  // Return null when the host has no suitable credential.
+  return {
+    token: await broker.getAccessToken(resource, minRemainingSeconds),
+    expiresAt: 1_800_000_000, // Unix epoch seconds; optional when the JWT has exp.
+    tenantId: "00000000-0000-0000-0000-000000000000", // optional
+  };
+};
+```
+
+The add-on checks this callback after its RAM cache and before browser/CDP acquisition. It waits at most five seconds for each call. Missing providers, `null`, failures, timeouts, stale credentials, tenant mismatches, and wrong audiences fall through to the existing browser flow. Provider errors and token values are never logged, stored in metadata, or written to configuration.
+
+Accepted tokens must be JWTs with at least five minutes remaining and an audience suitable for Microsoft Graph or Teams chat service. For `teams_chatsvc`, include region claims in the token or set `M365_CHATSVC_REGION`. Tenant, client, and scope selection remain the host's responsibility.
 
 ## Configuration
 

@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-m365",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Experimental Microsoft 365 tools for Teams, Graph, Outlook, OneDrive, SharePoint, Calendar, and To Do",
   "type": "module",
   "main": "index.ts",
