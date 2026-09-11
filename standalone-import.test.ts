@@ -118,6 +118,21 @@ test("standalone piclaw-addon-observability imports outside the monorepo root", 
 test("standalone piclaw-addon-office-tools imports outside the monorepo root", async () => {
   const mod = await importStandaloneAddon("office-tools");
   expect(typeof mod.default).toBe("function");
+  const workspace = mkdtempSync(join(tmpdir(), "piclaw-office-tools-roundtrip-"));
+  tempDirs.push(workspace);
+  const markdown = "# Inventory\n\n| Item | Count |\n| --- | ---: |\n| Widget | 3 |";
+
+  const xlsxWrite = await mod.executeOfficeWrite({ path: "inventory.xlsx", markdown }, undefined, { cwd: workspace });
+  expect(xlsxWrite.details).toMatchObject({ ok: true, format: ".xlsx" });
+  const xlsxRead = await mod.executeOfficeRead({ path: "inventory.xlsx" }, { cwd: workspace });
+  expect(xlsxRead.details).toMatchObject({ ok: true, format: ".xlsx" });
+  expect(xlsxRead.content[0]?.text).toContain("Widget");
+
+  const docxWrite = await mod.executeOfficeWrite({ path: "inventory.docx", markdown }, undefined, { cwd: workspace });
+  expect(docxWrite.details).toMatchObject({ ok: true, format: ".docx" });
+  const docxRead = await mod.executeOfficeRead({ path: "inventory.docx" }, { cwd: workspace });
+  expect(docxRead.details).toMatchObject({ ok: true, format: ".docx" });
+  expect(docxRead.content[0]?.text).toContain("Inventory");
 }, 120_000);
 
 test("standalone piclaw-addon-office-viewer imports outside the monorepo root", async () => {

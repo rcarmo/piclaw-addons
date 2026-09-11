@@ -12,8 +12,8 @@ test("office tools declare standalone schema and document dependencies", () => {
   expect(source).not.toContain('from "@sinclair/typebox"');
   expect(source).not.toContain("../../browser/");
   expect(manifest.peerDependencies?.typebox).toBe("*");
-  expect(manifest.dependencies?.fflate).toBe("0.8.2");
-  expect(manifest.dependencies?.xlsx).toBe("0.18.5");
+  expect(manifest.dependencies?.fflate).toBe("0.8.3");
+  expect(manifest.dependencies?.xlsx).toBe("https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz");
 });
 
 test("browser discovery is package-local and deterministic", () => {
