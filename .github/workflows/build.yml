@@ -99,13 +99,13 @@ jobs:
           done <<< "$prepared"
           test -n "$PICLAW_PREP_ROOT" && test -d "$PICLAW_WORKSPACE"
 
-          # Prepared packages are source copies. Install Remote Peer's pinned
-          # prebuilt runtime dependencies inside the owned fixture, with the
-          # same sanitised environment used by the test server.
+          # Prepared packages are source copies. Install Remote Peer's exact
+          # runtime dependencies inside the disposable fixture without requiring
+          # an add-on-local lockfile, using the test server's sanitised environment.
           remote_peer_dir="$PICLAW_WORKSPACE/.pi/extensions/node_modules/@rcarmo/piclaw-addon-remote-peer"
-          test -f "$remote_peer_dir/bun.lock"
+          test ! -e "$remote_peer_dir/bun.lock" && test ! -e "$remote_peer_dir/bun.lockb"
           bun run scripts/run-test-instance.ts -- \
-            bun install --cwd "$remote_peer_dir" --frozen-lockfile --omit peer --ignore-scripts
+            bun install --cwd "$remote_peer_dir" --omit peer --ignore-scripts
 
           PICLAW_E2E_INTERNAL_SECRET="$PICLAW_INTERNAL_SECRET" PICLAW_E2E_KEYCHAIN_KEY="$PICLAW_KEYCHAIN_KEY" \
             bun run scripts/run-test-instance.ts -- bun run .piclaw-runtime/runtime/src/index.ts > /tmp/piclaw-addon-e2e.log 2>&1 &
