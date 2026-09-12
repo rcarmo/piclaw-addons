@@ -60,6 +60,8 @@ Do not qualify with endless tapping. Use a bounded burst, then inspect. There is
 
 ## Capability policy
 
+[Read-only firmware 1.4.2 UI/API evidence](firmware-api-evidence.md) identifies candidate session-authenticated media, appliance-reboot and Wake-on-LAN paths. These are distinct from the documented public-token API and remain unimplemented; do not infer public-token compatibility.
+
 Current public action names that remain unsupported until a verified adapter exists:
 
 - `power.status`
@@ -80,7 +82,7 @@ Current status to document honestly:
 - isolated Linkr implementation tests passing: 15 (76 assertions)
 - shared Earendil compatibility suite: 125 passing
 - live add-on verification against real hardware: not yet
-- browser/UI add-on test: not yet
+- browser/UI: isolated mocked Playwright Settings fixture passed; full host integration not yet verified
 
 The isolated tests cover action dispatch, input validation, lease handling, job validation, job retention, and packaged skill discovery. They do not prove live hardware behaviour.
 

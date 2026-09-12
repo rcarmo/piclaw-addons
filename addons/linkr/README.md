@@ -94,6 +94,10 @@ Implemented action names:
 
 See [docs/tool-contract.md](./docs/tool-contract.md) for exact payloads and [docs/safety-and-scope.md](./docs/safety-and-scope.md) for operating rules.
 
+## Firmware API evidence
+
+[The firmware 1.4.2 evidence note](docs/firmware-api-evidence.md) records UI-side appliance reboot, virtual-media and Wake-on-LAN interfaces for future adapters. They use session authentication, not an established public-token contract. They remain unsupported by this release. No ATX reset/power control was found in the inspected UI.
+
 ## Profiles and Settings
 
 Profiles are configured in the add-on Settings pane, not inline per call.
