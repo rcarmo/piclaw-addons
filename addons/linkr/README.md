@@ -270,6 +270,16 @@ That is **not** a blanket privacy guarantee for every other integration surface.
 
 ## Source references
 
+Product and protocol references:
+
+- [Official Linkr Skills Usage Guide](https://docs.radxa.com/en/linkr/linkr/advanced-usage/link-skills) — verified documentation for public snapshot/control endpoints and token authentication.
+- [Upstream Linkr skill](https://github.com/radxa-linkr/linkr-skills) — linked by the official guide.
+- [Product documentation root](https://docs.radxa.com/en/linkr/linkr/) — linked by the guide; not separately verified during this review.
+- [Linkr discovery portal](https://linkr.now/) — browser-tested; requires local-network access to discover devices and open their consoles. The add-on does not scan automatically.
+- [Firmware releases](https://github.com/radxa-linkr/linkr/releases) — linked by the live portal/support UI; individual releases have not been audited.
+
+Only firmware 1.4.2 was observed. Internal UI endpoints are not stable public contracts or evidence of public-token compatibility; see the [firmware evidence note](docs/firmware-api-evidence.md).
+
 These docs are derived from the implemented source, not a speculative contract:
 
 - `extension.ts` — tool actions, parameters, dispatch rules, previews, unsupported families, and result semantics
@@ -285,7 +295,7 @@ Honest current status:
 - implemented native add-on surface: yes
 - isolated Linkr tests: yes, 15 passing (76 assertions)
 - live packaged add-on verification against real hardware: not yet
-- browser/UI test coverage for the add-on: not yet
+- browser/UI: isolated mocked Settings fixture passed; full host integration unverified
 - power/media/device-management verification: none
 - BIOS/boot/install flows: tooling implemented, but still require per-device live qualification before trust
 
