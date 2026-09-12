@@ -1,6 +1,6 @@
 # Qualification and testing
 
-This add-on needs per-device qualification before anyone should trust it with BIOS, boot, or installer work.
+Qualify screenshot retrieval, input and firmware timing on the selected computer before using the add-on for BIOS changes, boot selection or installation.
 
 ## Qualification goals
 
@@ -77,14 +77,16 @@ Qualification must be read-only by default. Do not probe unknown endpoints by se
 
 ## Automated tests
 
-Current status to document honestly:
+Results recorded at the v0.1.0 merge:
 
 - isolated Linkr implementation tests passing: 15 (76 assertions)
-- shared Earendil compatibility suite: 125 passing
+- combined Earendil compatibility suite, including Linkr: 140 passing
 - live add-on verification against real hardware: not yet
 - browser/UI: isolated mocked Playwright Settings fixture passed; full host integration not yet verified
 
-The isolated tests cover action dispatch, input validation, lease handling, job validation, job retention, and packaged skill discovery. They do not prove live hardware behaviour.
+The isolated tests cover action dispatch, input validation, leases, job limits and cancellation, evidence writing, pruning invocation and skill discovery. The pruning test does not exercise the complete age/count retention policy. These tests do not establish live hardware behaviour.
+
+[Validation run 34716571245](https://github.com/rcarmo/piclaw-addons/actions/runs/34716571245) passed type checks, the combined suite, standalone imports and package checks. The separate [build/UX workflow](https://github.com/rcarmo/piclaw-addons/actions/runs/34716571263) passed the repository's registered scenarios; it did not establish Linkr-specific full host end-to-end coverage.
 
 ## Important implementation limits to qualify around
 

@@ -1,19 +1,19 @@
 # Safety and scope
 
-This add-on performs risky screenshot-driven control. Safety rules matter more than convenience.
+Linkr keyboard and mouse input can change firmware, erase disks or expose information on the attached computer. Confirm the target and the authorised task before sending input.
 
-## Honest implemented scope
+## Implemented actions
 
-Included today:
+The add-on provides:
 
 - explicit Settings-backed profiles and per-chat selection;
-- fresh snapshots;
+- new HTTP screenshot captures, without a source-frame freshness guarantee;
 - preview-first HID actions gated by `execute:true`;
 - bounded `capture` and `firmware-entry` jobs;
 - agent-driven interpretation of firmware and installer screens;
 - explicit `input.release` handling for uncertain delivery.
 
-Not implemented or not verified today:
+The add-on does not implement:
 
 - automatic OS reboot execution;
 - verified power control;
@@ -80,7 +80,7 @@ Never choose a disk by ordinal position alone.
 - A normal OS reboot is not the same as forced reset.
 - `Ctrl+Alt+Delete` is not a universal safe reboot primitive.
 - No update power cuts: never force power loss during firmware updates, OS updates, disk encryption setup, RAID/storage migration, filesystem repair, or flashing.
-- `power.*`, `media.*`, and `device.reboot` are public action names, but today they should return `unsupported` and send no request.
+- `power.*`, `media.*`, and `device.reboot` return `unsupported` and send no request.
 
 ## Firmware-entry discipline
 
@@ -104,6 +104,6 @@ Network or transport failure can leave input state uncertain.
 ## Cross-session and physical-world risk
 
 - A software lease does not prove exclusive physical control.
-- Current leases are only in-process global state.
+- Leases use in-process global state keyed by origin. Different hostname aliases for one device can evade that exclusion.
 - Another Piclaw process, another host, a local keyboard/mouse user, a watchdog reboot, or an out-of-band admin can still interfere.
 - Report uncertainty explicitly rather than pretending control is exclusive.

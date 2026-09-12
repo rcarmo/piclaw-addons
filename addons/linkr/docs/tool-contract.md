@@ -350,7 +350,7 @@ Implemented behaviour:
 - evidence is capped at 32 MiB per job;
 - pruning keeps the newest 20 directories and removes directories older than 24h on the next job start, excluding running jobs.
 
-Recordings are therefore auto-private for job artifacts by file mode. This is not a blanket privacy opt-in for the whole add-on.
+Jobs save recordings automatically with restrictive file modes. These permissions do not redact screen content, protect against the same operating-system user or control later exports. Review captures before sharing.
 
 ## Transport details
 
