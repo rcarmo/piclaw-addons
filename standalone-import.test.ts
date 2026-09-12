@@ -194,3 +194,9 @@ test("standalone piclaw-addon-yolo-vibe imports outside the monorepo root", asyn
   const mod = await importStandaloneAddon("yolo-vibe");
   expect(typeof mod.default).toBe("function");
 });
+
+test("linkr addon imports outside the monorepo", async () => {
+  const mod = await importStandaloneAddon("linkr");
+  expect(typeof mod.default).toBe("function");
+  expect(mod.skillNames.length).toBe(7);
+});
