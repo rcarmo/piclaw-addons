@@ -1,0 +1,102 @@
+{
+  "name": "@rcarmo/piclaw-addon-linkr",
+  "version": "0.1.0",
+  "description": "Radxa Linkr KVM screenshots, bounded HID and firmware-entry jobs, with BIOS, boot and OS installation skills.",
+  "type": "module",
+  "main": "index.ts",
+  "files": [
+    "*.ts",
+    "!*.test.ts",
+    "compat",
+    "web",
+    "skills",
+    "docs",
+    "README.md",
+    "LICENSE"
+  ],
+  "pi": {
+    "extensions": [
+      "index.ts"
+    ],
+    "web": {
+      "entries": [
+        "web/index.ts"
+      ]
+    },
+    "skills": [
+      "skills"
+    ]
+  },
+  "piclaw": {
+    "id": "linkr",
+    "type": "extension",
+    "entry": "index.ts",
+    "compat": {
+      "piclaw": ">=3.1.2"
+    },
+    "compatibleVersions": ">=3.1.2",
+    "tags": [
+      "kvm",
+      "hardware",
+      "bios",
+      "automation"
+    ],
+    "skills": [
+      "skills/linkr-control",
+      "skills/linkr-reboot-bios",
+      "skills/linkr-firmware-navigation",
+      "skills/linkr-boot-selection",
+      "skills/linkr-os-install",
+      "skills/linkr-recovery",
+      "skills/linkr-qualify-device"
+    ]
+  },
+  "keywords": [
+    "piclaw",
+    "piclaw-addon",
+    "linkr",
+    "kvm"
+  ],
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "typebox": "*"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rcarmo/piclaw-addons.git",
+    "directory": "addons/linkr"
+  },
+  "agents": {
+    "skills": [
+      {
+        "name": "linkr-control",
+        "path": "skills/linkr-control/SKILL.md"
+      },
+      {
+        "name": "linkr-reboot-bios",
+        "path": "skills/linkr-reboot-bios/SKILL.md"
+      },
+      {
+        "name": "linkr-firmware-navigation",
+        "path": "skills/linkr-firmware-navigation/SKILL.md"
+      },
+      {
+        "name": "linkr-boot-selection",
+        "path": "skills/linkr-boot-selection/SKILL.md"
+      },
+      {
+        "name": "linkr-os-install",
+        "path": "skills/linkr-os-install/SKILL.md"
+      },
+      {
+        "name": "linkr-recovery",
+        "path": "skills/linkr-recovery/SKILL.md"
+      },
+      {
+        "name": "linkr-qualify-device",
+        "path": "skills/linkr-qualify-device/SKILL.md"
+      }
+    ]
+  }
+}

@@ -12,8 +12,8 @@
   "scripts": {
     "sync:catalog": "bun scripts/sync-catalog.ts --write",
     "check:catalog": "bun scripts/sync-catalog.ts --check",
-    "typecheck:earendil-compat": "tsc --noEmit -p tsconfig.earendil-compat.json && tsc --noEmit -p addons/m365/tsconfig.json && tsc --noEmit -p addons/remote-peer/tsconfig.json",
-    "test:earendil-compat": "bun test addons/cheapskate/index.test.ts addons/codex-conversion/index.test.ts addons/delegate/index.test.ts addons/m365/tests/*.test.ts addons/skill-model-effort/index.test.ts addons/smart-compaction/index.test.ts addons/autoresearch/supervisor.test.ts",
+    "typecheck:earendil-compat": "tsc --noEmit -p tsconfig.earendil-compat.json && tsc --noEmit -p addons/m365/tsconfig.json && tsc --noEmit -p addons/remote-peer/tsconfig.json && tsc --noEmit -p addons/linkr/tsconfig.json",
+    "test:earendil-compat": "bun test addons/cheapskate/index.test.ts addons/codex-conversion/index.test.ts addons/delegate/index.test.ts addons/m365/tests/*.test.ts addons/skill-model-effort/index.test.ts addons/smart-compaction/index.test.ts addons/autoresearch/supervisor.test.ts addons/linkr/linkr.test.ts",
     "addon:e2e": "cd tests/addon-e2e && bun run test -- --project=desktop-chrome",
     "addon:e2e:all": "cd tests/addon-e2e && PICLAW_ADDON=all bun run test -- --project=desktop-chrome",
     "addon:e2e:report": "cd tests/addon-e2e && bun run report"
@@ -42,6 +42,7 @@
       "addons/kanban-board-widget/index.ts",
       "addons/kanban-editor/index.ts",
       "addons/late-night-regrets/index.ts",
+      "addons/linkr/index.ts",
       "addons/lite-term/index.ts",
       "addons/m365/index.ts",
       "addons/mindmap/index.ts",
@@ -77,6 +78,7 @@
       "addons/autoresearch/skills",
       "addons/delegate/skills",
       "addons/editable-table/skills",
+      "addons/linkr/skills",
       "addons/m365/skills",
       "addons/observability/skills",
       "addons/remote-peer/skills",
@@ -97,6 +99,34 @@
       {
         "name": "editable-table",
         "path": "./addons/editable-table/skills/editable-table"
+      },
+      {
+        "name": "linkr-boot-selection",
+        "path": "./addons/linkr/skills/linkr-boot-selection/SKILL.md"
+      },
+      {
+        "name": "linkr-control",
+        "path": "./addons/linkr/skills/linkr-control/SKILL.md"
+      },
+      {
+        "name": "linkr-firmware-navigation",
+        "path": "./addons/linkr/skills/linkr-firmware-navigation/SKILL.md"
+      },
+      {
+        "name": "linkr-os-install",
+        "path": "./addons/linkr/skills/linkr-os-install/SKILL.md"
+      },
+      {
+        "name": "linkr-qualify-device",
+        "path": "./addons/linkr/skills/linkr-qualify-device/SKILL.md"
+      },
+      {
+        "name": "linkr-reboot-bios",
+        "path": "./addons/linkr/skills/linkr-reboot-bios/SKILL.md"
+      },
+      {
+        "name": "linkr-recovery",
+        "path": "./addons/linkr/skills/linkr-recovery/SKILL.md"
       },
       {
         "name": "m365-document-link-metadata",
