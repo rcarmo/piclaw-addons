@@ -1,0 +1,32 @@
+{
+  "addon": "sample-addon",
+  "tests": [
+    {
+      "addon": "sample-addon",
+      "suite": "sample-addon/settings.spec.ts › sample-addon: Sample Addon settings pane",
+      "title": "Settings pane renders",
+      "status": "passed",
+      "duration": 2357,
+      "error": "",
+      "attachments": []
+    },
+    {
+      "addon": "sample-addon",
+      "suite": "sample-addon/settings.spec.ts › sample-addon: Sample Addon settings pane",
+      "title": "Greeting persists",
+      "status": "passed",
+      "duration": 5659,
+      "error": "",
+      "attachments": []
+    },
+    {
+      "addon": "sample-addon",
+      "suite": "sample-addon/settings.spec.ts › sample-addon: Sample Addon settings pane",
+      "title": "Secret save updates keychain indicator",
+      "status": "passed",
+      "duration": 2456,
+      "error": "",
+      "attachments": []
+    }
+  ]
+}

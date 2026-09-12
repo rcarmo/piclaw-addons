@@ -1,0 +1,23 @@
+{
+  "addon": "remote-peer",
+  "tests": [
+    {
+      "addon": "remote-peer",
+      "suite": "remote-peer/settings.spec.ts › remote-peer: Iroh Remote Peer settings",
+      "title": "Fresh client ID and network discovery default to off",
+      "status": "passed",
+      "duration": 2364,
+      "error": "",
+      "attachments": []
+    },
+    {
+      "addon": "remote-peer",
+      "suite": "remote-peer/settings.spec.ts › remote-peer: Iroh Remote Peer settings",
+      "title": "Enabling Iroh does not enable mDNS",
+      "status": "passed",
+      "duration": 2503,
+      "error": "",
+      "attachments": []
+    }
+  ]
+}
