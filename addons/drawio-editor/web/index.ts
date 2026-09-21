@@ -154,6 +154,6 @@ if (webApi && typeof webApi.registerAttachmentPreview === 'function') {
     buildFrameUrl(mediaId: number | string, filename?: string): string {
       return buildReadonlyAttachmentUrl(mediaId, filename);
     },
-    note: 'Draw.io preview is read-only. Editing tools are disabled in this preview.',
+    note: 'Draw.io preview is read-only. Use the page tabs above the drawing to view other pages; editing remains disabled.',
   });
 }

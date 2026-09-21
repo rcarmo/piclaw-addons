@@ -15,6 +15,7 @@ import drawioEditor, {
   isBinaryDrawioSaveTarget,
   isExplicitDrawioExportRequest,
   isTrustedDrawioMessageEvent,
+  patchReadonlyDrawioPages,
   resolveDrawioSavePath,
   resolveDrawioVendorDir,
 } from "./index";
@@ -58,7 +59,7 @@ afterEach(() => {
 
 describe("draw.io 31.4.2 vendor integrity", () => {
   test("aligns add-on, metadata, runtime and bundled JavaScript versions", () => {
-    expect(packageManifest.version).toBe("31.4.3");
+    expect(packageManifest.version).toBe("31.4.4");
     expect(packageManifest.piclaw.vendorVersion).toBe("31.4.2");
     expect(DRAWIO_VERSION).toBe("v31.4.2");
     expect(vendorMetadata.package_version).toBe(DRAWIO_VERSION);
@@ -146,6 +147,26 @@ describe("draw.io wrapper and route contract", () => {
     expect(html).toContain('case \'workspace-export\'');
     expect(html).toContain('["save","-"]');
     expect(html).toContain('["exportPng","exportJpg","exportSvg"]');
+    expect(html).toContain('id="preview-pages" role="tablist"');
+    expect(html).toContain('id="editor-surface"');
+    expect(html.indexOf('id="preview-pages"')).toBeLessThan(html.indexOf('id="readonly-lock"'));
+    expect(html).toContain("if (readOnly) frame.setAttribute('tabindex', '-1')");
+    expect(html).toContain("if (readOnly) return Promise.reject(new Error('Read-only preview cannot save.'))");
+  });
+
+  test("read-only page hook retries missing vendor and preserves setFileData return value", () => {
+    expect(patchReadonlyDrawioPages({}, {} as HTMLElement)).toBe(false);
+    const enabled: boolean[] = [];
+    const container = { hidden: false, replaceChildren() {} } as unknown as HTMLElement;
+    const ui = { pages: [], editor: { graph: { setEnabled(value: boolean) { enabled.push(value); } } }, setFileData() { return "original-result"; } };
+    const win = { EditorUi: { prototype: ui } };
+    expect(patchReadonlyDrawioPages(win, container)).toBe(true);
+    const patched = ui.setFileData;
+    expect(patchReadonlyDrawioPages(win, container)).toBe(true);
+    expect(ui.setFileData).toBe(patched);
+    expect(ui.setFileData()).toBe("original-result");
+    expect(enabled).toEqual([false]);
+    expect(container.hidden).toBe(true);
   });
 
   test("serves versioned vendor assets with embed CSP", async () => {
