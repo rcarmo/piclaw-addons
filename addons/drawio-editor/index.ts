@@ -159,6 +159,69 @@ export function buildEmbeddedDrawioAppUrl(isDark: boolean, readOnly = false, rou
   return editorUrl;
 }
 
+// Self-contained: stringified into the wrapper. Only installed in read-only
+// frames, before the load message. Use Draw.io's decoded pages (also for PNG/SVG)
+// rather than implementing another mxfile/embedded-image parser.
+export function patchReadonlyDrawioPages(win: any, container: HTMLElement): boolean {
+  const proto = win?.EditorUi?.prototype;
+  if (!proto || typeof proto.setFileData !== 'function') return false;
+  if (proto.__piclawReadonlyPagesPatched) return true;
+  const original = proto.setFileData;
+  proto.setFileData = function(...args: any[]) {
+    const result = original.apply(this, args);
+    const ui = this;
+    const graph = ui.editor?.graph;
+    graph?.setEnabled(false);
+    container.replaceChildren();
+    const pages = Array.isArray(ui.pages) ? ui.pages : [];
+    container.hidden = pages.length < 2;
+    if (pages.length < 2) return result;
+    const buttons: HTMLButtonElement[] = [];
+    function updateActive() {
+      buttons.forEach((button, index) => {
+        const active = ui.currentPage === pages[index];
+        button.setAttribute('aria-selected', String(active));
+        button.tabIndex = active ? 0 : -1;
+      });
+    }
+    function select(index: number, focus: boolean) {
+      try {
+        // Suppress the undo event: selecting a preview page is not an edit.
+        ui.selectPage(pages[index], true);
+        graph?.setEnabled(false);
+        graph?.clearSelection();
+        updateActive();
+        if (focus) buttons[index].focus();
+      } catch {
+        container.setAttribute('aria-label', 'Drawing pages — could not open the selected page');
+      }
+    }
+    pages.forEach((page: any, index: number) => {
+      const button = container.ownerDocument.createElement('button');
+      button.type = 'button';
+      button.setAttribute('role', 'tab');
+      button.setAttribute('aria-controls', 'editor-surface');
+      // Page names are untrusted document content, never HTML.
+      button.textContent = page.getName?.() || `Page ${index + 1}`;
+      button.title = button.textContent;
+      button.addEventListener('click', () => select(index, false));
+      button.addEventListener('keydown', (event) => {
+        const next = event.key === 'ArrowRight' ? (index + 1) % pages.length
+          : event.key === 'ArrowLeft' ? (index + pages.length - 1) % pages.length
+          : event.key === 'Home' ? 0 : event.key === 'End' ? pages.length - 1 : null;
+        if (next !== null) { event.preventDefault(); select(next, true); }
+      });
+      buttons.push(button);
+      container.appendChild(button);
+    });
+    container.setAttribute('aria-label', 'Drawing pages');
+    updateActive();
+    return result;
+  };
+  proto.__piclawReadonlyPagesPatched = true;
+  return true;
+}
+
 // Keep this helper self-contained too: the wrapper page stringifies it so the
 // runtime check and the TypeScript regression tests share the same trust rule.
 export function isTrustedDrawioMessageEvent(
@@ -242,7 +305,19 @@ function generateEditorPage(): string {
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { width: 100%; height: 100%; overflow: hidden; background: #1e1e1e; }
+  body { display: flex; flex-direction: column; }
+  .editor-surface { position: relative; flex: 1; min-height: 0; }
   #editor-frame { width: 100%; height: 100%; border: none; }
+  #preview-pages { flex: 0 0 auto; display: flex; gap: 4px; overflow-x: auto; padding: 6px; background: #f7f9fa; border-bottom: 1px solid #bbb; }
+  #preview-pages[hidden] { display: none; }
+  #preview-pages button { flex: 0 0 auto; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 6px 12px; border: 1px solid #aaa; border-radius: 5px; background: #fff; color: #222; font: 13px system-ui,sans-serif; cursor: pointer; }
+  #preview-pages button[aria-selected="true"] { background: #dcecf8; border-color: #2783b8; }
+  #preview-pages button:focus-visible { outline: 2px solid #2783b8; outline-offset: -2px; }
+  @media (prefers-color-scheme: dark) {
+    #preview-pages { background: #20252b; border-color: #555; }
+    #preview-pages button { background: #303840; color: #eee; border-color: #667; }
+    #preview-pages button[aria-selected="true"] { background: #26485e; border-color: #65b5e8; }
+  }
   .loading {
     position: absolute; top: 50%; left: 50%;
     transform: translate(-50%, -50%);
@@ -262,9 +337,12 @@ function generateEditorPage(): string {
 </style>
 </head>
 <body>
+<nav id="preview-pages" role="tablist" aria-label="Drawing pages" hidden></nav>
+<div id="editor-surface" class="editor-surface">
 <div id="loading" class="loading">Loading draw.io editor…</div>
 <div id="readonly-lock" class="readonly-lock" aria-hidden="true"></div>
-<iframe id="editor-frame" style="display:none"></iframe>
+<iframe id="editor-frame" title="Draw.io diagram" style="display:none"></iframe>
+</div>
 <script>
 'use strict';
 
@@ -320,8 +398,10 @@ document.title = fileName + ' · Draw.io';
 var frame = document.getElementById('editor-frame');
 var loading = document.getElementById('loading');
 var readonlyLock = document.getElementById('readonly-lock');
+var previewPages = document.getElementById('preview-pages');
 var expectedFrameOrigin = window.location.origin;
 if (readOnly && readonlyLock) readonlyLock.classList.add('active');
+if (readOnly) frame.setAttribute('tabindex', '-1');
 var DEFAULT_DRAWIO_XML = ${JSON.stringify(DEFAULT_DRAWIO_XML)};
 var xmlData = DEFAULT_DRAWIO_XML;
 var modified = false;
@@ -486,6 +566,7 @@ function patchDrawioExportTarget(win) {
 }
 
 function saveWorkspace(payload, acknowledge) {
+  if (readOnly) return Promise.reject(new Error('Read-only preview cannot save.'));
   return fetch('/drawio/save', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -564,7 +645,12 @@ function startEditor() {
   var isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
   var editorUrl = (${buildEmbeddedDrawioAppUrl.toString()})(!!isDark, !!readOnly);
   function tryPatch() {
-    if (readOnly || !frame.contentWindow) return;
+    if (!frame.contentWindow) return;
+    if (readOnly) {
+      if ((${patchReadonlyDrawioPages.toString()})(frame.contentWindow, previewPages)) return;
+      setTimeout(tryPatch, 50);
+      return;
+    }
     if (patchDrawioExportTarget(frame.contentWindow)) return;
     setTimeout(tryPatch, 50);
   }
@@ -584,6 +670,7 @@ window.addEventListener('message', function(e) {
 
   switch (msg.event) {
     case 'init':
+      if (readOnly) (${patchReadonlyDrawioPages.toString()})(frame.contentWindow, previewPages);
       loading.classList.add('hidden');
       // Send load action with the diagram XML
       frame.contentWindow.postMessage(JSON.stringify({
