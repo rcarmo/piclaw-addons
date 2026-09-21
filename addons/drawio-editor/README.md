@@ -31,6 +31,11 @@ does not create undo edits or send saves. Workspace editing and exports remain
 separate and unchanged. Image files without embedded diagram data cannot acquire
 extra pages from their rendered pixels.
 
+Read-only startup waits for the trusted editor-ready message rather than polling
+vendor prototypes. A single 15-second deadline reports a stalled load; a missing
+page API reports an unavailable-preview error without enabling editing. Closing
+the preview cancels the deadline and ignores late load/message callbacks.
+
 The optional `preview-pages.browser.test.ts` runs the real vendored application
 against disposable loopback fixtures. Set `PICLAW_E2E_DISPOSABLE=1`,
 `PICLAW_DRAWIO_CORE_SOURCE=/absolute/path/to/piclaw` and an installed

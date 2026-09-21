@@ -400,6 +400,27 @@ var loading = document.getElementById('loading');
 var readonlyLock = document.getElementById('readonly-lock');
 var previewPages = document.getElementById('preview-pages');
 var expectedFrameOrigin = window.location.origin;
+var disposed = false;
+var previewFailed = false;
+var previewReadyTimer = null;
+var exportPatchTimer = null;
+var exportPatchAttempts = 0;
+window.addEventListener('pagehide', function() {
+  disposed = true;
+  clearTimeout(previewReadyTimer);
+  clearTimeout(exportPatchTimer);
+  previewReadyTimer = exportPatchTimer = null;
+  frame.onload = null;
+}, { once: true });
+function failPreview(message) {
+  if (disposed) return;
+  previewFailed = true;
+  clearTimeout(previewReadyTimer);
+  previewReadyTimer = null;
+  loading.classList.remove('hidden');
+  loading.setAttribute('role', 'alert');
+  loading.textContent = message;
+}
 if (readOnly && readonlyLock) readonlyLock.classList.add('active');
 if (readOnly) frame.setAttribute('tabindex', '-1');
 var DEFAULT_DRAWIO_XML = ${JSON.stringify(DEFAULT_DRAWIO_XML)};
@@ -631,29 +652,33 @@ function loadFile() {
       throw new Error('HTTP ' + r.status);
     })
     .then(function(text) {
+      if (disposed) return;
       xmlData = format === 'xml' ? normalizeDrawioXml(text) : String(text || DEFAULT_DRAWIO_XML);
       startEditor();
     })
     .catch(function(err) {
+      if (disposed) return;
       loading.textContent = 'Failed to load: ' + err.message;
     });
 }
 
 function startEditor() {
+  if (disposed) return;
   // Embed mode URL with dark theme. Keep using the shared helper so the TS
   // tests and the stringified browser copy stay in lockstep.
   var isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
   var editorUrl = (${buildEmbeddedDrawioAppUrl.toString()})(!!isDark, !!readOnly);
   function tryPatch() {
-    if (!frame.contentWindow) return;
-    if (readOnly) {
-      if ((${patchReadonlyDrawioPages.toString()})(frame.contentWindow, previewPages)) return;
-      setTimeout(tryPatch, 50);
-      return;
-    }
-    if (patchDrawioExportTarget(frame.contentWindow)) return;
-    setTimeout(tryPatch, 50);
+    if (disposed || readOnly || exportPatchTimer !== null || exportPatchAttempts >= 200) return;
+    exportPatchAttempts++;
+    if (frame.contentWindow && patchDrawioExportTarget(frame.contentWindow)) return;
+    exportPatchTimer = setTimeout(function() { exportPatchTimer = null; tryPatch(); }, 50);
   }
+  // Read-only startup is driven exclusively by the trusted init message. No
+  // prototype polling, even if vendor assets never load or the API drifts.
+  if (readOnly) previewReadyTimer = setTimeout(function() {
+    failPreview('Draw.io preview did not become ready. Close and reopen the preview to retry.');
+  }, 15000);
   frame.src = editorUrl;
   frame.style.display = 'block';
   frame.onload = function() {
@@ -664,13 +689,21 @@ function startEditor() {
 
 // Handle postMessage from draw.io iframe
 window.addEventListener('message', function(e) {
+  if (disposed || previewFailed) return;
   var msg;
   try { msg = JSON.parse(e.data); } catch(_) { return; }
   if (!(${isTrustedDrawioMessageEvent.toString()})(e.origin, expectedFrameOrigin, e.source, frame.contentWindow)) return;
 
   switch (msg.event) {
     case 'init':
-      if (readOnly) (${patchReadonlyDrawioPages.toString()})(frame.contentWindow, previewPages);
+      if (readOnly) {
+        clearTimeout(previewReadyTimer);
+        previewReadyTimer = null;
+        if (!(${patchReadonlyDrawioPages.toString()})(frame.contentWindow, previewPages)) {
+          failPreview('Draw.io preview page navigation is unavailable. Close and reopen the preview to retry.');
+          break;
+        }
+      }
       loading.classList.add('hidden');
       // Send load action with the diagram XML
       frame.contentWindow.postMessage(JSON.stringify({
