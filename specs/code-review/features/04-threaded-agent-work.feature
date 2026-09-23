@@ -136,3 +136,62 @@ Feature: Discuss guidance with an assigned agent inside its review thread
     Then the UI keeps the work state distinct and does not claim cancellation
     And a queued worker rechecks the resolved state before performing source changes
     And late completion cannot silently reopen the thread or replace my resolution
+
+  Scenario: CR-104 Send selected comments across files as one review
+    Given open threads "T1" and "T2" annotate different saved files in "R1" for "Implementation"
+    And "R1" also contains unselected thread "T3" and an unpublished comment draft
+    When I select "T1" and "T2" and preview "Send to agent"
+    Then the preview shows exactly those threads with their guidance versions, source snapshots and target
+    And selecting and previewing alone creates no delivery intent or agent turn
+    When I confirm sending the selection
+    Then one durable batch intent records both items and one initial enqueue attempt for "Implementation"
+    And neither "T3" nor the unpublished draft is included or dispatched
+    And both selected threads retain their own anchors and conversation IDs
+
+  Scenario: CR-105 Keep batch replies and outcomes attached to individual threads
+    Given batch "B1" contains "T1" and "T2" and the agent re-read both current threads
+    When the agent replies with evidence and resolves "T1" but reports a blocker on "T2"
+    Then each response appears in its original thread and source context
+    And "T1" is resolved while "T2" stays open with a blocked work state
+    And the batch shows partial results rather than claiming all guidance was resolved
+    And no completed item is automatically replayed because another item is blocked
+
+  Scenario: CR-106 Reject a changed batch selection before any dispatch
+    Given I previewed versions of "T1" and "T2" in one batch
+    And "T2" was edited or deleted before I confirmed the preview
+    When I submit that batch with the previewed item versions
+    Then validation rejects the whole submission before recording an accepted intent or enqueueing work
+    And "T1" is not silently sent as a smaller batch
+    And the pane preserves my selection and requests a refreshed preview
+
+  Scenario: CR-107 Require one valid target for a batch
+    Given "T1" belongs to "R1" and is assigned to "Implementation"
+    And "T2" belongs to "R1" and is assigned to "Reviewer"
+    When I attempt to submit them together to "Implementation"
+    Then no batch is dispatched until I explicitly reassign eligible threads or send separate batches
+    And no thread changes target merely because it was selected
+    And the add-on does not silently fan out turns to multiple agents
+
+  Scenario: CR-108 Reject an out-of-scope batch item without partially sending valid items
+    Given I can dispatch "T1" in "R1" but cannot access thread "Other"
+    When a batch submission contains both IDs
+    Then the entire submission is rejected before any enqueue attempt
+    And no protected content or existence detail about "Other" is returned
+    And the valid "T1" item is not sent separately
+
+  Scenario: CR-109 Repeated batch sends reuse the intent and its frozen selection
+    Given the host accepted batch intent "B1" for "T1" and "T2" but its acknowledgement was lost
+    When the same intent ID and payload are submitted again
+    Then the existing delivery state is returned without another enqueue attempt
+    And the outcome stays unknown unless acceptance can be reconciled
+    When a request reuses "B1" but substitutes "T3" for "T2"
+    Then a payload conflict is returned and no new selection is dispatched
+
+  Scenario: CR-110 Recheck changed items when a queued batch begins
+    Given batch "B1" contains "T1" and "T2" and is queued for "Implementation"
+    And "T2" is deleted, resolved or reassigned before the agent starts
+    When the agent retrieves the batch to begin work
+    Then current authority and state are checked separately for each item
+    And no stale or unauthorised action is performed for "T2"
+    And its body-free outcome is superseded or unavailable while eligible "T1" can proceed
+    And neither thread is recreated or silently reopened

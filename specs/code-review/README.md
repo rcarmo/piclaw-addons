@@ -31,6 +31,7 @@ step definitions through the existing isolated E2E harness. Keep scenario IDs.
 - Persist comments internally, independently of the browser, agent context window
   and reviewed repository; no source-file markers or committed sidecar comments.
 - Add, modify and delete comments, and hold a threaded conversation with an agent.
+- Explicitly send one thread or several selected comments together as one review.
 - Let the agent respond, request clarification, link changes/checks, and resolve
   issues without silently deleting the discussion.
 - Let the user continue, correct or reopen that discussion and inspect resolved work.
@@ -63,6 +64,12 @@ comment/reply text is editable; comment drafts remain supported. Source views
 identify their saved revision or exact diff pair. No GitHub integration or PR
 fetching is implied by this interaction model.
 
+**Individual and batch dispatch — confirmed by Rui on 23 September 2026**, in reply
+to message 56934: `Send to agent` supports an individual thread and several selected
+comments together as one review. Selection alone never starts work. Each comment
+keeps its thread, source anchor and discussion; sending a batch does not merge
+those conversations. Detailed delivery mechanics below remain draft contracts.
+
 ## Proposed defaults requiring confirmation
 
 The remaining defaults make the draft testable; they are not implementation approval.
@@ -89,9 +96,9 @@ The remaining defaults make the draft testable; they are not implementation appr
    session scope. No public review links, remote peer/A2A reviewers or family-user
    exposure without a separately verified identity/authorisation integration.
 
-The next question is dispatch scope: should `Send to agent` also support sending
-several selected comments together as one review, in addition to one thread at a
-time? Batch dispatch is not specified yet. No implementation starts during refinement.
+The next question is busy-agent handling: should a sent review queue behind the
+agent's current work or interrupt it? The draft uses queue mode. No implementation
+starts during refinement.
 
 ## Source and diff contract
 
@@ -123,7 +130,7 @@ time? Batch dispatch is not specified yet. No implementation starts during refin
 
 Use an add-on-owned SQLite store under the host-provided data directory. Proposed
 logical entities are review, source snapshot/anchor, thread, message/revision,
-resolution event, assignment and delivery attempt. These names are design concepts,
+resolution event, assignment, delivery intent/items and delivery attempt. These names are design concepts,
 not an approved schema. Piclaw's message database stays untouched by direct add-on
 SQL. Chat references are pointers, not the sole storage for review conversations.
 
@@ -150,8 +157,24 @@ resolve with evidence. The UI and tools use the same authoritative records and
 version checks. IDs in model text are not permission grants.
 
 - The user selects a target and explicitly dispatches guidance. Persist the
-  dispatch intent before asking the host to enqueue; include thread ID, revision,
-  scope and a callback/tool reference. No full-repository dump is needed.
+  dispatch intent before asking the host to enqueue; include the selected thread
+  IDs, guidance versions, source snapshots, scope and a callback/tool reference.
+  An individual send is a one-item intent. No full-repository dump is needed.
+- Proposed batch contract: preview selected published comments from one review,
+  including comments on different files, and one local target before sending.
+  Persist one ordered item list in one intent and make one initial host enqueue
+  attempt; do not start one turn per comment. Unselected threads and unpublished
+  drafts are excluded. Thread-version, ownership and assignment checks cover the
+  whole selection in one transaction before enqueue: a stale/deleted/ineligible
+  item rejects the submission without partially dispatching it. Mixed targets need
+  explicit reassignment or separate batches; never silently retarget or fan out.
+- Duplicate requests for the same batch intent return its delivery state; changing
+  the selection under that intent ID conflicts. The same unknown-outcome and
+  explicit reconciliation rules apply as for single-thread sends. After dispatch,
+  the worker rechecks each item's current state before acting. Replies, evidence,
+  failures and resolutions remain per thread. Show partial results; queue acceptance
+  or one successful item never means the whole review is resolved. Do not replay
+  completed items automatically when another item fails.
 - The agent must re-read the latest thread and file revision before action. An
   edited instruction invalidates a resolution against the old thread version.
   No hidden reasoning, raw tool logs or provider credentials are persisted as replies.
@@ -244,21 +267,23 @@ editor or assigned agent, not through comment CRUD.
 ## Specification checks
 
 The repository's existing `parseFeature` function parsed all eight feature files:
-**103 unique scenarios, 474 scenario steps**, each with an action and observable
-outcome. IDs CR-001 through CR-103 are unique and complete. No unsupported
+**110 unique scenarios, 519 scenario steps**, each with an action and observable
+outcome. IDs CR-001 through CR-110 are unique and complete. No unsupported
 outline/table syntax or runtime/package/catalogue changes were found.
 
 A separate read-only spec review identified dispatch retry, routing inheritance,
 draft durability, reply CRUD, resolved re-anchoring and in-flight deletion gaps;
 those are now addressed explicitly. This validates document structure and coverage,
-not execution of the feature. Step definitions and behaviour tests do not exist yet.
+not execution of the feature. CR-104 through CR-110 add batch preview/submission,
+per-thread outcomes, stale selection, target/scope checks, retries and changed
+queued items. Step definitions and behaviour tests do not exist yet.
 
 ## Workflow files
 
 - `01-pane-and-sources.feature` — explicit launch, read-only saved code, diff modes.
 - `02-annotations-and-drafts.feature` — line/range/file guidance and posting.
 - `03-comment-management.feature` — message edits, deletion and ownership.
-- `04-threaded-agent-work.feature` — dispatch, dialogue, failures and reassignment.
+- `04-threaded-agent-work.feature` — individual/batch dispatch, dialogue, failures and reassignment.
 - `05-resolution.feature` — evidence, resolve/reopen and conflicts.
 - `06-changing-source.feature` — refresh, movement, rename/delete and stale anchors.
 - `07-durability-and-concurrency.feature` — restart/retry/offline/races and lifecycle.
