@@ -13,11 +13,11 @@ Feature: Discuss guidance with an assigned agent inside its review thread
     And the pane shows queue acceptance separately from work completion
     And no other open review thread is implicitly dispatched
 
-  Scenario: CR-034 Handle a busy target without silently interrupting it
+  Scenario: CR-034 Queue guidance behind a busy target's current work
     Given "Implementation" is busy with another turn
-    When I send thread "T1" using the default queue mode
-    Then the guidance is queued without forcing an interrupt or changing models
-    And the thread shows the queue receipt and selected target
+    When I send an individual thread, a reply or a selected review batch
+    Then the guidance is queued behind its current work without steering, interrupting or changing models
+    And the affected threads show the queue receipt and selected target
 
   Scenario: CR-035 Agent reads current guidance before acting
     Given an agent has received a reference to thread "T1"

@@ -70,6 +70,11 @@ comments together as one review. Selection alone never starts work. Each comment
 keeps its thread, source anchor and discussion; sending a batch does not merge
 those conversations. Detailed delivery mechanics below remain draft contracts.
 
+**Queue busy agents — confirmed by Rui on 23 September 2026:** individual thread
+sends, reply sends and review batches use queue mode. A busy target finishes its
+current work before taking the review; sending guidance does not steer or interrupt
+the active turn. Queue acceptance remains separate from work completion (CR-034).
+
 ## Proposed defaults requiring confirmation
 
 The remaining defaults make the draft testable; they are not implementation approval.
@@ -96,9 +101,9 @@ The remaining defaults make the draft testable; they are not implementation appr
    session scope. No public review links, remote peer/A2A reviewers or family-user
    exposure without a separately verified identity/authorisation integration.
 
-The next question is busy-agent handling: should a sent review queue behind the
-agent's current work or interrupt it? The draft uses queue mode. No implementation
-starts during refinement.
+The next question is deletion: should deleting a comment preserve its existing
+replies under a "Comment deleted" placeholder, with whole-thread deletion as a
+separate confirmed action? No implementation starts during refinement.
 
 ## Source and diff contract
 
