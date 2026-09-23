@@ -286,8 +286,8 @@ editor or assigned agent, not through comment CRUD.
 ## Specification checks
 
 The repository's existing `parseFeature` function parsed all eight feature files:
-**115 unique scenarios, 541 scenario steps**, each with an action and observable
-outcome. IDs CR-001 through CR-115 are unique and complete. No unsupported
+**118 unique scenarios, 555 scenario steps**, each with an action and observable
+outcome. IDs CR-001 through CR-118 are unique and complete. No unsupported
 outline/table syntax or runtime/package/catalogue changes were found.
 
 A separate read-only spec review identified dispatch retry, routing inheritance,
@@ -296,8 +296,9 @@ those are now addressed explicitly. This validates document structure and covera
 not execution of the feature. CR-104 through CR-110 add batch preview/submission,
 per-thread outcomes, stale selection, target/scope checks, retries and changed
 queued items. CR-111 through CR-115 cover explorer entry, unchanged/Git-less files,
-normal-editor preservation, viewed markers and touch access. Step definitions and
-behaviour tests do not exist yet.
+normal-editor preservation, viewed markers and touch access. CR-116 through CR-118
+cover native title tooltips, checkbox meaning and disabled-action explanations.
+Step definitions and behaviour tests do not exist yet.
 
 The static HTML mock was exercised in Chromium at desktop, 1024px, 768px and 390px
 widths in light/dark themes: explorer paths, safe comment rendering, inline ranges,

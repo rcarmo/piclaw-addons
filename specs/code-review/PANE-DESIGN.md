@@ -119,6 +119,24 @@ the review toolbar. Gutter, context-expansion and file-navigation controls expli
 opt out of action-button geometry. Do not add arbitrary compact/link variants to
 ordinary Reply, Resolve, Post and Send buttons.
 
+### Native helper tooltips
+
+Every actionable control has a concise standard HTML `title`: action buttons,
+close/overflow icons, selectors/options, checkboxes, file navigation, gutter actions,
+inputs, textareas, links and disclosure summaries, including dynamically rendered
+controls. No custom tooltip component, tooltip overlay or tap-to-help interception.
+Copy states purpose and side effects instead of repeating the label; text reflects
+disabled reasons such as no selection, already queued, resolved or target mismatch.
+
+Use visible `Include in send` labels for thread checkboxes; Open/Resolved is a
+separate status. Checking selects a thread only and does not send, resolve or mark
+it viewed. Viewed records reading progress for the captured content; it does not
+approve code or send guidance. Posting and queueing remain explicitly distinguished.
+Native `title` complements accessible labels, not replaces them. Browser tooltip
+display on focus, touch or disabled controls varies; do not promise a custom fallback.
+Keep essential distinctions visible in labels and submission feedback, and native
+disabled controls inert.
+
 ## What to reuse from GitHub and Gitea
 
 Reuse their familiar review mechanics:

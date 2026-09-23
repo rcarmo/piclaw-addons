@@ -7,8 +7,8 @@ service restart is part of this validation.
 
 The existing `parseFeature` function was extracted from
 `tests/addon-e2e/scripts/generate-specs.ts` without executing the generator's file
-writes. It parsed eight feature files, 115 unique scenarios (CR-001–CR-115) and
-541 scenario steps. Every scenario contains a When and a Then. `git diff --check`
+writes. It parsed eight feature files, 118 unique scenarios (CR-001–CR-118) and
+555 scenario steps. Every scenario contains a When and a Then. `git diff --check`
 passed. These are parser/structural checks, not executed acceptance tests.
 
 ## Static interaction mock
@@ -74,6 +74,22 @@ Passed in both skins:
   surfaces: light, dark, sepia and monochrome. Text colours remain theme-owned;
   selected lines keep the diff tint. No horizontal shell overflow at 768/390px.
 - No page exceptions or requests outside the disposable server.
+
+## Native title tooltip pass
+
+A disposable iframe fixture exercised both Classic/light and Visual/dark at 1440,
+768 and 390px widths. All buttons, inputs, selectors/options, textareas, links and
+disclosure controls (including hidden and generated elements) had nonempty native
+`title` attributes in each tested state: saved file, unified/split diff, thread
+list, target mismatch, queued/resolved threads, reply/new-thread rerenders and
+Git-less files. No custom tooltip element was introduced.
+
+Assertions verified the current disabled reason, posting without dispatch, Viewed
+without dispatch, Include in send selection, one explicit batch and unchanged
+18px rows, 32px icon boxes and compact desktop toolbar. Drawer label clicks select
+the associated checkbox. Both skins had zero page exceptions or external requests.
+Native browser tooltip rendering/timing and touch support are browser-owned;
+these checks validate the attributes and copy, not guaranteed native popup display.
 
 ## Limits
 
