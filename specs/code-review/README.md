@@ -43,6 +43,11 @@ agent work. The user explicitly chooses `Send to agent` to dispatch guidance.
 Existing scenarios CR-012, CR-033 and CR-038 cover this separation. This confirms
 one workflow decision, not permission to start implementation.
 
+**Default target and picker — confirmed by Rui on 23 September 2026:** suggest
+the chat where the review was opened, visibly shown as the target. Offer a picker
+to choose another local agent before sending. Selecting a target does not dispatch
+work; the explicit send action still applies.
+
 ## Proposed defaults requiring confirmation
 
 The remaining defaults make the draft testable; they are not implementation approval.
@@ -50,9 +55,9 @@ The remaining defaults make the draft testable; they are not implementation appr
 1. **Reply controls:** `Send reply to agent` publishes and dispatches one reply
    atomically at the add-on level. Plain `Post reply` is also available.
    Already queued work cannot be unqueued or undone by deleting its comment.
-2. **Local session routing:** each review selects an existing local chat/session
-   by a host-resolved alias. Default suggestion is the opening chat, visibly shown.
-   New threads inherit that suggestion, resolved to a stable local chat identity
+2. **Target binding and reassignment:** resolve the selected local chat/session
+   through a host-resolved alias. New threads inherit the review's target
+   suggestion, resolved to a stable local chat identity
    before dispatch. Changing the review default affects only future threads.
    Existing threads retain their bound target until explicit reassignment; alias
    reuse must never silently retarget work. No model run begins just from opening,
@@ -74,9 +79,9 @@ The remaining defaults make the draft testable; they are not implementation appr
    session scope. No public review links, remote peer/A2A reviewers or family-user
    exposure without a separately verified identity/authorisation integration.
 
-The next question is local session routing: should the review suggest the opening
-chat, with an explicit choice of another local agent before dispatch? Other defaults
-can be refined one at a time without starting implementation.
+The next question is resolution: may the agent resolve a thread with an explanation
+and evidence, with the user able to reopen it, or must the user confirm every
+resolution? Other defaults can be refined without starting implementation.
 
 ## Source and diff contract
 
