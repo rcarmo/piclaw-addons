@@ -35,13 +35,20 @@ step definitions through the existing isolated E2E harness. Keep scenario IDs.
 - Let the user continue, correct or reopen that discussion and inspect resolved work.
 - Retain guidance when content moves or disappears without attaching it to the wrong code.
 
+## Confirmed decisions
+
+**Explicit dispatch — confirmed by Rui on 23 September 2026**, in reply to message
+56881: "send to agent". Posting or editing a comment persists it without queuing
+agent work. The user explicitly chooses `Send to agent` to dispatch guidance.
+Existing scenarios CR-012, CR-033 and CR-038 cover this separation. This confirms
+one workflow decision, not permission to start implementation.
+
 ## Proposed defaults requiring confirmation
 
-These defaults make the draft testable; they are not inferred implementation approval.
+The remaining defaults make the draft testable; they are not implementation approval.
 
-1. **Explicit dispatch:** posting/editing a comment persists it immediately. Only
-   `Send to agent` queues work; `Send reply to agent` publishes and dispatches one
-   reply atomically at the add-on level. Plain `Post reply` is also available.
+1. **Reply controls:** `Send reply to agent` publishes and dispatches one reply
+   atomically at the add-on level. Plain `Post reply` is also available.
    Already queued work cannot be unqueued or undone by deleting its comment.
 2. **Local session routing:** each review selects an existing local chat/session
    by a host-resolved alias. Default suggestion is the opening chat, visibly shown.
@@ -67,9 +74,9 @@ These defaults make the draft testable; they are not inferred implementation app
    session scope. No public review links, remote peer/A2A reviewers or family-user
    exposure without a separately verified identity/authorisation integration.
 
-The first question for approval is whether posting guidance should dispatch work
-immediately or use the explicit dispatch default above. Other defaults can be
-refined one at a time without starting implementation.
+The next question is local session routing: should the review suggest the opening
+chat, with an explicit choice of another local agent before dispatch? Other defaults
+can be refined one at a time without starting implementation.
 
 ## Source and diff contract
 
