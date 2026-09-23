@@ -48,6 +48,12 @@ the chat where the review was opened, visibly shown as the target. Offer a picke
 to choose another local agent before sending. Selecting a target does not dispatch
 work; the explicit send action still applies.
 
+**Agent resolution — confirmed by Rui on 23 September 2026:** the assigned agent
+may mark a thread resolved with a public explanation and supporting evidence, or
+a reason no code change is needed, without requiring user confirmation. The user
+can reopen it. Existing scenarios CR-046, CR-047 and CR-050 cover this workflow;
+resolution retains the discussion and its history.
+
 ## Proposed defaults requiring confirmation
 
 The remaining defaults make the draft testable; they are not implementation approval.
@@ -62,10 +68,9 @@ The remaining defaults make the draft testable; they are not implementation appr
    Existing threads retain their bound target until explicit reassignment; alias
    reuse must never silently retarget work. No model run begins just from opening,
    refreshing or installing the pane.
-3. **Resolution:** the agent may resolve a thread with a public explanation and
-   evidence links or a reason no code change is needed. The user may resolve or
-   reopen it. Reopening alone does not start work. A new comment on a resolved
-   thread requires an explicit reopen-and-post action.
+3. **Manual resolution and reopening controls:** the user may also resolve a
+   thread. Reopening alone does not start work. A new comment on a resolved thread
+   requires an explicit reopen-and-post action.
 4. **Saved-file review first:** dirty source buffers are not silently saved or
    presented as disk content. Offer Save in the normal editor and refresh, or
    review the saved revision with a visible warning. Unsaved-buffer annotations
@@ -79,9 +84,9 @@ The remaining defaults make the draft testable; they are not implementation appr
    session scope. No public review links, remote peer/A2A reviewers or family-user
    exposure without a separately verified identity/authorisation integration.
 
-The next question is resolution: may the agent resolve a thread with an explanation
-and evidence, with the user able to reopen it, or must the user confirm every
-resolution? Other defaults can be refined without starting implementation.
+The next question is source scope: should v1 review saved files and Git diffs only,
+with a warning when the normal editor has unsaved changes, or also support
+annotations on unsaved editor buffers? No implementation starts during refinement.
 
 ## Source and diff contract
 
