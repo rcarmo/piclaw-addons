@@ -337,6 +337,9 @@ const MODEL_CLASSIFICATION_RULES: ClassificationRule[] = [
   // OpenRouter retains the upstream publisher namespace in its model IDs.
   rule("gpt-6-astra-pro", 4, "gpt", 46, "GPT 6 Astra Pro high-capability variant", /^(?:openai\/)?gpt-6-astra-pro(?::batch)?$/),
   rule("gpt-6-astra", 3, "gpt", 52, "GPT 6 Astra general-purpose model", /^(?:openai\/)?gpt-6-astra(?::batch)?$/),
+  // Exact normalised 0.87.1 IDs; existing punctuation aliases apply, never suffixes.
+  rule("gpt-6-sol", 3, "gpt", 53, "GPT 6 Sol general-purpose model", /^gpt-6-sol$/),
+  rule("gpt-6-luna", 3, "gpt", 54, "GPT 6 Luna general-purpose model", /^gpt-6-luna$/),
   rule("gpt-codex-mini", 2, "gpt", 20, "GPT Codex Mini fast coding family", /^gpt-5(?:-[0-9]+)?-codex-mini(?:-|$)/),
   rule("gpt-codex-spark", 4, "gpt", 30, "GPT Codex Spark coding specialist", /^gpt-5(?:-[0-9]+)?-codex-spark(?:-|$)/),
   rule("gpt-codex-max", 4, "gpt", 35, "GPT Codex Max coding specialist", /^gpt-5(?:-[0-9]+)?-codex-max(?:-|$)/),
@@ -354,6 +357,7 @@ const MODEL_CLASSIFICATION_RULES: ClassificationRule[] = [
   rule("gemini-pro", 3, "gemini", 60, "Gemini Pro general-purpose family", /^gemini-.*(?:^|-)pro(?:-|$)/),
   rule("mai-code-flash", 2, "mai", 50, "MAI Code Flash fast coding family", /^mai-.*flash(?:-|$)/),
   rule("grok-code-fast", 1, "grok", 40, "Grok Code Fast family", /^(?:grok|xai)-.*fast(?:-|$)/),
+  rule("grok-4-7", 3, "grok", 65, "Grok 4.7 general-purpose model", /^grok-4-7$/),
 
   rule("deepseek-flash", 2, "deepseek", 60, "DeepSeek Flash fast family", /^deepseek-.*flash(?:-|$)/),
   rule("deepseek-pro", 3, "deepseek", 70, "DeepSeek Pro general-purpose family", /^deepseek-.*pro(?:-|$)/),
@@ -582,7 +586,7 @@ export function assertApprovedDelegateModelAttempt(model: string, approvedCandid
 /**
  * Providers can disclose a response model that differs from the requested
  * catalog model. Reject that response unless the disclosed model is also an
- * exact approved candidate. Opaque provider-side routing cannot be prevented
+ * exact candidate eligible for this request. Opaque provider-side routing cannot be prevented
  * by a client, but a disclosed policy mismatch is never accepted as success.
  */
 export function validateDelegateResponseModel(
@@ -1485,6 +1489,13 @@ export default function (pi: any) {
         }
       }
 
+      // Disclosed reroutes must respect the same image and automatic tier gates
+      // as launched children. Explicit requests bypass tier targeting only.
+      eligibleCandidates = eligibleCandidates.filter((candidate) =>
+        (!hasVisualInput || candidate.supportsImages === true)
+        && (Boolean(requestedModel) || candidate.tier <= Math.min(maxTier!, CATEGORY_TARGET_TIER[effectiveCategory])),
+      );
+
       // Build static pi args shared across model attempts (the model is set per attempt).
       const staticArgs: string[] = [];
       if (mcpPath) staticArgs.push("-e", mcpPath);
@@ -1538,13 +1549,13 @@ export default function (pi: any) {
             attemptModel,
             processResult.provider,
             processResult.model,
-            discoveredCandidates,
+            eligibleCandidates,
           );
           const responseModelFailure = validateDelegateResponseModel(
             attemptModel,
             processResult.provider,
             processResult.responseModel,
-            discoveredCandidates,
+            eligibleCandidates,
           );
           const failureMessage = processFailure || reportedModelFailure || responseModelFailure;
           if (failureMessage) {

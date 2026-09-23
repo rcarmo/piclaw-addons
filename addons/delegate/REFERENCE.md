@@ -1,4 +1,4 @@
-# Delegate 0.2.9 — Reference
+# Delegate 0.2.11 — Reference
 
 Delegate registers one Pi tool, `delegate`, that runs a self-contained task in a fresh child Pi process. Every child-model launch is restricted to the operator-approved candidate list.
 
@@ -53,15 +53,28 @@ The first matching rule wins. There is no fuzzy expansion and a full `provider/m
 |---:|---|
 | 1 | Claude Haiku, GPT-4 legacy, Grok Code Fast, LFM local models |
 | 2 | GPT Mini/Codex Mini, Gemini Flash (including 3.5 Flash variants), MAI Code Flash, DeepSeek Flash, Gemma, GPT OSS, GLM, Qwen |
-| 3 | Claude Fable/Sonnet (including Sonnet 5), GPT 5 general-purpose (including 5.4, 5.5, and 5.6 variants), GPT 6 Astra, OpenAI o-series, Gemini Pro, DeepSeek Pro, Mistral Large |
+| 3 | Claude Fable/Sonnet (including Sonnet 5), GPT 5 general-purpose (including 5.4, 5.5, and 5.6 variants), exact GPT 6 Astra/Sol/Luna, exact Grok 4.7, OpenAI o-series, Gemini Pro, DeepSeek Pro, Mistral Large |
 | 4 | GPT Codex/Spark/Max, GPT Pro and GPT 6 Astra Pro specialists |
-| 5 | Claude Opus, including Opus 4.8 variants |
+| 5 | Claude Opus, including Opus 5.5 variants |
 
 Rules are provider-independent after exact executable discovery, so direct, GitHub Copilot, Cerebras, Ollama, Azure OpenAI, and Azure Foundry entries are classified by their model ID. Provider filters remain a separate automatic-selection policy. This separation prevents a provider alias from changing a model's tier.
 
 Astra is assigned the existing general-purpose tier 3; Astra Pro uses the existing specialist tier 4. Exact `gpt-6-astra` and `gpt-6-astra-pro` IDs are recognised, including the `openai/` publisher prefix and `:batch` suffix used in OpenRouter's catalogue. These are routing policy assignments, not benchmark scores. Unknown GPT-6 families and unreviewed suffixes remain unclassified. Provider approval, exact child-CLI executability and exclusions are still required.
 
 An unclassified current model has no tier ceiling, so automatic delegation fails closed with a policy-update message.
+
+Earendil 0.87.1 adds exact direct `gpt-6-sol`, `gpt-6-luna` and `grok-4.7`
+entries at tier 3. No publisher prefixes or pro/mini/preview/batch suffixes are
+inferred for these additions. Existing punctuation normalisation applies to
+classification; executable discovery and approval still use exact full IDs. Opus
+`claude-opus-5.5` (Copilot) and `claude-opus-5-5` (Anthropic) already match the
+tier-5 Opus rule. No provider approvals, exclusions, category target tiers or
+runtime-only executability rules change. These are local routing policy choices,
+not upstream benchmark or price guarantees. See [0.87.1 evidence](EARENDIL-0871.md).
+
+Disclosed model IDs must also satisfy the request's image gate and, for automatic
+selection, both the current-model ceiling and category target tier. Explicit
+requests retain their tier override, but cannot bypass image capability checks.
 
 ## 4. Candidate construction
 

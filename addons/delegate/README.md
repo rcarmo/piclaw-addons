@@ -4,6 +4,11 @@ Delegate runs self-contained work in a fresh, ephemeral child Pi and restricts e
 
 Requires Piclaw `>=1.8.0`.
 
+Version `0.2.11` adds exact Earendil 0.87.1 catalogue coverage for GPT-6 Sol/Luna
+and Grok 4.7 at tier 3; Claude Opus 5.5 remains tier 5. Unknown suffixes remain
+unclassified, and no provider becomes approved automatically. The catalogue and
+JSON-mode fixtures are qualified offline in [Earendil 0.87.1 evidence](EARENDIL-0871.md).
+
 ## Approved-model boundary
 
 Delegate can launch a model only when all four conditions hold:
