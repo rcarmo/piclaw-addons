@@ -1,0 +1,11 @@
+provider        model                       context  max-out  thinking  images
+anthropic       claude-opus-5-5             1M       128K     yes       yes
+github-copilot  claude-opus-5.5             1M       128K     yes       yes
+github-copilot  gpt-6-luna                  1M       128K     yes       yes
+github-copilot  gpt-6-sol                   1M       128K     yes       yes
+github-copilot  grok-4.7                    500K     128K     yes       yes
+openai          gpt-6-luna                  272K     128K     yes       yes
+openai          gpt-6-sol                   272K     128K     yes       yes
+openai-codex    gpt-6-luna                  272K     128K     yes       yes
+openai-codex    gpt-6-sol                   272K     128K     yes       yes
+xai             grok-4.7                    500K     500K     yes       yes

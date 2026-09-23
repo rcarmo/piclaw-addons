@@ -1,0 +1,168 @@
+{
+  "version": "0.87.1",
+  "upstreamGitHead": "f07218c4d4bbc12bef056a7058c3dd49dfe41abe",
+  "capturedAt": "2026-09-23T19:07:38.533Z",
+  "source": "Actual packaged pi --no-session --no-extensions --list-models; fresh disposable profile, synthetic credentials, global fetch denied. Selected new exact model IDs only.",
+  "liveProviderCalls": false,
+  "credentialQualification": "Synthetic credentials make offline entries visible; not evidence of live authentication or account entitlement.",
+  "cliSha256": "8189b66abc4f9f431dbb70941dcba690d76d040de1fbfff212886be35a53639d",
+  "catalogSha256": "220f1c9fad2cb2f62535492b6022e6ee40a8187d1465c2a3aa492f70f6baf6c6",
+  "models": [
+    {
+      "provider": "anthropic",
+      "id": "claude-opus-5-5",
+      "fullId": "anthropic/claude-opus-5-5",
+      "input": [
+        "text",
+        "image"
+      ],
+      "reasoning": true,
+      "contextWindow": 1000000,
+      "maxTokens": 128000
+    },
+    {
+      "provider": "github-copilot",
+      "id": "claude-opus-5.5",
+      "fullId": "github-copilot/claude-opus-5.5",
+      "input": [
+        "text",
+        "image"
+      ],
+      "reasoning": true,
+      "contextWindow": 1000000,
+      "maxTokens": 128000
+    },
+    {
+      "provider": "github-copilot",
+      "id": "gpt-6-luna",
+      "fullId": "github-copilot/gpt-6-luna",
+      "input": [
+        "text",
+        "image"
+      ],
+      "reasoning": true,
+      "contextWindow": 1000000,
+      "maxTokens": 128000
+    },
+    {
+      "provider": "github-copilot",
+      "id": "gpt-6-sol",
+      "fullId": "github-copilot/gpt-6-sol",
+      "input": [
+        "text",
+        "image"
+      ],
+      "reasoning": true,
+      "contextWindow": 1000000,
+      "maxTokens": 128000
+    },
+    {
+      "provider": "github-copilot",
+      "id": "grok-4.7",
+      "fullId": "github-copilot/grok-4.7",
+      "input": [
+        "text",
+        "image"
+      ],
+      "reasoning": true,
+      "contextWindow": 500000,
+      "maxTokens": 128000
+    },
+    {
+      "provider": "openai",
+      "id": "gpt-6-luna",
+      "fullId": "openai/gpt-6-luna",
+      "input": [
+        "text",
+        "image"
+      ],
+      "reasoning": true,
+      "contextWindow": 272000,
+      "maxTokens": 128000
+    },
+    {
+      "provider": "openai",
+      "id": "gpt-6-sol",
+      "fullId": "openai/gpt-6-sol",
+      "input": [
+        "text",
+        "image"
+      ],
+      "reasoning": true,
+      "contextWindow": 272000,
+      "maxTokens": 128000
+    },
+    {
+      "provider": "openai-codex",
+      "id": "gpt-6-luna",
+      "fullId": "openai-codex/gpt-6-luna",
+      "input": [
+        "text",
+        "image"
+      ],
+      "reasoning": true,
+      "contextWindow": 272000,
+      "maxTokens": 128000
+    },
+    {
+      "provider": "openai-codex",
+      "id": "gpt-6-sol",
+      "fullId": "openai-codex/gpt-6-sol",
+      "input": [
+        "text",
+        "image"
+      ],
+      "reasoning": true,
+      "contextWindow": 272000,
+      "maxTokens": 128000
+    },
+    {
+      "provider": "xai",
+      "id": "grok-4.7",
+      "fullId": "xai/grok-4.7",
+      "input": [
+        "text",
+        "image"
+      ],
+      "reasoning": true,
+      "contextWindow": 500000,
+      "maxTokens": 500000
+    }
+  ],
+  "packages": [
+    {
+      "name": "@earendil-works/pi-ai",
+      "version": "0.87.1",
+      "gitHead": "f07218c4d4bbc12bef056a7058c3dd49dfe41abe",
+      "tarball": "https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-0.87.1.tgz",
+      "shasum": "7d1f174120d5e6d33f301503677ec3281f217e2a",
+      "integrity": "sha512-X/3PfQBnnoeVdO9Cv8zHghUMglzlgNZYGNzoPnbRoGnHl3Rw3TlA2UKSUB7BRHUOxMryHXYa8dnjWZlbRheDZA=="
+    },
+    {
+      "name": "@earendil-works/pi-coding-agent",
+      "version": "0.87.1",
+      "gitHead": "f07218c4d4bbc12bef056a7058c3dd49dfe41abe",
+      "tarball": "https://registry.npmjs.org/@earendil-works/pi-coding-agent/-/pi-coding-agent-0.87.1.tgz",
+      "shasum": "5708b9310325177d5c1b487b5c99627ffa733324",
+      "integrity": "sha512-m8ArJUtVcQMSe1lLE/Ei7vX/JV7O39sWmWBsXV2NOU70F0qCp8GubA24pT3LnwTmM6LL2xV80/h6sQg85n69ew=="
+    }
+  ],
+  "fixtureSha256": "ff7a7f98936b55b874b8147f180f50aa07d1fde0808abf08a4b33a582e300432",
+  "verifiedPackageFiles": {
+    "pi-coding-agent/package.json": "627631b613ba4ca29eba8df793f5280fd20b19f01d73826e9ffda14c15def5dc",
+    "pi-coding-agent/dist/cli.js": "8189b66abc4f9f431dbb70941dcba690d76d040de1fbfff212886be35a53639d",
+    "pi-ai/package.json": "0422fc7227a158c3c843c1540edfff017d2103be33ee48b882e2ff9032a5f7d2",
+    "pi-ai/dist/models.generated.js": "220f1c9fad2cb2f62535492b6022e6ee40a8187d1465c2a3aa492f70f6baf6c6",
+    "pi-ai/dist/model-catalog.js": "be8c8db997b1c49478ea13ae98f369074727d52826f091cd590c70dde90d765a",
+    "pi-ai/dist/providers/anthropic.models.js": "b819b6579da673c57acf8cdc4276e4783d50173526829aed4b68f5f86850edbd",
+    "pi-ai/dist/providers/data/anthropic.json": "474a010cd96c759d60419a6ba745747d9a87f172276dc85b7568da9d072b4e75",
+    "pi-ai/dist/providers/github-copilot.models.js": "71b77f3c326fddee575dd498cae7d36ee820c03b3cffe159c378060cab9b4c48",
+    "pi-ai/dist/providers/data/github-copilot.json": "bb59f8e4ffca00a8e6031baee78f4bc39d0e95b7647452a3605decb7c4cff30a",
+    "pi-ai/dist/providers/openai.models.js": "e145e1a744107013e2906f164a1b1bed6742e9bc5f69fb268a5fcc2a6295eb3c",
+    "pi-ai/dist/providers/data/openai.json": "3c52c8587e7e4a1829ed98ec6e0e3d7bbb2baf47e8618556ed1e95a9c0362835",
+    "pi-ai/dist/providers/openai-codex.models.js": "2957c06d0abb6dccbfbd154ff1adabbbba14242001a2ff9d56ce78c3fb4d146e",
+    "pi-ai/dist/providers/data/openai-codex.json": "4bb30a26d1b40e1f67c9f24891fca0ce25b030bc4cbbb529be78608cd4466fdf",
+    "pi-ai/dist/providers/xai.models.js": "8d753cb825702298c7bee8880effadf56460e8bf61540deadd623a35acb7d9a5",
+    "pi-ai/dist/providers/data/xai.json": "4798b621df20e84db3a48a629ef8054723ebcc8b24314064f6437eb05036405f"
+  }
+}
