@@ -53,6 +53,9 @@ repository management sidebar or duplicate chat composer.
    available when useful above about 1100px of pane width; do not squeeze two code
    columns into a tablet. Context expansion, wrap toggle and next-change controls
    operate on saved snapshot data. Long lines scroll inside code, not the shell.
+   Source uses 12px monospace text on an 18px line box, with zero vertical row
+   padding and narrow gutters. Keep that density on tablets/phones; do not apply
+   toolbar button minimum heights to code-row controls.
 4. **Inline threads.** Insert a discussion beneath its ending line or range in
    unified/file view; in split view place it beneath a paired row with the cited
    side explicit. Avoid floating chat bubbles that lose their line context. A
@@ -68,9 +71,25 @@ Use a pane `ResizeObserver` / container-width rules, not browser width: the pane
 may occupy half a wide desktop. At 720–1100px collapse the file rail to a Files
 button and overlay the review drawer. Below 720px keep unified/source view, use
 full-width drawers and wrap the toolbar; only code can scroll horizontally. Touch
-controls have at least 40–44px hit areas. Diff colour is supplementary: retain `+`,
-`−`, old/new numbers and text labels. Both Classic and Visual inherit their own
-host tokens and focus styles; no hardcoded GitHub skin.
+toolbar/composer controls have at least 40–44px hit areas. Code-line selection
+remains dense: keyboard selection and the larger Add comment/range controls must
+provide alternatives to precise gutter taps. Diff colour is supplementary: retain
+`+`, `−`, old/new numbers and text labels. Both Classic and Visual inherit their
+own host tokens and focus styles; no hardcoded GitHub skin.
+
+Use active Piclaw CSS tokens, including `--bg-code`, `--text-code`,
+`--font-family-mono`, `--success-color`, `--danger-color` and
+`--accent-contrast-text`; derive diff washes from those tokens. Browser/OS dark
+mode must not override a Piclaw theme or custom tint. Theme changes must not
+remount source or discard drafts/selections. Native panes inherit directly.
+
+For this standalone HTML preview only, a small same-origin bridge traverses the
+nested viewer frames to the Piclaw document, copies an allowlist of computed
+colour/font tokens and listens to `piclaw-theme-change` and theme/style mutations.
+It never writes to the host, polls, reads application state or weakens the viewer
+sandbox. Its observers/listeners detach on page exit. When opened from disk or
+under an inaccessible parent, it uses a readable light/dark fallback; a downloaded
+file cannot know the active theme in an unrelated Piclaw tab.
 
 ## What to reuse from GitHub and Gitea
 

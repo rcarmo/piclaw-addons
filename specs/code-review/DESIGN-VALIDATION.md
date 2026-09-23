@@ -29,6 +29,30 @@ Passed:
 
 Screenshots and machine-readable mock results are delivered in the export bundle.
 
+## Compact density and active-theme revision
+
+The revised mock was checked in a disposable loopback server on an OS-assigned
+port, with the real `generateHtmlViewerPage` template extracted without importing
+its route registration. Two nested frames reproduce the preview layout; a fixture
+outer document uses Piclaw's real `paletteVariables` and `visualDefaultPalette`.
+No live Piclaw endpoint or profile was accessed. Browser home/cache/temp were
+isolated and removed after exit.
+
+Passed:
+- Every unwrapped source/unified/split row is 18px high with zero vertical code
+  padding, including 1024px, 768px and 390px widths; no shell overflow.
+- Host dark palette wins over OS light, and host light wins over OS dark.
+- Theme events, inline token changes and insertion/editing of custom theme CSS
+  update the mock without reload; code surfaces and primary-button text match.
+- A comment draft survives theme changes; range commenting remains functional.
+- Git-less explorer review still works on the narrow layout.
+- Standalone `file://` opens with a fallback when no host is accessible.
+- Removing the preview disconnects host observers/listeners.
+- Zero page exceptions or network requests outside the disposable server.
+
+These checks establish mock theme bridging, not native-pane integration. The
+preview wrapper's own toolbar styling is host-owned and was not changed.
+
 ## Limits
 
 The mock is intentionally in-memory. Reload clears its state. Queue feedback is
