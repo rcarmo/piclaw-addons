@@ -53,6 +53,28 @@ Passed:
 These checks establish mock theme bridging, not native-pane integration. The
 preview wrapper's own toolbar styling is host-owned and was not changed.
 
+## Diff tints, action controls and compact toolbar
+
+Additional Chromium checks used a disposable nested-preview fixture with the real
+Classic/Visual `settings.css` and shared `settings-addon-buttons.css`. Mock controls
+were compared against host-rendered reference buttons (no live instance).
+
+Passed in both skins:
+- Computed secondary/primary/danger/disabled styles match the host references,
+  including padding, radius, font, colours, hover and keyboard focus. `min-height:
+  auto` resolves as auto in flex versus 0px in normal flow; this equivalent minimum
+  was normalised in comparisons. Phone font overrides match at 390px.
+- Close and overflow boxes are 32px square with SVG glyphs and accessible labels;
+  action styling leaves the 18px gutter rows unchanged.
+- Desktop toolbar is at most 46px high; source/comparison, target, Threads and Send
+  remain visible. View options opens/closes, Wrap works, and Escape dismisses it.
+- Empty-selection Send is disabled; selecting threads and sending still queues one
+  synthetic batch without resolving those threads.
+- Green/red backgrounds match the stated 14%/12% blend over four active code
+  surfaces: light, dark, sepia and monochrome. Text colours remain theme-owned;
+  selected lines keep the diff tint. No horizontal shell overflow at 768/390px.
+- No page exceptions or requests outside the disposable server.
+
 ## Limits
 
 The mock is intentionally in-memory. Reload clears its state. Queue feedback is

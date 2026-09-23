@@ -38,10 +38,13 @@ Use Piclaw's existing tabs, popout button, splitters and chat surface. The add-o
 renders only inside its pane container: no second app header, account navigation,
 repository management sidebar or duplicate chat composer.
 
-1. **Review toolbar.** Title and path/repository breadcrumb; source/comparison
-   selector; abbreviated revision IDs; Refresh; target-agent picker; `Send to
-   agent (N)`. A compact `Queue` label explains busy-agent behaviour. A separate
-   `Read-only` indicator describes code, not comment composers.
+1. **Review toolbar.** One compact row: source/comparison selector, target-agent
+   picker, Threads, `Send to agent (N)` and an overflow button. The tab title already
+   identifies the review: no repeated review heading, subtitle or Read-only badge.
+   Refresh, Wrap and Split/Unified live in View options. Path and revision appear
+   together in the file header. Send is disabled with an empty selection; its count
+   appears only when nonzero. Queue mode is explained at submission, and a delivery
+   status row appears only after sending. The desktop bar is at most 46px high.
 2. **Files rail.** About 210px wide for multi-file reviews, collapsible and hidden
    by default for a one-file explorer review. Show change badges, `+/-` counts,
    thread count and a Viewed checkbox. Filter by path / unviewed / unresolved.
@@ -70,17 +73,24 @@ repository management sidebar or duplicate chat composer.
 Use a pane `ResizeObserver` / container-width rules, not browser width: the pane
 may occupy half a wide desktop. At 720–1100px collapse the file rail to a Files
 button and overlay the review drawer. Below 720px keep unified/source view, use
-full-width drawers and wrap the toolbar; only code can scroll horizontally. Touch
-toolbar/composer controls have at least 40–44px hit areas. Code-line selection
-remains dense: keyboard selection and the larger Add comment/range controls must
+full-width drawers and wrap the toolbar; only code can scroll horizontally. Match
+Settings' per-skin action sizing instead of inflating all buttons on narrow screens.
+Keep space between adjacent controls and native keyboard focus; icon-only actions
+use consistent 32px square boxes. Code-line selection remains dense: keyboard
+selection and the larger Add comment/range controls must
 provide alternatives to precise gutter taps. Diff colour is supplementary: retain
 `+`, `−`, old/new numbers and text labels. Both Classic and Visual inherit their
 own host tokens and focus styles; no hardcoded GitHub skin.
 
 Use active Piclaw CSS tokens, including `--bg-code`, `--text-code`,
 `--font-family-mono`, `--success-color`, `--danger-color` and
-`--accent-contrast-text`; derive diff washes from those tokens. Browser/OS dark
-mode must not override a Piclaw theme or custom tint. Theme changes must not
+`--accent-contrast-text`. Addition/deletion rows tint the current `--bg-code` with
+14% green (`#2da44e`) or 12% red (`#cf222e`) respectively; they do not replace it
+with another light/dark palette. Preserve `--text-code` and explicit +/- markers.
+Use dedicated diff hues so monochrome themes cannot collapse both semantic colours
+into the same grey. Range selection adds the accent indicator without erasing the
+row's green/red background. Browser/OS dark mode must not override a Piclaw theme
+or custom tint. Theme changes must not
 remount source or discard drafts/selections. Native panes inherit directly.
 
 For this standalone HTML preview only, a small same-origin bridge traverses the
@@ -90,6 +100,24 @@ It never writes to the host, polls, reads application state or weakens the viewe
 sandbox. Its observers/listeners detach on page exit. When opened from disk or
 under an inaccessible parent, it uses a readable light/dark fallback; a downloaded
 file cannot know the active theme in an unrelated Piclaw tab.
+
+### Action and close controls
+
+Use the appearance rules from `runtime/web/static/common/css/settings-addon-buttons.css`
+with Classic's overrides in `classic/css/settings.css`: padding, font sizing/weight,
+border/radius, background, primary text contrast, hover, disabled and focus-visible.
+The mock embeds a scoped snapshot of these rules and detects Classic/Visual from
+the hosting shell's asset paths; it does not assume Settings CSS styles other panes.
+A native implementation should use a supported shared action style or a narrowly
+scoped equivalent; do not wrap the pane in a fake Settings container to get styles.
+
+Use the tab strip's 12px SVG X, not a typographic multiplication sign, for close
+buttons. Every close/overflow icon has a 32px square box, centred glyph, accessible
+label and tooltip; hide the file-rail close action when the rail is not a drawer.
+Native Piclaw owns the tab's own close control; do not add another close button in
+the review toolbar. Gutter, context-expansion and file-navigation controls explicitly
+opt out of action-button geometry. Do not add arbitrary compact/link variants to
+ordinary Reply, Resolve, Post and Send buttons.
 
 ## What to reuse from GitHub and Gitea
 
