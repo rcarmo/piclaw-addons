@@ -3,6 +3,11 @@
 Status: **draft for Rui's review; no implementation**. Requested 23 September 2026.
 Proposed package: `@rcarmo/piclaw-addon-code-review`.
 
+The complete Gherkin acceptance spec is in [features/](features/), with a
+[coverage map and scenario index](SPEC-INDEX.md). It incorporates the full workflow
+and pane refinements through 23 September 2026. This specifies the intended product;
+the illustrative mock is not an implementation oracle.
+
 The add-on gives the user a read-only code and diff review pane, following the
 interaction model of a GitHub commit/PR review. The user inspects saved code,
 annotates files or ranges, and discusses each concern with a local agent until
@@ -94,8 +99,8 @@ The pane has no Viewed checkbox or stored reading-progress state. Thread checkbo
 only mean Include in send. Syntax highlighting is presentation-only and follows
 Piclaw token colours while preserving source bytes, anchors and diff backgrounds.
 
-The following design defaults remain subject to review of the complete design;
-they do not imply implementation approval.
+The conventional design defaults below are captured in the acceptance scenarios.
+They do not imply implementation approval or require another checklist interview.
 
 1. **Reply controls:** `Send reply to agent` publishes and dispatches one reply
    atomically at the add-on level. Plain `Post reply` is also available.
@@ -289,10 +294,12 @@ editor or assigned agent, not through comment CRUD.
 
 ## Specification checks
 
-The repository's existing `parseFeature` function parsed all eight feature files:
-**121 unique scenarios, 569 scenario steps**, each with an action and observable
-outcome. IDs CR-001 through CR-121 are unique and complete. No unsupported
-outline/table syntax or runtime/package/catalogue changes were found.
+Both `@cucumber/gherkin@41.0.0` and the repository's existing `parseFeature` function
+parse all **12 feature files, 184 unique scenarios and 917 scenario steps** (plus
+26 background steps). Scenario names and step text match between parsers, every
+scenario has an action and outcome, and IDs CR-001 through CR-184 are complete.
+No unsupported outline/table syntax or runtime/package/catalogue changes were made.
+The repository parser was extracted without running the generator's filesystem writes.
 
 A separate read-only spec review identified dispatch retry, routing inheritance,
 draft durability, reply CRUD, resolved re-anchoring and in-flight deletion gaps;
@@ -304,6 +311,10 @@ normal-editor preservation, no reading-progress bookkeeping and touch access.
 CR-116 through CR-118 cover native title tooltips, dispatch-selection checkbox
 meaning and disabled-action explanations. CR-119 through CR-121 cover independent
 snapshot highlighting, active theme colours and safe plain-text fallback.
+CR-122 through CR-141 specify pane layout/navigation and controls. CR-142 through
+CR-154 specify compact source, active-theme diff tints and syntax rendering.
+CR-155 through CR-166 specify host integration boundaries. CR-167 through CR-184
+specify the add-on's durable records and transaction/recovery invariants.
 Step definitions and behaviour tests do not exist yet.
 
 The static HTML mock was exercised in Chromium at desktop, 1024px, 768px and 390px
@@ -321,4 +332,8 @@ only, not Piclaw integration, backend persistence or real agent execution.
 - `05-resolution.feature` — evidence, resolve/reopen and conflicts.
 - `06-changing-source.feature` — refresh, movement, rename/delete and stale anchors.
 - `07-durability-and-concurrency.feature` — restart/retry/offline/races and lifecycle.
-- `08-security-and-accessibility.feature` — authorisation, bounds and both-skin UX.
+- `08-security-and-accessibility.feature` — authorisation, bounds, native titles and highlighting basics.
+- `09-pane-layout-and-controls.feature` — compact toolbar, navigation, inline threads, Settings controls and icons.
+- `10-theme-and-source-rendering.feature` — source density, host themes, green/red washes and safe syntax tokens.
+- `11-host-integration.feature` — explorer/pane APIs, target authority, popout/lifecycle and local enqueue.
+- `12-addon-data-contracts.feature` — snapshots, anchors, discussions, drafts, dispatches, migrations and recovery.

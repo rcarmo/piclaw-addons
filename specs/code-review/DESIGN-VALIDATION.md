@@ -7,9 +7,13 @@ service restart is part of this validation.
 
 The existing `parseFeature` function was extracted from
 `tests/addon-e2e/scripts/generate-specs.ts` without executing the generator's file
-writes. It parsed eight feature files, 121 unique scenarios (CR-001–CR-121) and
-569 scenario steps. Every scenario contains a When and a Then. `git diff --check`
-passed. These are parser/structural checks, not executed acceptance tests.
+writes. It and `@cucumber/gherkin@41.0.0` parsed 12 feature files, 184 unique scenarios
+(CR-001–CR-184), 917 scenario steps and 26 background steps. Both parsers returned
+matching scenario names and step text. Every scenario contains a When and a Then;
+IDs are unique and complete, and no unsupported outline/table syntax is used.
+`git diff --check` passed. These are parser/structural checks, not executed
+acceptance tests. Standard-parser dependencies were installed in an owned temporary
+root with lifecycle scripts disabled and no credentials passed to that process.
 
 ## Static interaction mock
 
@@ -127,6 +131,10 @@ in a synthetic diff is labelled as fixture projection and is not anchor evidence
 Real integration still requires the generic host contracts identified in
 `PANE-DESIGN.md`, scoped state/security tests, file-backed restart tests and
 Classic/Visual browser validation against an explicitly disposable Piclaw target.
+
+The later delegated Gherkin consistency review also timed out; no independent
+review pass is claimed. The new pane/host/data scenarios were checked directly
+against the design and confirmed decisions, preserving existing scenario IDs.
 
 The read-only delegate audit timed out; host findings were verified directly in
 core `9c038af8f`. The optional workspace visual-design preference file was absent;
