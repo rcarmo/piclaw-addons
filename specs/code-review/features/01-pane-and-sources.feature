@@ -100,3 +100,35 @@ Feature: Open an explicit code review pane and choose source revisions
     Then the comparison still identifies "P1" and "C1"
     And unavailable old objects produce an explicit unavailable-diff state
     And saved comments are retained rather than moved to the newest commit
+
+  Scenario: CR-111 Start a file review from the explorer without changes or an editor tab
+    Given saved tracked file "src/stable.ts" has no staged or unstaged changes and is not open in an editor
+    When I select it in the workspace explorer and choose "Review file"
+    Then a separate review tab shows its full saved content and captured revision
+    And file-level and line-range comments are available without selecting a commit or diff
+    And no source editor buffer or agent turn is created
+
+  Scenario: CR-112 Review a Git-less explorer file directly
+    Given I selected saved text file "notes/design.txt" outside any Git repository
+    When I choose "Review file" from the explorer actions
+    Then the review opens in saved-file mode with full source and annotation controls
+    And unavailable Git controls are absent or clearly disabled without blocking comments
+    And no repository or sidecar file is created
+
+  Scenario: CR-113 Keep ordinary explorer opening separate from review
+    Given the Code Review add-on is installed
+    When I use the explorer's ordinary open or "Open in editor" action for "src/main.ts"
+    Then the existing editor path and behaviour are preserved
+    And a review is opened only through the explicit review action or a saved review link
+
+  Scenario: CR-114 Viewed is reading progress for a specific snapshot
+    Given I marked a captured file as viewed and it has unresolved comments
+    When its saved content changes and I refresh to a new snapshot
+    Then that file is no longer shown as viewed for the new content digest
+    And its comments remain unresolved and no review is sent automatically
+
+  Scenario: CR-115 Explorer review is available without hover or right-click
+    Given I selected a saved text file on a tablet
+    When I open its visible file actions
+    Then "Review file" is keyboard and touch accessible
+    And choosing it opens the same saved-file review workflow as desktop

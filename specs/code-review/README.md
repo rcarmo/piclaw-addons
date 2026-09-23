@@ -75,9 +75,23 @@ sends, reply sends and review batches use queue mode. A busy target finishes its
 current work before taking the review; sending guidance does not steer or interrupt
 the active turn. Queue acceptance remains separate from work completion (CR-034).
 
-## Proposed defaults requiring confirmation
+## Pane design and ordinary defaults
 
-The remaining defaults make the draft testable; they are not implementation approval.
+Rui directed the design pass on 23 September 2026 to focus on the review pane,
+GitHub/Gitea interaction patterns, Piclaw integration and add-on-owned records.
+Routine CRUD details use conventional behaviour instead of further checklist questions.
+
+- [Pane UX, integration gaps and logical data model](PANE-DESIGN.md).
+- [Interactive file/diff review mock](review-pane-mock.html) — synthetic in-memory
+  data only, not an implemented add-on.
+
+**Explorer entry is required:** select any saved text file and choose Review file,
+including unchanged files and files outside Git. This opens a separate read-only
+review tab, with no dependency on a commit, diff or an existing editor buffer.
+The same pane also supports explicit change-set and commit entry points.
+
+The following design defaults remain subject to review of the complete design;
+they do not imply implementation approval.
 
 1. **Reply controls:** `Send reply to agent` publishes and dispatches one reply
    atomically at the add-on level. Plain `Post reply` is also available.
@@ -101,9 +115,9 @@ The remaining defaults make the draft testable; they are not implementation appr
    session scope. No public review links, remote peer/A2A reviewers or family-user
    exposure without a separately verified identity/authorisation integration.
 
-The next question is deletion: should deleting a comment preserve its existing
-replies under a "Comment deleted" placeholder, with whole-thread deletion as a
-separate confirmed action? No implementation starts during refinement.
+Deleting a message retains its replies under a "Comment deleted" tombstone;
+whole-thread deletion is a separate confirmed action. No implementation starts
+until the pane and storage design are approved.
 
 ## Source and diff contract
 
@@ -272,8 +286,8 @@ editor or assigned agent, not through comment CRUD.
 ## Specification checks
 
 The repository's existing `parseFeature` function parsed all eight feature files:
-**110 unique scenarios, 519 scenario steps**, each with an action and observable
-outcome. IDs CR-001 through CR-110 are unique and complete. No unsupported
+**115 unique scenarios, 541 scenario steps**, each with an action and observable
+outcome. IDs CR-001 through CR-115 are unique and complete. No unsupported
 outline/table syntax or runtime/package/catalogue changes were found.
 
 A separate read-only spec review identified dispatch retry, routing inheritance,
@@ -281,7 +295,15 @@ draft durability, reply CRUD, resolved re-anchoring and in-flight deletion gaps;
 those are now addressed explicitly. This validates document structure and coverage,
 not execution of the feature. CR-104 through CR-110 add batch preview/submission,
 per-thread outcomes, stale selection, target/scope checks, retries and changed
-queued items. Step definitions and behaviour tests do not exist yet.
+queued items. CR-111 through CR-115 cover explorer entry, unchanged/Git-less files,
+normal-editor preservation, viewed markers and touch access. Step definitions and
+behaviour tests do not exist yet.
+
+The static HTML mock was exercised in Chromium at desktop, 1024px, 768px and 390px
+widths in light/dark themes: explorer paths, safe comment rendering, inline ranges,
+explicit selected batch queueing, unified/split views and keyboard drawer close
+passed with no page exceptions or network requests. These checks validate the mock
+only, not Piclaw integration, backend persistence or real agent execution.
 
 ## Workflow files
 
