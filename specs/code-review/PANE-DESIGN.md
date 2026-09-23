@@ -47,9 +47,8 @@ repository management sidebar or duplicate chat composer.
    status row appears only after sending. The desktop bar is at most 46px high.
 2. **Files rail.** About 210px wide for multi-file reviews, collapsible and hidden
    by default for a one-file explorer review. Show change badges, `+/-` counts,
-   thread count and a Viewed checkbox. Filter by path / unviewed / unresolved.
-   Viewed is personal reading progress for exact captured bytes, not approval or
-   resolution; changed digests invalidate it. Only the selected file's content
+   and open-thread count. Filter by path / unresolved. No Viewed checkbox or
+   reading-progress state: this workflow is about actionable concerns. Only the selected file's content
    needs mounting; previous/next file navigation preserves scroll and drafts.
 3. **Code/diff region.** Full-width main content, sticky filename/hunk header and
    stable line numbers. Default unified diffs at normal pane widths. Split view is
@@ -129,9 +128,8 @@ Copy states purpose and side effects instead of repeating the label; text reflec
 disabled reasons such as no selection, already queued, resolved or target mismatch.
 
 Use visible `Include in send` labels for thread checkboxes; Open/Resolved is a
-separate status. Checking selects a thread only and does not send, resolve or mark
-it viewed. Viewed records reading progress for the captured content; it does not
-approve code or send guidance. Posting and queueing remain explicitly distinguished.
+separate status. Checking selects a thread only and does not send, approve code or
+resolve it. There is no Viewed checkbox. Posting and queueing remain explicitly distinguished.
 Native `title` complements accessible labels, not replaces them. Browser tooltip
 display on focus, touch or disabled controls varies; do not promise a custom fallback.
 Keep essential distinctions visible in labels and submission feedback, and native
@@ -148,7 +146,7 @@ Reuse their familiar review mechanics:
   actions. Source selection remains copyable and never contenteditable.
 - Inline Markdown threads, author/time/edited labels, Reply, Resolve and Reopen.
 - Pending review selection and a final submission drawer with a count and summary.
-- Viewed markers tied to the reviewed version, and outdated-comment context.
+- Outdated-comment context tied to the originally reviewed revision.
 
 Adapt the meaning to Piclaw:
 
@@ -259,9 +257,38 @@ No private runtime imports. Settings contains only review preferences/limits; th
 review itself is a pane. Bundle the add-on's browser modules at their declared
 paths and consume public Preact globals if used. Implement a small read-only
 line/hunk renderer in the add-on; do not borrow private CodeMirror instances.
-Public lazy syntax tokens may be reused if a stable contract exists; plain source
-is a valid initial renderer. Keep visible context bounded and retain accessible
-line IDs across hunk expansion.
+Use Lezer syntax token roles compatible with Piclaw's editor and source preview.
+The inspected `utils/code-highlighting.ts` exports helpers inside the host bundle,
+not a public add-on API. Prefer exposing a small generic bounded highlighting API;
+otherwise package explicit Lezer dependencies in the add-on. Do not import the
+private core helper or dynamically load an editor merely to colour read-only text.
+Keep visible context bounded and retain accessible line IDs across hunk expansion.
+
+### Syntax highlighting contract
+
+Tokenise each complete bounded source snapshot, and old/new diff snapshots
+independently, before slicing results into displayed lines/hunks. A combined patch
+is not a source document; parsing visible lines in isolation loses multiline
+comments and strings. Use the path/language plus source digest and grammar version
+as a bounded token-cache key. Paint existing `tok-*` classes with Piclaw's
+`--syntax-*` variables (including distinct functions, definitions, types, strings,
+booleans and numbers); map Lezer's `tok-string2` template strings to the string
+role too. Theme changes repaint CSS without retokenising or moving
+comments. Token spans never set background, padding, size or line height: 18px rows
+and the green/red diff washes remain intact.
+
+Escape every source fragment before wrapping it in spans. Preserve exact displayed
+characters and line/side coordinates; highlighting must not affect copying or
+anchors. Unknown languages, parser failure or an oversized snapshot fall back to
+escaped plain text, with an honest language/plain-text indicator. Match the existing
+96 KiB highlighting cap initially, independently of the larger review-file limit;
+plain text stays reviewable. Don't guess a grammar for unknown extensions.
+
+This mock precomputes Lezer classes for its synthetic TypeScript/Markdown examples
+at build time and embeds escaped per-line fixtures, checking raw line equality
+before using them. It supports plain-text fallback, not arbitrary runtime parsing.
+No parser payload or network request is added to the page. Tests exercise multiline
+comments/template strings, hostile source and theme role changes separately.
 
 ## Add-on-owned records
 
@@ -291,7 +318,6 @@ schema proposal, not a migration to run:
 | `delivery_attempt` | id, dispatch_id, attempt_no, started_at, state:prepared/attempting/accepted/rejected/unknown, host_row_id, error_code | Host enqueue boundary; restart never blindly replays an ambiguous attempt |
 | `review_event` | id/cursor, review_id, thread_id?, dispatch_id?, trusted actor, type, referenced versions, bounded payload | Resolution, reopen, reassignment, work progress and per-thread evidence; body-free delivery audit after deletion |
 | `request_receipt` | owner_id, request_id, action, payload_hash, result_record_ids, expiry/retention | Mutation idempotency and conflict detection; responses cannot retain deleted comment bodies |
-| `file_view_state` | owner_id, review_id, snapshot_file_id, viewed_digest, viewed_at | Viewed tracking only; selection/scroll/display mode are ephemeral UI preferences |
 
 `target_chat_incarnation` means the durable chat identity lifetime, not a rotating
 Pi session/context ID. Context rotation must preserve authorised assignment; alias
@@ -345,7 +371,7 @@ stale resolution writes. Avoid one giant status enum mixing all three meanings.
 
 UI actions and agent tools share one review service with validated scope. Proposed
 browser actions: create/open review, read snapshot/hunks, post/edit/delete message,
-save draft, resolve/reopen/reassign, mark viewed, prepare/submit batch, inspect/retry
+save draft, resolve/reopen/reassign, prepare/submit batch, inspect/retry
 or reconcile delivery. Agent actions: list assigned batches, read authorised current
 threads, reply, report item work, resolve with evidence. Agents receive IDs and a
 bounded instruction to use these tools, not a repository dump or blanket authority.
@@ -374,7 +400,7 @@ a private draft body must not be encoded in a URL or entrusted solely to transfe
    negative tests. Prove Review file on an unchanged Git file and a Git-less file.
 2. Build the minimal add-on store and read-only file pane: immutable snapshots,
    anchors, persisted comment/reply CRUD and no agent execution.
-3. Add staged/unstaged/commit comparisons, viewed markers, source refresh and
+3. Add staged/unstaged/commit comparisons, syntax highlighting, source refresh and
    projection; prove old-side deletions and renamed/outdated comments.
 4. Add explicit single/batch queueing and scoped agent tools. Exercise busy agents,
    ambiguous delivery, partial results, restart and deletion races using fixtures.

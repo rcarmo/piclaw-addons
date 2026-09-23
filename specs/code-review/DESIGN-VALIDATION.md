@@ -7,8 +7,8 @@ service restart is part of this validation.
 
 The existing `parseFeature` function was extracted from
 `tests/addon-e2e/scripts/generate-specs.ts` without executing the generator's file
-writes. It parsed eight feature files, 118 unique scenarios (CR-001–CR-118) and
-555 scenario steps. Every scenario contains a When and a Then. `git diff --check`
+writes. It parsed eight feature files, 121 unique scenarios (CR-001–CR-121) and
+569 scenario steps. Every scenario contains a When and a Then. `git diff --check`
 passed. These are parser/structural checks, not executed acceptance tests.
 
 ## Static interaction mock
@@ -75,7 +75,7 @@ Passed in both skins:
   selected lines keep the diff tint. No horizontal shell overflow at 768/390px.
 - No page exceptions or requests outside the disposable server.
 
-## Native title tooltip pass
+## Native title tooltip pass (prior revision)
 
 A disposable iframe fixture exercised both Classic/light and Visual/dark at 1440,
 768 and 390px widths. All buttons, inputs, selectors/options, textareas, links and
@@ -90,6 +90,31 @@ without dispatch, Include in send selection, one explicit batch and unchanged
 the associated checkbox. Both skins had zero page exceptions or external requests.
 Native browser tooltip rendering/timing and touch support are browser-owned;
 these checks validate the attributes and copy, not guaranteed native popup display.
+
+## Syntax highlighting and removal of Viewed
+
+The mock now embeds precomputed synthetic source fixtures using `@lezer/javascript`
+1.5.4 (TypeScript dialect), `@lezer/markdown` 1.6.3, and `@lezer/highlight` 1.2.3.
+`classHighlighter` plus the function-tag role matches Piclaw's token convention;
+scoped CSS follows `theme-syntax.css`. The mock loads no runtime grammar or editor
+bundle. Its parent-theme token bridge now includes the syntax-role variables.
+
+Both skins passed disposable Chromium checks for:
+- TypeScript tokens, Markdown source headings, and unhighlighted Git-less text.
+- Exact rendered source text in file/unified/split views, old-side keyword tokens,
+  and no change to addition/deletion backgrounds or 18px rows.
+- Multiline comments/template strings, escaped hostile source, trailing empty lines,
+  and raw-line mismatch fallback without trusting out-of-date fixture HTML.
+- Active host syntax-role colours, including functions and booleans; live palette
+  changes do not rerender code or discard a draft.
+- No Viewed UI or state; the remaining checkboxes only select threads for sending.
+- Native title coverage, new comment without execution, one explicit batch send,
+  1024/768/390px widths, and no shell overflow or page exceptions.
+- No requests outside the owned disposable fixture server.
+
+The source fixtures are design examples, not a runtime parser API. Future arbitrary
+files need the bounded public highlighter or explicitly packaged parser dependency
+described in `PANE-DESIGN.md`.
 
 ## Limits
 

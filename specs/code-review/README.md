@@ -90,6 +90,10 @@ including unchanged files and files outside Git. This opens a separate read-only
 review tab, with no dependency on a commit, diff or an existing editor buffer.
 The same pane also supports explicit change-set and commit entry points.
 
+The pane has no Viewed checkbox or stored reading-progress state. Thread checkboxes
+only mean Include in send. Syntax highlighting is presentation-only and follows
+Piclaw token colours while preserving source bytes, anchors and diff backgrounds.
+
 The following design defaults remain subject to review of the complete design;
 they do not imply implementation approval.
 
@@ -286,8 +290,8 @@ editor or assigned agent, not through comment CRUD.
 ## Specification checks
 
 The repository's existing `parseFeature` function parsed all eight feature files:
-**118 unique scenarios, 555 scenario steps**, each with an action and observable
-outcome. IDs CR-001 through CR-118 are unique and complete. No unsupported
+**121 unique scenarios, 569 scenario steps**, each with an action and observable
+outcome. IDs CR-001 through CR-121 are unique and complete. No unsupported
 outline/table syntax or runtime/package/catalogue changes were found.
 
 A separate read-only spec review identified dispatch retry, routing inheritance,
@@ -296,8 +300,10 @@ those are now addressed explicitly. This validates document structure and covera
 not execution of the feature. CR-104 through CR-110 add batch preview/submission,
 per-thread outcomes, stale selection, target/scope checks, retries and changed
 queued items. CR-111 through CR-115 cover explorer entry, unchanged/Git-less files,
-normal-editor preservation, viewed markers and touch access. CR-116 through CR-118
-cover native title tooltips, checkbox meaning and disabled-action explanations.
+normal-editor preservation, no reading-progress bookkeeping and touch access.
+CR-116 through CR-118 cover native title tooltips, dispatch-selection checkbox
+meaning and disabled-action explanations. CR-119 through CR-121 cover independent
+snapshot highlighting, active theme colours and safe plain-text fallback.
 Step definitions and behaviour tests do not exist yet.
 
 The static HTML mock was exercised in Chromium at desktop, 1024px, 768px and 390px

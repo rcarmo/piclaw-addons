@@ -98,12 +98,12 @@ Feature: Keep reviews local authorised accessible and bounded
     And dynamically rendered controls retain that helper text after state changes
     And no custom tooltip overlay or touch interception replaces browser behaviour
 
-  Scenario: CR-117 Checkbox labels distinguish reading progress from dispatch selection
-    When I inspect the Viewed and Include in send checkboxes
-    Then their visible labels and titles explain their distinct purposes
-    And checking Viewed only changes reading progress for the saved snapshot
-    And checking Include in send only selects a thread for a later explicit send
-    And neither checkbox approves code, resolves a concern or starts agent work
+  Scenario: CR-117 Thread checkboxes have only dispatch-selection meaning
+    When I inspect the Include in send checkboxes
+    Then their visible labels and titles explain that checking only selects a thread
+    And there is no Viewed or reading-progress checkbox
+    And selected threads wait for a later explicit send
+    And selection never approves code, resolves a concern or starts agent work
 
   Scenario: CR-118 Disabled action helper text explains the current blocker
     Given a send is unavailable because selection is empty, a thread is queued or resolved, or targets differ
@@ -111,3 +111,23 @@ Feature: Keep reviews local authorised accessible and bounded
     Then their title attributes explain the applicable blocker without suggesting work was sent
     And the disabled controls remain inert
     And essential status and accessible names remain available without relying on native tooltip display
+
+  Scenario: CR-119 Highlight complete snapshots without mixing diff sides
+    Given old and new source snapshots contain multiline comments or strings with different boundaries
+    When I view saved source and switch between unified and split diffs
+    Then tokens reflect each complete snapshot independently before line slicing
+    And source text, line numbers and comment anchor sides remain unchanged
+
+  Scenario: CR-120 Syntax colours follow Piclaw without erasing diff tints
+    Given a highlighted diff has selected lines and an unposted comment draft
+    When I change the active Piclaw theme or its syntax colours
+    Then token colours update through the host syntax roles without remounting the review
+    And addition and deletion backgrounds keep their green and red theme washes
+    And compact line heights, source selection and the draft are preserved
+
+  Scenario: CR-121 Highlighting fails safely to escaped source
+    Given source contains HTML-like text or has an unsupported language, parser failure or excessive highlighting size
+    When the source renderer processes it
+    Then source text cannot create active markup or execute code
+    And unsupported or failed highlighting returns escaped plain text without disabling comments
+    And copying or anchoring source does not include token markup

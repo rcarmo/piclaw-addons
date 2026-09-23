@@ -121,10 +121,10 @@ Feature: Open an explicit code review pane and choose source revisions
     Then the existing editor path and behaviour are preserved
     And a review is opened only through the explicit review action or a saved review link
 
-  Scenario: CR-114 Viewed is reading progress for a specific snapshot
-    Given I marked a captured file as viewed and it has unresolved comments
-    When its saved content changes and I refresh to a new snapshot
-    Then that file is no longer shown as viewed for the new content digest
+  Scenario: CR-114 File navigation requires no reading-progress bookkeeping
+    Given a review contains saved files with unresolved comments
+    When I browse those files and refresh to a newer saved snapshot
+    Then no Viewed checkbox or read-progress status is required or stored
     And its comments remain unresolved and no review is sent automatically
 
   Scenario: CR-115 Explorer review is available without hover or right-click
