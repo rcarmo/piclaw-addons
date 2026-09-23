@@ -3,11 +3,12 @@
 Status: **draft for Rui's review; no implementation**. Requested 23 September 2026.
 Proposed package: `@rcarmo/piclaw-addon-code-review`.
 
-The add-on gives the user an editor-like pane for reviewing a source file and its
-changes, recording actionable guidance, and discussing each concern with a local
-agent until resolved. The primary workflow is immediate feedback on current work;
-recent committed diffs are a secondary view. GitHub is an interaction reference,
-not a required service or storage backend.
+The add-on gives the user a read-only code and diff review pane, following the
+interaction model of a GitHub commit/PR review. The user inspects saved code,
+annotates files or ranges, and discusses each concern with a local agent until
+resolved. Saved working changes and committed diffs are review inputs; the pane
+never edits source. GitHub is an interaction reference, not a required service or
+storage backend.
 
 ## Implementation gate
 
@@ -24,7 +25,7 @@ step definitions through the existing isolated E2E harness. Keep scenario IDs.
 
 ## Required outcomes
 
-- Open a dedicated Piclaw pane without replacing the normal source editor.
+- Open a dedicated read-only code/diff review pane without replacing the normal editor.
 - Annotate a whole file, a line or a contiguous line range.
 - Comment on current saved content, unstaged/staged changes and recent commit diffs.
 - Persist comments internally, independently of the browser, agent context window
@@ -54,6 +55,14 @@ a reason no code change is needed, without requiring user confirmation. The user
 can reopen it. Existing scenarios CR-046, CR-047 and CR-050 cover this workflow;
 resolution retains the discussion and its history.
 
+**Saved code only, read-only review — confirmed by Rui on 23 September 2026:**
+review saved files and Git diffs, like a GitHub commit/PR review. The user will not
+edit source buffers in this pane. Unsaved source buffers, dirty-buffer detection,
+save-before-review prompts and source editing controls are out of scope. Only
+comment/reply text is editable; comment drafts remain supported. Source views
+identify their saved revision or exact diff pair. No GitHub integration or PR
+fetching is implied by this interaction model.
+
 ## Proposed defaults requiring confirmation
 
 The remaining defaults make the draft testable; they are not implementation approval.
@@ -71,26 +80,24 @@ The remaining defaults make the draft testable; they are not implementation appr
 3. **Manual resolution and reopening controls:** the user may also resolve a
    thread. Reopening alone does not start work. A new comment on a resolved thread
    requires an explicit reopen-and-post action.
-4. **Saved-file review first:** dirty source buffers are not silently saved or
-   presented as disk content. Offer Save in the normal editor and refresh, or
-   review the saved revision with a visible warning. Unsaved-buffer annotations
-   would be a separate explicitly versioned source mode if requested.
-5. **Safe deletion:** users edit/delete their own comments and can confirm deleting
+4. **Safe deletion:** users edit/delete their own comments and can confirm deleting
    a whole thread. Agent messages retain agent authorship; an agent edits/deletes
    only its own replies. Deletion removes bodies from ordinary views/agent retrieval;
    identity tombstones preserve reply order and prevent resurrection. Edited/deleted
    text already delivered to an agent cannot be recalled; show that fact.
-6. **Single-operator workspace v1:** server-derived local ownership and selected
+5. **Single-operator workspace v1:** server-derived local ownership and selected
    session scope. No public review links, remote peer/A2A reviewers or family-user
    exposure without a separately verified identity/authorisation integration.
 
-The next question is source scope: should v1 review saved files and Git diffs only,
-with a warning when the normal editor has unsaved changes, or also support
-annotations on unsaved editor buffers? No implementation starts during refinement.
+The next question is dispatch scope: should `Send to agent` also support sending
+several selected comments together as one review, in addition to one thread at a
+time? Batch dispatch is not specified yet. No implementation starts during refinement.
 
 ## Source and diff contract
 
-- Default view: current saved text plus the working changes nearest to it.
+- Source and diff views are read-only and load only saved filesystem/Git content.
+  No source editor or unsaved-buffer API is needed. A file launch shows its saved
+  content; a diff launch shows the explicitly selected comparison.
 - Explicit modes: saved source; index-to-worktree (unstaged); HEAD-to-index
   (staged); selected commit against a specified parent. Display the mode, paths,
   revision IDs/content digests and capture time in the pane.
@@ -128,11 +135,11 @@ reply/delete and reply/resolve races produce visible conflicts, not last-writer 
 
 A resolved thread remains queryable and can be reopened. Retention is explicit;
 no age-based purge is implicit. Disabling/removing the add-on stops its listeners
-and tools but retains durable review data for reinstallation. Drafts are private
-operator records saved through a bounded debounced internal write, never available
+and tools but retains durable review data for reinstallation. Comment/reply drafts
+are private operator records saved through a bounded debounced internal write, never available
 as published guidance to an agent. Only acknowledged draft versions are promised
-to survive reload/process restart. While offline, unsaved text stays in the open
-editor with a clear warning; never promise recovery of unacknowledged keystrokes.
+to survive reload/process restart. While offline, unsaved comment text stays in
+its composer with a clear warning; never promise recovery of unacknowledged keystrokes.
 No dispatch may depend solely on a browser-local state flag.
 
 ## Agent interaction contract
@@ -215,7 +222,7 @@ actual host routing and isolated execution where authority is confirmed.
 - File-backed process restart tests: pending reviews, conversations, drafts,
   resolution evidence, tombstones and ambiguous delivery recovery.
 - Real-host Playwright: Classic/Visual, light/dark, desktop/tablet/phone, keyboard
-  and touch range selection, navigation, CRUD, dirty-close/failure, agent lifecycle,
+  and touch range selection, navigation, CRUD, comment-draft close/failure, agent lifecycle,
   and no clipped source/thread controls. Exact-path modules, no bundling shortcuts.
 - Git fixtures: staged/unstaged simultaneously, untracked/deleted/renamed files,
   root/merge commits, concurrent working-tree changes and linked worktrees.
@@ -248,7 +255,7 @@ not execution of the feature. Step definitions and behaviour tests do not exist 
 
 ## Workflow files
 
-- `01-pane-and-sources.feature` — explicit launch, saved/dirty files, diff modes.
+- `01-pane-and-sources.feature` — explicit launch, read-only saved code, diff modes.
 - `02-annotations-and-drafts.feature` — line/range/file guidance and posting.
 - `03-comment-management.feature` — message edits, deletion and ownership.
 - `04-threaded-agent-work.feature` — dispatch, dialogue, failures and reassignment.

@@ -1,6 +1,6 @@
 @code-review @draft
 Feature: Open an explicit code review pane and choose source revisions
-  Immediate source guidance is the default; recent commit diffs are secondary.
+  Review saved code and diffs read-only, following a GitHub commit/PR review workflow.
 
   Background:
     Given Code Review is installed in a disposable single-operator Piclaw workspace
@@ -10,7 +10,7 @@ Feature: Open an explicit code review pane and choose source revisions
   Scenario: CR-001 Open review without replacing the normal editor
     Given "src/main.ts" is open in the normal source editor
     When I explicitly open Code Review for "src/main.ts"
-    Then a separate editor-like review tab shows the saved source with line numbers
+    Then a separate read-only review tab shows the saved source with line numbers
     And the normal source editor remains available with its content unchanged
     And the suggested agent target "Implementation" is visible but no work is queued
 
@@ -28,15 +28,15 @@ Feature: Open an explicit code review pane and choose source revisions
     And Git diff and commit selectors explain that Git history is unavailable
     And no repository is created automatically
 
-  Scenario: CR-004 Unsaved editor content is not mistaken for disk content
-    Given the source editor has unsaved changes to "src/main.ts"
-    When I open Code Review for "src/main.ts"
-    Then the pane warns that the editor buffer differs from saved content
-    And it offers to review the saved revision or return to the editor to save
-    And neither choice silently saves or discards the buffer
+  Scenario: CR-004 Source review has no editing or buffer-save workflow
+    Given I am viewing saved source in Code Review
+    When I focus the code area and attempt to type or paste replacement source
+    Then the displayed source and saved file remain unchanged
+    And source save controls and unsaved-buffer prompts are absent
+    And I can still select source ranges and type guidance in a comment composer
 
-  Scenario: CR-005 Review a newly saved revision after an editor save
-    Given I chose to save my dirty file through the normal editor
+  Scenario: CR-005 Review a newer saved revision after agent changes
+    Given the agent saved changes to the reviewed file after my snapshot was captured
     When I refresh its code review
     Then the pane identifies the new saved content digest and capture time
     And earlier comments retain their original snapshot references
