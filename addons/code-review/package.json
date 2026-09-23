@@ -5,11 +5,56 @@
   "type": "module",
   "main": "index.ts",
   "license": "MIT",
-  "piclaw": { "type": "extension", "compatibleVersions": ">=3.2.1", "tags": ["code-review", "workspace", "agent-workflow"] },
-  "pi": { "extensions": ["index.ts"], "web": { "entries": ["web/index.ts"] }, "runtime": { "entries": ["runtime.ts"], "load": "startup" }, "skills": ["skills/code-review"] },
-  "dependencies": { "diff": "9.0.0", "@lezer/common": "1.5.1", "@lezer/highlight": "1.2.3", "@lezer/javascript": "1.5.4", "@lezer/json": "1.0.3", "@lezer/markdown": "1.6.3", "@lezer/python": "1.1.18" },
-  "devDependencies": { "playwright": "1.62.1" },
-  "engines": { "bun": ">=1.4.1" },
-  "scripts": { "test": "bun test" },
-  "keywords": ["piclaw-addon", "code-review", "pi-package"]
+  "piclaw": {
+    "type": "extension",
+    "compatibleVersions": ">=3.2.1",
+    "tags": [
+      "code-review",
+      "workspace",
+      "agent-workflow"
+    ]
+  },
+  "pi": {
+    "extensions": [
+      "index.ts"
+    ],
+    "web": {
+      "entries": [
+        "web/index.ts"
+      ]
+    },
+    "runtime": {
+      "entries": [
+        "runtime.ts"
+      ],
+      "load": "startup"
+    },
+    "skills": [
+      "skills/code-review"
+    ]
+  },
+  "dependencies": {
+    "marked": "18.0.10",
+    "diff": "9.0.0",
+    "@lezer/common": "1.5.1",
+    "@lezer/highlight": "1.2.3",
+    "@lezer/javascript": "1.5.4",
+    "@lezer/json": "1.0.3",
+    "@lezer/markdown": "1.6.3",
+    "@lezer/python": "1.1.18"
+  },
+  "devDependencies": {
+    "playwright": "1.62.1"
+  },
+  "engines": {
+    "bun": ">=1.4.1"
+  },
+  "scripts": {
+    "test": "bun test"
+  },
+  "keywords": [
+    "piclaw-addon",
+    "code-review",
+    "pi-package"
+  ]
 }

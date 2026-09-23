@@ -1,6 +1,12 @@
 import { createHash } from "node:crypto";
 
-import { LIMITS, ReviewError, type AnchorProjection, type AnchorSide, type OriginalAnchor } from "./contracts.ts";
+import {
+  LIMITS,
+  ReviewError,
+  type AnchorProjection,
+  type AnchorSide,
+  type OriginalAnchor,
+} from "./contracts.ts";
 
 const MAX_SELECTION_BYTES = LIMITS.commentBytes;
 const CONTEXT_LINES = LIMITS.contextLines;
@@ -42,7 +48,10 @@ export function createAnchor(
     endLine: range.endLine,
     blobSha256,
     selectedText,
-    contextBefore: lines.slice(Math.max(0, range.startLine - 1 - CONTEXT_LINES), range.startLine - 1),
+    contextBefore: lines.slice(
+      Math.max(0, range.startLine - 1 - CONTEXT_LINES),
+      range.startLine - 1,
+    ),
     contextAfter: lines.slice(range.endLine, range.endLine + CONTEXT_LINES),
   };
 }
@@ -75,17 +84,20 @@ export function projectAnchor(
   }
 
   const currentLines = splitDocumentLines(text);
-  const occurrences = findOccurrences(currentLines, selectedLines).map((startIndex) => ({
-    startLine: startIndex + 1,
-    endLine: startIndex + selectedLines.length,
-    score: contextScore(anchor, currentLines, startIndex),
-  }));
+  const occurrences = findOccurrences(currentLines, selectedLines).map(
+    (startIndex) => ({
+      startLine: startIndex + 1,
+      endLine: startIndex + selectedLines.length,
+      score: contextScore(anchor, currentLines, startIndex),
+    }),
+  );
 
   if (occurrences.length === 0) {
     return missingProjection();
   }
 
-  const hasStoredContext = anchor.contextBefore.length > 0 || anchor.contextAfter.length > 0;
+  const hasStoredContext =
+    anchor.contextBefore.length > 0 || anchor.contextAfter.length > 0;
 
   if (occurrences.length === 1) {
     const [match] = occurrences;
@@ -121,24 +133,42 @@ export function projectAnchor(
   };
 }
 
-function validateRange(range: { startLine: number; endLine: number }, lineCount: number): void {
+function validateRange(
+  range: { startLine: number; endLine: number },
+  lineCount: number,
+): void {
   if (!Number.isInteger(range.startLine) || !Number.isInteger(range.endLine)) {
-    throw new ReviewError("invalid_anchor_range", "Anchor range must use whole 1-based line numbers.");
+    throw new ReviewError(
+      "invalid_anchor_range",
+      "Anchor range must use whole 1-based line numbers.",
+    );
   }
   if (range.startLine < 1 || range.endLine < 1) {
-    throw new ReviewError("invalid_anchor_range", "Anchor range must start at line 1 or later.");
+    throw new ReviewError(
+      "invalid_anchor_range",
+      "Anchor range must start at line 1 or later.",
+    );
   }
   if (range.startLine > range.endLine) {
-    throw new ReviewError("invalid_anchor_range", "Anchor range start must be less than or equal to end.");
+    throw new ReviewError(
+      "invalid_anchor_range",
+      "Anchor range start must be less than or equal to end.",
+    );
   }
   if (range.endLine > lineCount) {
-    throw new ReviewError("invalid_anchor_range", "Anchor range must stay within the captured file.");
+    throw new ReviewError(
+      "invalid_anchor_range",
+      "Anchor range must stay within the captured file.",
+    );
   }
 }
 
 function validateSelectionSize(selectedText: string): void {
   if (Buffer.byteLength(selectedText, "utf8") > MAX_SELECTION_BYTES) {
-    throw new ReviewError("anchor_selection_too_large", `Anchor selection must be at most ${MAX_SELECTION_BYTES} UTF-8 bytes.`);
+    throw new ReviewError(
+      "anchor_selection_too_large",
+      `Anchor selection must be at most ${MAX_SELECTION_BYTES} UTF-8 bytes.`,
+    );
   }
 }
 
@@ -159,7 +189,10 @@ function endsWithLineBreak(text: string): boolean {
   return text.endsWith("\n") || text.endsWith("\r");
 }
 
-function findOccurrences(lines: readonly string[], selectedLines: readonly string[]): number[] {
+function findOccurrences(
+  lines: readonly string[],
+  selectedLines: readonly string[],
+): number[] {
   const lastStart = lines.length - selectedLines.length;
   if (lastStart < 0) return [];
 
@@ -179,13 +212,32 @@ function findOccurrences(lines: readonly string[], selectedLines: readonly strin
   return starts;
 }
 
-function contextScore(anchor: OriginalAnchor, lines: readonly string[], startIndex: number): number {
-  return countMatchingBefore(anchor.contextBefore, lines, startIndex) + countMatchingAfter(anchor.contextAfter, lines, startIndex + anchorLength(anchor));
+function contextScore(
+  anchor: OriginalAnchor,
+  lines: readonly string[],
+  startIndex: number,
+): number {
+  return (
+    countMatchingBefore(anchor.contextBefore, lines, startIndex) +
+    countMatchingAfter(
+      anchor.contextAfter,
+      lines,
+      startIndex + anchorLength(anchor),
+    )
+  );
 }
 
-function countMatchingBefore(expectedBefore: readonly string[], lines: readonly string[], startIndex: number): number {
+function countMatchingBefore(
+  expectedBefore: readonly string[],
+  lines: readonly string[],
+  startIndex: number,
+): number {
   let score = 0;
-  for (let expectedIndex = expectedBefore.length - 1, lineIndex = startIndex - 1; expectedIndex >= 0 && lineIndex >= 0; expectedIndex -= 1, lineIndex -= 1) {
+  for (
+    let expectedIndex = expectedBefore.length - 1, lineIndex = startIndex - 1;
+    expectedIndex >= 0 && lineIndex >= 0;
+    expectedIndex -= 1, lineIndex -= 1
+  ) {
     if (expectedBefore[expectedIndex] !== lines[lineIndex]) {
       break;
     }
@@ -194,9 +246,17 @@ function countMatchingBefore(expectedBefore: readonly string[], lines: readonly 
   return score;
 }
 
-function countMatchingAfter(expectedAfter: readonly string[], lines: readonly string[], startIndex: number): number {
+function countMatchingAfter(
+  expectedAfter: readonly string[],
+  lines: readonly string[],
+  startIndex: number,
+): number {
   let score = 0;
-  for (let offset = 0; offset < expectedAfter.length && startIndex + offset < lines.length; offset += 1) {
+  for (
+    let offset = 0;
+    offset < expectedAfter.length && startIndex + offset < lines.length;
+    offset += 1
+  ) {
     if (expectedAfter[offset] !== lines[startIndex + offset]) {
       break;
     }

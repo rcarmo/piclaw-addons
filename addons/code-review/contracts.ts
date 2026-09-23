@@ -3,15 +3,32 @@ export type ReviewIdentity = Readonly<{
   ownerId: string;
   actorId: string;
   kind: "operator" | "agent";
+  workspaceId?: string;
   chatId?: string;
   chatIncarnation?: string;
 }>;
-export type LocalTarget = Readonly<{ chatId: string; incarnation: string; label: string }>;
+export type LocalTarget = Readonly<{
+  chatId: string;
+  incarnation: string;
+  label: string;
+}>;
 export type SourceMode = "source" | "unstaged" | "staged" | "commit";
 export type AnchorSide = "source" | "old" | "new";
 export type ThreadState = "open" | "resolved" | "deleted";
-export type WorkState = "not_started" | "in_progress" | "waiting_user" | "blocked" | "failed" | "completed" | "superseded";
-export type DeliveryState = "prepared" | "attempting" | "accepted" | "rejected" | "unknown";
+export type WorkState =
+  | "not_started"
+  | "in_progress"
+  | "waiting_user"
+  | "blocked"
+  | "failed"
+  | "completed"
+  | "superseded";
+export type DeliveryState =
+  | "prepared"
+  | "attempting"
+  | "accepted"
+  | "rejected"
+  | "unknown";
 export interface SourceCapture {
   workspaceId: string;
   worktreeId: string;
@@ -51,8 +68,30 @@ export interface Mutation {
   requestId: string;
   expectedVersion?: number;
 }
-export interface ReviewErrorShape { code: string; message: string; status: number }
-export class ReviewError extends Error implements ReviewErrorShape {
-  constructor(public code: string, message: string, public status = 400) { super(message); this.name = "ReviewError"; }
+export interface ReviewErrorShape {
+  code: string;
+  message: string;
+  status: number;
 }
-export const LIMITS = Object.freeze({ fileBytes: 2 * 1024 * 1024, fileLines: 50_000, diffLines: 10_000, commentBytes: 16 * 1024, historyPage: 100, threadPage: 50, captureFiles: 100, captureBytes: 8 * 1024 * 1024, batchItems: 50, contextLines: 3 });
+export class ReviewError extends Error implements ReviewErrorShape {
+  constructor(
+    public code: string,
+    message: string,
+    public status = 400,
+  ) {
+    super(message);
+    this.name = "ReviewError";
+  }
+}
+export const LIMITS = Object.freeze({
+  fileBytes: 2 * 1024 * 1024,
+  fileLines: 50_000,
+  diffLines: 10_000,
+  commentBytes: 16 * 1024,
+  historyPage: 100,
+  threadPage: 50,
+  captureFiles: 100,
+  captureBytes: 8 * 1024 * 1024,
+  batchItems: 50,
+  contextLines: 3,
+});

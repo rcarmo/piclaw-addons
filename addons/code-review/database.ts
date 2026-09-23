@@ -14,28 +14,72 @@ export class ReviewDatabase {
     else {
       const resolved = resolve(file);
       const parent = realpathSync(dirname(resolved));
-      if (parent !== dirname(resolved)) throw new ReviewError("unsafe_store", "Store parent must be canonical.");
-      try { const stat = lstatSync(resolved); if (!stat.isFile() || stat.isSymbolicLink()) throw new ReviewError("unsafe_store", "Store must be a regular file."); }
-      catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+      if (parent !== dirname(resolved))
+        throw new ReviewError(
+          "unsafe_store",
+          "Store parent must be canonical.",
+        );
+      try {
+        const stat = lstatSync(resolved);
+        if (!stat.isFile() || stat.isSymbolicLink())
+          throw new ReviewError(
+            "unsafe_store",
+            "Store must be a regular file.",
+          );
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      }
       this.db = new Database(resolved, { create: true, strict: true });
     }
     try {
       this.db.exec("PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;");
-      const version = (this.db.query("PRAGMA user_version").get() as { user_version: number }).user_version;
-      if (version > SCHEMA) throw new ReviewError("unsupported_schema", "Review store was written by a newer add-on.");
+      const version = (
+        this.db.query("PRAGMA user_version").get() as { user_version: number }
+      ).user_version;
+      if (version > SCHEMA)
+        throw new ReviewError(
+          "unsupported_schema",
+          "Review store was written by a newer add-on.",
+        );
       if (version === 0) {
-        const tables = this.db.query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all();
-        if (tables.length) throw new ReviewError("unsupported_schema", "Unversioned non-empty database is not a review store.");
-        this.db.transaction(() => { this.db.exec(schema); this.db.exec(`PRAGMA user_version=${SCHEMA}`); }).immediate();
+        const tables = this.db
+          .query(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'",
+          )
+          .all();
+        if (tables.length)
+          throw new ReviewError(
+            "unsupported_schema",
+            "Unversioned non-empty database is not a review store.",
+          );
+        this.db
+          .transaction(() => {
+            this.db.exec(schema);
+            this.db.exec(`PRAGMA user_version=${SCHEMA}`);
+          })
+          .immediate();
       }
       this.db.exec("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL;");
-    } catch (error) { this.db.close(); throw error; }
+    } catch (error) {
+      this.db.close();
+      throw error;
+    }
   }
-  transaction<T>(fn: () => T): T { return this.db.transaction(fn).immediate(); }
-  get<T>(sql: string, ...params: any[]): T | null { return (this.db.query(sql).get(...params) as T) ?? null; }
-  all<T>(sql: string, ...params: any[]): T[] { return this.db.query(sql).all(...params) as T[]; }
-  run(sql: string, ...params: any[]) { return this.db.query(sql).run(...params); }
-  close(): void { this.db.close(); }
+  transaction<T>(fn: () => T): T {
+    return this.db.transaction(fn).immediate();
+  }
+  get<T>(sql: string, ...params: any[]): T | null {
+    return (this.db.query(sql).get(...params) as T) ?? null;
+  }
+  all<T>(sql: string, ...params: any[]): T[] {
+    return this.db.query(sql).all(...params) as T[];
+  }
+  run(sql: string, ...params: any[]) {
+    return this.db.query(sql).run(...params);
+  }
+  close(): void {
+    this.db.close();
+  }
 }
 const schema = `
 CREATE TABLE reviews (
