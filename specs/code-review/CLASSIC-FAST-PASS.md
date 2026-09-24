@@ -13,7 +13,7 @@
 - The authenticated Classic pane stayed open for 65 seconds with no new Code Review API request, provider request or dispatch row, both before and after a completed loopback send. This does not establish hidden-pane, cancellation or long-duration performance budgets.
 - A saved comment containing a script tag and unsafe `javascript:` URL rendered as text after explicit Refresh. No script ran or unsafe link appeared; a safe HTTPS link retained `noopener noreferrer`, and dispatch count stayed unchanged. Prompt-injection and all content variants are not covered.
 - Add-on: 157 standard tests passed, one opt-in host test skipped in the standard suite; TypeScript check passed. A separate standalone copied-package import passed.
-- Core worktree: 5,640 fast tests passed (7 skipped), 25 feature tests passed, and 9 web-build smoke tests passed in separate runs. The earlier combined `make ci-fast` did not return a final status after the test phase; these separate successes are not a clean combined CI result.
+- Core worktree: canonical `make ci-fast` returned exit status **0** on 24 September at 19:42 UTC: 5,640 fast tests passed (7 skipped), 25 feature tests passed and 9 web-build smoke tests passed. The core worktree still contains modified and untracked files; this is local fast CI, not hosted CI.
 - CR-077, CR-078, CR-081 and CR-083 canonical step slices ran against the authenticated disposable Classic host. Other scenarios remain `acceptance: pending` in `coverage.ts`. CR-087 and CR-138 are now scoped to Classic; Visual was removed from active delivery by the operator.
 
 ## Gates requiring a decision or more work
