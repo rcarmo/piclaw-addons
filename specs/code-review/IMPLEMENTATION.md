@@ -62,8 +62,12 @@ acceptance scenarios and are not full Piclaw integration proof.
 - CR-059 now also has a real staged `git mv` fixture: source-mode review to
   staged rename, matching old blob, null Git file identity, immutable original
   anchor and unchanged Git status/index. A fabricated rename with a mismatched
-  old blob is rejected. Rename-plus-edit and ambiguous candidate UI behaviour
-  still need acceptance coverage.
+  old blob is rejected. Ambiguous rename candidates and UI behaviour still
+  need acceptance coverage.
+- A staged rename with a new line inserted before the anchored block also
+  passes via real Git capture: the concern projects to the shifted new-side
+  range while the original anchor stays at its saved line. Equal-plausibility
+  rename candidates and pane navigation remain open.
 - CR-061 has an owned Git wrapper that changes one saved file before or after
   a capture boundary. Capture returns coherent source bytes or the explicit
   `changed_during_read` error; it never persists a mixed revision. An atomic

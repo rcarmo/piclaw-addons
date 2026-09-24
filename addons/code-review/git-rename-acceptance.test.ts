@@ -264,3 +264,22 @@ test("CR-059 fake rename with a changed old blob cannot project", async () => {
     f.cleanup();
   }
 });
+
+test("CR-059 real staged rename with an unrelated insertion preserves the anchor on the new side", async () => {
+  const f = await reviewFixture();
+  try {
+    f.git("mv", "src/main.ts", "src/entry.ts");
+    f.write("src/entry.ts", `added line\n${f.text}`);
+    f.git("add", "src/entry.ts");
+    const before = f.git("status", "--porcelain=v1");
+    const index = readFileSync(join(f.repoDir, ".git/index"));
+    const captured = await f.reader.capture({ path: ".", mode: "staged" });
+    expect(f.git("status", "--porcelain=v1")).toBe(before);
+    expect(readFileSync(join(f.repoDir, ".git/index")).equals(index)).toBe(true);
+    const file = captured.files.find((row) => row.oldPath === "src/main.ts" && row.newPath === "src/entry.ts");
+    expect(file).toMatchObject({ change: "renamed", oldText: f.text, newText: `added line\n${f.text}`, fileIdentity: null });
+    const id = f.store.capture(f.who, f.reviewId, captured, f.mutation()).files[0]!;
+    expect(f.store.project(f.who, f.thread.threadId, id)).toMatchObject({ status: "moved", startLine: 4, endLine: 4, side: "new" });
+    expect(f.store.getThread(f.who, f.thread.threadId).anchor.startLine).toBe(3);
+  } finally { f.cleanup(); }
+});
