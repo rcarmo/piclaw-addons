@@ -649,6 +649,7 @@ export class ReviewStore {
         oldPath: file.old_path,
         newPath: file.new_path,
         blobSha256: anchor.blobSha256,
+        fileIdentity: file.file_identity,
         selectedText: anchor.selectedText,
         contextBefore: anchor.contextBefore,
         contextAfter: anchor.contextAfter,
@@ -1091,16 +1092,20 @@ export class ReviewStore {
       (current.new_path || current.old_path);
     const rename =
       current.change_kind === "renamed" &&
-      current.old_path === (previous.new_path || previous.old_path);
+      current.old_path === (previous.new_path || previous.old_path) &&
+      previous.new_hash !== null &&
+      current.old_hash === previous.new_hash;
     const sameFile =
       previous.id === current.id ||
-      ((samePath || rename) &&
-        (!previous.file_identity ||
-          !current.file_identity ||
-          previous.file_identity === current.file_identity));
+      rename ||
+      (samePath &&
+        previous.file_identity != null &&
+        current.file_identity != null &&
+        previous.file_identity === current.file_identity);
     let text: string;
     try {
-      text = this.source(current, anchor.side);
+      const side = anchor.side === "source" && current.change_kind !== "source" && current.change_kind !== "unchanged" ? "new" : anchor.side;
+      text = this.source(current, side);
     } catch {
       return {
         status: "missing",
@@ -1109,7 +1114,8 @@ export class ReviewStore {
         method: "unmapped",
       };
     }
-    return projectAnchor(anchor, text, { sameFile });
+    const projection = projectAnchor(anchor, text, { sameFile });
+    return { ...projection, side: anchor.side === "source" && current.change_kind !== "source" && current.change_kind !== "unchanged" ? "new" : anchor.side };
   }
   reanchor(
     who: ReviewIdentity,

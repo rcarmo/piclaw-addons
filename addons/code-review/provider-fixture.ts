@@ -53,6 +53,8 @@ export function startReviewProvider() {
         thread = previous;
         if (!thread?.id)
           return new Response("Thread read failed", { status: 400 });
+        if (thread.currentSource?.status !== "unchanged" || thread.currentSource?.savedHash !== undefined)
+          return new Response("Current source status missing or leaking a hash", { status: 400 });
         args = {
           action: "reply",
           threadId: thread.id,

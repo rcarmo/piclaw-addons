@@ -574,6 +574,25 @@ export class SourceReader {
         : `${input.mode === "staged" ? "index" : "saved"}:${hashText(stableJson(result.files))}`;
     return result;
   }
+  /** Compare saved bytes with an authorised anchor side; return no live contents or hashes. */
+  currentStatus(path: string, snapshotHash: string | null, fileIdentity: string | null) {
+    const checkedAt = new Date().toISOString();
+    try {
+      const current = this.read(this.path(path));
+      const status = !fileIdentity ? "unverified"
+        : current.identity !== fileIdentity ? "replaced"
+        : hashText(current.text) === snapshotHash ? "unchanged" : "changed";
+      return { status, path, checkedAt };
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      return {
+        status: code === "ENOENT" ? "missing" : "unavailable",
+        path, checkedAt,
+        // Do not expose filesystem error text or escaped paths to callers.
+        reason: error instanceof ReviewError ? error.code : code === "ENOENT" ? "not_found" : "unreadable",
+      };
+    }
+  }
   async history(path: string, limit = 30, skip = 0) {
     if (
       !Number.isSafeInteger(limit) ||

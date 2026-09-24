@@ -38,6 +38,34 @@ using the real add-on service with a fake trusted host and owned SQLite/source
 fixtures. Strict add-on TypeScript check passes. These are not 184 completed
 acceptance scenarios and are not full Piclaw integration proof.
 
+## 24 September checkpoint
+
+- Add-on: 90 tests passed and one opt-in host test skipped in the standard run;
+  strict add-on TypeScript check passed. The opt-in host test passed separately
+  against a disposable Piclaw core worktree and deterministic loopback provider:
+  Explorer opened the pane, persisted a comment, queued an explicit dispatch,
+  and displayed the agent's evidence-backed resolution after reload. No paid
+  provider was called. The fixture now checks that the agent receives a bounded
+  `currentSource` status without a live-content hash.
+- Core: `make ci-fast` passed in `addon-workspace-context` with 5,640 runtime
+  tests passed (seven skipped), 25 feature tests and nine build tests. The new
+  queued-public-message regression passed; a later ordinary prompt receives no
+  local dispatch authority. The exact verified durable row can be retried for
+  crash recovery.
+- New add-on tests exercise moved, missing and ambiguous anchors, explicit
+  re-anchoring, verified and unverified rename projection, replaced paths,
+  current saved-file status, file-backed reopen, rollback, tombstones, interrupted
+  delivery and copied-backup access checks. Unknown file identity never grants
+  same-path projection; Git rename requires a matching old-side blob. The
+  `currentSource` check returns no live source bytes or digest, and reports
+  `unverified` when no saved-file identity is available.
+- These are focused implementation tests, not full CR-001–CR-184 acceptance.
+  The rename cases use synthetic capture rows; real Git/browser rename coverage
+  is still needed. The copied-backup check reopens the store, not a restored
+  Piclaw host. CR-181 tests rejection of a newer unsupported schema; no older
+  supported migration exists to inject a failed upgrade. The theme/layout
+  matrix, long-history and performance gates remain open.
+
 ## Required before release
 
 - Complete pane behaviour: history/review/agent selection UX, draft navigation and

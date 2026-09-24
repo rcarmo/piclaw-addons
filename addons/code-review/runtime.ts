@@ -210,14 +210,29 @@ export async function reviewAction(
     case "threads":
       return service.listThreads(who, body.reviewId, body);
     case "thread": {
+      // All asynchronous host checks precede the discussion read. No stale
+      // discussion row can survive a same-thread mutation during those checks.
+      await recheck();
       const result = service.getThread(
         who,
         body.threadId,
         body.after === undefined ? 0 : Number(body.after),
         body.limit,
       );
+      const sourcePath = result.anchor.side === "old"
+        ? result.source.oldPath
+        : result.source.newPath ?? result.source.oldPath;
+      const currentSource = ctx.kind === "agent" && sourcePath
+        ? reader().currentStatus(
+            sourcePath,
+            result.source.blobSha256,
+            result.anchor.side === "old" ? null : result.source.fileIdentity,
+          )
+        : undefined;
+      // Source inspection is observational, never a refresh/re-anchor or permission grant.
       return {
         ...result,
+        currentSource,
         messages: result.messages.map((message) => ({
           ...message,
           html: message.body === null ? null : renderComment(message.body),

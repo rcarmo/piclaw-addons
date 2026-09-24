@@ -40,7 +40,17 @@ bun test addons/code-review
 The browser integration test creates its own ephemeral loopback server, database,
 workspace, profile and fake queue adapter. `PICLAW_REVIEW_TEST_BROWSER` may name an
 existing Chromium executable; it never names a target server. No paid provider or
-live Piclaw instance is used. Full real-host/acceptance coverage is still required.
+live Piclaw instance is used. The opt-in `host.optional.test.ts` instead boots
+a disposable Piclaw worktree with its own workspace, profile and SQLite store;
+`PICLAW_REVIEW_AGENT_TEST=1` uses a deterministic local provider. It never
+installs or reloads the running instance. Full scenario and UI matrix coverage
+is still required.
+
+Agent `thread` reads compare the bounded current saved file against the original
+anchor side. The `currentSource` status is observational and may be `unverified`
+for Git/index/commit snapshots without a saved-file identity. It returns no
+current source text or digest; use ordinary authorised source tools to inspect
+changed code. The original anchor, saved bytes and history remain unchanged.
 
 Install dependencies for this package using `bun install` in its directory. Source
 capture uses safe Git argv and bounded UTF-8 regular-file reads. Syntax parsing
