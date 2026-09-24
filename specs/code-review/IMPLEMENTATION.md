@@ -257,6 +257,10 @@ acceptance scenarios and are not full Piclaw integration proof.
   source bytes change and an assigned agent publishes a reply. Explicit
   Refresh now rereads the expanded thread as well as capturing new source;
   the draft text and reply target stay unchanged, with no post or enqueue.
+  A CR-042 adapter fixture rejects an agent's stale version-1 resolution after
+  operator guidance becomes version 2; a fresh agent read can resolve version
+  2 and records its addressed version/evidence without a spurious earlier
+  resolution event. This does not close CR-079's per-prompt authority gap.
 - The browser fixture now commits a public reply while losing its response,
   then retries from the same composer and receives the original reply without
   creating a second message or queueing another agent turn (focused CR-069).
