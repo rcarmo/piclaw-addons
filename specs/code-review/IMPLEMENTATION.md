@@ -64,6 +64,12 @@ acceptance scenarios and are not full Piclaw integration proof.
   anchor and unchanged Git status/index. A fabricated rename with a mismatched
   old blob is rejected. Rename-plus-edit and ambiguous candidate UI behaviour
   still need acceptance coverage.
+- CR-061 has an owned Git wrapper that changes one saved file before or after
+  a capture boundary. Capture returns coherent source bytes or the explicit
+  `changed_during_read` error; it never persists a mixed revision. An atomic
+  source replacement stress check accepts only complete file versions or that
+  error. The race fixture passed 12 consecutive focused runs and the full
+  add-on test run. Broader multi-file race cases remain open.
 - These are focused implementation tests, not full CR-001–CR-184 acceptance.
   The copied-backup check reopens the store, not a restored
   Piclaw host. CR-181 tests rejection of a newer unsupported schema; no older
