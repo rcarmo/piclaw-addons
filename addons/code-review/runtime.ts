@@ -96,6 +96,8 @@ export async function reviewAction(
     who = storeIdentity(ctx),
     body = record(input);
   freshBody(body);
+  // Operator-only receipt lookup must not probe an agent-bound thread first.
+  if (action === "replyReceipt") operator(who);
   // Flat fields are informational; the method revalidates the host-owned active scope on every action.
   await ctx.listTargets();
   const service = providedService ?? reviewService();
@@ -239,6 +241,9 @@ export async function reviewAction(
         })),
       };
     }
+    case "replyReceipt":
+      operator(who);
+      return service.replyReceipt(who, body.reviewId, body.requestId, body.threadId);
     case "projection":
       return service.project(who, body.threadId, body.fileId);
     case "reanchor":

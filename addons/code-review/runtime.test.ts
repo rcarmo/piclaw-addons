@@ -267,3 +267,33 @@ test("CR-169/177 create is atomic and repeated request does not create a second 
     f.cleanup();
   }
 });
+
+test("CR-069 reply receipts are body-free and scoped to the current operator, review and thread", async () => {
+  const f = fixture();
+  try {
+    const created: any = await reviewAction(f.ctx, "create", {
+      path: "a.ts", target: { agentName: "worker" }, requestId: "receipt-create",
+    }, f.service);
+    const other: any = await reviewAction(f.ctx, "create", {
+      path: "a.ts", target: { agentName: "worker" }, requestId: "receipt-other",
+    }, f.service);
+    const thread: any = await reviewAction(f.ctx, "comment", {
+      reviewId: created.reviewId, fileId: created.files[0], side: "source", body: "Original guidance", requestId: "receipt-thread",
+    }, f.service);
+    const input = { reviewId: created.reviewId, threadId: thread.threadId, requestId: "receipt-reply" };
+    expect(await reviewAction(f.ctx, "replyReceipt", input, f.service)).toEqual({ committed: false });
+    const posted: any = await reviewAction(f.ctx, "reply", {
+      threadId: thread.threadId, body: "Secret reply contents", expectedVersion: 1, requestId: input.requestId,
+    }, f.service);
+    const receipt = await reviewAction(f.ctx, "replyReceipt", input, f.service);
+    expect(receipt).toEqual({ committed: true, threadId: thread.threadId, messageId: posted.messageId });
+    expect(JSON.stringify(receipt)).not.toContain("Secret reply contents");
+    expect(await reviewAction({ ...f.ctx, actorId: "another-operator" }, "replyReceipt", input, f.service)).toEqual({ committed: false });
+    await expect(reviewAction(f.ctx, "replyReceipt", { ...input, reviewId: other.reviewId }, f.service)).rejects.toThrow("unavailable");
+    const agent = { ...f.ctx, kind: "agent" as const, chatJid: "web:worker", chatIncarnation: "b1" };
+    await expect(reviewAction(agent, "replyReceipt", input, f.service)).rejects.toThrow("Operator action");
+    await expect(reviewAction(agent, "replyReceipt", { ...input, threadId: "thread_missing" }, f.service)).rejects.toThrow("Operator action");
+    await reviewAction(f.ctx, "deleteMessage", { messageId: posted.messageId, expectedVersion: 1, requestId: "receipt-delete", confirm: true }, f.service);
+    expect(await reviewAction(f.ctx, "replyReceipt", input, f.service)).toEqual(receipt);
+  } finally { f.cleanup(); }
+});

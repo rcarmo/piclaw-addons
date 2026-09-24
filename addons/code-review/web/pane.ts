@@ -13,6 +13,12 @@ type DraftState = {
   requestId: string;
   pending?: { body: string; requestId: string; expectedVersion?: number };
 };
+type PendingReply = {
+  requestId: string;
+  threadId: string;
+  draftId?: string;
+  draftVersion?: number;
+};
 const button = (name: string, label: string, title: string, extra = "") =>
   `<button type="button" data-action="${name}" title="${e(title)}" ${extra}>${label}</button>`;
 /** One real pane. All mutations use authenticated APIs; no model runs are triggered by mounting. */
@@ -41,6 +47,21 @@ export class CodeReviewPane {
     side: string;
   } | null = null;
   private composer: DraftState | null = null;
+  private pendingReply: PendingReply | null = null;
+  private replyStorageAvailable = true;
+  private externallyReconciledThreads = new Set<string>();
+  private storageListener = (event: StorageEvent) => {
+    if (event.key !== this.replyKey() || this.disposed) return;
+    if (event.newValue === null && this.pendingReply && event.oldValue) {
+      try {
+        const previous = JSON.parse(event.oldValue);
+        if (previous.requestId === this.pendingReply.requestId)
+          this.externallyReconciledThreads.add(this.pendingReply.threadId);
+      } catch { /* A malformed marker grants no authority. */ }
+    }
+    this.pendingReply = this.readPendingReply();
+    this.render();
+  };
   private draftTimer: ReturnType<typeof setTimeout> | undefined;
   private savedDrafts: any[] = [];
   private savingDraft = false;
@@ -81,6 +102,7 @@ export class CodeReviewPane {
   constructor(container: HTMLElement, context: any) {
     this.reviewId = String(context.path || "").slice(pathPrefix.length);
     if (!/^[\w-]+$/.test(this.reviewId)) throw Error("Invalid review path.");
+    this.pendingReply = this.readPendingReply();
     this.element = container.ownerDocument.createElement("section");
     this.element.className = "cr-pane";
     this.element.dataset.skin = [
@@ -96,6 +118,7 @@ export class CodeReviewPane {
     this.element.addEventListener("change", this.change);
     this.element.addEventListener("input", this.input);
     this.element.addEventListener("keydown", this.keydown);
+    this.element.ownerDocument.defaultView?.addEventListener("storage", this.storageListener);
     this.observer = new ResizeObserver((entries) => {
       const width = entries[0]?.contentRect.width ?? 1200;
       this.element.dataset.narrow = String(width < 720);
@@ -145,11 +168,80 @@ export class CodeReviewPane {
     this.abort.abort();
     clearTimeout(this.draftTimer);
     this.observer.disconnect();
+    this.element.ownerDocument.defaultView?.removeEventListener("storage", this.storageListener);
     this.element.remove();
   }
   private setDirty(value: boolean) {
     this.dirty = value;
     this.dirtyCallback?.(value);
+  }
+  private replyKey() { return `piclaw.code-review.pending-reply.${this.reviewId}`; }
+  private readPendingReply(): PendingReply | null {
+    try {
+      const stored = localStorage.getItem(this.replyKey());
+      if (!stored) return null;
+      const value = JSON.parse(stored);
+      if (!value || typeof value.requestId !== "string" || !/^[\w-]{1,256}$/.test(value.requestId)
+          || typeof value.threadId !== "string" || !/^thread_[\w-]{1,256}$/.test(value.threadId))
+        throw Error("Invalid pending reply marker.");
+      return { requestId: value.requestId, threadId: value.threadId,
+        ...(typeof value.draftId === "string" ? { draftId: value.draftId } : {}),
+        ...(Number.isSafeInteger(value.draftVersion) ? { draftVersion: value.draftVersion } : {}) };
+    } catch {
+      this.replyStorageAvailable = false;
+      this.status = "Pending reply marker is unreadable. Clear browser site data or restore it before sending another reply.";
+      return null;
+    }
+  }
+  private savePendingReply(value: PendingReply) {
+    if (!this.replyStorageAvailable)
+      throw Error("Browser recovery storage is unavailable; do not send a reply with an untracked acknowledgement.");
+    const existing = this.readPendingReply() ?? this.pendingReply;
+    if (existing && existing.requestId !== value.requestId)
+      throw Error("Reconcile or dismiss the earlier reply before posting another.");
+    // Only correlation IDs: this marker is shared by same-origin tabs, never source or reply text.
+    try { localStorage.setItem(this.replyKey(), JSON.stringify(value)); }
+    catch {
+      this.replyStorageAvailable = false;
+      throw Error("Browser recovery storage is unavailable; reply was not sent.");
+    }
+    this.pendingReply = value;
+  }
+  private clearPendingReply(requestId: string) {
+    if (this.readPendingReply()?.requestId === requestId)
+      localStorage.removeItem(this.replyKey());
+    if (this.pendingReply?.requestId === requestId) this.pendingReply = null;
+  }
+  private async reconcileReply(pending: PendingReply): Promise<boolean> {
+    const receipt = await this.api<{ committed: boolean; messageId?: string }>("replyReceipt", {
+      requestId: pending.requestId, threadId: pending.threadId,
+    });
+    if (!receipt.committed) {
+      this.status = "No committed reply found. Keep the saved draft and retry it explicitly if needed.";
+      return false;
+    }
+    this.status = "";
+    await this.reloadThreads();
+    if (pending.draftId && pending.draftVersion !== undefined)
+      try {
+        await this.api("deleteDraft", {
+          draftId: pending.draftId, expectedVersion: pending.draftVersion, requestId: requestId(),
+        });
+        this.savedDrafts = await this.api("drafts");
+      } catch {
+        this.status = "Reply committed. The saved draft changed or could not be removed; inspect it before deleting.";
+      }
+    if (!this.status) this.status = "Reply committed. No work was queued or replayed.";
+    if (this.composer?.requestId === pending.requestId) {
+      clearTimeout(this.draftTimer);
+      this.fileDrafts.delete(this.composer.fileId);
+      this.draftEpoch++;
+      this.composer = null;
+      this.editMessage = null;
+      this.setDirty(false);
+    }
+    this.clearPendingReply(pending.requestId);
+    return true;
   }
   private async api<T = any>(
     name: string,
@@ -169,6 +261,7 @@ export class CodeReviewPane {
   private async load() {
     if (this.disposed) return;
     this.loading = true;
+    this.pendingReply = this.readPendingReply();
     try {
       [
         this.review,
@@ -443,6 +536,8 @@ export class CodeReviewPane {
       : ""
   }
   ${this.status ? `<div class="cr-status" role="status">${e(this.status)}${button("dismiss", X, "Dismiss status.", 'data-settings-button="icon" aria-label="Dismiss status"')}</div>` : ""}
+  ${this.pendingReply ? `<div class="cr-pending-reply" role="status">Reply acknowledgement uncertain. Check the saved receipt before sending another reply. ${button("reconcile-reply", "Reconcile reply", "Read the authorised reply receipt; never resend automatically.")}${button("dismiss-reply", "Dismiss", "Forget only this browser's pending reply marker; preserve saved drafts and replies.")}</div>` : ""}
+  ${!this.replyStorageAvailable ? `<div class="cr-recovery-error" role="alert">Pending reply marker is unreadable. No reply was sent. ${button("clear-recovery", "Clear browser marker", "Forget only the unreadable local marker after confirming; saved drafts and published replies remain.")}</div>` : ""}
   <div class="cr-body"><nav class="cr-files ${this.showFiles ? "open" : ""}" ${this.files.length < 2 && !this.showFiles ? "hidden" : ""}><header>Files ${button("files", X, "Close the file list.", 'data-settings-button="icon" aria-label="Close file list"')}</header><input id="cr-filter" value="${e(this.fileFilter)}" placeholder="Filter paths" title="Filter paths in this snapshot without deleting anything.">${fileRows.map((f) => button("file", `<span>${e(f.new_path || f.old_path)}</span><small>${e(f.change_kind)}</small>`, "View this saved file without sending its comments.", `data-file="${f.id}" class="${f.id === this.fileId ? "active" : ""}" data-settings-button="unstyled"`)).join("")}</nav>
   <main class="cr-main"><header class="cr-file-header"><strong>${e(path)}</strong><span class="cr-grow cr-muted">${e(snapshot?.mode || "")} · ${e((c?.new_hash || c?.old_hash || "").slice(0, 10))} · ${e(c?.new?.language || "text")}${c?.new && !c.new.highlighted ? " (plain)" : ""}</span>${button("file-comment", "Comment on file", "Create guidance about the whole file without selecting lines.")}</header><div class="cr-source ${this.wrap ? "wrap" : ""}" tabindex="0">${this.codeHtml()}</div>
   <div class="cr-pagination">${button("previous", "Previous lines", "Load the previous bounded source/diff page.", this.page === 0 ? "disabled" : "")}<span>${this.page * 300 + 1}–${this.page * 300 + (c?.diff?.length ?? c?.new?.lines.length ?? 0)}</span>${button("next", "Next lines", "Load the next bounded source/diff page.", (this.page + 1) * 300 >= (c?.diffTotal || Math.max(c?.old.total || 0, c?.new.total || 0)) ? "disabled" : "")}</div>
@@ -607,6 +702,23 @@ export class CodeReviewPane {
       case "dismiss":
         this.status = "";
         break;
+      case "dismiss-reply":
+        if (this.pendingReply && confirm("Forget the pending reply marker? Saved drafts and published replies remain unchanged."))
+          this.clearPendingReply(this.pendingReply.requestId);
+        break;
+      case "clear-recovery":
+        if (!confirm("Clear the unreadable browser marker? Check saved replies and drafts first; this does not delete them.")) break;
+        localStorage.removeItem(this.replyKey());
+        this.replyStorageAvailable = true;
+        this.pendingReply = null;
+        this.status = "Browser marker cleared. Review saved replies and drafts before posting again.";
+        break;
+      case "reconcile-reply": {
+        const pending = this.readPendingReply() ?? this.pendingReply;
+        if (!pending) return;
+        await this.reconcileReply(pending);
+        break;
+      }
       case "options":
         this.moreMenu = !this.moreMenu;
         break;
@@ -792,12 +904,35 @@ export class CodeReviewPane {
             requestId: draft.requestId,
           });
         else if (draft.threadId) {
+          const previous = this.readPendingReply() ?? this.pendingReply;
+          if (previous && previous.requestId !== draft.requestId) {
+            const committed = await this.reconcileReply(previous);
+            if (!committed)
+              throw Error("Reconcile or dismiss the earlier reply before posting another.");
+            if (this.pendingReply || this.readPendingReply())
+              throw Error("Reconcile or dismiss the earlier reply before posting another.");
+            if (this.composer !== draft) return;
+            const latest = await this.api<{ version: number }>("thread", { threadId: draft.threadId, limit: 1 });
+            this.commentThreadVersion = latest.version;
+          }
+          if (!previous && this.externallyReconciledThreads.has(draft.threadId)) {
+            const latest = await this.api<{ version: number }>("thread", { threadId: draft.threadId, limit: 1 });
+            this.commentThreadVersion = latest.version;
+          }
+          this.savePendingReply({
+            requestId: draft.requestId,
+            threadId: draft.threadId,
+            ...(draft.draftId ? { draftId: draft.draftId, draftVersion: draft.version } : {}),
+          });
           await this.api("reply", {
             threadId: draft.threadId,
             expectedVersion: this.commentThreadVersion,
             body: draft.body,
             requestId: draft.requestId,
           });
+          this.clearPendingReply(draft.requestId);
+          this.externallyReconciledThreads.delete(draft.threadId);
+          this.status = "";
         } else
           await this.api("comment", {
             fileId: draft.fileId,
@@ -807,17 +942,21 @@ export class CodeReviewPane {
             requestId: draft.requestId,
           });
         if (draft.draftId)
-          await this.api("deleteDraft", {
-            draftId: draft.draftId,
-            expectedVersion: draft.version,
-            requestId: requestId(),
-          });
+          try {
+            await this.api("deleteDraft", {
+              draftId: draft.draftId,
+              expectedVersion: draft.version,
+              requestId: requestId(),
+            });
+          } catch {
+            this.status = "Comment saved. The draft changed or could not be removed; inspect saved drafts before deleting.";
+          }
         this.fileDrafts.delete(draft.fileId);
         this.draftEpoch++;
         this.composer = null;
         this.editMessage = null;
         this.setDirty(false);
-        this.status = "Comment saved. No agent work queued.";
+        if (!this.status) this.status = "Comment saved. No agent work queued.";
         await this.reloadThreads();
         return;
       }

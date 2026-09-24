@@ -52,6 +52,16 @@ for Git/index/commit snapshots without a saved-file identity. It returns no
 current source text or digest; use ordinary authorised source tools to inspect
 changed code. The original anchor, saved bytes and history remain unchanged.
 
+If a public reply commits but its response is lost, the pane stores only the
+request, thread and optional draft identifiers in same-origin browser storage.
+The pane offers explicit receipt reconciliation after reload or in another tab;
+it never resends automatically. The server checks the current operator, actor,
+review and thread before returning a body-free receipt. A missing receipt
+retains the acknowledged draft. If the marker is unreadable, reply posting is
+blocked until the operator confirms clearing that browser marker after checking
+saved replies and drafts. Marker expiry and sign-out behaviour still need a
+release decision; no source text or authority token is stored in the marker.
+
 Install dependencies for this package using `bun install` in its directory. Source
 capture uses safe Git argv and bounded UTF-8 regular-file reads. Syntax parsing
 uses packaged Lezer dependencies and returns escaped plain text on unsupported or

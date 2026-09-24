@@ -269,10 +269,120 @@ test("CR-001/012/033/111 browser drives real review persistence and one explicit
     expect(store.getThread(ctx, firstThreadId).messages.filter((m: any) => m.body === "One reply despite a lost acknowledgement.")).toHaveLength(1);
     expect(await page.locator("#cr-body").inputValue()).toBe("One reply despite a lost acknowledgement.");
     await page.unroute("**/agent/addons/api/code-review/action");
-    await page.locator("[data-action=post]").click();
-    await page.waitForFunction(() => document.querySelector(".cr-status")?.textContent?.includes("Comment saved"));
+    await page.reload();
+    await page.locator("#review").click();
+    await page.waitForSelector(".cr-pending-reply [data-action=reconcile-reply]");
+    expect(await page.locator("#cr-body").count()).toBe(0);
+    await page.locator(".cr-pending-reply [data-action=reconcile-reply]").click();
+    await page.waitForFunction(() => document.querySelector(".cr-status")?.textContent?.includes("Reply committed"));
+    expect(await page.locator(".cr-pending-reply").count()).toBe(0);
     expect(store.getThread(ctx, firstThreadId).messages.filter((m: any) => m.body === "One reply despite a lost acknowledgement.")).toHaveLength(1);
     expect(await page.locator("#cr-body").count()).toBe(0);
+    expect(store.listDrafts(ctx, review.id).some((d: any) => d.body === "One reply despite a lost acknowledgement.")).toBe(false);
+    // A new tab has a separate pane instance but sees the pending marker.
+    await page.locator(".cr-files [data-action=file]").filter({ hasText: "sample.ts" }).click();
+    const earlyTab = await context.newPage();
+    earlyTab.on("dialog", (dialog) => dialog.accept());
+    await earlyTab.goto(server.url.href);
+    await earlyTab.waitForFunction(() => !!(window as any).__piclaw_web?.workspaceActionsVersion && document.querySelector<HTMLButtonElement>("#review")?.onclick !== null);
+    await earlyTab.locator("#review").click();
+    await earlyTab.waitForSelector(".cr-line");
+    await page.locator(".cr-thread [data-action=expand]").first().click();
+    await page.locator(".cr-thread [data-action=reply]").first().click();
+    await page.locator("#cr-body").fill("Cross-tab acknowledgement was lost.");
+    await page.waitForFunction(() => document.querySelector(".cr-composer small")?.textContent === "Draft saved");
+    await page.route("**/agent/addons/api/code-review/action", async (route) => {
+      const payload = JSON.parse(route.request().postData() || "{}");
+      if (payload.action === "reply") {
+        await reviewAction(ctx, payload.action, payload, store);
+        await route.fulfill({ status: 503, contentType: "application/json",
+          body: JSON.stringify({ ok: false, error: { message: "Reply response lost again." } }) });
+      } else await route.continue();
+    });
+    await page.locator("[data-action=post]").click();
+    await page.waitForFunction(() => document.querySelector(".cr-status")?.textContent?.includes("Reply response lost again"));
+    const pendingMarker = await page.evaluate((id: string) => localStorage.getItem(`piclaw.code-review.pending-reply.${id}`), review.id);
+    expect(pendingMarker).toContain(firstThreadId);
+    await earlyTab.waitForSelector(".cr-pending-reply [data-action=reconcile-reply]");
+    await page.unroute("**/agent/addons/api/code-review/action");
+    await earlyTab.locator(".cr-pending-reply [data-action=reconcile-reply]").click();
+    await earlyTab.waitForFunction(() => document.querySelector(".cr-status")?.textContent?.includes("Reply committed"));
+    await earlyTab.close();
+    const otherPage = await context.newPage();
+    try {
+      otherPage.on("dialog", (dialog) => dialog.accept());
+      await otherPage.goto(server.url.href);
+      expect(await otherPage.evaluate((id: string) => localStorage.getItem(`piclaw.code-review.pending-reply.${id}`), review.id)).toBeNull();
+      await otherPage.waitForFunction(() => !!(window as any).__piclaw_web?.workspaceActionsVersion && document.querySelector<HTMLButtonElement>("#review")?.onclick !== null);
+      await otherPage.locator("#review").click();
+      expect(await otherPage.locator(".cr-pending-reply").count()).toBe(0);
+      expect(store.getThread(ctx, firstThreadId).messages.filter((m: any) => m.body === "Cross-tab acknowledgement was lost.")).toHaveLength(1);
+      expect(store.listDrafts(ctx, review.id).some((d: any) => d.body === "Cross-tab acknowledgement was lost.")).toBe(false);
+    } finally { await otherPage.close(); }
+    // The stale first tab must reconcile before a different reply can be sent.
+    await page.locator(".cr-thread [data-action=reply]").first().click();
+    await page.locator("#cr-body").fill("Fresh reply after cross-tab reconciliation.");
+    await page.waitForFunction(() => document.querySelector(".cr-composer small")?.textContent === "Draft saved");
+    await page.locator("[data-action=post]").click();
+    await page.waitForFunction(() => document.querySelector(".cr-status")?.textContent?.includes("Comment saved"));
+    expect(await page.locator("#cr-body").count()).toBe(0);
+    expect(store.getThread(ctx, firstThreadId).messages.filter((m: any) => m.body === "Cross-tab acknowledgement was lost.")).toHaveLength(1);
+    expect(store.getThread(ctx, firstThreadId).messages.filter((m: any) => m.body === "Fresh reply after cross-tab reconciliation.")).toHaveLength(1);
+    // A rejected request has no receipt. Reconciliation keeps the acknowledged
+    // draft and never queues an automatic resend.
+    await page.locator(".cr-thread [data-action=reply]").first().click();
+    await page.locator("#cr-body").fill("Never committed reply.");
+    await page.waitForFunction(() => (document.querySelector<HTMLTextAreaElement>("#cr-body")?.value === "Never committed reply.") && document.querySelector(".cr-composer small")?.textContent === "Draft saved");
+    for (let n = 0; n < 20 && !store.listDrafts(ctx, review.id).some((d: any) => d.body === "Never committed reply."); n++)
+      await Bun.sleep(100);
+    expect(store.listDrafts(ctx, review.id).some((d: any) => d.body === "Never committed reply.")).toBe(true);
+    await page.route("**/agent/addons/api/code-review/action", async (route) => {
+      const payload = JSON.parse(route.request().postData() || "{}");
+      if (payload.action === "reply") await route.fulfill({ status: 503,
+        contentType: "application/json", body: JSON.stringify({ ok: false, error: { message: "Reply rejected." } }) });
+      else await route.continue();
+    });
+    await page.locator("[data-action=post]").click();
+    await page.waitForFunction(() => document.querySelector(".cr-status")?.textContent?.includes("Reply rejected"));
+    await page.unroute("**/agent/addons/api/code-review/action");
+    await page.reload();
+    await page.locator("#review").click();
+    await page.locator(".cr-pending-reply [data-action=reconcile-reply]").click();
+    await page.waitForFunction(() => document.querySelector(".cr-status")?.textContent?.includes("No committed reply found"));
+    expect(store.listDrafts(ctx, review.id).some((d: any) => d.body === "Never committed reply.")).toBe(true);
+    expect(store.getThread(ctx, firstThreadId).messages.some((m: any) => m.body === "Never committed reply.")).toBe(false);
+    await page.evaluate((id: string) => localStorage.setItem(`piclaw.code-review.pending-reply.${id}`, "broken-json"), review.id);
+    await page.reload();
+    await page.locator("#review").click();
+    await page.waitForSelector(".cr-recovery-error [data-action=clear-recovery]");
+    expect(await page.locator(".cr-pending-reply").count()).toBe(0);
+    await page.locator("[data-action=clear-recovery]").click();
+    await page.waitForFunction(() => document.querySelector(".cr-status")?.textContent?.includes("Browser marker cleared"));
+    expect(await page.evaluate((id: string) => localStorage.getItem(`piclaw.code-review.pending-reply.${id}`), review.id)).toBeNull();
+    expect(store.listDrafts(ctx, review.id).some((d: any) => d.body === "Never committed reply.")).toBe(true);
+    // A committed reply may race with another tab deleting or editing its draft.
+    // The pane must report the public commit even if draft cleanup conflicts.
+    await page.locator(".cr-files [data-action=file]").filter({ hasText: "sample.ts" }).click();
+    await page.locator("[data-action=threads]").click();
+    await page.locator(".cr-drawer [data-action=jump]").first().click();
+    await page.waitForSelector(".cr-thread [data-action=reply]");
+    await page.locator(".cr-thread [data-action=reply]").first().click();
+    await page.locator("#cr-body").fill("Committed even if cleanup conflicts.");
+    for (let n = 0; n < 20 && !store.listDrafts(ctx, review.id).some((d: any) => d.body === "Committed even if cleanup conflicts."); n++)
+      await Bun.sleep(100);
+    expect(store.listDrafts(ctx, review.id).some((d: any) => d.body === "Committed even if cleanup conflicts.")).toBe(true);
+    await page.route("**/agent/addons/api/code-review/action", async (route) => {
+      const payload = JSON.parse(route.request().postData() || "{}");
+      if (payload.action === "deleteDraft")
+        await route.fulfill({ status: 409, contentType: "application/json", body: JSON.stringify({ ok: false, error: { message: "Draft version changed." } }) });
+      else await route.continue();
+    });
+    await page.locator("[data-action=post]").click();
+    await page.waitForFunction(() => document.querySelector(".cr-status")?.textContent?.includes("Comment saved. The draft changed"));
+    expect(await page.locator("#cr-body").count()).toBe(0);
+    expect(store.getThread(ctx, firstThreadId).messages.filter((m: any) => m.body === "Committed even if cleanup conflicts.")).toHaveLength(1);
+    expect(store.listDrafts(ctx, review.id).some((d: any) => d.body === "Committed even if cleanup conflicts.")).toBe(true);
+    await page.unroute("**/agent/addons/api/code-review/action");
     expect(calls).toBe(1);
     expect(errors).toEqual([]);
   } finally {

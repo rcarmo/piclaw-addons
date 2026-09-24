@@ -85,7 +85,14 @@ acceptance scenarios and are not full Piclaw integration proof.
 - The browser fixture now commits a public reply while losing its response,
   then retries from the same composer and receives the original reply without
   creating a second message or queueing another agent turn (focused CR-069).
-  Browser reload before the retry and external concurrent edits remain open.
+  A body-free operator/actor/review/thread-scoped receipt lookup also supports
+  explicit reconciliation after browser reload or from a second tab, including
+  a tab that was already open before the marker appeared. No reply is resent
+  automatically; absent receipts retain saved drafts. Changed or missing draft
+  cleanup is reported without mislabelling a committed public reply, and an
+  unreadable browser marker requires explicit confirmation to clear. The
+  correlation-only marker uses same-origin browser storage; expiry, sign-out
+  handling and long-lived storage policy still need acceptance review.
 - These are focused implementation tests, not full CR-001–CR-184 acceptance.
   The copied-backup check reopens the store, not a restored
   Piclaw host. CR-181 tests rejection of a newer unsupported schema; no older

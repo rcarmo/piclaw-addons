@@ -121,6 +121,28 @@ export class ReviewStore {
       return result;
     });
   }
+  /** Body-free lookup for an operator whose reply acknowledgement was lost. */
+  replyReceipt(who: ReviewIdentity, reviewId: string, requestId: string, threadId: string) {
+    operator(who);
+    this.own(who, reviewId);
+    validId(requestId, "request ID");
+    const thread = this.thread(who, threadId, true);
+    if (thread.review_id !== reviewId) this.missing();
+    const receipt = this.database.get<{ result_json: string }>(
+      "SELECT result_json FROM request_receipts WHERE owner_id=? AND actor_id=? AND request_id=? AND action='reply'",
+      who.ownerId, who.actorId, requestId,
+    );
+    if (!receipt) return { committed: false };
+    const result = JSON.parse(receipt.result_json) as { threadId?: string; messageId?: string };
+    if (result.threadId !== threadId || !result.messageId) this.missing();
+    // Deleted messages can still have a body-free receipt, but never resurrect content.
+    const message = this.database.get<{ id: string }>(
+      "SELECT id FROM messages WHERE id=? AND thread_id=? AND review_id=?",
+      result.messageId, threadId, reviewId,
+    );
+    if (!message) this.missing();
+    return { committed: true, threadId, messageId: message.id };
+  }
   protected event(
     who: ReviewIdentity,
     reviewId: string,
