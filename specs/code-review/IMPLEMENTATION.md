@@ -143,8 +143,11 @@ acceptance scenarios and are not full Piclaw integration proof.
   edit POSTs with 401 before the add-on DB or any provider request exists. A
   fresh local-only TOTP session then accesses the real Explorer/comment flow,
   and the optional loopback-provider dispatch/resolve completes with zero paid
-  calls. Cross-origin rejection is tested with that session as well. These
-  checks cover CR-077's host-denial slice, not all Gherkin acceptance or CR-079
+  calls. Cross-origin rejection is tested with that session as well. The
+  canonical CR-077 Background and scenario lines are now executed through
+  exact-match step handlers in the authenticated host fixture: anonymous and
+  cross-origin create/edit are denied before any DB or provider work. This is
+  one bounded Gherkin execution, not the other 183 scenarios or CR-079's
   trusted-dispatch isolation.
 - File-backed delivery tests now check concurrent claim-once queueing, independent
   completed/blocked item states, numbered retries after definite rejection,

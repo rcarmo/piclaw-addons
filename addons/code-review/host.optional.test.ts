@@ -10,8 +10,8 @@ import {
 } from "node:fs";
 import { join, resolve } from "node:path";
 import { createServer } from "node:net";
-import { createHmac } from "node:crypto";
 import { spawn } from "node:child_process";
+import { runCr077Scenario } from "./tests/steps/cr077.steps.js";
 import { startReviewProvider } from "./provider-fixture.js";
 import {
   prepareAddonTestInstance,
@@ -172,54 +172,25 @@ hostTest(
         await Bun.sleep(500);
       }
       if (!ready) throw Error("Fixture did not start: " + log.slice(-6000));
-      const actionUrl = url + "/agent/addons/api/code-review/action";
       const reviewDb = join(paths.data, "addons", "code-review", "reviews.db");
       let sessionCookie: string | undefined;
       if (authenticated) {
-        for (const action of [
-          { action: "create", path: "review-fixture.ts", target: { agentName: "worker" }, requestId: "anonymous-create" },
-          { action: "edit", messageId: "guessed", body: "forged", expectedVersion: 1, requestId: "anonymous-edit" },
-        ]) {
-          const denied = await fetch(actionUrl, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Origin: url },
-            body: JSON.stringify(action),
-          });
-          expect(denied.status).toBe(401);
-          expect(await denied.json()).toMatchObject({ error: "Unauthorized" });
-          expect(existsSync(reviewDb)).toBe(false);
-        }
-        expect(provider?.requests.length ?? 0).toBe(0);
-        // Authenticate only to prove the subsequent browser workflow uses a real
-        // session, rather than a fixture with auth inadvertently disabled.
-        const counter = Buffer.alloc(8);
-        counter.writeBigUInt64BE(BigInt(Math.floor(Date.now() / 30_000)));
-        const digest = createHmac("sha1", Buffer.from("test")).update(counter).digest();
-        const offset = digest[19]! & 15;
-        const code = ((digest.readUInt32BE(offset) & 0x7fffffff) % 1_000_000).toString().padStart(6, "0");
-        const login = await fetch(url + "/auth/verify", {
-          method: "POST", headers: { "Content-Type": "application/json", Origin: url },
-          body: JSON.stringify({ code }),
+        sessionCookie = await runCr077Scenario({
+          url, reviewDb, ownerMarker: marker,
+          providerRequests: () => provider?.requests.length ?? 0,
         });
-        expect(login.status).toBe(200);
-        sessionCookie = login.headers.get("set-cookie")?.split(";", 1)[0];
-        expect(sessionCookie?.startsWith("piclaw_session=")).toBe(true);
-        const markerResponse = await fetch(url + "/workspace/raw?path=fixture-owner.txt", { headers: { Cookie: sessionCookie! } });
-        expect(markerResponse.status).toBe(200);
-        expect(await markerResponse.text()).toBe(marker);
+      } else {
+        // The no-auth host can prove origin denial, but not session denial.
+        const foreign = await fetch(url + "/agent/addons/api/code-review/action", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Origin: "https://evil.example" },
+          body: JSON.stringify({ action: "create", path: "review-fixture.ts", target: { agentName: "worker" }, requestId: "foreign-origin" }),
+        });
+        expect(foreign.status).toBe(403);
+        expect((await foreign.json() as { error?: string }).error).toBe("Origin not allowed");
+        expect(existsSync(reviewDb)).toBe(false);
+        expect(provider?.requests.length ?? 0).toBe(0);
       }
-      // CR-077: the real host guard rejects a foreign-origin mutation before
-      // the add-on handler can create review state or queue agent work.
-      const foreign = await fetch(actionUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Origin: "https://evil.example", ...(sessionCookie ? { Cookie: sessionCookie } : {}) },
-        body: JSON.stringify({ action: "create", path: "review-fixture.ts", target: { agentName: "worker" }, requestId: "foreign-origin" }),
-      });
-      expect(foreign.status).toBe(403);
-      const foreignResult = await foreign.json() as { error?: string };
-      expect(foreignResult.error).toBe("Origin not allowed");
-      expect(existsSync(reviewDb)).toBe(false);
-      expect(provider?.requests.length ?? 0).toBe(0);
       browser = await chromium.launch({
         headless: true,
         executablePath: process.env.PICLAW_REVIEW_TEST_BROWSER || undefined,
