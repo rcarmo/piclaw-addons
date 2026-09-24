@@ -214,6 +214,36 @@ test("CR-001/012/033/111 browser drives real review persistence and one explicit
         .listDrafts(ctx, review.id)
         .some((d: any) => d.body === "Updated before next composer."),
     ).toBe(true);
+    // CR-018/094: a failed draft acknowledgement must block pane detach,
+    // retain the text and retry with its original request identity.
+    await page.route("**/agent/addons/api/code-review/action", async (route) => {
+      const payload = JSON.parse(route.request().postData() || "{}");
+      if (payload.action === "draft")
+        await route.fulfill({
+          status: 503,
+          contentType: "application/json",
+          body: JSON.stringify({ ok: false, error: { code: "storage_unavailable", message: "Draft save failed." } }),
+        });
+      else await route.continue();
+    });
+    await page.locator("#cr-body").fill("Keep this text after the failed write.");
+    await page.waitForFunction(() => document.querySelector(".cr-status")?.textContent?.includes("Draft save failed"));
+    expect(await page.evaluate(() => (window as any).instance.isDirty())).toBe(true);
+    const result = await page.evaluate(async () => {
+      try {
+        await (window as any).instance.beforeDetachFromHost();
+        return "detached";
+      } catch (error) { return (error as Error).message; }
+    });
+    expect(result).toContain("Save or explicitly discard");
+    expect(await page.locator("#cr-body").inputValue()).toBe("Keep this text after the failed write.");
+    expect(store.listDrafts(ctx, review.id).some((d: any) => d.body === "Keep this text after the failed write.")).toBe(false);
+    await page.unroute("**/agent/addons/api/code-review/action");
+    await page.locator("#cr-body").press("ControlOrMeta+s");
+    await page.waitForFunction(() => document.querySelector(".cr-composer small")?.textContent === "Draft saved");
+    expect(store.listDrafts(ctx, review.id).some((d: any) => d.body === "Keep this text after the failed write.")).toBe(true);
+    expect(await page.evaluate(async () => { await (window as any).instance.beforeDetachFromHost(); return (window as any).instance.isDirty(); })).toBe(false);
+    expect(calls).toBe(1);
     expect(errors).toEqual([]);
   } finally {
     await browser?.close();

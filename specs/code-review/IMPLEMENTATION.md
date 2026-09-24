@@ -74,6 +74,14 @@ acceptance scenarios and are not full Piclaw integration proof.
   source replacement stress check accepts only complete file versions or that
   error. The race fixture passed 12 consecutive focused runs and the full
   add-on test run. Broader multi-file race cases remain open.
+- CR-183 focused file-backed integrity checks reject cross-review and dangling
+  file/thread references through public service methods. Transaction counts,
+  foreign-key checks and orphan checks stay unchanged after rejection and reopen.
+  They do not cover every projection and delivery mutation path.
+- A browser draft-save failure now blocks detaching with unpublished text intact.
+  Retrying after storage recovers saves the same draft; the pane updates its
+  saved/unsaved label on acknowledgement. This is a focused CR-018/094 check;
+  offline reconnect and every pane close/popout route still need host coverage.
 - These are focused implementation tests, not full CR-001–CR-184 acceptance.
   The copied-backup check reopens the store, not a restored
   Piclaw host. CR-181 tests rejection of a newer unsupported schema; no older

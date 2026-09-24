@@ -553,6 +553,7 @@ export class CodeReviewPane {
         this.setDirty(draft.body !== body);
         if (this.dirty)
           this.draftTimer = setTimeout(() => void this.persistDraft(), 500);
+        this.render();
       }
     } catch (error) {
       this.fail(error);
