@@ -82,6 +82,12 @@ acceptance scenarios and are not full Piclaw integration proof.
   Retrying after storage recovers saves the same draft; the pane updates its
   saved/unsaved label on acknowledgement. This is a focused CR-018/094 check;
   offline reconnect and every pane close/popout route still need host coverage.
+- A disposable CR-075/089 lifecycle fixture instruments `storage` listeners,
+  `ResizeObserver`, held API reads and the draft autosave timer. Repeated forced
+  mount/dispose cycles release hooks, abort held reads and make no idle requests;
+  accepted queue work remains accepted after reopening. Forced `dispose()`
+  bypasses the normal dirty-close guard and can discard unpublished keystrokes;
+  user-facing close/popout safety still needs separate host coverage.
 - File-backed delivery tests now check concurrent claim-once queueing, independent
   completed/blocked item states, numbered retries after definite rejection,
   unknown delivery without replay and explicit reconciliation against the
