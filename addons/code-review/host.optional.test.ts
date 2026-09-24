@@ -5,6 +5,7 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  renameSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -42,9 +43,15 @@ hostTest(
     let log = "";
     const provider =
       process.env.PICLAW_REVIEW_AGENT_TEST === "1"
-        ? startReviewProvider()
+        ? startReviewProvider({ busyPrelude: process.env.PICLAW_REVIEW_BUSY_TEST === "1" })
         : null;
     try {
+      const recovery = process.env.PICLAW_REVIEW_RECOVERY_TEST === "1";
+      const busyTarget = process.env.PICLAW_REVIEW_BUSY_TEST === "1";
+      if (busyTarget && (!provider || process.env.PICLAW_REVIEW_AUTH_TEST !== "1"))
+        throw Error("Busy-target checks require authenticated and local-agent fixture flags.");
+      if (recovery && (!provider || process.env.PICLAW_REVIEW_AUTH_TEST !== "1" || process.env.PICLAW_REVIEW_RESTART_TEST !== "1"))
+        throw Error("Recovery checks require authenticated, local-agent and restart fixture flags.");
       // The generic preparer copies peers; package mode exercises the real
       // production tarball and installs dependencies inside the owned fixture.
       const dest = prepared.installed[0]!.destination;
@@ -185,6 +192,14 @@ hostTest(
           await Bun.sleep(500);
         }
         throw Error("Fixture did not start: " + log.slice(-6000));
+      };
+      const stopHost = async () => {
+        const previous = child!;
+        const exited = new Promise<void>((resolve) => previous.once("exit", () => resolve()));
+        process.kill(-previous.pid!, "SIGTERM");
+        await Promise.race([exited, Bun.sleep(5000)]);
+        if (previous.exitCode === null && !previous.signalCode)
+          throw Error("Disposable host did not stop before restart.");
       };
       await bootHost();
       // --workspace overrides PICLAW_DATA in the core path resolver.
@@ -344,6 +359,20 @@ hostTest(
         } finally { db.close(); }
       }
       if (provider) {
+        if (busyTarget) {
+          const db = new Database(reviewDb, { readonly: true });
+          let chatId: string;
+          try { chatId = JSON.parse((db.query("SELECT target_json FROM reviews LIMIT 1").get() as { target_json: string }).target_json).chatId; }
+          finally { db.close(); }
+          const started = await fetch(url + "/agent/default/message?chat_jid=" + encodeURIComponent(chatId), {
+            method: "POST", headers: { "Content-Type": "application/json", Origin: url, Cookie: sessionCookie! },
+            body: JSON.stringify({ content: "CODE_REVIEW_BUSY_FIXTURE: complete this prior local work first.", mode: "queue" }),
+          });
+          expect(started.ok).toBe(true);
+          for (let i = 0; i < 100 && !provider.busyStarted; i++) await Bun.sleep(100);
+          expect(provider.busyStarted).toBe(true);
+          expect(provider.busyFinished).toBe(false);
+        }
         await page.locator(".cr-thread [data-pick]").check();
         expect(provider.requests).toHaveLength(0);
         await page.locator(".cr-pane [data-action=send]").click();
@@ -357,6 +386,21 @@ hostTest(
               ?.textContent?.includes("accepted"),
           { timeout: 15000 },
         );
+        if (busyTarget) {
+          // Acceptance while prior work is held must neither steer nor start
+          // the review. Release only after observing the durable queued state.
+          await page.waitForTimeout(500);
+          expect(provider.busyFinished).toBe(false);
+          expect(provider.busyAborted).toBe(false);
+          expect(provider.requests).toHaveLength(0);
+          const db = new Database(reviewDb, { readonly: true });
+          try {
+            expect((db.query("SELECT state FROM attempts LIMIT 1").get() as { state: string }).state).toBe("accepted");
+            expect((db.query("SELECT work_state FROM dispatch_items LIMIT 1").get() as { work_state: string }).work_state).toBe("not_started");
+            expect((db.query("SELECT state FROM threads LIMIT 1").get() as { state: string }).state).toBe("open");
+          } finally { db.close(); }
+          provider.releaseBusy();
+        }
         for (let i = 0; i < 100 && !provider.completed; i++)
           await Bun.sleep(500);
         console.log("LOCAL PROVIDER", {
@@ -366,6 +410,7 @@ hostTest(
         });
         expect(provider.offered).toBe(true);
         expect(provider.completed).toBe(true);
+        if (busyTarget) expect(provider.busyFinished).toBe(true);
         // Reload through the UI; never repair expected state via direct database writes.
         await page.reload();
         await page.waitForSelector(".workspace-toggle-tab");
@@ -391,13 +436,94 @@ hostTest(
           "resolved",
         );
         if (process.env.PICLAW_REVIEW_RESTART_TEST === "1") {
+          const api = async (payload: object) => {
+            const response = await fetch(url + "/agent/addons/api/code-review/action", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Origin: url, ...(sessionCookie ? { Cookie: sessionCookie } : {}) },
+              body: JSON.stringify(payload),
+            });
+            expect(response.status).toBe(200);
+            const body = await response.json() as { ok: boolean; result: any };
+            expect(body.ok).toBe(true);
+            return body.result;
+          };
+          let recoveryState: { reviewId: string; threadId: string; receipt: any; draft: any; messages: any[]; requests: number } | undefined;
+          const draftBody = "Private draft retained across cold restart and package removal";
+          const deletedBody = "Deleted reply must never return after reinstall";
+          if (recovery) {
+            const review = (await api({ action: "list", limit: 10 }))[0];
+            const thread = (await api({ action: "threads", reviewId: review.id }))[0];
+            const reply = await api({ action: "reply", threadId: thread.id, body: deletedBody,
+              expectedVersion: thread.version, reopen: true, requestId: "recovery-reply" });
+            await api({ action: "deleteMessage", messageId: reply.messageId, expectedVersion: 1,
+              confirm: true, requestId: "recovery-delete" });
+            const changed = await api({ action: "thread", threadId: thread.id });
+            await api({ action: "resolve", threadId: thread.id, fileId: changed.source.fileId,
+              expectedVersion: changed.version, explanation: "Recovery fixture keeps the concern resolved", requestId: "recovery-resolve" });
+            const receipt = await api({ action: "replyReceipt", reviewId: review.id, threadId: thread.id, requestId: "recovery-reply" });
+            expect(receipt).toEqual({ committed: true, threadId: thread.id, messageId: reply.messageId });
+            // Save through the real composer, wait for durable acknowledgement.
+            await page.locator("[data-action=file-comment]").click();
+            await page.locator("#cr-body").fill(draftBody);
+            await page.locator("#cr-body").press("ControlOrMeta+s");
+            await page.waitForFunction(() => document.querySelector(".cr-composer small")?.textContent === "Draft saved");
+            const drafts = await api({ action: "drafts", reviewId: review.id });
+            expect(drafts).toHaveLength(1);
+            expect(drafts[0].body).toBe(draftBody);
+            const savedThread = await api({ action: "thread", threadId: thread.id });
+            recoveryState = { reviewId: review.id, threadId: thread.id, receipt, draft: drafts[0], messages: savedThread.messages, requests: provider.requests.length };
+          }
           // Restart only this owned disposable child; never the live service.
           await page.close();
-          const previous = child!;
-          process.kill(-previous.pid!, "SIGTERM");
-          await Promise.race([new Promise<void>((resolve) => previous.once("exit", () => resolve())), Bun.sleep(5000)]);
-          if (previous.exitCode === null && !previous.signalCode) throw Error("Disposable host did not stop before restart.");
+          await stopHost();
+          if (recovery) {
+            // Exercise package absence/restoration only in this owned fixture.
+            // This is not the catalogue manager's uninstall/install route.
+            const savedPackage = join(paths.root, "removed-code-review-package");
+            // Hash persisted bytes including WAL after each graceful shutdown;
+            // shared-memory lock bookkeeping is not stored review data.
+            const digest = () => [reviewDb, reviewDb + "-wal"].map((path) =>
+              existsSync(path) ? Bun.hash(readFileSync(path)).toString() : null);
+            const retainedDigest = digest();
+            renameSync(dest, savedPackage);
+            expect(existsSync(dest)).toBe(false);
+            await bootHost();
+            const absent = await fetch(url + "/agent/addons/api/code-review/action", {
+              method: "POST", headers: { "Content-Type": "application/json", Origin: url, Cookie: sessionCookie! },
+              body: JSON.stringify({ action: "list", limit: 10 }),
+            });
+            // Legacy hosts use 500/unknown-command; a proper missing-route 404
+            // also satisfies this check. Neither may execute or return data.
+            expect([404, 500]).toContain(absent.status);
+            const missing = await absent.json() as { ok?: boolean; error?: string; result?: unknown };
+            expect(missing.ok).not.toBe(true);
+            expect(missing.result).toBeUndefined();
+            if (absent.status === 500) expect(missing.error).toContain("Unknown command: /code-review-action-set");
+            await stopHost();
+            expect(digest()).toEqual(retainedDigest);
+            expect(provider.requests.length).toBe(recoveryState!.requests);
+            renameSync(savedPackage, dest);
+          }
           await bootHost();
+          if (recoveryState) {
+            const { reviewId, threadId, receipt, draft, requests } = recoveryState;
+            expect(await api({ action: "drafts", reviewId })).toEqual([draft]);
+            expect(await api({ action: "replyReceipt", reviewId, threadId, requestId: "recovery-reply" })).toEqual(receipt);
+            const thread = await api({ action: "thread", threadId });
+            expect(thread.messages).toEqual(recoveryState.messages);
+            expect(thread.messages.find((m: any) => m.id === receipt.messageId)).toMatchObject({ deleted: 1, body: null });
+            expect(JSON.stringify(thread)).not.toContain(deletedBody);
+            expect(JSON.stringify(thread)).not.toContain(draftBody);
+            expect(provider.requests.length).toBe(requests);
+            const db = new Database(reviewDb, { readonly: true });
+            try {
+              expect((db.query("SELECT COUNT(*) AS n FROM dispatches").get() as { n: number }).n).toBe(1);
+              expect((db.query("SELECT COUNT(*) AS n FROM attempts").get() as { n: number }).n).toBe(1);
+              expect(db.query("SELECT body FROM message_revisions WHERE message_id=? AND body IS NOT NULL").all(receipt.messageId)).toEqual([]);
+              expect(JSON.stringify(db.query("SELECT result_json FROM request_receipts").all())).not.toContain(deletedBody);
+              expect((db.query("SELECT COUNT(*) AS n FROM request_receipts WHERE request_id='recovery-reply'").get() as { n: number }).n).toBe(1);
+            } finally { db.close(); }
+          }
           const recovered = await fetch(url + "/agent/addons/api/code-review/action", {
             method: "POST",
             headers: { "Content-Type": "application/json", Origin: url, ...(sessionCookie ? { Cookie: sessionCookie } : {}) },
@@ -413,7 +539,7 @@ hostTest(
             if (/^https?:/.test(request.url())) browserDestinations.push(request.url());
             if (request.url().includes("/agent/addons/api/code-review/action")) reviewActions.push(request.url());
           });
-          page.on("dialog", (dialog) => dialog.accept(dialog.type() === "prompt" && process.env.PICLAW_REVIEW_CLASSIC_SOURCE_TEST === "1" ? "1" : undefined));
+          page.on("dialog", (dialog) => dialog.accept(dialog.type() === "prompt" && (recovery || process.env.PICLAW_REVIEW_CLASSIC_SOURCE_TEST === "1") ? "1" : undefined));
           await page.goto(url, { waitUntil: "domcontentloaded" });
           await page.waitForSelector(".workspace-toggle-tab");
           const toggle = page.getByRole("button", { name: "Show workspace", exact: true });
@@ -435,6 +561,12 @@ hostTest(
             expect((db.query("SELECT work_state FROM dispatch_items LIMIT 1").get() as { work_state: string }).work_state).toBe("completed");
           } finally { db.close(); }
           expect(provider.completed).toBe(true);
+          if (recoveryState) {
+            await page.locator("[data-action=options]").click();
+            await page.locator("[data-action=drafts]").click();
+            expect(await page.locator("#cr-body").inputValue()).toBe(draftBody);
+            expect(provider.requests.length).toBe(recoveryState.requests);
+          }
         }
       }
       // Core mode and add-on control layout under owned responsive viewports.
@@ -680,6 +812,7 @@ hostTest(
         uiMode,
         operatorComments: true,
         localFixtureTurns: provider?.requests.length ?? 0,
+        priorBusyFixtureTurns: provider?.busyStarted ? 1 : 0,
         paidProviderCalls: 0,
       });
     } catch (error) {

@@ -1,6 +1,9 @@
 /** Deterministic loopback provider for opt-in tests. Starts only when explicitly called. */
-export function startReviewProvider() {
+export function startReviewProvider(options: { busyPrelude?: boolean } = {}) {
   const requests: any[] = [];
+  let busyStarted = false, busyFinished = false, busyAborted = false;
+  let releaseBusy!: () => void;
+  const busyGate = new Promise<void>((resolve) => { releaseBusy = resolve; });
   let step = -1,
     dispatchId = "",
     thread: any = null,
@@ -12,6 +15,16 @@ export function startReviewProvider() {
       if (new URL(req.url).pathname !== "/v1/chat/completions")
         return new Response("Not found", { status: 404 });
       const body = await req.json();
+      if (options.busyPrelude && !busyStarted && JSON.stringify(body.messages).includes("CODE_REVIEW_BUSY_FIXTURE")) {
+        busyStarted = true;
+        req.signal.addEventListener("abort", () => { busyAborted = true; }, { once: true });
+        await busyGate;
+        busyFinished = true;
+        const base = { id: "review-busy-fixture", object: "chat.completion.chunk", created: 1, model: "review-fixture" };
+        return new Response(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: { role: "assistant", content: "Prior fixture work finished." }, finish_reason: null }] })}\n\ndata: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: {}, finish_reason: "stop" }], usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 } })}\n\ndata: [DONE]\n\n`, {
+          headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache" },
+        });
+      }
       requests.push(body);
       offered ||=
         Array.isArray(body.tools) &&
@@ -125,6 +138,10 @@ export function startReviewProvider() {
   return {
     server,
     requests,
+    get busyStarted() { return busyStarted; },
+    get busyFinished() { return busyFinished; },
+    get busyAborted() { return busyAborted; },
+    releaseBusy,
     get offered() {
       return offered;
     },
@@ -133,6 +150,7 @@ export function startReviewProvider() {
     },
     baseUrl: server.url.href + "v1",
     stop() {
+      releaseBusy();
       server.stop(true);
     },
   };

@@ -55,6 +55,28 @@ and references to old scenario IDs do not change status automatically.
   packed host run now passes after correcting the replacement page's history
   prompt handler and request observation on fixture restart.
 
+### Send and recovery follow-up
+
+RC-3 now has a packed authenticated Classic check with an actual busy target:
+hold an earlier loopback-provider turn, submit the review, observe an accepted
+attempt with `not_started` work and an open thread, then release the earlier turn.
+The review does not start or interrupt the held turn. It subsequently completes
+once. Browser retry/reconcile and batch tests also pass; uncertain delivery is
+not automatically replayed.
+
+RC-5 now saves a draft through the real composer before cold shutdown. After a
+boot with the package absent and another with it restored, the draft restores
+through the pane. Exact message history, a deleted-reply tombstone, its body-free
+receipt and the accepted/completed dispatch survive. The database and any WAL
+bytes are unchanged during the package-absent boot. There are no extra provider
+turns, dispatches or attempts. This tests moving/restoring the disposable package,
+not the catalogue manager's uninstall/install commands; that path still needs
+the RC-6 metadata/integration work. The absent add-on currently returns a guarded
+500 from the host's legacy unknown-command fallback, not a missing-route 404.
+
+These checks narrow the remaining work; they do not approve the UX differences
+or satisfy the per-prompt security boundary.
+
 ### Mock comparison findings
 
 The batched correction now has browser measurements and paired screenshots in

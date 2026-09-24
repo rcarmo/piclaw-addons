@@ -30,3 +30,46 @@ not been signed off; the six-check simplification does not waive it.
 3. **Publication:** `bun run check:catalog` fails because the add-on has no generated catalogue/root-package entry. There is no published package or clean published-package install test. Do not publish the provisional package.
 4. **Acceptance:** Sign off the six active flows. Exhaustive permutations and follow-up depth are listed as deferred in [ACCEPTANCE.md](ACCEPTANCE.md); no 184-step-handler implementation is required. Existing security, persistence and no-implicit-send checks remain mandatory.
 5. **Approval:** Merge, publication, live installation and live restart require separate explicit permission. The local `piclaw.service` was untouched.
+
+## Busy-target and recovery follow-up
+
+Only test fixtures changed after `32a408b`; the production implementation and
+paired mock screenshots are unchanged.
+
+- Focused RC-3/RC-5 run: 22 tests, 354 assertions passed across batch, delivery,
+  browser retry/reconcile, durability, draft-close and copied-store fixtures.
+  Strict add-on TypeScript and `git diff --check` pass.
+- Packed authenticated Classic with busy-target and recovery flags: 190
+  assertions passed. A held earlier loopback turn is not interrupted by Send;
+  the accepted review stays `not_started` until that turn finishes. Seven review
+  provider requests then complete the work, plus one separate prior-work request.
+  All requests use the owned loopback provider; no paid provider is configured.
+- The acknowledged private draft restores through the real pane after cold
+  restart and package absence/restoration. The exact public message history,
+  deleted-reply tombstone and body-free receipt survive. The request has one
+  receipt, and the dispatch still has one accepted attempt with completed work.
+  Deleted revision bodies are absent. No browser/API recovery action resends.
+- With the package absent, the database and WAL hashes remain unchanged across
+  the disposable host boot/shutdown. The route rejects through the legacy host
+  fallback (500, unknown command); no review/provider work runs. This is a manual
+  package move/restore fixture, not catalogue-manager uninstall/install evidence.
+- Final combined packed Classic run: **253 assertions passed in 94.6 seconds**.
+  Busy-target, recovery, package absence/restoration, phone entry, touch/zoom,
+  keyboard, clipboard, untrusted rendering, history/diff and 65-second idle
+  checks coexist. The retained-data checks include WAL bytes and exact history,
+  following read-only review. The six-check coverage-report tests also pass.
+
+Reproduce the packed busy/recovery check from the add-on worktree, using a locally
+packed tarball matching the current production files:
+
+```sh
+PICLAW_REVIEW_TEST_BROWSER=/workspace/.cache/ms-playwright/chromium-1234/chrome-linux64/chrome \
+PICLAW_REVIEW_CORE_SOURCE=/workspace/piclaw-worktrees/addon-workspace-context \
+PICLAW_REVIEW_PACKAGE_TARBALL=/workspace/tmp/rcarmo-piclaw-addon-code-review-0.1.0.tgz \
+PICLAW_REVIEW_HOST_TEST=1 PICLAW_REVIEW_AUTH_TEST=1 PICLAW_REVIEW_AGENT_TEST=1 \
+PICLAW_REVIEW_BUSY_TEST=1 PICLAW_REVIEW_RESTART_TEST=1 PICLAW_REVIEW_RECOVERY_TEST=1 \
+bun test addons/code-review/host.optional.test.ts
+```
+
+The tarball, browser and core paths are local fixture inputs, not published
+compatibility claims. `PICLAW_REVIEW_IDLE_TEST=1` adds the 65-second idle check.
