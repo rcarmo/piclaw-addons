@@ -3,10 +3,13 @@
 Saved-source and Git-diff review with durable local discussions and explicitly
 queued agent work. Source is read-only. This branch is not release-ready.
 
-The design and 184 Gherkin scenario IDs are under `specs/code-review/` in the
-repository. This delivery targets Classic only; CR-087 and CR-138 now state
-Classic requirements. Implemented tests are tracked separately; a unit-test
-name mentioning an ID does not imply that its whole scenario has passed.
+The active release checklist is six Classic-only checks in
+`specs/code-review/ACCEPTANCE.md`. The 184 older Gherkin IDs remain archived
+design reference, not individual release gates. Run `bun addons/code-review/coverage.ts`
+from the repository root for the compact checklist (`--legacy` includes the old
+inventory). No checklist row passes merely because a test mentions its ID.
+The agreed mockup's Classic layout, controls and interactions are still required;
+the simplified checklist does not authorise UX deviations.
 
 ## Required host API
 

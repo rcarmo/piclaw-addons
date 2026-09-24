@@ -1,8 +1,12 @@
-# Code Review — Gherkin acceptance index
+# Code Review — archived Gherkin design index
+
+The active release checklist is [six Classic checks](ACCEPTANCE.md), simplified
+on 24 September 2026. The scenarios below remain reference material; completing
+184 individual scenarios is no longer a release gate.
 
 Draft acceptance specification, 23 September 2026. **184 scenarios in 12 feature
 files; 917 scenario steps plus 26 background steps.** IDs CR-001–CR-184 are stable
-and complete. No implementation or executed behaviour tests are claimed.
+and complete. This index records the original design, not test results.
 
 ## Reading and test conventions
 

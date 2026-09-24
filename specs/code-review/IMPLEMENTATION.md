@@ -6,13 +6,14 @@ has been requested by this branch.
 
 ## Active Classic scope (24 September)
 
-The operator removed Visual from the current delivery scope. Classic is the only
-skin in the active integration and release checks. The 184 scenario IDs stay
-intact. CR-087 and CR-138 now specify Classic-only behaviour; historical
-cross-skin mock evidence does not establish Classic host acceptance. Do not create one host test per scenario. Group
-release-critical assertions into a few real disposable-host flows and record
-which steps they actually exercise. The other acceptance gaps, especially
-CR-079's trusted per-prompt review boundary, stay open. Publication, merge and
+The active release scope is [six Classic checks](ACCEPTANCE.md), simplified by
+operator direction on 24 September. Visual is out of scope. The 184 original IDs
+and detailed checkpoints below are historical evidence/reference, not an active
+180-item backlog. Existing tests stay; group their evidence into the six checks.
+The agreed mock's Classic layout, controls and interactions remain required;
+sign-off needs a visual/interaction comparison, not just API tests. Intentional
+UX deviations require Rui's approval.
+CR-079's trusted per-prompt boundary is still required. Publication, merge and
 live installation still require separate approval.
 
 ## Ownership
@@ -399,24 +400,10 @@ acceptance scenarios and are not full Piclaw integration proof.
 
 ## Required before release
 
-- Complete pane behaviour: history/review/agent selection UX, draft navigation and
-  conflict recovery, original-context navigation, long message/thread pagination,
-  multi-file Add file semantics, context expansion, receipt retry/reconcile controls,
-  focus/drawer keyboard handling, theme/Settings button parity and native titles.
-- Confirm full snapshot limits, total diff/render budgets, cancellation and path/
-  capture race handling. Complete property/fuzz/source/worktree tests.
-- Complete deletion, replay and recovery invariants across every retrieval surface;
-  mutation retry and preview-payload edge cases; migration/backup failure fixtures.
-- Map all CR-001–CR-184 to actual executable assertions, implement real step handlers
-  and run them. `coverage.ts` deliberately reports acceptance pending; unit ID
-  references are trace links only.
-- Integrate the tested core host contract and run actual queue/provenance/restart
-  and Classic browser tests on disposable Piclaw, not just the fake host.
-  Visual host and cross-skin parity tests are deferred by operator direction.
-- Full regression/typecheck/catalog/standalone/package/CI/platform gates and final
-  compatibility version, docs/screenshots, review and approved merge/deployment.
+- Sign off the six checks in [ACCEPTANCE.md](ACCEPTANCE.md) using recorded results.
+- Resolve CR-079 through an approved host contract, then test cross-review denial.
+- Complete compatible core integration, catalogue/hosted CI and explicit release
+  approvals. The package compatibility range is still provisional.
 
-The 184 scenario IDs remain available; CR-087 and CR-138 now test Classic only.
-No catalogue entry has been published
-for this unfinished package; the compatibility range in package.json is
-provisional and must be raised to the version providing the required host APIs.
+The old feature files remain reference material. `coverage.ts` reports the six
+checks by default and includes the legacy inventory only with `--legacy`.

@@ -1,12 +1,14 @@
 # Code Review add-on — workflow specification
 
-Status: **draft for Rui's review; no implementation**. Requested 23 September 2026.
+Status: **design reference**. Requested 23 September 2026; implementation is underway.
 Proposed package: `@rcarmo/piclaw-addon-code-review`.
 
-The complete Gherkin acceptance spec is in [features/](features/), with a
-[coverage map and scenario index](SPEC-INDEX.md). It incorporates the full workflow
+The active release scope is [six Classic checks](ACCEPTANCE.md), simplified at
+Rui's request on 24 September. The older Gherkin design is retained in
+[features/](features/), with an [archived index](SPEC-INDEX.md). It incorporates the full workflow
 and pane refinements through 23 September 2026. This specifies the intended product;
-the illustrative mock is not an implementation oracle.
+the mock and [pane design](PANE-DESIGN.md) remain the agreed UX reference for
+Classic. Their synthetic backend is not an implementation oracle.
 
 The add-on gives the user a read-only code and diff review pane, following the
 interaction model of a GitHub commit/PR review. The user inspects saved code,
@@ -15,18 +17,13 @@ resolved. Saved working changes and committed diffs are review inputs; the pane
 never edits source. GitHub is an interaction reference, not a required service or
 storage backend.
 
-## Implementation gate
+## Release checks
 
-All workflows are described in the sibling `features/*.feature` files before any
-runtime, database, tool or pane code is written. These files are acceptance
-specifications, not executed tests or evidence of working behaviour. No placeholder
-step handlers, mock-only passing implementation, package manifest or catalogue
-entry is included in this phase.
-
-Specs live outside `addons/` because the current add-on CI automatically discovers
-`addons/*/tests/features` and tries to install those packages. After approval, move
-the agreed features into `addons/code-review/tests/features` and implement real
-step definitions through the existing isolated E2E harness. Keep scenario IDs.
+Use [ACCEPTANCE.md](ACCEPTANCE.md) for active work and
+[CLASSIC-FAST-PASS.md](CLASSIC-FAST-PASS.md) for recorded results. Keep existing
+regression tests and combine evidence across the six flows. The historical
+`features/*.feature` files stay at their current paths for traceability; do not
+create one new host test per old scenario or count them as outstanding gates.
 
 ## Required outcomes
 
@@ -262,7 +259,7 @@ private runtime state.
 
 ## Validation plan and limits
 
-Each acceptance scenario needs a real assertion and a named implementation step;
+Each of the six active checks needs real assertions and recorded results;
 no step may fix the UI indirectly via a backup API mutation. Source fixtures and
 all Git repositories/databases are disposable. A fake deterministic agent tests
 queueing/replies/races without paid provider calls; final integration exercises
@@ -272,7 +269,7 @@ actual host routing and isolated execution where authority is confirmed.
   immutable revision capture, compare-and-set, idempotency and state transitions.
 - File-backed process restart tests: pending reviews, conversations, drafts,
   resolution evidence, tombstones and ambiguous delivery recovery.
-- Real-host Playwright: Classic/Visual, light/dark, desktop/tablet/phone, keyboard
+- Real-host Playwright: Classic, light/dark, desktop/tablet/phone, keyboard
   and touch range selection, navigation, CRUD, comment-draft close/failure, agent lifecycle,
   and no clipped source/thread controls. Exact-path modules, no bundling shortcuts.
 - Git fixtures: staged/unstaged simultaneously, untracked/deleted/renamed files,

@@ -1,6 +1,9 @@
 # Code Review Classic fast pass — 24 September 2026
 
-**Decision: no release or merge yet.** This checkpoint records what the isolated worktrees verified. It does not mark the 184 Gherkin scenarios accepted.
+**Decision: no release or merge yet.** The active gate is [six Classic checks](ACCEPTANCE.md).
+The results below are evidence for those checks; the old 184-scenario design is reference only.
+The agreed mock's Classic UX is unchanged. Full visual/interaction parity has
+not been signed off; the six-check simplification does not waive it.
 
 ## Passed in owned disposable fixtures
 
@@ -13,14 +16,15 @@
 - The authenticated Classic pane stayed open for 65 seconds with no new Code Review API request, provider request or dispatch row, both before and after a completed loopback send. This does not establish hidden-pane, cancellation or long-duration performance budgets.
 - A saved comment containing a script tag and unsafe `javascript:` URL rendered as text after explicit Refresh. No script ran or unsafe link appeared; a safe HTTPS link retained `noopener noreferrer`, and dispatch count stayed unchanged. Prompt-injection and all content variants are not covered.
 - The authenticated Classic host copies selected source text without diff gutters, source mutation, extra review API/provider requests or cross-origin browser traffic. The pane has no thread-link export control; CR-090's public-share claim is not verified.
-- Add-on: 157 standard tests passed, one opt-in host test skipped in the standard suite; TypeScript check passed. A separate standalone copied-package import passed.
+- Add-on: 159 standard tests passed after adding two compact-checklist reporting tests; one opt-in host test skipped in the standard suite. TypeScript check passed. A separate standalone copied-package import passed.
 - Core worktree: canonical `make ci-fast` returned exit status **0** on 24 September at 19:42 UTC: 5,640 fast tests passed (7 skipped), 25 feature tests passed and 9 web-build smoke tests passed. The core worktree still contains modified and untracked files; this is local fast CI, not hosted CI.
-- CR-077, CR-078, CR-081 and CR-083 canonical step slices ran against the authenticated disposable Classic host. Other scenarios remain `acceptance: pending` in `coverage.ts`. CR-087 and CR-138 are now scoped to Classic; Visual was removed from active delivery by the operator.
+- CR-077, CR-078, CR-081 and CR-083 step slices ran against the authenticated disposable Classic host. Their evidence contributes to the six active checks. The other legacy IDs are not a pending release counter. Visual is out of scope.
+- A packed combined UI/source/copy/untrusted/provider run passed 170 assertions. The later all-options run including fixture restart timed out in history selection: the replacement page's dialog handler did not supply a commit choice. That combined run is not green; it needs a fixture correction and rerun.
 
 ## Gates requiring a decision or more work
 
 1. **CR-079 host authority:** `localContext` v1 exposes chat identity, not the verified dispatch reference for the current prompt. Two reviews assigned to one chat are not isolated per prompt. See [CR-079-HOST-CONTRACT.md](CR-079-HOST-CONTRACT.md). The separately owned core contract needs explicit approval before implementation and same-chat cross-review tests.
 2. **Core integration:** The core worktree has modified and untracked files. Host-contract review, an approved integration path, hosted CI and a final version providing the APIs are outstanding. The add-on manifest's `compatibleVersions: ">=3.2.1"` is provisional.
 3. **Publication:** `bun run check:catalog` fails because the add-on has no generated catalogue/root-package entry. There is no published package or clean published-package install test. Do not publish the provisional package.
-4. **Acceptance:** The remaining Gherkin steps, Classic accessibility/touch/zoom, migration/restored-host grant, long-idle/performance and platform gates are not verified. Group release-critical flows; do not use unit-test ID references as an acceptance count.
+4. **Acceptance:** Sign off the six active flows. Exhaustive permutations and follow-up depth are listed as deferred in [ACCEPTANCE.md](ACCEPTANCE.md); no 184-step-handler implementation is required. Existing security, persistence and no-implicit-send checks remain mandatory.
 5. **Approval:** Merge, publication, live installation and live restart require separate explicit permission. The local `piclaw.service` was untouched.
