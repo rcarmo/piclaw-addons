@@ -113,6 +113,14 @@ acceptance scenarios and are not full Piclaw integration proof.
   fail, and a deleted item before enqueue rejects the batch without delivery.
   This is focused CR-104–110 service coverage, not the browser batch workflow
   or the accepted-then-agent-start authority check.
+- A disposable browser fixture now selects two of three public threads across
+  files, verifies the visible selected count, target and summary, and confirms
+  that Preview creates no dispatch. Explicit Confirm records one queue-mode
+  dispatch with ordered file IDs, omits the unselected thread/private draft,
+  and does not enqueue again on reload. A changed thread before Confirm leaves
+  the selection and drawer visible with a conflict and no enqueue. The pane
+  does not yet show guidance versions or snapshot IDs in the preview drawer;
+  those are asserted from persisted dispatch state.
 - The browser fixture now commits a public reply while losing its response,
   then retries from the same composer and receives the original reply without
   creating a second message or queueing another agent turn (focused CR-069).
