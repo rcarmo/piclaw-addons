@@ -89,8 +89,12 @@ acceptance scenarios and are not full Piclaw integration proof.
   They do not cover every projection and delivery mutation path.
 - A browser draft-save failure now blocks detaching with unpublished text intact.
   Retrying after storage recovers saves the same draft; the pane updates its
-  saved/unsaved label on acknowledgement. This is a focused CR-018/094 check;
-  offline reconnect and every pane close/popout route still need host coverage.
+  saved/unsaved label on acknowledgement. A focused CR-088 browser check also
+  retains text and focus through Escape, failed-save cancel and dismissed
+  discard confirmation, without deleting an existing published comment. The
+  failed/uncertain acknowledgement cannot be discarded until explicitly
+  reconciled. Offline reconnect and every real host close/popout route still
+  need coverage.
 - A disposable CR-075/089 lifecycle fixture instruments `storage` listeners,
   `ResizeObserver`, held API reads and the draft autosave timer. Repeated forced
   mount/dispose cycles release hooks, abort held reads and make no idle requests;

@@ -881,12 +881,18 @@ export class CodeReviewPane {
       case "cancel":
         clearTimeout(this.draftTimer);
         await this.draftPromise;
-        if (this.composer?.pending)
-          throw Error(
-            "Draft acknowledgement is uncertain. Retry saving before discarding its persisted copy.",
-          );
-        if (this.composer?.body && !confirm("Discard this unposted text?"))
+        if (this.composer?.pending) {
+          this.status = "Draft acknowledgement is uncertain. Retry saving before discarding its persisted copy.";
+          this.render();
+          this.element.querySelector<HTMLTextAreaElement>("#cr-body")?.focus();
           return;
+        }
+        if (this.composer?.body && !confirm("Discard this unposted text?")) {
+          // The dialog can restore focus to the button after this task.
+          // Restore the draft after the current click finishes rendering.
+          setTimeout(() => this.element.querySelector<HTMLTextAreaElement>("#cr-body")?.focus(), 0);
+          return;
+        }
         if (this.composer?.draftId)
           await this.api("deleteDraft", {
             draftId: this.composer.draftId,
