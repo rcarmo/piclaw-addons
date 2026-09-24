@@ -144,8 +144,13 @@ acceptance scenarios and are not full Piclaw integration proof.
   Focused browser CR-116/117/118 assertions check titles/accessibility names
   across initial, posted, selected, preview and accepted-send states: an empty
   selection keeps Send disabled with its blocker, checkbox selection alone
-  queues nothing, and the drawer confirms queue side effects explicitly. They
-  do not replace full screen-reader, forced-colour or skin parity testing. Visual did **not** reach the pane: its
+  queues nothing, and the drawer confirms queue side effects explicitly. A
+  synthetic host-token fixture exercises CR-143–147 dark-to-light CSS changes
+  without remounting, even when the OS preference opposes the host theme and
+  semantic success/danger colours coincide. Computed syntax, code surface,
+  distinct add/delete washes, source-row geometry, selected range and draft
+  persist. This does not replace real Visual host, screen-reader, forced-colour
+  or full skin-parity testing. Visual did **not** reach the pane: its
   `visual/frontend/src/app/addon-boot.ts` currently exposes only settings and
   activity-bar registration, not `workspaceActionsVersion` or pane/workspace
   action registration. The optional Visual test now fails with that capability
