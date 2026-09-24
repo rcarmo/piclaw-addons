@@ -5,6 +5,27 @@ The results below are evidence for those checks; the old 184-scenario design is 
 The agreed mock's Classic UX is unchanged. Full visual/interaction parity has
 not been signed off; the six-check simplification does not waive it.
 
+## Latest checkpoint: author actions and catalogue lifecycle
+
+- Author Edit/Delete controls follow PANE-DESIGN.md's overflow placement. Browser
+  assertions cover 1280px/520px geometry, keyboard activation, Escape/focus return,
+  edit persistence, cancelled/confirmed deletion, and zero dispatch from these
+  actions. Screenshots: `exports/code-review-message-actions/`.
+- Full regression: 165 tests pass (one opt-in host test skipped), 2,071 assertions;
+  strict TypeScript passes. The final packed 0.1.1 authenticated Classic test
+  passes **259 assertions in 100.4 seconds** with all previous options plus
+  real catalogue uninstall/reinstall. RC-5 is passed for this supported flow.
+- The fixture supplies an owned loopback catalogue/package URL to the real
+  `/agent/addons/uninstall` and `/agent/addons/install` endpoints, boots without
+  the package, then reinstalls and cold-boots it. Saved drafts, exact message
+  history, tombstones, body-free receipts, and completed work survive without
+  replay. Database/WAL bytes stay unchanged across the package-absent lifecycle.
+  The same run includes busy queueing and 65-second idle observation.
+- Local catalogue/root-package metadata now includes 0.1.1 and `check:catalog`
+  passes. The public tarball URL is prospective: no package was published.
+  Compatibility still depends on the unapproved core contract; no merge or live
+  installation is authorised. Earlier entries below are historical checkpoints.
+
 ## Passed in owned disposable fixtures
 
 - Authenticated Classic host: Explorer → Review file → comment → explicit Send → local loopback-provider reply and resolution → browser reload. Anonymous create/edit returned 401; authenticated foreign-origin create/edit returned 403. Forged identities/targets and hostile path, symlink and revision inputs did not create review or queue work.
@@ -27,14 +48,15 @@ not been signed off; the six-check simplification does not waive it.
 
 1. **CR-079 host authority:** `localContext` v1 exposes chat identity, not the verified dispatch reference for the current prompt. Two reviews assigned to one chat are not isolated per prompt. See [CR-079-HOST-CONTRACT.md](CR-079-HOST-CONTRACT.md). The separately owned core contract needs explicit approval before implementation and same-chat cross-review tests.
 2. **Core integration:** The core worktree has modified and untracked files. Host-contract review, an approved integration path, hosted CI and a final version providing the APIs are outstanding. The add-on manifest's `compatibleVersions: ">=3.2.1"` is provisional.
-3. **Publication:** `bun run check:catalog` fails because the add-on has no generated catalogue/root-package entry. There is no published package or clean published-package install test. Do not publish the provisional package.
+3. **Publication:** local `bun run check:catalog` passes with the 0.1.1 entry. The disposable manager installed the local tarball successfully, but there is no published-package install test. Do not publish until the compatible core version and security gates are settled.
 4. **Acceptance:** Sign off the six active flows. Exhaustive permutations and follow-up depth are listed as deferred in [ACCEPTANCE.md](ACCEPTANCE.md); no 184-step-handler implementation is required. Existing security, persistence and no-implicit-send checks remain mandatory.
 5. **Approval:** Merge, publication, live installation and live restart require separate explicit permission. The local `piclaw.service` was untouched.
 
 ## Busy-target and recovery follow-up
 
-Only test fixtures changed after `32a408b`; the production implementation and
-paired mock screenshots are unchanged.
+At checkpoint `a1be0fc`, only test fixtures changed after `32a408b`; the
+production implementation and paired mock screenshots were unchanged. The later
+author-action changes and catalogue lifecycle results are listed above.
 
 - Focused RC-3/RC-5 run: 22 tests, 354 assertions passed across batch, delivery,
   browser retry/reconcile, durability, draft-close and copied-store fixtures.

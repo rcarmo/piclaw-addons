@@ -97,6 +97,13 @@ export const styles = `
 .cr-thread footer,.cr-composer footer{display:flex;gap:6px;padding:7px 10px;flex-wrap:wrap;align-items:center;border-top:1px solid var(--border-color)}
 .cr-message{padding:10px;border-top:1px solid var(--border-color)}
 .cr-message p{white-space:pre-wrap;overflow-wrap:anywhere;margin:7px 0}
+.cr-message-meta{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.cr-message-options{position:relative;margin-left:auto;flex:none}
+.cr-message-options>summary{display:flex;align-items:center;justify-content:center;box-sizing:border-box;width:32px;height:32px;padding:6px;list-style:none;cursor:pointer;border:1px solid var(--border-color);border-radius:6px;background:var(--bg-hover);color:var(--text-primary)}
+.cr-message-options>summary::-webkit-details-marker{display:none}
+.cr-message-options>summary:focus-visible{outline:2px solid var(--accent-color);outline-offset:2px}
+.cr-message-options[open]>summary,.cr-message-options>summary:hover{background:color-mix(in srgb,var(--accent-color) 15%,var(--bg-primary))}
+.cr-message-actions{position:absolute;right:0;top:100%;z-index:5;display:flex;gap:6px;padding:8px;border:1px solid var(--border-color);border-radius:6px;background:var(--bg-primary);box-shadow:0 4px 16px #0002}
 .cr-composer{padding:8px 10px;flex:none;border-top:1px solid var(--accent-color);max-height:45%;overflow:auto}
 .cr-composer>strong{font-size:12px}
 .cr-composer textarea{width:100%;resize:vertical;min-height:80px;display:block;margin-top:5px}

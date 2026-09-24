@@ -40,6 +40,7 @@ hostTest(
     });
     const paths = prepared.paths;
     let child: ReturnType<typeof spawn> | undefined, browser;
+    let catalogServer: ReturnType<typeof Bun.serve> | undefined;
     let log = "";
     const provider =
       process.env.PICLAW_REVIEW_AGENT_TEST === "1"
@@ -48,6 +49,9 @@ hostTest(
     try {
       const recovery = process.env.PICLAW_REVIEW_RECOVERY_TEST === "1";
       const busyTarget = process.env.PICLAW_REVIEW_BUSY_TEST === "1";
+      const catalogLifecycle = process.env.PICLAW_REVIEW_CATALOG_TEST === "1";
+      if (catalogLifecycle && (!recovery || !process.env.PICLAW_REVIEW_PACKAGE_TARBALL))
+        throw Error("Catalogue lifecycle checks require recovery flags and a packed tarball.");
       if (busyTarget && (!provider || process.env.PICLAW_REVIEW_AUTH_TEST !== "1"))
         throw Error("Busy-target checks require authenticated and local-agent fixture flags.");
       if (recovery && (!provider || process.env.PICLAW_REVIEW_AUTH_TEST !== "1" || process.env.PICLAW_REVIEW_RESTART_TEST !== "1"))
@@ -56,6 +60,18 @@ hostTest(
       // production tarball and installs dependencies inside the owned fixture.
       const dest = prepared.installed[0]!.destination;
       const tarball = process.env.PICLAW_REVIEW_PACKAGE_TARBALL;
+      if (catalogLifecycle) {
+        const manifest = JSON.parse(execFileSync("tar", ["-xOf", tarball!, "package/package.json"], { encoding: "utf8" }));
+        catalogServer = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch(request) {
+          const url = new URL(request.url);
+          if (url.pathname === "/package.tgz") return new Response(Bun.file(tarball!));
+          if (url.pathname === "/catalog.json") return Response.json({ version: 1, source: "Disposable loopback fixture", addons: [{
+            slug: "code-review", name: manifest.name, version: manifest.version, type: "extension",
+            install: { kind: "tarball", spec: url.origin + "/package.tgz" },
+          }] });
+          return new Response("Not found", { status: 404 });
+        } });
+      }
       if (tarball) {
         const entries = execFileSync("tar", ["-tzf", tarball], { encoding: "utf8" }).trim().split("\n");
         if (!entries.length || entries.some((entry) => !/^package\/(?:[a-zA-Z0-9._-]+\/)*[a-zA-Z0-9._-]+$/.test(entry)))
@@ -473,19 +489,30 @@ hostTest(
             const savedThread = await api({ action: "thread", threadId: thread.id });
             recoveryState = { reviewId: review.id, threadId: thread.id, receipt, draft: drafts[0], messages: savedThread.messages, requests: provider.requests.length };
           }
+          const packageAction = async (action: "uninstall" | "install") => {
+            const response = await fetch(url + `/agent/addons/${action}?catalog_url=` + encodeURIComponent(catalogServer!.url.href + "catalog.json"), {
+              method: "POST", headers: { "Content-Type": "application/json", Origin: url, Cookie: sessionCookie! },
+              body: JSON.stringify({ slug: "code-review" }),
+            });
+            expect(response.status).toBe(200);
+            const result = await response.json() as { ok?: boolean; error?: string };
+            if (!result.ok) throw Error(`Fixture ${action} failed: ${result.error}`);
+            expect(result.ok).toBe(true);
+          };
           // Restart only this owned disposable child; never the live service.
           await page.close();
+          if (catalogLifecycle) await packageAction("uninstall");
           await stopHost();
           if (recovery) {
             // Exercise package absence/restoration only in this owned fixture.
-            // This is not the catalogue manager's uninstall/install route.
+            // Opt in separately to the real catalogue manager's lifecycle.
             const savedPackage = join(paths.root, "removed-code-review-package");
             // Hash persisted bytes including WAL after each graceful shutdown;
             // shared-memory lock bookkeeping is not stored review data.
             const digest = () => [reviewDb, reviewDb + "-wal"].map((path) =>
               existsSync(path) ? Bun.hash(readFileSync(path)).toString() : null);
             const retainedDigest = digest();
-            renameSync(dest, savedPackage);
+            if (!catalogLifecycle) renameSync(dest, savedPackage);
             expect(existsSync(dest)).toBe(false);
             await bootHost();
             const absent = await fetch(url + "/agent/addons/api/code-review/action", {
@@ -499,10 +526,15 @@ hostTest(
             expect(missing.ok).not.toBe(true);
             expect(missing.result).toBeUndefined();
             if (absent.status === 500) expect(missing.error).toContain("Unknown command: /code-review-action-set");
+            if (catalogLifecycle) {
+              await packageAction("install");
+              expect(existsSync(join(dest, "runtime.ts"))).toBe(true);
+              expect(existsSync(join(dest, "web", "pane.ts"))).toBe(true);
+            }
             await stopHost();
             expect(digest()).toEqual(retainedDigest);
             expect(provider.requests.length).toBe(recoveryState!.requests);
-            renameSync(savedPackage, dest);
+            if (!catalogLifecycle) renameSync(savedPackage, dest);
           }
           await bootHost();
           if (recoveryState) {
@@ -813,6 +845,7 @@ hostTest(
         operatorComments: true,
         localFixtureTurns: provider?.requests.length ?? 0,
         priorBusyFixtureTurns: provider?.busyStarted ? 1 : 0,
+        catalogUninstallReinstall: catalogLifecycle,
         paidProviderCalls: 0,
       });
     } catch (error) {
@@ -821,6 +854,7 @@ hostTest(
     } finally {
       await browser?.close();
       provider?.stop();
+      catalogServer?.stop(true);
       if (child?.pid) {
         try {
           process.kill(-child.pid, "SIGTERM");

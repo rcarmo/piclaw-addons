@@ -93,6 +93,25 @@
       "updatedAt": "2026-09-19"
     },
     {
+      "slug": "code-review",
+      "name": "@rcarmo/piclaw-addon-code-review",
+      "version": "0.1.1",
+      "type": "extension",
+      "description": "Saved-source and Git-diff reviews with durable inline discussions and explicit queued agent work",
+      "path": "addons/code-review",
+      "tags": [
+        "agent-workflow",
+        "code-review",
+        "workspace"
+      ],
+      "skills": [],
+      "install": {
+        "kind": "tarball",
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-code-review-0.1.1.tgz"
+      },
+      "updatedAt": "2026-09-24"
+    },
+    {
       "slug": "code-validator",
       "name": "@rcarmo/piclaw-addon-code-validator",
       "version": "0.1.3",

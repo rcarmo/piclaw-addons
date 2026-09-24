@@ -27,6 +27,7 @@ test("RC-1/2/3 render the approved mock source, diff and send states with real s
   const store = new ReviewService(join(root, "review.db"));
   const target = { chatJid: "web:implementation", incarnation: "fixture-1", agentName: "implementation", label: "@implementation", active: false };
   let queued = 0;
+  const actions: string[] = [];
   const ctx: LocalContext = { version: 1, accessMode: "single-user", ownerId: "owner", actorId: "human", kind: "operator", workspaceRoot: root, workspaceId: "fixture",
     async listTargets() { return [target]; }, async resolveTarget() { return target; },
     async enqueue() { return { status: "accepted", rowId: ++queued }; } };
@@ -45,7 +46,7 @@ test("RC-1/2/3 render the approved mock source, diff and send states with real s
       if (["/web/index.ts", "/web/pane.ts", "/web/api.ts", "/web/styles.ts"].includes(path))
         return new Response(transpile.transformSync(readFileSync(join(import.meta.dir, path.slice(1)), "utf8")), { headers: { "Content-Type": "text/javascript" } });
       if (path === "/agent/addons/api/code-review/action") {
-        try { const body = await req.json(); return Response.json({ ok: true, result: await reviewAction(ctx, body.action, body, store) }); }
+        try { const body = await req.json(); actions.push(body.action); return Response.json({ ok: true, result: await reviewAction(ctx, body.action, body, store) }); }
         catch (error) { return Response.json({ ok: false, error: { message: (error as Error).message } }); }
       }
       return new Response("Not found", { status: 404 });
@@ -90,6 +91,7 @@ test("RC-1/2/3 render the approved mock source, diff and send states with real s
       await real.locator(".cr-thread [data-action=expand]").click();
       await real.locator(".cr-message-body").waitFor();
       expect(await real.locator(".cr-message-body").innerText()).toBe(body);
+      await shot("discussion", width);
       await real.locator(`.cr-thread [data-pick="${thread.threadId}"]`).check();
       await reference.locator('#t1 [data-pick="t1"]').check();
       await real.locator("[data-action=send]").click();
@@ -122,6 +124,47 @@ test("RC-1/2/3 render the approved mock source, diff and send states with real s
     expect(await real.locator(".cr-evidence").innerText()).toContain("Addressed guidance v1");
     expect(await real.locator(".cr-evidence code").innerText()).toBe("src/validation.ts#L4");
     expect(await real.locator(".cr-evidence a").getAttribute("rel")).toBe("noopener noreferrer");
+    // The approved design keeps the author's destructive/edit actions behind
+    // an overflow disclosure. Opening or dismissing it is entirely local.
+    for (const width of [1280, 520]) {
+      await real.setViewportSize({ width, height: 900 });
+      const message = real.locator(".cr-message").first();
+      const menu = message.locator(".cr-message-options");
+      const summary = menu.locator("summary");
+      expect(await message.locator("[data-action=edit]").isVisible()).toBe(false);
+      expect(await summary.getAttribute("title")).toContain("neither sends agent work");
+      const before = actions.length;
+      await summary.focus();
+      await real.keyboard.press("Enter");
+      expect(await message.locator("[data-action=edit]").isVisible()).toBe(true);
+      const bounds = await message.locator(".cr-message-actions").boundingBox();
+      expect(bounds!.x).toBeGreaterThanOrEqual(0);
+      expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
+      expect((await summary.boundingBox())!.width).toBe(32);
+      expect((await summary.boundingBox())!.height).toBe(32);
+      await message.locator("[data-action=delete-message]").focus();
+      await real.keyboard.press("Escape");
+      expect(await menu.getAttribute("open")).toBeNull();
+      expect(await summary.evaluate((el) => el === document.activeElement)).toBe(true);
+      expect(actions.length).toBe(before);
+    }
+    await real.locator(".cr-message-options summary").first().click();
+    await real.locator(".cr-message [data-action=edit]").first().click();
+    await real.locator("#cr-body").fill("Edited guidance without dispatch");
+    await real.locator("[data-action=post]").click();
+    await real.waitForFunction(() => document.querySelector(".cr-message-body")?.textContent === "Edited guidance without dispatch");
+    expect(store.getThread(ctx, thread.threadId).messages[0].body).toBe("Edited guidance without dispatch");
+    await real.locator(".cr-message-options summary").first().click();
+    real.once("dialog", (dialog) => dialog.dismiss());
+    await real.locator(".cr-message [data-action=delete-message]").first().click();
+    expect(store.getThread(ctx, thread.threadId).messages[0].body).toBe("Edited guidance without dispatch");
+    expect(await real.locator(".cr-message-options").first().getAttribute("open")).not.toBeNull();
+    real.once("dialog", (dialog) => dialog.accept());
+    await real.locator(".cr-message [data-action=delete-message]").first().click();
+    await real.waitForFunction(() => document.querySelector(".cr-message-body")?.textContent === "Comment deleted");
+    expect(await real.locator(".cr-message").first().locator(".cr-message-options").count()).toBe(0);
+    expect(store.getThread(ctx, thread.threadId).messages[0].body).toBeNull();
+    expect(queued).toBe(0);
     expect(readFileSync(join(root, "src/validation.ts"), "utf8")).toBe(source);
     expect(errors).toEqual([]);
     if (output) writeFileSync(join(output, "measurements.json"), JSON.stringify({ note: "Matching fixtures/palette; paired screenshots require human visual review, not a pixel parity claim.", dimensions }, null, 2));

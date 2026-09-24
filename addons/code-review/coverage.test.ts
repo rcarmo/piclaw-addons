@@ -6,7 +6,7 @@ test("active Classic checklist has six distinct checks and does not imply a pass
   expect(checks.every((check) => check.check && check.required)).toBe(true);
   expect(checks.find((check) => check.id === "RC-4")?.status).toBe("blocked");
   expect(checks.find((check) => check.id === "RC-6")?.status).toBe("blocked");
-  expect(checks.some((check) => check.status === "passed")).toBe(false);
+  expect(checks.filter((check) => check.status === "passed").map((check) => check.id)).toEqual(["RC-5"]);
 });
 test("default report is compact; old scenarios are opt-in reference without acceptance counters", () => {
   const report = acceptanceReport();
