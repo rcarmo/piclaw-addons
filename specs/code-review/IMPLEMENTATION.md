@@ -154,7 +154,13 @@ acceptance scenarios and are not full Piclaw integration proof.
   client-forged author/kind/owner and unrelated target/send return domain
   denials, with unchanged real SQLite message/receipt/dispatch/attempt counts
   and no provider work. These are two bounded Gherkin executions, not the
-  other 182 scenarios or CR-079's trusted-dispatch isolation.
+  other 182 scenarios or CR-079's trusted-dispatch isolation. Canonical CR-081
+  steps also run through the authenticated host with the already-selected
+  local target: traversal and symlink escape return `unsafe_path`, a crafted
+  revision returns `invalid_revision`, the fixture's hostile Git helper marker
+  stays absent, and SQLite counts/queue work are unchanged. The isolated Git
+  setup is fixture-owned; these probes do not establish a general proof that
+  every possible filesystem/Git side effect is impossible.
 - File-backed delivery tests now check concurrent claim-once queueing, independent
   completed/blocked item states, numbered retries after definite rejection,
   unknown delivery without replay and explicit reconciliation against the
