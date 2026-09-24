@@ -152,7 +152,7 @@ hostTest(
       safe.PICLAW_WEB_UI_MODE = uiMode;
       const env = preparedInstanceEnvironment(safe),
         url = `http://127.0.0.1:${port}`;
-      child = spawn(
+      const startHost = () => spawn(
         "/usr/bin/nice",
         [
           "-n",
@@ -168,28 +168,25 @@ hostTest(
         ],
         { cwd: core, env, detached: true, stdio: ["ignore", "pipe", "pipe"] },
       );
-      child.stdout?.on("data", (chunk) => {
-        log = (log + chunk.toString()).slice(-250000);
-      });
-      child.stderr?.on("data", (chunk) => {
-        log = (log + chunk.toString()).slice(-250000);
-      });
-      let ready = false;
-      for (let i = 0; i < 120; i++) {
-        if (child.exitCode !== null || child.signalCode)
-          throw Error("Fixture exited: " + log.slice(-6000));
-        try {
-          const r = await fetch(url + (authenticated ? "/login" : "/workspace/raw?path=fixture-owner.txt"), {
-            signal: AbortSignal.timeout(500),
-          });
-          if (r.ok && (authenticated || (await r.text()) === marker)) {
-            ready = true;
-            break;
-          }
-        } catch {}
-        await Bun.sleep(500);
-      }
-      if (!ready) throw Error("Fixture did not start: " + log.slice(-6000));
+      const bootHost = async () => {
+        const running = startHost();
+        child = running;
+        running.stdout?.on("data", (chunk) => { log = (log + chunk.toString()).slice(-250000); });
+        running.stderr?.on("data", (chunk) => { log = (log + chunk.toString()).slice(-250000); });
+        for (let i = 0; i < 120; i++) {
+          if (running.exitCode !== null || running.signalCode)
+            throw Error("Fixture exited: " + log.slice(-6000));
+          try {
+            const r = await fetch(url + (authenticated ? "/login" : "/workspace/raw?path=fixture-owner.txt"), {
+              signal: AbortSignal.timeout(500),
+            });
+            if (r.ok && (authenticated || (await r.text()) === marker)) return;
+          } catch {}
+          await Bun.sleep(500);
+        }
+        throw Error("Fixture did not start: " + log.slice(-6000));
+      };
+      await bootHost();
       // --workspace overrides PICLAW_DATA in the core path resolver.
       const reviewDb = join(paths.workspace, ".piclaw", "data", "addons", "code-review", "reviews.db");
       let sessionCookie: string | undefined;
@@ -228,7 +225,7 @@ hostTest(
         const [name, value] = sessionCookie.split("=", 2);
         await context.addCookies([{ name: name!, value: value!, url, httpOnly: true, sameSite: "Strict" }]);
       }
-      const page = await context.newPage();
+      let page = await context.newPage();
       const browserDestinations: string[] = [];
       page.on("request", (request) => {
         if (/^https?:/.test(request.url())) browserDestinations.push(request.url());
@@ -369,6 +366,49 @@ hostTest(
         expect(await page.locator(".cr-thread header").innerText()).toContain(
           "resolved",
         );
+        if (process.env.PICLAW_REVIEW_RESTART_TEST === "1") {
+          // Restart only this owned disposable child; never the live service.
+          await page.close();
+          const previous = child!;
+          process.kill(-previous.pid!, "SIGTERM");
+          await Promise.race([new Promise<void>((resolve) => previous.once("exit", () => resolve())), Bun.sleep(5000)]);
+          if (previous.exitCode === null && !previous.signalCode) throw Error("Disposable host did not stop before restart.");
+          await bootHost();
+          const recovered = await fetch(url + "/agent/addons/api/code-review/action", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Origin: url, ...(sessionCookie ? { Cookie: sessionCookie } : {}) },
+            body: JSON.stringify({ action: "list", limit: 10 }),
+          });
+          expect(recovered.status).toBe(200);
+          const listed = await recovered.json() as { ok: boolean; result?: Array<{ id: string }> };
+          expect(listed.ok).toBe(true);
+          expect(listed.result).toHaveLength(1);
+          page = await context.newPage();
+          page.on("pageerror", (error) => errors.push(error.message));
+          page.on("request", (request) => { if (/^https?:/.test(request.url())) browserDestinations.push(request.url()); });
+          page.on("dialog", (dialog) => dialog.accept());
+          await page.goto(url, { waitUntil: "domcontentloaded" });
+          await page.waitForSelector(".workspace-toggle-tab");
+          const toggle = page.getByRole("button", { name: "Show workspace", exact: true });
+          if (await toggle.isVisible()) await toggle.click();
+          await page.getByText("review-fixture.ts", { exact: true }).first().click();
+          const action = page.getByRole("button", { name: "Review file", exact: true }).first();
+          if (!(await action.isVisible())) await page.getByRole("button", { name: "Workspace actions", exact: true }).click();
+          await action.click();
+          await page.waitForSelector(".cr-thread");
+          expect(await page.locator(".cr-thread header").innerText()).toContain("resolved");
+          await page.locator(".cr-thread [data-action=expand]").click();
+          await page.waitForFunction(() => document.querySelector(".cr-message-body")?.textContent?.includes("Validate empty strings"), null, { timeout: 10000 });
+          const saved = await page.locator(".cr-message-body").allInnerTexts();
+          expect(saved.join("\n")).toContain("Validate empty strings");
+          expect(saved.length).toBeGreaterThan(1);
+          const db = new Database(reviewDb, { readonly: true });
+          try {
+            expect((db.query("SELECT state FROM attempts LIMIT 1").get() as { state: string }).state).toBe("accepted");
+            expect((db.query("SELECT work_state FROM dispatch_items LIMIT 1").get() as { work_state: string }).work_state).toBe("completed");
+          } finally { db.close(); }
+          expect(provider.completed).toBe(true);
+        }
       }
       // Core mode and add-on control layout under owned responsive viewports.
       // No implicit dispatch or source mutation occurs when resizing the pane.

@@ -342,7 +342,11 @@ acceptance scenarios and are not full Piclaw integration proof.
   (54.0 KB packed) was also extracted into an owned disposable Classic host,
   with production dependencies installed there; authenticated Explorer,
   comment, explicit send, local-provider reply/resolve and reload passed with
-  zero paid-provider calls. The initial offline install failed due to missing
+  zero paid-provider calls. An opt-in Classic fixture now stops and relaunches
+  only its own host child after resolution (source copy and packed tarball):
+  the browser reopens the resolved thread and saved messages, while SQLite
+  retains an accepted attempt and completed dispatch item. This is an owned
+  host restart, not a live-service reload or restored-host grant test. The initial offline install failed due to missing
   cached manifests, so this successful fixture fetched registry dependencies
   into its own temporary cache. The archive's `tests` directory is absent.
   `bun run check:catalog` fails because this unreleased add-on has no generated
