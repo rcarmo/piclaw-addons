@@ -12,6 +12,7 @@ import { join, resolve } from "node:path";
 import { createServer } from "node:net";
 import { spawn } from "node:child_process";
 import { runCr077Scenario } from "./tests/steps/cr077.steps.js";
+import { runCr078Scenario } from "./tests/steps/cr078.steps.js";
 import { startReviewProvider } from "./provider-fixture.js";
 import {
   prepareAddonTestInstance,
@@ -172,7 +173,8 @@ hostTest(
         await Bun.sleep(500);
       }
       if (!ready) throw Error("Fixture did not start: " + log.slice(-6000));
-      const reviewDb = join(paths.data, "addons", "code-review", "reviews.db");
+      // --workspace overrides PICLAW_DATA in the core path resolver.
+      const reviewDb = join(paths.workspace, ".piclaw", "data", "addons", "code-review", "reviews.db");
       let sessionCookie: string | undefined;
       if (authenticated) {
         sessionCookie = await runCr077Scenario({
@@ -273,6 +275,12 @@ hostTest(
       expect(await page.locator(".cr-message-body").innerText()).toContain(
         "Validate empty strings",
       );
+      if (authenticated) {
+        await runCr078Scenario({
+          url, reviewDb, cookie: sessionCookie!,
+          providerRequests: () => provider?.requests.length ?? 0,
+        });
+      }
       if (provider) {
         await page.locator(".cr-thread [data-pick]").check();
         await page.locator(".cr-pane [data-action=send]").click();

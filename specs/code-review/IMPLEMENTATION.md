@@ -146,9 +146,15 @@ acceptance scenarios and are not full Piclaw integration proof.
   calls. Cross-origin rejection is tested with that session as well. The
   canonical CR-077 Background and scenario lines are now executed through
   exact-match step handlers in the authenticated host fixture: anonymous and
-  cross-origin create/edit are denied before any DB or provider work. This is
-  one bounded Gherkin execution, not the other 183 scenarios or CR-079's
-  trusted-dispatch isolation.
+  cross-origin create/edit are denied before any DB or provider work. The
+  database check uses the actual CLI-workspace data root (`.piclaw/data`), not
+  the preparer's `PICLAW_DATA` path that the CLI overrides; prior pre-DB
+  assertions used the wrong path and are superseded by this verified run.
+  Canonical CR-078 steps also run after an authenticated browser comment:
+  client-forged author/kind/owner and unrelated target/send return domain
+  denials, with unchanged real SQLite message/receipt/dispatch/attempt counts
+  and no provider work. These are two bounded Gherkin executions, not the
+  other 182 scenarios or CR-079's trusted-dispatch isolation.
 - File-backed delivery tests now check concurrent claim-once queueing, independent
   completed/blocked item states, numbered retries after definite rejection,
   unknown delivery without replay and explicit reconciliation against the
