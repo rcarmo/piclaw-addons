@@ -93,6 +93,12 @@ acceptance scenarios and are not full Piclaw integration proof.
   reopening marks the attempt unknown and does not resend. Eight consecutive
   runs passed. The marker models host acceptance; it does not make an external
   host queue transactional with SQLite or prove routing across machines.
+- The browser receipt pane now has focused CR-040/041/098 tests: it shows a
+  rejected attempt, confirms an explicit numbered retry against the original
+  dispatch, and reconciles an unknown attempt with operator-entered evidence
+  without another enqueue. Controls and states survive browser reload. The
+  fixture uses the real review service behind a disposable browser API; it
+  does not prove a remote host receipt or all denial/cancellation branches.
 - The browser fixture now commits a public reply while losing its response,
   then retries from the same composer and receives the original reply without
   creating a second message or queueing another agent turn (focused CR-069).
