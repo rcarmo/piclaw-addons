@@ -3,6 +3,7 @@ import { createAnchor, projectAnchor } from "./anchors.js";
 import {
   LIMITS,
   ReviewError,
+  type DeliveryState,
   type ReviewIdentity,
   type LocalTarget,
   type SourceCapture,
@@ -66,6 +67,19 @@ interface MessageRecord {
   deleted: number;
   created_at: string;
   updated_at: string;
+}
+interface ThreadSummary {
+  body: string | null;
+  authorKind: "operator" | "agent" | null;
+  messageCount: number;
+  filePath: string | null;
+  deliveryState: DeliveryState | null;
+  workState: WorkState | null;
+}
+interface MessageResolution {
+  fileId: string;
+  evidence: string[];
+  addressedVersion: number;
 }
 export class ReviewStore {
   readonly database: ReviewDatabase;
@@ -546,6 +560,95 @@ export class ReviewStore {
       newText: read(file.new_hash),
     };
   }
+  private trimSummaryBody(body: string): string {
+    return Array.from(body).slice(0, 240).join("");
+  }
+  private anchorFilePath(reviewId: string, anchor: OriginalAnchor): string | null {
+    const file = this.database.get<{
+      old_path: string | null;
+      new_path: string | null;
+    }>(
+      "SELECT old_path,new_path FROM snapshot_files WHERE review_id=? AND id=?",
+      reviewId,
+      anchor.snapshotFileId,
+    );
+    if (!file) return this.missing();
+    return anchor.side === "old" ? file.old_path : file.new_path ?? file.old_path;
+  }
+  private summaryForThread(thread: ThreadRecord, anchor: OriginalAnchor): ThreadSummary {
+    const first = this.database.get<{
+      body: string | null;
+      author_kind: "operator" | "agent" | null;
+    }>(
+      "SELECT substr(r.body,1,240) AS body,m.author_kind FROM messages m JOIN message_revisions r ON r.message_id=m.id AND r.version=m.version WHERE m.thread_id=? AND m.deleted=0 AND r.body IS NOT NULL ORDER BY m.ordinal LIMIT 1",
+      thread.id,
+    );
+    const counts = this.database.get<{ message_count: number }>(
+      "SELECT COUNT(*) AS message_count FROM messages WHERE thread_id=? AND deleted=0",
+      thread.id,
+    );
+    const selected = JSON.parse(thread.target_json) as LocalTarget;
+    const dispatch = this.database.get<{
+      work_state: WorkState;
+      delivery_state: DeliveryState;
+    }>(
+      "SELECT i.work_state,a.state AS delivery_state FROM dispatch_items i JOIN dispatches d ON d.id=i.dispatch_id AND d.review_id=i.review_id JOIN attempts a ON a.dispatch_id=d.id AND a.number=(SELECT MAX(number) FROM attempts WHERE dispatch_id=d.id) WHERE i.thread_id=? AND i.assignment_epoch=? AND json_extract(d.target_json,'$.chatId')=? AND json_extract(d.target_json,'$.incarnation')=? ORDER BY d.rowid DESC LIMIT 1",
+      thread.id,
+      thread.assignment_epoch,
+      selected.chatId,
+      selected.incarnation,
+    );
+    return {
+      body: first?.body ? this.trimSummaryBody(first.body) : null,
+      authorKind: first?.author_kind ?? null,
+      messageCount: counts?.message_count ?? 0,
+      filePath: this.anchorFilePath(thread.review_id, anchor),
+      deliveryState: dispatch?.delivery_state ?? null,
+      workState: dispatch?.work_state ?? null,
+    };
+  }
+  private resolutionByMessage(
+    reviewId: string,
+    threadId: string,
+    messageIds: string[],
+  ): Map<string, MessageResolution> {
+    const resolutions = new Map<string, MessageResolution>();
+    if (!messageIds.length) return resolutions;
+    const placeholders = messageIds.map(() => "?").join(",");
+    const rows = this.database.all<{
+      message_id: string;
+      data_json: string;
+    }>(
+      `SELECT json_extract(data_json,'$.messageId') AS message_id,data_json
+       FROM events
+       WHERE review_id=? AND thread_id=? AND kind='thread.resolved'
+         AND json_extract(data_json,'$.messageId') IN (${placeholders})`,
+      reviewId,
+      threadId,
+      ...messageIds,
+    );
+    for (const row of rows) {
+      const data = JSON.parse(row.data_json) as {
+        fileId?: unknown;
+        evidence?: unknown;
+        addressedVersion?: unknown;
+      };
+      if (
+        typeof data.fileId !== "string" ||
+        !Number.isSafeInteger(data.addressedVersion) ||
+        !Array.isArray(data.evidence) ||
+        data.evidence.some((entry) => typeof entry !== "string")
+      )
+        continue;
+      const addressedVersion = data.addressedVersion as number;
+      resolutions.set(row.message_id, {
+        fileId: data.fileId,
+        evidence: [...data.evidence],
+        addressedVersion,
+      });
+    }
+    return resolutions;
+  }
   private append(who: ReviewIdentity, thread: ThreadRecord, body: string) {
     const messageId = id("message"),
       time = now();
@@ -642,11 +745,15 @@ export class ReviewStore {
       who.chatIncarnation ?? "",
       pageSize(options.limit, LIMITS.threadPage),
     );
-    return rows.map((row) => ({
-      ...row,
-      anchor: JSON.parse(row.anchor_json),
-      target: JSON.parse(row.target_json),
-    }));
+    return rows.map((row) => {
+      const anchor = JSON.parse(row.anchor_json) as OriginalAnchor;
+      return {
+        ...row,
+        anchor,
+        target: JSON.parse(row.target_json),
+        summary: this.summaryForThread(row, anchor),
+      };
+    });
   }
   getThread(who: ReviewIdentity, threadId: string, after = 0, limit?: number) {
     if (!Number.isSafeInteger(after) || after < 0)
@@ -659,12 +766,21 @@ export class ReviewStore {
       after,
       pageSize(limit, LIMITS.historyPage),
     );
+    const resolutions = this.resolutionByMessage(
+      thread.review_id,
+      thread.id,
+      messages.map((message) => message.id),
+    );
     const file = this.file(who, thread.review_id, anchor.snapshotFileId);
     return {
       ...thread,
       anchor,
       target: JSON.parse(thread.target_json),
-      messages,
+      messages: messages.map((message) => {
+        if (message.deleted) return message;
+        const resolution = resolutions.get(message.id);
+        return resolution ? { ...message, resolution } : message;
+      }),
       source: {
         fileId: file.id,
         snapshotId: file.snapshot_id,

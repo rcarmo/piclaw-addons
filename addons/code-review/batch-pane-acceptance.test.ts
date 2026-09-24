@@ -428,6 +428,7 @@ test(
           .isChecked(),
       ).toBe(false);
       expect(await page.locator("#cr-summary").inputValue()).toBe(SUMMARY);
+      await page.locator(".cr-preview-details summary").click();
       const previewItems = page.locator(".cr-send-preview li");
       expect(await previewItems.count()).toBe(2);
       expect(await previewItems.first().getAttribute("data-preview-thread")).toBe(harness.mainThreadId);
@@ -538,6 +539,7 @@ test(
       expect(harness.queueCalls).toHaveLength(0);
       await page.unroute("**/agent/addons/api/code-review/action");
       await page.locator(".cr-toolbar [data-action=send]").click();
+      await page.locator(".cr-preview-details summary").click();
       await page.waitForSelector(".cr-send-preview li");
       expect(await page.locator(".cr-send-preview li").count()).toBe(1);
       expect(await page.locator(".cr-send-preview li").first().getAttribute("data-preview-thread")).toBe(harness.mainThreadId);
@@ -618,10 +620,12 @@ test(
         "The record changed; reload before retrying.",
       );
       expect(await page.locator(".cr-send-preview li").count()).toBe(2);
+      await page.locator(".cr-preview-details summary").click();
       expect(await page.locator(".cr-send-preview li").nth(1).innerText()).toContain("Guidance v1");
       expect(await page.locator('[data-action="confirm-send"]').isDisabled()).toBe(false);
       await page.locator('[data-action="refresh-send-preview"]').click();
       await page.waitForFunction(() => document.querySelector('.cr-send-preview li:nth-child(2)')?.textContent?.includes('Guidance v2'));
+      await page.locator(".cr-preview-details summary").click();
       expect(await page.locator('.cr-send-preview li').nth(1).innerText()).toContain(harness.utilFileId);
       await page.locator(`.cr-drawer [data-pick="${harness.otherThreadId}"]`).check();
       expect(await page.locator('.cr-send-preview li').count()).toBe(0);

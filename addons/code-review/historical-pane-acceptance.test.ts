@@ -286,8 +286,7 @@ test(
       );
       expect(await page.locator(".cr-source").innerText()).toContain("fourth");
 
-      await page.locator("[data-action=options]").click();
-      await page.locator("[data-action=history]").click();
+      await page.locator("#cr-source-mode").selectOption("commit");
       await page.waitForFunction(
         () => document.querySelector("#cr-snapshot option")?.textContent?.includes("commit"),
       );
@@ -467,8 +466,7 @@ test("CR-091 browser pages beyond 20 commits and captures the verified pre-renam
     await page.waitForFunction(() => (window as any).__codeReviewReady === true);
     await page.evaluate((path: string) => (window as any).__piclaw_web.openPane({ path }), PATH_PREFIX + created.reviewId);
     await page.waitForSelector(".cr-line");
-    await page.locator("[data-action=options]").click();
-    await page.locator("[data-action=history]").click();
+    await page.locator("#cr-source-mode").selectOption("commit");
     await page.waitForFunction(() => document.querySelector(".cr-file-header strong")?.textContent === "old.ts");
     expect(dialogs).toHaveLength(2);
     expect(dialogs[0]).toContain("Commits 1–20");

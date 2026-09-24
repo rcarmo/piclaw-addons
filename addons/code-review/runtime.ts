@@ -10,7 +10,7 @@ import {
   storeIdentity,
   type LocalContext,
 } from "./host.js";
-import { LIMITS, ReviewError, type Mutation } from "./contracts.js";
+import { LIMITS, ReviewError, type Mutation, type ReviewIdentity } from "./contracts.js";
 import { operator, pageSize } from "./validation.js";
 interface ServiceState {
   service: ReviewService;
@@ -51,6 +51,60 @@ function diffForFile(service: ReviewService, reviewId: string, file: {
     }
   }
   return rows;
+}
+function openThreadCountsForReview(service: ReviewService, reviewId: string) {
+  const rows = service.database.all<{
+    file_path: string | null;
+    open_threads: number;
+  }>(
+    `SELECT CASE json_extract(t.anchor_json,'$.side')
+        WHEN 'old' THEN sf.old_path
+        ELSE COALESCE(sf.new_path,sf.old_path)
+      END AS file_path,
+      COUNT(*) AS open_threads
+     FROM threads t
+     JOIN snapshot_files sf
+       ON sf.review_id=t.review_id
+      AND sf.id=json_extract(t.anchor_json,'$.snapshotFileId')
+     WHERE t.review_id=? AND t.state='open'
+     GROUP BY file_path`,
+    reviewId,
+  );
+  return new Map(
+    rows
+      .filter((row) => row.file_path !== null)
+      .map((row) => [row.file_path!, row.open_threads]),
+  );
+}
+function fileStatsForRow(
+  service: ReviewService,
+  who: ReviewIdentity,
+  reviewId: string,
+  file: {
+    id: string;
+    old_path: string | null;
+    new_path: string | null;
+    change_kind: string;
+  },
+  openThreadsByPath: Map<string, number>,
+) {
+  const openThreads = [...new Set([file.old_path, file.new_path].filter((path): path is string => path !== null))]
+    .reduce((sum, path) => sum + (openThreadsByPath.get(path) ?? 0), 0);
+  if (["source", "unchanged"].includes(file.change_kind))
+    return { added: 0, deleted: 0, openThreads };
+  try {
+    const full = service.readFile(who, reviewId, file.id);
+    const diff = diffForFile(service, reviewId, full);
+    return {
+      added: diff.filter((row) => row.kind === "added").length,
+      deleted: diff.filter((row) => row.kind === "deleted").length,
+      openThreads,
+    };
+  } catch (error) {
+    if (error instanceof ReviewError && error.code === "limit")
+      return { added: null, deleted: null, openThreads };
+    throw error;
+  }
 }
 export function reviewService(): ReviewService {
   const runtime = getRuntime();
@@ -169,8 +223,10 @@ export async function reviewAction(
         mutation(body),
       );
     }
-    case "review":
-      return service.getReview(who, body.reviewId);
+    case "review": {
+      const review = service.getReview(who, body.reviewId);
+      return { ...review, gitAvailable: reader().hasGit(review.focus_path) };
+    }
     case "target": {
       const selected = await resolveHostTarget(ctx, body.target ?? {});
       return service.setTarget(who, body.reviewId, selected, mutation(body));
@@ -198,8 +254,18 @@ export async function reviewAction(
     }
     case "snapshots":
       return service.listSnapshots(who, body.reviewId, body.limit);
-    case "files":
-      return service.snapshotFiles(who, body.reviewId, body.snapshotId);
+    case "files": {
+      const files = service.snapshotFiles(who, body.reviewId, body.snapshotId);
+      const openThreadsByPath = openThreadCountsForReview(service, body.reviewId);
+      const deadline = Date.now() + 1000;
+      return files.map((file) => ({
+        ...file,
+        stats: Date.now() < deadline
+          ? fileStatsForRow(service, who, body.reviewId, file, openThreadsByPath)
+          : { added: null, deleted: null, openThreads: [...new Set([file.old_path, file.new_path])]
+              .reduce((sum, path) => sum + (path ? openThreadsByPath.get(path) ?? 0 : 0), 0) },
+      }));
+    }
     case "file": {
       const file = service.readFile(who, body.reviewId, body.fileId);
       const offset = body.offset ?? 0,

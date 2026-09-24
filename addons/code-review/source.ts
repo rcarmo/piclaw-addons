@@ -208,6 +208,10 @@ export class SourceReader {
       return null;
     }
   }
+  hasGit(path: string): boolean {
+    try { return this.repository(this.path(path, true)) !== null; }
+    catch { return false; } // Current source availability must not hide stored review history.
+  }
   private object(
     repo: string,
     value: string,

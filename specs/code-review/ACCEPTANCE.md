@@ -57,23 +57,34 @@ and references to old scenario IDs do not change status automatically.
 
 ### Mock comparison findings
 
-The source-level comparison of `review-pane-mock.html` with `web/pane.ts` and
-`web/styles.ts` found these remaining differences; visual comparison is still due:
+The batched correction now has browser measurements and paired screenshots in
+`exports/code-review-mock-comparison/` (workspace-relative). These remain review
+evidence; full visual sign-off is open.
 
-- **RC-1:** the implementation's timestamped snapshot picker and overflow capture
-  actions differ from the mock's source-mode selector. File rows lack the mock's
-  additions/deletions and open-concern counts.
-- **RC-2:** collapsed threads and the Threads drawer lack the mock's author,
-  first-message summary, file-path and per-thread delivery cues. Resolution
-  evidence needs a clearer visible presentation.
+- **RC-1:** source modes are in the toolbar; immutable snapshot history stays in
+  the file header. File rows show additions/deletions/open counts and an open-only
+  filter. Unified diffs show both old/new line numbers. Git-less files disable
+  Git modes, and an in-flight source capture disables the mode selector.
+- **RC-2:** public summaries include author, path and current delivery/work state;
+  the drawer uses readable selection cards. Resolution evidence is visible with
+  safe links. Summaries exclude drafts and deleted bodies and are bounded to 240
+  characters. Metadata tests cover edits, deletes, owner/workspace checks and
+  assignment epochs.
 - **RC-3:** mixed-target selection now opens the send drawer with the mock's
   explicit reassignment/separate-batches warning and disabled confirmation.
   Removing the mismatched item still requires a fresh preview. Browser tests
   confirm that neither this warning nor selection changes reassign or queue work.
 
-The implementation already uses pane-width responsiveness, 12px/18px code rows,
-unified/split views and 32px SVG icon controls. These code matches are not a visual
-parity pass. Keep the approved mock unchanged while correcting the implementation.
+Measured against the mock with matching palette/fixtures: both use 12px/18px code
+rows with zero vertical padding; desktop toolbars are both 45px, narrow toolbars
+79px versus 78px at 520px, with no document overflow. The browser comparison also
+checks source/send/diff states and displayed resolution evidence.
+
+Presentation still needs approval: the mock expands discussions by default while
+the implementation loads full conversations on demand; saved-snapshot navigation,
+thread filters, expandable version references and explicit Refresh preview are
+additional production controls. The mock's synthetic warning is intentionally
+absent. Do not change the approved mock to conceal these differences.
 
 ## Deferred depth
 

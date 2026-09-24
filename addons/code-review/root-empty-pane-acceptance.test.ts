@@ -458,7 +458,7 @@ test(
       await page.waitForFunction(
         () =>
           document.querySelector(".cr-file-header .cr-muted")?.textContent?.includes(
-            "unstaged",
+            "Index → saved worktree",
           ) === true,
       );
 

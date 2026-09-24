@@ -420,10 +420,11 @@ test(
       await page.waitForSelector(`#cr-${thread.threadId}`);
 
       expect(await page.locator(".cr-file-header .cr-muted").textContent()).toContain(
-        "staged",
+        "HEAD → index",
       );
       expect(await page.locator(".cr-expand").count()).toBeGreaterThan(0);
-      expect(await page.locator('.cr-line.deleted[data-side="old"][data-line="2"] > button:nth-of-type(2)').textContent()).toBe("2");
+      expect(await page.locator('.cr-line.deleted[data-side="old"][data-line="2"] .cr-old-line').textContent()).toBe("2");
+      expect(await page.locator('.cr-line.deleted[data-side="old"][data-line="2"] > button:nth-of-type(2)').getAttribute("aria-label")).toBe("Select old line 2");
       expect(await page.locator('.cr-line.added[data-side="new"][data-line="3"] > button:nth-of-type(2)').textContent()).toBe("3");
       expect(await page.locator('.cr-line.deleted[data-side="old"][data-line="2"] code').innerHTML()).toContain("tok-comment");
       expect(await page.locator('.cr-line.added[data-side="new"][data-line="2"] code').innerHTML()).not.toContain("tok-comment");
@@ -473,10 +474,9 @@ test(
       expect(afterWrap).toBe("pre-wrap");
       expectRepoUnchanged(harness.repoState(), baseline);
 
-      await page.locator('.cr-toolbar [data-action="options"]').click();
-      await page.locator('.cr-menu [data-action="unstaged"]').click();
+      await page.locator('#cr-source-mode').selectOption("unstaged");
       await page.waitForFunction(
-        () => document.querySelector(".cr-file-header .cr-muted")?.textContent?.includes("unstaged") === true,
+        () => document.querySelector(".cr-file-header .cr-muted")?.textContent?.includes("Index → saved worktree") === true,
       );
       const unstagedMarker = page.locator('.cr-line.added[data-side="new"][data-line="17"] code').first();
       expect(await unstagedMarker.textContent()).toBe(WORKTREE_MARKER);
@@ -505,10 +505,9 @@ test(
         change_kind: "modified",
       });
 
-      await page.locator('.cr-toolbar [data-action="options"]').click();
-      await page.locator('.cr-menu [data-action="staged"]').click();
+      await page.locator('#cr-source-mode').selectOption("staged");
       await page.waitForFunction(
-        () => document.querySelector(".cr-file-header .cr-muted")?.textContent?.trim().startsWith("staged") === true,
+        () => document.querySelector(".cr-file-header .cr-muted")?.textContent?.trim().startsWith("HEAD → index") === true,
       );
       expect(await page.locator('.cr-line.added[data-side="new"][data-line="17"] code').first().textContent()).toBe(
         STAGED_MARKER,

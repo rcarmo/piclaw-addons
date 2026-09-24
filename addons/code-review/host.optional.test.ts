@@ -620,6 +620,9 @@ hostTest(
         git("-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "-c", "commit.gpgSign=false", "commit", "-qm", "review baseline");
         const commit = git("rev-parse", "HEAD");
         writeFileSync(sourcePath, original);
+        await page.locator("[data-action=options]").click();
+        await page.locator("[data-action=refresh]").click();
+        await page.waitForFunction(() => !(document.querySelector('#cr-source-mode option[value="commit"]') as HTMLOptionElement)?.disabled);
         const db = new Database(reviewDb, { readonly: true });
         let before: number;
         try { before = (db.query("SELECT COUNT(*) AS n FROM dispatches").get() as { n: number }).n; }
@@ -637,12 +640,10 @@ hostTest(
         };
         const history = await reviewApi({ action: "history", path: "review-fixture.ts", limit: 20 });
         expect(history[0]).toMatchObject({ commit, subject: "review baseline" });
-        await page.locator("[data-action=options]").click();
-        await page.locator("[data-action=history]").click();
+        await page.locator("#cr-source-mode").selectOption("commit");
         await page.waitForFunction(() => document.querySelector("#cr-snapshot option:checked")?.textContent?.includes("commit"), null, { timeout: 10000 });
         expect(await page.locator(".cr-pane .cr-file-header").innerText()).toContain("review-fixture.ts");
-        await page.locator("[data-action=options]").click();
-        await page.locator("[data-action=unstaged]").click();
+        await page.locator("#cr-source-mode").selectOption("unstaged");
         await page.waitForFunction(() => document.querySelector("#cr-snapshot option:checked")?.textContent?.includes("unstaged"), null, { timeout: 10000 });
         const review = (await reviewApi({ action: "list", limit: 10 }))[0];
         const snapshots = await reviewApi({ action: "snapshots", reviewId: review.id });

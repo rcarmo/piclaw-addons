@@ -239,7 +239,7 @@ test("CR-083/089/149/151 browser pages a bounded large saved file honestly and s
     await waitForRange("1–300");
 
     expect(await rowCount()).toBe(PAGE_SIZE);
-    expect(await page.locator(".cr-file-header .cr-muted").textContent()).toContain(
+    expect(await page.locator(".cr-file-header .cr-file-kind").textContent()).toContain(
       "typescript (plain)",
     );
     expect(await page.locator(".cr-source .cr-line code span").count()).toBe(0);

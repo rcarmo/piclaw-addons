@@ -120,6 +120,9 @@ test("CR-001/012/033/111 browser drives real review persistence and one explicit
     expect(await page.locator(".cr-line").count()).toBe(3);
     expect(await page.locator(".tok-keyword").count()).toBeGreaterThan(0);
     expect(await page.locator("#viewed").count()).toBe(0);
+    expect(await page.locator("#cr-source-mode").inputValue()).toBe("source");
+    expect(await page.locator('#cr-source-mode option[value="commit"]').isDisabled()).toBe(true);
+    expect(await page.locator("#cr-snapshot").locator("..").getAttribute("class")).toBe("cr-file-header");
     const untitled = async () => page.evaluate(() => [...document.querySelectorAll<HTMLElement>(".cr-pane button,.cr-pane select,.cr-pane textarea,.cr-pane input")]
       .filter((el) => !el.hasAttribute("title") || !el.title.trim())
       .map((el) => `${el.tagName.toLowerCase()}#${el.id}[${el.getAttribute("data-action") ?? ""}]`));
@@ -141,6 +144,8 @@ test("CR-001/012/033/111 browser drives real review persistence and one explicit
     expect(store.listReviews(ctx)).toHaveLength(1);
     const review = store.listReviews(ctx)[0]!;
     expect(store.listThreads(ctx, review.id)).toHaveLength(1);
+    expect(await page.locator(".cr-thread .cr-message").innerText()).toContain("Reject an empty name first.");
+    expect(await page.locator(".cr-thread .cr-delivery").innerText()).toBe("Not sent");
     const checkbox = page.locator(".cr-thread [data-pick]");
     expect(await checkbox.getAttribute("title")).toContain("next review sent to the agent");
     await checkbox.check();
@@ -149,6 +154,8 @@ test("CR-001/012/033/111 browser drives real review persistence and one explicit
     expect(calls).toBe(0);
     await page.locator("[data-action=send]").click();
     await page.waitForSelector(".cr-drawer");
+    expect(await page.locator(".cr-drawer .cr-thread-path").innerText()).toBe("sample.ts");
+    expect(await page.locator(".cr-drawer .cr-thread-summary").innerText()).toBe("Reject an empty name first.");
     expect(await untitled()).toEqual([]);
     expect(await unnamed()).toEqual([]);
     expect(await page.locator("[data-action=confirm-send]").getAttribute("title")).toContain("Queue one review");
@@ -158,10 +165,12 @@ test("CR-001/012/033/111 browser drives real review persistence and one explicit
       document.querySelector(".cr-status")?.textContent?.includes("accepted"),
     );
     expect(calls).toBe(1);
+    await page.waitForFunction(() => document.querySelector(".cr-thread .cr-delivery")?.textContent === "Queued");
     expect(await page.locator(".cr-toolbar [data-action=send]").isDisabled()).toBe(true);
     expect(await page.locator(".cr-toolbar [data-action=send]").getAttribute("title")).toContain("Include at least one open thread");
     expect(await untitled()).toEqual([]);
     await page.locator(".cr-thread [data-action=expand]").click();
+    await page.locator(".cr-message-body").waitFor({ state: "visible" });
     expect(await page.locator(".cr-thread [data-action=send-thread]").getAttribute("title")).toContain("Preview this concern");
     const thread = store.listThreads(ctx, review.id)[0]!;
     expect(store.getThread(ctx, thread.id).messages[0]?.body).toBe(

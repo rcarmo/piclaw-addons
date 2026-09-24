@@ -88,6 +88,7 @@ export class CodeReviewPane {
   private activeTarget: any = null;
   private status = "";
   private fileFilter = "";
+  private unresolvedFilesOnly = false;
   private threadFilter = "all";
   private page = 0;
   private loadEpoch = 0;
@@ -365,6 +366,11 @@ export class CodeReviewPane {
     for (const id of this.selected)
       if (!this.threads.some((t) => t.id === id && t.state === "open"))
         this.selected.delete(id);
+    const snapshotId = this.snapshotId;
+    const epoch = this.filesEpoch;
+    const files = await this.api<any[]>("files", { snapshotId });
+    if (epoch !== this.filesEpoch || snapshotId !== this.snapshotId || this.disposed) return;
+    this.files = files;
     await this.loadContent();
   }
   private async openThread(threadId: string) {
@@ -395,12 +401,36 @@ export class CodeReviewPane {
         thread.target.incarnation !== this.activeTarget?.incarnation;
     });
   }
+  private deliveryLabel(thread: any) {
+    return ({ accepted: "Queued", prepared: "Ready to send", attempting: "Sending",
+      rejected: "Rejected", unknown: "Delivery unknown" } as Record<string, string>)[thread.summary?.deliveryState] || "Not sent";
+  }
+  private deliveryHtml(thread: any) {
+    const work = thread.summary?.workState;
+    return `<small class="cr-delivery" title="Delivery is separate from concern resolution.">${e(this.deliveryLabel(thread))}${work && work !== "not_started" ? ` · ${e(work.replaceAll("_", " "))}` : ""}</small>`;
+  }
+  private threadLocation(thread: any) {
+    const anchor = thread.anchor;
+    return anchor.scope === "file" ? "Whole file" : `${anchor.side} ${anchor.startLine === anchor.endLine ? `line ${anchor.startLine}` : `lines ${anchor.startLine}–${anchor.endLine}`}`;
+  }
+  private evidenceHtml(message: any) {
+    if (!message.resolution || message.deleted) return "";
+    const reference = (value: string) => {
+      try {
+        const url = new URL(value);
+        if (["https:", "http:"].includes(url.protocol))
+          return `<a href="${e(url.href)}" target="_blank" rel="noopener noreferrer" title="Open resolution evidence">${e(value)}</a>`;
+      } catch { /* Local references remain text, never authority or executable links. */ }
+      return `<code>${e(value)}</code>`;
+    };
+    return `<section class="cr-evidence" aria-label="Resolution evidence"><strong>Resolution evidence</strong><small>Addressed guidance v${e(message.resolution.addressedVersion)}</small><ul>${message.resolution.evidence.map((value: string) => `<li>${reference(value)}</li>`).join("")}</ul></section>`;
+  }
   private threadHtml(thread: any) {
     const data = this.detail.get(thread.id),
       anchor = thread.anchor,
       p = this.projections.get(thread.id);
     const first =
-      data?.messages?.find((m: any) => m.body)?.body || "Open discussion";
+      thread.summary?.body ?? data?.messages?.find((m: any) => m.body)?.body ?? "Comment deleted";
     const location =
       anchor.scope === "file"
         ? "Whole file"
@@ -412,6 +442,7 @@ export class CodeReviewPane {
     line: number | null,
     kind: string,
     text: string,
+    oldLine?: number | null,
   ) {
     if (line === null) return '<div class="cr-line cr-blank"></div>';
     const lines =
@@ -422,7 +453,8 @@ export class CodeReviewPane {
       this.selection?.side === side &&
       line >= this.selection.startLine &&
       line <= this.selection.endLine;
-    return `<div class="cr-line ${kind} ${sel ? "selected" : ""}" data-line="${line}" data-side="${side}"><button data-action="line-comment" data-side="${side}" data-line="${line}" title="Add guidance on ${side} line ${line}. No work starts until sent." aria-label="Comment on line ${line}" data-settings-button="unstyled">+</button><button data-action="select-line" data-line="${line}" data-side="${side}" title="Select this line; Shift-click or select another line to extend the range." data-settings-button="unstyled">${line}</button><span aria-hidden="true">${kind === "added" ? "+" : kind === "deleted" ? "−" : ""}</span><code>${html}</code></div>`;
+    const unified = oldLine !== undefined;
+    return `<div class="cr-line ${unified ? "cr-diff-line" : ""} ${kind} ${sel ? "selected" : ""}" data-line="${line}" data-side="${side}"><button data-action="line-comment" data-side="${side}" data-line="${line}" title="Add guidance on ${side} line ${line}. No work starts until sent." aria-label="Comment on line ${line}" data-settings-button="unstyled">+</button>${unified ? `<span class="cr-old-line" title="Old-side line ${oldLine ?? "absent"}">${oldLine ?? ""}</span>` : ""}<button data-action="select-line" data-line="${line}" data-side="${side}" aria-label="Select ${side} line ${line}" title="Select this line; Shift-click or select another line to extend the range." data-settings-button="unstyled">${unified && kind === "deleted" ? "" : line}</button><span aria-hidden="true">${kind === "added" ? "+" : kind === "deleted" ? "−" : ""}</span><code>${html}</code></div>`;
   }
   private codeHtml() {
     if (!this.content)
@@ -504,6 +536,7 @@ export class CodeReviewPane {
           row.kind === "deleted" ? row.oldLine : row.newLine,
           row.kind,
           row.text,
+          this.view === "unified" ? row.oldLine : undefined,
         );
       for (const thread of this.threadRows()) {
         if (mounted.has(thread.id)) continue;
@@ -547,7 +580,7 @@ export class CodeReviewPane {
     const fileRows = this.files.filter((f) =>
       (f.new_path || f.old_path || "")
         .toLowerCase()
-        .includes(this.fileFilter.toLowerCase()),
+        .includes(this.fileFilter.toLowerCase()) && (!this.unresolvedFilesOnly || f.stats?.openThreads > 0),
     );
     this.element.innerHTML = `<div class="cr-toolbar">${button("files", "Files", "Show the files in this review.")}<select id="cr-snapshot" title="Choose an immutable saved-source or Git comparison snapshot.">${this.snapshots.map((s) => `<option value="${s.id}" ${s.id === this.snapshotId ? "selected" : ""} title="${e(s.mode + " captured " + s.captured_at)}">${e(s.mode + " · " + s.captured_at.slice(11, 19))}</option>`).join("")}</select><span class="cr-grow"></span><select id="cr-target" title="Choose a local target. Existing thread assignments require explicit reassignment.">${this.targets.map((t) => `<option value="${e(t.chatJid)}" ${t.chatJid === this.activeTarget?.chatId ? "selected" : ""}>${e(t.label)}</option>`).join("")}</select>${button("threads", `Threads (${this.threads.length})`, "Browse saved open, resolved and outdated concerns.")}${button("send", `Send to agent${this.selected.size ? " (" + this.selected.size + ")" : ""}`, this.selected.size ? "Preview selected guidance before queueing one review." : "Include at least one open thread to send.", `data-settings-button="primary" ${!this.selected.size ? "disabled" : ""}`)}<div class="cr-options">${button("options", "⋯", "View and capture options.", 'data-settings-button="icon" aria-label="View options"')}${this.moreMenu ? `<div class="cr-menu">${button("refresh", "Refresh saved source", "Capture the newest saved bytes; comments retain original anchors.")}${button("wrap", "Wrap long lines", "Toggle visual wrapping without changing saved source.")}${button("layout", this.view === "split" ? "Unified diff" : "Split diff", "Switch diff layout; unavailable in source mode.", this.view === "source" ? "disabled" : "")}${button("staged", "Staged changes", "Capture HEAD to index without staging or writing source.")}${button("unstaged", "Working changes", "Capture index to saved worktree, including untracked text files.")}${button("history", "Recent commits", "Select a bounded file-history commit to review.")}${button("add-file", "Add file", "Add another saved workspace file to this review explicitly.")}${button("drafts", `Drafts (${this.savedDrafts.length})`, "Restore an acknowledged private comment draft.")}${button("receipts", "Delivery receipts", "Inspect queued, failed and unknown attempts without resending.")}</div>` : ""}</div></div>
   ${
@@ -575,6 +608,7 @@ export class CodeReviewPane {
             (t) =>
               this.threadFilter === "all" ||
               this.threadFilter === t.state ||
+              (this.threadFilter === "pending" && t.state === "open" && !t.summary?.deliveryState) ||
               (this.threadFilter === "outdated" && !this.relevant(t)),
           )
           .map(
@@ -586,6 +620,52 @@ export class CodeReviewPane {
           )}${this.hasMoreThreads ? button("more-threads", "More threads", "Load the next bounded page of review concerns.") : ""}${this.drawer === "send" ? `<section class="cr-send-preview" aria-label="Selected guidance and saved source versions">${this.sendPreview ? `<strong>Selected guidance (${this.sendPreview.items.length})</strong><ol>${this.sendPreview.items.map((item) => `<li data-preview-thread="${e(item.threadId)}"><code title="Selected thread ID">${e(item.threadId)}</code><small>Guidance v${e(item.version)} · assignment ${e(item.assignmentEpoch)}</small><small>Snapshot file <code title="Saved snapshot file ID">${e(item.anchor.snapshotFileId)}</code></small></li>`).join("")}</ol>` : `<p>Selection or target changed. Refresh the preview before queueing.</p>`}</section><textarea id="cr-summary" title="Optional overall instruction sent with selected thread references." placeholder="Overall guidance (optional)">${e(this.summary)}</textarea><p>Queue to ${e(this.activeTarget?.label)} behind current work. No interruption.</p>${button("refresh-send-preview", "Refresh preview", "Check current guidance versions and source snapshots without queueing work.")}${button("confirm-send", "Queue selected review", "Queue one review; replies and resolutions remain per thread.", `data-settings-button="primary" ${!this.sendPreview || !this.selected.size ? "disabled" : ""}`)}` : ""}</aside>`
       : ""
   }`;
+    const toolbar = this.element.querySelector(".cr-toolbar")!;
+    this.element.querySelector("#cr-thread-filter")?.insertAdjacentHTML("beforeend", `<option value="pending" ${this.threadFilter === "pending" ? "selected" : ""} title="Open concerns not yet sent to their current target.">Pending to send</option>`);
+    const modes = [["source", "Saved file"], ["unstaged", "Unstaged changes"], ["staged", "Staged changes"], ["commit", "Commit comparison"]];
+    toolbar.insertAdjacentHTML("afterbegin", `<select id="cr-source-mode" aria-label="Review source" title="Choose saved source or a Git comparison; source remains read-only.">${modes.map(([value, label]) => `<option value="${value}" ${snapshot?.mode === value ? "selected" : ""} ${value !== "source" && this.review.gitAvailable === false ? "disabled" : ""} title="${e(value !== "source" && this.review.gitAvailable === false ? "Git is unavailable for this file." : label)}">${label}</option>`).join("")}</select>`);
+    const snapshotPicker = this.element.querySelector<HTMLSelectElement>("#cr-snapshot");
+    this.element.querySelector<HTMLSelectElement>("#cr-source-mode")!.disabled = this.busy;
+    if (snapshotPicker) {
+      snapshotPicker.setAttribute("aria-label", "Saved snapshot");
+      this.element.querySelector(".cr-file-header")?.append(snapshotPicker);
+    }
+    for (const name of ["staged", "unstaged", "history"])
+      this.element.querySelector(`.cr-menu [data-action=${name}]`)?.remove();
+    const targetPicker = this.element.querySelector<HTMLSelectElement>("#cr-target")!;
+    targetPicker.setAttribute("aria-label", "Agent target");
+    const targetLabel = this.element.ownerDocument.createElement("label");
+    targetLabel.className = "cr-target-label";
+    targetLabel.textContent = "To ";
+    targetPicker.before(targetLabel);
+    targetLabel.append(targetPicker);
+    this.element.querySelector("#cr-filter")?.insertAdjacentHTML("afterend", `<label class="cr-unresolved-filter"><input id="cr-unresolved-files" type="checkbox" title="Show only files with open concerns; does not change their state." ${this.unresolvedFilesOnly ? "checked" : ""}>Open concerns only</label>`);
+    for (const file of fileRows) {
+      const row = this.element.querySelector(`[data-action=file][data-file="${file.id}"]`);
+      if (row && file.stats) row.insertAdjacentHTML("beforeend", `<span class="cr-file-stats"><small>${e(file.stats.openThreads)} open</small><span class="cr-file-add">+${e(file.stats.added ?? "?")}</span><span class="cr-file-del">−${e(file.stats.deleted ?? "?")}</span></span>`);
+    }
+    const fileHeader = this.element.querySelector(".cr-file-header");
+    const identity = fileHeader?.querySelector(".cr-grow");
+    if (identity) identity.textContent = `${snapshot?.mode === "source" ? "Saved source" : snapshot?.mode === "unstaged" ? "Index → saved worktree" : snapshot?.mode === "staged" ? "HEAD → index" : `${snapshot?.base?.slice(0, 8) ?? "parent"} → ${snapshot?.head?.slice(0, 8) ?? "commit"}`} · ${c?.new?.total ?? c?.old?.total ?? 0} lines · ${(c?.new_hash || c?.old_hash || "").slice(0, 10)}`;
+    if (fileHeader) fileHeader.insertAdjacentHTML("beforeend", `<small class="cr-file-kind" title="Highlighting is presentation only.">${e(c?.change_kind === "source" ? "Saved file" : c?.change_kind ?? "")} · ${e(c?.new?.language || c?.old?.language || "text")}${c?.new && !c.new.highlighted ? " (plain)" : ""}</small>`);
+    const drawerHeader = this.element.querySelector(".cr-drawer > header");
+    const threadFilter = this.element.querySelector<HTMLSelectElement>("#cr-thread-filter");
+    if (threadFilter && this.drawer === "send") threadFilter.hidden = true;
+    drawerHeader?.insertAdjacentHTML("afterend", `<p class="cr-drawer-intro">${this.drawer === "send" ? "Check the selection and destination. One batch creates one queued agent instruction." : "Select open concerns across files, or jump to their saved source."}</p>`);
+    const queueHelp = this.element.querySelector(".cr-drawer > textarea + p");
+    if (queueHelp) {
+      queueHelp.className = "cr-queue-help";
+      queueHelp.insertAdjacentHTML("afterbegin", `<strong>To ${e(this.activeTarget?.label)} · ${this.selected.size} selected</strong>`);
+    }
+    this.element.querySelector("#cr-summary")?.insertAdjacentHTML("beforebegin", '<label class="cr-summary-label" for="cr-summary">Overall guidance <small>(optional)</small></label>');
+    const preview = this.element.querySelector(".cr-send-preview");
+    if (preview && this.sendPreview) {
+      const details = this.element.ownerDocument.createElement("details");
+      details.className = "cr-preview-details";
+      details.innerHTML = '<summary title="Inspect exact guidance versions and saved snapshot IDs before sending.">Versions and saved-source references</summary>';
+      preview.before(details);
+      details.append(preview);
+    }
     if (this.drawer === "send" && this.hasTargetMismatch()) {
       const warning = this.element.ownerDocument.createElement("p");
       warning.className = "cr-target-warning";
@@ -596,6 +676,37 @@ export class CodeReviewPane {
       if (confirm) {
         confirm.disabled = true;
         confirm.title = warning.textContent;
+      }
+    }
+    // Public bounded summaries are supplied with the thread list; no eager
+    // per-thread conversation reads or draft bodies are required to browse.
+    for (const thread of this.threads) {
+      const article = this.element.querySelector<HTMLElement>(`#cr-${thread.id}`);
+      const header = article?.querySelector("header");
+      if (header) header.insertAdjacentHTML("beforeend", this.deliveryHtml(thread));
+      if (article && !this.detail.has(thread.id)) {
+        const summary = article.querySelector(".cr-message");
+        if (summary) summary.insertAdjacentHTML("afterbegin", `<div class="cr-summary-author"><strong>${thread.summary?.authorKind === "agent" ? "Agent" : "You"}</strong> <small>on this snapshot</small></div>`);
+        const footer = this.element.ownerDocument.createElement("footer");
+        footer.innerHTML = `${button("reply", "Reply", "Read current guidance and reply without sending agent work.", `data-thread="${thread.id}" ${thread.state === "resolved" ? "disabled" : ""}`)}${button(thread.state === "resolved" ? "reopen" : "resolve", thread.state === "resolved" ? "Reopen" : "Resolve", "Change concern state explicitly; discussion history is retained.", `data-thread="${thread.id}"`)}${button("send-thread", "Send thread", "Preview only this thread before explicit queue confirmation.", `data-thread="${thread.id}" ${thread.state !== "open" ? "disabled" : ""}`)}`;
+        const expand = article.querySelector("[data-action=expand]");
+        if (expand) footer.append(expand);
+        article.append(footer);
+      }
+      const messages = this.detail.get(thread.id)?.messages ?? [];
+      article?.querySelectorAll(".cr-message").forEach((element, index) => {
+        if (messages[index]) element.insertAdjacentHTML("beforeend", this.evidenceHtml(messages[index]));
+      });
+      const item = this.element.querySelector<HTMLInputElement>(`.cr-drawer [data-pick="${thread.id}"]`)?.closest(".cr-drawer-item");
+      if (item) {
+        const location = item.querySelector("small");
+        if (location) {
+          const status = this.projections.get(thread.id)?.status;
+          location.textContent = `${this.threadLocation(thread)} · ${thread.state} · ${this.deliveryLabel(thread)}${status === "missing" ? " · outdated (not mapped)" : status === "ambiguous" ? " · ambiguous (not mapped)" : !this.relevant(thread) ? " · original context" : ""}`;
+          location.setAttribute("title", `Thread ${thread.id}`);
+        }
+        item.insertAdjacentHTML("afterbegin", `<strong class="cr-thread-path">${e(thread.summary?.filePath ?? "Original source")}</strong>`);
+        item.insertAdjacentHTML("beforeend", `<p class="cr-thread-summary">${e(thread.summary?.body ?? "Comment deleted")}</p>`);
       }
     }
     const source = this.element.querySelector(".cr-source");
@@ -698,10 +809,14 @@ export class CodeReviewPane {
     if (!el || el.matches(":disabled") || this.busy) return;
     event.preventDefault();
     this.busy = true;
+    const modes = this.element.querySelector<HTMLSelectElement>("#cr-source-mode");
+    if (modes) modes.disabled = true;
     void this.perform(el.dataset.action!, el)
       .catch((error) => this.fail(error))
       .finally(() => {
         this.busy = false;
+        const modes = this.element.querySelector<HTMLSelectElement>("#cr-source-mode");
+        if (modes) modes.disabled = false;
       });
   };
   private async perform(name: string, el: HTMLElement) {
@@ -890,6 +1005,7 @@ export class CodeReviewPane {
       }
       case "reply":
         if (t().state === "resolved") throw Error("Reopen this concern first.");
+        if (!this.detail.has(t().id)) await this.openThread(t().id);
         this.compose(t().id);
         this.commentThreadVersion =
           this.selectedThreadReads.get(t().id)?.version ?? t().version;
@@ -1114,6 +1230,7 @@ export class CodeReviewPane {
         this.sendIntent = null;
         this.sendPreview = null;
         this.pendingPayload = null;
+        await this.reloadThreads();
         break;
       }
       case "refresh":
@@ -1124,6 +1241,7 @@ export class CodeReviewPane {
             "Save the pending comment draft before capturing a new source.",
           );
         const mode = name === "refresh" ? "source" : name;
+        this.review = await this.api("review");
         const capture = await this.api("capture", {
           source: {
             path: this.review.focus_path,
@@ -1335,11 +1453,23 @@ export class CodeReviewPane {
     const el = event.target as HTMLInputElement;
     if (
       !el.dataset.pick &&
-      !["cr-target", "cr-snapshot", "cr-thread-filter"].includes(el.id)
+      !["cr-target", "cr-snapshot", "cr-source-mode", "cr-thread-filter", "cr-unresolved-files"].includes(el.id)
     )
       return;
     void (async () => {
-      if (el.dataset.pick) {
+      if (el.id === "cr-source-mode") {
+        if (this.busy) { this.render(); return; }
+        const mode = el.value;
+        if (!["source", "unstaged", "staged", "commit"].includes(mode)) return;
+        this.busy = true;
+        el.disabled = true;
+        try { await this.perform(mode === "source" ? "refresh" : mode === "commit" ? "history" : mode, el); }
+        finally { this.busy = false; this.render(); }
+        return;
+      }
+      if (el.id === "cr-unresolved-files") {
+        this.unresolvedFilesOnly = el.checked;
+      } else if (el.dataset.pick) {
         el.checked
           ? this.selected.add(el.dataset.pick)
           : this.selected.delete(el.dataset.pick);
