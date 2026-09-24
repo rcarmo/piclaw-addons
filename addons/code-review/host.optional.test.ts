@@ -10,7 +10,7 @@ import {
 } from "node:fs";
 import { join, resolve } from "node:path";
 import { createServer } from "node:net";
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { Database } from "bun:sqlite";
 import { runCr077Scenario } from "./tests/steps/cr077.steps.js";
 import { runCr078Scenario } from "./tests/steps/cr078.steps.js";
@@ -45,14 +45,28 @@ hostTest(
         ? startReviewProvider()
         : null;
     try {
-      // The generic preparer copies peers; this add-on also needs its own packaged runtime dependencies.
+      // The generic preparer copies peers; package mode exercises the real
+      // production tarball and installs dependencies inside the owned fixture.
       const dest = prepared.installed[0]!.destination;
-      rmSync(join(dest, "node_modules"));
-      cpSync(
-        join(import.meta.dir, "node_modules"),
-        join(dest, "node_modules"),
-        { recursive: true, dereference: true },
-      );
+      const tarball = process.env.PICLAW_REVIEW_PACKAGE_TARBALL;
+      if (tarball) {
+        const entries = execFileSync("tar", ["-tzf", tarball], { encoding: "utf8" }).trim().split("\n");
+        if (!entries.length || entries.some((entry) => !/^package\/(?:[a-zA-Z0-9._-]+\/)*[a-zA-Z0-9._-]+$/.test(entry)))
+          throw Error("Refusing tarball with unsafe package paths.");
+        rmSync(dest, { recursive: true, force: true });
+        mkdirSync(dest, { recursive: true });
+        execFileSync("tar", ["-xzf", tarball, "-C", dest, "--strip-components=1"]);
+        execFileSync("bun", ["install", "--production", "--ignore-scripts", "--cwd", dest], {
+          env: { PATH: process.env.PATH, HOME: paths.home, BUN_INSTALL_CACHE_DIR: join(paths.root, "bun-cache") },
+          stdio: "pipe",
+        });
+        expect(existsSync(join(dest, "runtime.ts"))).toBe(true);
+        expect(existsSync(join(dest, "web", "index.ts"))).toBe(true);
+        expect(existsSync(join(dest, "tests"))).toBe(false);
+      } else {
+        rmSync(join(dest, "node_modules"));
+        cpSync(join(import.meta.dir, "node_modules"), join(dest, "node_modules"), { recursive: true, dereference: true });
+      }
       writeFileSync(
         join(paths.workspace, "review-fixture.ts"),
         "export function check(value: string) {\n  return value.trim();\n}\n",

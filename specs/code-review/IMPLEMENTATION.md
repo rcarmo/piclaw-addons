@@ -338,9 +338,15 @@ acceptance scenarios and are not full Piclaw integration proof.
   `bun pm pack --dry-run --cwd addons/code-review` now produces a provisional
   19-file, 222 KB unpacked package with the runtime, web entry, skill and
   dependencies declared, excluding test sources and the loopback provider.
-  The standalone import test verifies that allowlist. `bun run check:catalog`
-  fails because this unreleased add-on has no generated `catalog.json` or
-  root-package entry. Do not sync/publish it until the host API and version
+  A copied-package standalone import passes. The actual 19-file tarball
+  (54.0 KB packed) was also extracted into an owned disposable Classic host,
+  with production dependencies installed there; authenticated Explorer,
+  comment, explicit send, local-provider reply/resolve and reload passed with
+  zero paid-provider calls. The initial offline install failed due to missing
+  cached manifests, so this successful fixture fetched registry dependencies
+  into its own temporary cache. The archive's `tests` directory is absent.
+  `bun run check:catalog` fails because this unreleased add-on has no generated
+  `catalog.json` or root-package entry. Do not sync/publish it until the host API and version
   range are settled; catalogue metadata and the full standalone/platform
   matrix remain release gates.
 - These are focused implementation tests, not full CR-001–CR-184 acceptance.
