@@ -532,10 +532,37 @@ hostTest(
         expect(await page.locator(".cr-source").isVisible()).toBe(true);
         await page.emulateMedia({ forcedColors: "none" });
       }
+      if (process.env.PICLAW_REVIEW_CLASSIC_PHONE_ENTRY_TEST === "1") {
+        if (uiMode !== "classic") throw Error("Classic phone entry checks require PICLAW_REVIEW_UI_MODE=classic.");
+        const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
+        try {
+          if (sessionCookie) {
+            const [name, value] = sessionCookie.split("=", 2);
+            await phone.addCookies([{ name: name!, value: value!, url, httpOnly: true, sameSite: "Strict" }]);
+          }
+          const mobile = await phone.newPage();
+          mobile.on("dialog", (dialog) => dialog.accept());
+          await mobile.goto(url, { waitUntil: "domcontentloaded" });
+          await mobile.getByTestId("hamburger").tap();
+          await mobile.getByRole("menuitem", { name: "Show workspace", exact: true }).tap();
+          const file = mobile.getByText("review-fixture.ts", { exact: true }).first();
+          await file.waitFor({ state: "visible", timeout: 15000 });
+          await file.tap();
+          const action = mobile.getByRole("button", { name: "Review file", exact: true }).first();
+          if (!(await action.isVisible())) await mobile.getByRole("button", { name: "Workspace actions", exact: true }).tap();
+          await action.tap();
+          await mobile.waitForSelector(".cr-pane .cr-line");
+          expect(await mobile.locator(".cr-pane").getAttribute("data-skin")).toBe("classic");
+          expect(await mobile.locator(".cr-source").isVisible()).toBe(true);
+          expect(await mobile.locator(".cr-pane [data-action=threads]").isVisible()).toBe(true);
+          const db = new Database(reviewDb, { readonly: true });
+          try { expect((db.query("SELECT COUNT(*) AS n FROM dispatches").get() as { n: number }).n).toBe(provider ? 1 : 0); }
+          finally { db.close(); }
+        } finally { await phone.close(); }
+      }
       if (process.env.PICLAW_REVIEW_CLASSIC_TOUCH_TEST === "1") {
         if (uiMode !== "classic") throw Error("Classic touch checks require PICLAW_REVIEW_UI_MODE=classic.");
-        // The host currently hides the workspace toggle on direct phone entry;
-        // enter at desktop width, then exercise the add-on at 390px with touch.
+        // Exercise touch resize/zoom separately from direct phone entry.
         const touch = await browser.newContext({ viewport: { width: 1180, height: 820 }, hasTouch: true, deviceScaleFactor: 2 });
         try {
           if (sessionCookie) {

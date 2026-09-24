@@ -241,11 +241,12 @@ acceptance scenarios and are not full Piclaw integration proof.
   history/rename or no-egress acceptance. A separate real touch-enabled
   Classic browser opens at 1180px, then resizes the review to 390px with
   CSS zoom 200%: source, Threads and the drawer stay reachable and fit the
-  pane; no extra dispatch or provider request occurs. Direct 390px entry
-  remains unverified: the Classic host starts `workspace-collapsed` with a
-  hidden `.workspace-toggle-tab`, so the owned fixture cannot reach the file.
-  That host entry defect needs core-owner triage; this resize check does not
-  stand in for a phone-entry or full touch accessibility pass.
+  pane; no extra dispatch or provider request occurs. A separate direct 390px
+  touch-enabled Classic browser uses the host's hamburger menu → Show workspace
+  path, opens the file and review pane, and sees source/Threads with no extra
+  dispatch. The hidden side tab is not the only entry path; the earlier
+  host-entry blocker assessment was wrong. Full touch accessibility remains
+  unverified.
 - A disposable Git-backed diff-pane browser fixture now exercises staged and
   unstaged snapshots from the same owned repository. It checks old/new line
   coordinates, side-specific syntax, a deleted old-side comment, unified and
