@@ -94,6 +94,13 @@ acceptance scenarios and are not full Piclaw integration proof.
   draft state after reload. Invalid cursor rejection is checked through the
   action adapter. Cross-thread cursor identity is still ordinal-only; it is not
   a signed thread-bound cursor.
+- File-backed CR-070–073/179/180 tests reject changed idempotency payloads
+  without altering receipts, exercise reply and delete/reply interleavings on
+  two SQLite connections, and retain message IDs/ordinals through reopen.
+  Comment CRUD, saved-source refresh, accepted delivery, resolution evidence
+  and reopen leave the owned source bytes, Git index, HEAD and status unchanged.
+  These are deterministic serial orders, not simultaneous multi-process
+  writers; true contention and browser presentation need separate coverage.
 - File-backed delivery tests now check concurrent claim-once queueing, independent
   completed/blocked item states, numbered retries after definite rejection,
   unknown delivery without replay and explicit reconciliation against the
