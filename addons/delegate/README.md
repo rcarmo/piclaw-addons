@@ -4,6 +4,10 @@ Delegate runs self-contained work in a fresh, ephemeral child Pi and restricts e
 
 Requires Piclaw `>=1.8.0`.
 
+Version `0.2.12` adds a plain `Delegate (N)` count to progress messages. It counts
+running calls in this session, updates the remaining calls when one finishes,
+and clears after the last call. No host UI changes or settings are required.
+
 Version `0.2.11` adds exact Earendil 0.87.1 catalogue coverage for GPT-6 Sol/Luna
 and Grok 4.7 at tier 3; Claude Opus 5.5 remains tier 5. Unknown suffixes remain
 unclassified, and no provider becomes approved automatically. The catalogue and
