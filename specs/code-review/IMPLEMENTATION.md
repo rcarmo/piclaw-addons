@@ -154,7 +154,13 @@ acceptance scenarios and are not full Piclaw integration proof.
   edit POSTs with 401 before the add-on DB or any provider request exists. A
   fresh local-only TOTP session then accesses the real Explorer/comment flow,
   and the optional loopback-provider dispatch/resolve completes with zero paid
-  calls. Cross-origin rejection is tested with that session as well. The
+  calls. The real Classic browser fixture now records HTTP(S) request origins
+  and sees only its loopback host while opening a review and posting guidance;
+  real dispatch/attempt tables and the local provider request count stay zero
+  through pane browse and send preview. Only explicit Send starts the local
+  provider. This bounds CR-084 evidence to the observed disposable fixture,
+  not every possible host network path. Cross-origin rejection is tested with
+  that session as well. The
   canonical CR-077 Background and scenario lines are now executed through
   exact-match step handlers in the authenticated host fixture: anonymous and
   cross-origin create/edit are denied before any DB or provider work. The

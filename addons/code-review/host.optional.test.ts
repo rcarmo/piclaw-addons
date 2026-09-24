@@ -11,6 +11,7 @@ import {
 import { join, resolve } from "node:path";
 import { createServer } from "node:net";
 import { spawn } from "node:child_process";
+import { Database } from "bun:sqlite";
 import { runCr077Scenario } from "./tests/steps/cr077.steps.js";
 import { runCr078Scenario } from "./tests/steps/cr078.steps.js";
 import { runCr081Scenario } from "./tests/steps/cr081.steps.js";
@@ -214,6 +215,10 @@ hostTest(
         await context.addCookies([{ name: name!, value: value!, url, httpOnly: true, sameSite: "Strict" }]);
       }
       const page = await context.newPage();
+      const browserDestinations: string[] = [];
+      page.on("request", (request) => {
+        if (/^https?:/.test(request.url())) browserDestinations.push(request.url());
+      });
       const errors: string[] = [];
       page.on("pageerror", (error) => {
         errors.push(error.message);
@@ -264,6 +269,11 @@ hostTest(
         await page.locator(".cr-pane .cr-file-header").innerText(),
       ).toContain("review-fixture.ts");
       expect(await page.locator(".cr-pane").getAttribute("data-skin")).toBe(uiMode);
+      // Browsing the pane must stay on this disposable host and never enqueue
+      // agent work before an explicit Send, even with a configured provider.
+      expect(browserDestinations.length).toBeGreaterThan(0);
+      expect(browserDestinations.every((destination) => new URL(destination).origin === url)).toBe(true);
+      expect(provider?.requests.length ?? 0).toBe(0);
       await page
         .locator('.cr-pane [data-action=line-comment][data-line="2"]')
         .click();
@@ -291,10 +301,19 @@ hostTest(
           providerRequests: () => provider?.requests.length ?? 0,
         });
       }
+      {
+        const db = new Database(reviewDb, { readonly: true });
+        try {
+          for (const table of ["dispatches", "attempts"])
+            expect((db.query(`SELECT COUNT(*) AS n FROM ${table}`).get() as { n: number }).n).toBe(0);
+        } finally { db.close(); }
+      }
       if (provider) {
         await page.locator(".cr-thread [data-pick]").check();
+        expect(provider.requests).toHaveLength(0);
         await page.locator(".cr-pane [data-action=send]").click();
         await page.waitForSelector(".cr-drawer");
+        expect(provider.requests).toHaveLength(0);
         await page.locator("[data-action=confirm-send]").click();
         await page.waitForFunction(
           () =>
