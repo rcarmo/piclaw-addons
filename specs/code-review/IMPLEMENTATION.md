@@ -88,6 +88,12 @@ acceptance scenarios and are not full Piclaw integration proof.
   accepted queue work remains accepted after reopening. Forced `dispose()`
   bypasses the normal dirty-close guard and can discard unpublished keystrokes;
   user-facing close/popout safety still needs separate host coverage.
+- A separate CR-074 browser fixture loads a 105-message thread in two pages
+  with stable server ordinals, retains the root discussion and an acknowledged
+  unpublished reply draft, excludes another thread, and restores history and
+  draft state after reload. Invalid cursor rejection is checked through the
+  action adapter. Cross-thread cursor identity is still ordinal-only; it is not
+  a signed thread-bound cursor.
 - File-backed delivery tests now check concurrent claim-once queueing, independent
   completed/blocked item states, numbered retries after definite rejection,
   unknown delivery without replay and explicit reconciliation against the
