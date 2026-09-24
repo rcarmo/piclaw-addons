@@ -428,6 +428,43 @@ hostTest(
         expect(bounds!.width).toBeGreaterThan(250);
         expect(await page.locator(".cr-pane [data-action=send]").first().getAttribute("title")).toBeTruthy();
       }
+      if (process.env.PICLAW_REVIEW_CLASSIC_UNTRUSTED_TEST === "1") {
+        if (uiMode !== "classic" || !sessionCookie) throw Error("Classic untrusted-content checks require an authenticated Classic fixture.");
+        const injected = "<script>window.__reviewScriptRan=1</script>\n\n[unsafe](javascript:alert(1)) [safe](https://example.invalid/evidence)";
+        const db = new Database(reviewDb, { readonly: true });
+        let reviewId: string, fileId: string, dispatches: number;
+        try {
+          reviewId = (db.query("SELECT id FROM reviews LIMIT 1").get() as { id: string }).id;
+          fileId = (db.query("SELECT id FROM snapshot_files WHERE review_id=? LIMIT 1").get(reviewId) as { id: string }).id;
+          dispatches = (db.query("SELECT COUNT(*) AS n FROM dispatches").get() as { n: number }).n;
+        } finally { db.close(); }
+        const post = await fetch(url + "/agent/addons/api/code-review/action", {
+          method: "POST", headers: { "Content-Type": "application/json", Origin: url, Cookie: sessionCookie },
+          body: JSON.stringify({ action: "comment", reviewId, fileId, side: "source", range: { startLine: 1, endLine: 1 }, body: injected, requestId: "untrusted-host-comment" }),
+        });
+        expect(post.status).toBe(200);
+        const result = await post.json() as { ok: boolean; result?: { threadId: string } };
+        expect(result.ok).toBe(true);
+        // The already-mounted pane observes new saved comments on explicit
+        // Refresh; no workspace-navigation workaround or background polling.
+        await page.locator("[data-action=options]").click();
+        await page.locator("[data-action=refresh]").click();
+        const thread = page.locator(`#cr-${result.result!.threadId}`);
+        await thread.waitFor({ state: "visible" });
+        await thread.locator("[data-action=expand]").click();
+        await thread.locator(".cr-message-body").waitFor({ state: "visible" });
+        expect(await page.evaluate(() => (window as any).__reviewScriptRan)).toBeUndefined();
+        expect(await thread.locator("script,iframe,img").count()).toBe(0);
+        expect(await thread.locator('a[href^="javascript:"]').count()).toBe(0);
+        const link = thread.locator('a[href="https://example.invalid/evidence"]');
+        expect(await link.count()).toBe(1);
+        expect(await link.getAttribute("rel")).toBe("noopener noreferrer");
+        expect(await thread.locator(".cr-message-body").innerText()).toContain("<script>");
+        const after = new Database(reviewDb, { readonly: true });
+        try { expect((after.query("SELECT COUNT(*) AS n FROM dispatches").get() as { n: number }).n).toBe(dispatches); }
+        finally { after.close(); }
+        expect(provider?.requests.length ?? 0).toBe(provider ? 7 : 0);
+      }
       if (process.env.PICLAW_REVIEW_CLASSIC_UI_TEST === "1") {
         if (uiMode !== "classic") throw Error("Classic UI checks require PICLAW_REVIEW_UI_MODE=classic.");
         await page.setViewportSize({ width: 390, height: 844 });

@@ -351,7 +351,12 @@ acceptance scenarios and are not full Piclaw integration proof.
   65 seconds with and without a completed local-provider dispatch. It records
   no additional Code Review API requests, provider requests or dispatch rows
   during that window. This does not establish cancellation, hidden-pane or
-  multi-hour idle budgets.
+  multi-hour idle budgets. Another authenticated Classic-host check posts
+  comment Markdown containing a script tag, a `javascript:` link and a safe
+  HTTPS evidence link, then explicitly Refreshes the pane. The script remains
+  text and does not run; no unsafe link or image/script node appears; the HTTPS
+  link has `rel="noopener noreferrer"`. Dispatch count stays fixed. This is a
+  bounded CR-082 rendering check, not a general prompt-injection proof.
 - A CR-076/165 reload fixture leaves a browser open while an agent reply,
   work outcome, resolution and newer saved-source snapshot are written to the
   owned store. No recurring browser API calls or enqueue occur while idle;
