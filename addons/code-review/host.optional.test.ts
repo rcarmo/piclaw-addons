@@ -220,6 +220,7 @@ hostTest(
       });
       const context = await browser.newContext({
         viewport: { width: 1440, height: 1000 },
+        ...(process.env.PICLAW_REVIEW_CLASSIC_COPY_TEST === "1" ? { permissions: ["clipboard-read", "clipboard-write"] } : {}),
       });
       if (sessionCookie) {
         const [name, value] = sessionCookie.split("=", 2);
@@ -287,6 +288,27 @@ hostTest(
       expect(browserDestinations.length).toBeGreaterThan(0);
       expect(browserDestinations.every((destination) => new URL(destination).origin === url)).toBe(true);
       expect(provider?.requests.length ?? 0).toBe(0);
+      if (process.env.PICLAW_REVIEW_CLASSIC_COPY_TEST === "1") {
+        if (uiMode !== "classic") throw Error("Classic copy checks require PICLAW_REVIEW_UI_MODE=classic.");
+        const before = readFileSync(join(paths.workspace, "review-fixture.ts"), "utf8");
+        const copiedBefore = { requests: reviewActions.length, provider: provider?.requests.length ?? 0 };
+        await page.evaluate(() => {
+          const first = document.querySelector(".cr-line[data-line='1'] code")!;
+          const last = document.querySelector(".cr-line[data-line='3'] code")!;
+          const range = document.createRange();
+          range.selectNodeContents(first);
+          range.setEnd(last, last.childNodes.length);
+          const selected = window.getSelection()!;
+          selected.removeAllRanges(); selected.addRange(range);
+        });
+        await page.locator(".cr-source").focus();
+        await page.keyboard.press("ControlOrMeta+c");
+        expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(before.trimEnd());
+        expect(readFileSync(join(paths.workspace, "review-fixture.ts"), "utf8")).toBe(before);
+        expect(reviewActions.length).toBe(copiedBefore.requests);
+        expect(provider?.requests.length ?? 0).toBe(copiedBefore.provider);
+        expect(browserDestinations.every((destination) => new URL(destination).origin === url)).toBe(true);
+      }
       await page
         .locator('.cr-pane [data-action=line-comment][data-line="2"]')
         .click();

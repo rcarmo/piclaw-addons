@@ -356,7 +356,12 @@ acceptance scenarios and are not full Piclaw integration proof.
   HTTPS evidence link, then explicitly Refreshes the pane. The script remains
   text and does not run; no unsafe link or image/script node appears; the HTTPS
   link has `rel="noopener noreferrer"`. Dispatch count stays fixed. This is a
-  bounded CR-082 rendering check, not a general prompt-injection proof.
+  bounded CR-082 rendering check, not a general prompt-injection proof. A
+  separate authenticated Classic host selection copies three saved source
+  lines to the clipboard without gutters; source bytes and API/provider/origin
+  request counts stay unchanged. This is CR-090 copy-fidelity evidence only:
+  no thread-link export control exists, so the public-share assertion has not
+  been exercised.
 - A CR-076/165 reload fixture leaves a browser open while an agent reply,
   work outcome, resolution and newer saved-source snapshot are written to the
   owned store. No recurring browser API calls or enqueue occur while idle;
