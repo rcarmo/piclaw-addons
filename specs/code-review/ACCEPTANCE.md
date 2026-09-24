@@ -51,9 +51,29 @@ and references to old scenario IDs do not change status automatically.
   metadata, obtain hosted CI, and get approval for publication/merge/deployment.
 - **RC-1/2/3/5:** consolidate the existing results into these flows and finish the
   mock comparison and missing lifecycle/recovery assertions. The
-  [evidence ledger](CLASSIC-FAST-PASS.md) records tested slices. The most recent
-  all-options host run timed out selecting history after a fixture restart;
-  separately passing options do not count as a successful combined run.
+  [evidence ledger](CLASSIC-FAST-PASS.md) records tested slices. The all-options
+  packed host run now passes after correcting the replacement page's history
+  prompt handler and request observation on fixture restart.
+
+### Mock comparison findings
+
+The source-level comparison of `review-pane-mock.html` with `web/pane.ts` and
+`web/styles.ts` found these remaining differences; visual comparison is still due:
+
+- **RC-1:** the implementation's timestamped snapshot picker and overflow capture
+  actions differ from the mock's source-mode selector. File rows lack the mock's
+  additions/deletions and open-concern counts.
+- **RC-2:** collapsed threads and the Threads drawer lack the mock's author,
+  first-message summary, file-path and per-thread delivery cues. Resolution
+  evidence needs a clearer visible presentation.
+- **RC-3:** mixed-target selection now opens the send drawer with the mock's
+  explicit reassignment/separate-batches warning and disabled confirmation.
+  Removing the mismatched item still requires a fresh preview. Browser tests
+  confirm that neither this warning nor selection changes reassign or queue work.
+
+The implementation already uses pane-width responsiveness, 12px/18px code rows,
+unified/split views and 32px SVG icon controls. These code matches are not a visual
+parity pass. Keep the approved mock unchanged while correcting the implementation.
 
 ## Deferred depth
 

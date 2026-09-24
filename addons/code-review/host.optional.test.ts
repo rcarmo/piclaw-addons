@@ -409,8 +409,11 @@ hostTest(
           expect(listed.result).toHaveLength(1);
           page = await context.newPage();
           page.on("pageerror", (error) => errors.push(error.message));
-          page.on("request", (request) => { if (/^https?:/.test(request.url())) browserDestinations.push(request.url()); });
-          page.on("dialog", (dialog) => dialog.accept());
+          page.on("request", (request) => {
+            if (/^https?:/.test(request.url())) browserDestinations.push(request.url());
+            if (request.url().includes("/agent/addons/api/code-review/action")) reviewActions.push(request.url());
+          });
+          page.on("dialog", (dialog) => dialog.accept(dialog.type() === "prompt" && process.env.PICLAW_REVIEW_CLASSIC_SOURCE_TEST === "1" ? "1" : undefined));
           await page.goto(url, { waitUntil: "domcontentloaded" });
           await page.waitForSelector(".workspace-toggle-tab");
           const toggle = page.getByRole("button", { name: "Show workspace", exact: true });

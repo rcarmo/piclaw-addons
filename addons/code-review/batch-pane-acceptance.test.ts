@@ -358,6 +358,35 @@ async function selectAcrossFiles(
   ).toContain("Send to agent (2)");
 }
 
+test("RC-3 mixed-target selection shows the mock's explicit reassignment warning without sending", async () => {
+  const harness = createHarness("mixed-target");
+  let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
+  try {
+    const otherTarget = { chatId: "web:reviewer", incarnation: "reviewer-lifetime", label: "Reviewer" };
+    harness.store.reassign(harness.operator, harness.utilThreadId, otherTarget, harness.mutation(1));
+    const launched = await harness.launchPage();
+    browser = launched.browser;
+    const { page, errors } = launched;
+    await harness.waitForShell(page);
+    await harness.openReview(page);
+    await selectAcrossFiles(page, harness);
+    await page.locator(".cr-toolbar [data-action=send]").click();
+    await page.waitForSelector(".cr-target-warning");
+    expect(await page.locator(".cr-target-warning").innerText()).toContain("Reassign explicitly or send separate batches");
+    expect(await page.locator("[data-action=confirm-send]").isDisabled()).toBe(true);
+    expect(await page.locator("[data-action=confirm-send]").getAttribute("title")).toContain("different bound target");
+    expect(harness.queueCalls).toHaveLength(0);
+    expect(harness.store.getThread(harness.operator, harness.utilThreadId).target).toEqual(otherTarget);
+    await page.locator(`.cr-drawer [data-pick="${harness.utilThreadId}"]`).uncheck();
+    expect(await page.locator(".cr-target-warning").count()).toBe(0);
+    expect(await page.locator("[data-action=confirm-send]").isDisabled()).toBe(true);
+    await page.locator("[data-action=refresh-send-preview]").click();
+    await page.waitForFunction(() => !(document.querySelector("[data-action=confirm-send]") as HTMLButtonElement)?.disabled);
+    expect(harness.queueCalls).toHaveLength(0);
+    expect(errors).toEqual([]);
+  } finally { await browser?.close(); await harness.cleanup(); }
+}, 45_000);
+
 test(
   "CR-104/109 browser batch preview stays inert, queues one ordered dispatch, and reload does not re-enqueue",
   async () => {

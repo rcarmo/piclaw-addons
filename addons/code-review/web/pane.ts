@@ -388,6 +388,13 @@ export class CodeReviewPane {
       (t) => this.relevant(t) && t.state !== "deleted",
     );
   }
+  private hasTargetMismatch() {
+    return [...this.selected].some((id) => {
+      const thread = this.threads.find((t) => t.id === id);
+      return !thread || thread.target.chatId !== this.activeTarget?.chatId ||
+        thread.target.incarnation !== this.activeTarget?.incarnation;
+    });
+  }
   private threadHtml(thread: any) {
     const data = this.detail.get(thread.id),
       anchor = thread.anchor,
@@ -579,6 +586,18 @@ export class CodeReviewPane {
           )}${this.hasMoreThreads ? button("more-threads", "More threads", "Load the next bounded page of review concerns.") : ""}${this.drawer === "send" ? `<section class="cr-send-preview" aria-label="Selected guidance and saved source versions">${this.sendPreview ? `<strong>Selected guidance (${this.sendPreview.items.length})</strong><ol>${this.sendPreview.items.map((item) => `<li data-preview-thread="${e(item.threadId)}"><code title="Selected thread ID">${e(item.threadId)}</code><small>Guidance v${e(item.version)} · assignment ${e(item.assignmentEpoch)}</small><small>Snapshot file <code title="Saved snapshot file ID">${e(item.anchor.snapshotFileId)}</code></small></li>`).join("")}</ol>` : `<p>Selection or target changed. Refresh the preview before queueing.</p>`}</section><textarea id="cr-summary" title="Optional overall instruction sent with selected thread references." placeholder="Overall guidance (optional)">${e(this.summary)}</textarea><p>Queue to ${e(this.activeTarget?.label)} behind current work. No interruption.</p>${button("refresh-send-preview", "Refresh preview", "Check current guidance versions and source snapshots without queueing work.")}${button("confirm-send", "Queue selected review", "Queue one review; replies and resolutions remain per thread.", `data-settings-button="primary" ${!this.sendPreview || !this.selected.size ? "disabled" : ""}`)}` : ""}</aside>`
       : ""
   }`;
+    if (this.drawer === "send" && this.hasTargetMismatch()) {
+      const warning = this.element.ownerDocument.createElement("p");
+      warning.className = "cr-target-warning";
+      warning.setAttribute("role", "status");
+      warning.textContent = "Selection has a different bound target. Reassign explicitly or send separate batches.";
+      this.element.querySelector(".cr-drawer > header")?.after(warning);
+      const confirm = this.element.querySelector<HTMLButtonElement>("[data-action=confirm-send]");
+      if (confirm) {
+        confirm.disabled = true;
+        confirm.title = warning.textContent;
+      }
+    }
     const source = this.element.querySelector(".cr-source");
     if (source) source.scrollTop = previousScroll;
     if (this.drawer && !focusId)
@@ -1059,6 +1078,11 @@ export class CodeReviewPane {
         this.pendingPayload = null;
         if (name === "refresh-send-preview") await this.reloadThreads();
         if (!this.selected.size) throw Error("No open selected threads remain; select guidance again.");
+        if (this.hasTargetMismatch()) {
+          this.drawer = "send";
+          this.status = "";
+          break;
+        }
         const payload = {
           target: { ...this.activeTarget },
           items: this.selectionItems(),
@@ -1074,6 +1098,7 @@ export class CodeReviewPane {
         this.status = "";
         break;
       case "confirm-send": {
+        if (this.hasTargetMismatch()) throw Error("Reassign selected threads explicitly or send separate batches.");
         const intent = this.sendIntent;
         if (!intent || !this.pendingPayload || !this.sendPreview)
           throw Error("Preview the review before sending.");
