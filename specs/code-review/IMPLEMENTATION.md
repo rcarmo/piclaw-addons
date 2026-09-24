@@ -250,6 +250,13 @@ acceptance scenarios and are not full Piclaw integration proof.
   dispatch, item, attempt or queue call. Reload discards transient selection;
   no Viewed/read-progress table or control exists. Other non-mutating views
   and host-level navigation still need separate checks.
+- A CR-076/165 reload fixture leaves a browser open while an agent reply,
+  work outcome, resolution and newer saved-source snapshot are written to the
+  owned store. No recurring browser API calls or enqueue occur while idle;
+  explicit reload shows the new source, original thread via its saved anchor,
+  resolved messages, accepted item receipt and acknowledged private draft.
+  It reconciles a bounded replacement snapshot, not an event subscription or
+  a durable cursor-backed notification stream.
 - A standalone check copies the add-on with its dependencies to an owned
   directory outside the monorepo, imports its runtime and extension entry,
   verifies startup API/tool registration and checks the web/skill paths.
