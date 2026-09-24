@@ -131,6 +131,13 @@ acceptance scenarios and are not full Piclaw integration proof.
   action registration. The optional Visual test now fails with that capability
   diagnostic. CR-087 and the Visual host contract are blocked until an approved
   core change wires the generic workspace-action API into Visual.
+- A disposable Git-backed diff-pane browser fixture now exercises staged and
+  unstaged snapshots from the same owned repository. It checks old/new line
+  coordinates, side-specific syntax, a deleted old-side comment, unified and
+  split layouts, unchanged-context expansion and wrap toggling. Exact saved
+  snapshot bytes, working-file bytes, Git index, status and HEAD remain intact;
+  no agent queue call occurs. This is a focused CR-006/119/142/148/149 slice,
+  not the full layout/theme/touch or copy-fidelity matrix.
 - Focused CR-083/089/119/121 tests check exact byte and line limits, diff
   computation/changed-line budgets, escaped plain-text fallback, bounded
   response pages and independent full-snapshot old/new highlighting. A local
