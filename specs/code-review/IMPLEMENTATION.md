@@ -161,8 +161,12 @@ acceptance scenarios and are not full Piclaw integration proof.
   is missing or unreadable; replacement at the same path reports `replaced`.
   The current-source label exposes neither live bytes nor a digest. Exact
   saved snapshot bytes, working-file bytes, Git index, status and HEAD remain
-  intact; no agent queue call occurs. These are focused CR-006/007/011/119/
-  142/148/149 slices, not the full layout/theme/touch or copy-fidelity matrix.
+  intact; no agent queue call occurs. A separate CR-149 browser clipboard test
+  selects code across tabs, a blank line and HTML-like text, then checks the
+  copied bytes contain no gutter line numbers or patch signs; partial code
+  selection also copies only its chosen substring. The source file is unchanged.
+  These are focused CR-006/007/011/119/142/148/149 slices, not the full
+  layout/theme/touch/accessibility or OS clipboard matrix.
 - Focused CR-083/089/119/121 tests check exact byte and line limits, diff
   computation/changed-line budgets, escaped plain-text fallback, bounded
   response pages and independent full-snapshot old/new highlighting. A local

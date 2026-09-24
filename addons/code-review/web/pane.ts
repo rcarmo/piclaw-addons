@@ -126,6 +126,7 @@ export class CodeReviewPane {
     this.element.addEventListener("change", this.change);
     this.element.addEventListener("input", this.input);
     this.element.addEventListener("keydown", this.keydown);
+    this.element.addEventListener("copy", this.copySource);
     this.element.ownerDocument.defaultView?.addEventListener("storage", this.storageListener);
     this.observer = new ResizeObserver((entries) => {
       const width = entries[0]?.contentRect.width ?? 1200;
@@ -1349,6 +1350,29 @@ export class CodeReviewPane {
       this.fileFilter = el.value;
       this.render();
     }
+  };
+  private copySource = (event: ClipboardEvent) => {
+    const selection = this.element.ownerDocument.getSelection();
+    const source = this.element.querySelector(".cr-source");
+    if (!source || !selection || selection.isCollapsed || !event.clipboardData ||
+        !source.contains(selection.anchorNode) || !source.contains(selection.focusNode)) return;
+    const range = selection.getRangeAt(0);
+    const rows = [...source.querySelectorAll<HTMLElement>(".cr-line[data-line]")].filter((row) =>
+      range.intersectsNode(row.querySelector("code")!),
+    );
+    if (!rows.length) return;
+    const copied = rows.map((row) => {
+      const code = row.querySelector("code")!;
+      const selected = range.cloneRange();
+      selected.selectNodeContents(code);
+      if (code.contains(range.startContainer))
+        selected.setStart(range.startContainer, range.startOffset);
+      if (code.contains(range.endContainer))
+        selected.setEnd(range.endContainer, range.endOffset);
+      return selected.toString();
+    }).join("\n");
+    event.clipboardData.setData("text/plain", copied);
+    event.preventDefault();
   };
   private keydown = (event: KeyboardEvent) => {
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
