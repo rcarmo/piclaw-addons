@@ -140,7 +140,12 @@ acceptance scenarios and are not full Piclaw integration proof.
   fixture, including viewport widths 1440, 1024, 520 and 390px with no browser
   page errors or paid provider calls. An add-on pane fixture at 390px also
   uses keyboard Enter to select a three-line range, opens/posts its composer,
-  and closes the thread drawer with Escape and restored focus; no enqueue occurs. Visual did **not** reach the pane: its
+  and closes the thread drawer with Escape and restored focus; no enqueue occurs.
+  Focused browser CR-116/117/118 assertions check titles/accessibility names
+  across initial, posted, selected, preview and accepted-send states: an empty
+  selection keeps Send disabled with its blocker, checkbox selection alone
+  queues nothing, and the drawer confirms queue side effects explicitly. They
+  do not replace full screen-reader, forced-colour or skin parity testing. Visual did **not** reach the pane: its
   `visual/frontend/src/app/addon-boot.ts` currently exposes only settings and
   activity-bar registration, not `workspaceActionsVersion` or pane/workspace
   action registration. The optional Visual test now fails with that capability

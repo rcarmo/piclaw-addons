@@ -120,23 +120,49 @@ test("CR-001/012/033/111 browser drives real review persistence and one explicit
     expect(await page.locator(".cr-line").count()).toBe(3);
     expect(await page.locator(".tok-keyword").count()).toBeGreaterThan(0);
     expect(await page.locator("#viewed").count()).toBe(0);
+    const untitled = async () => page.evaluate(() => [...document.querySelectorAll<HTMLElement>(".cr-pane button,.cr-pane select,.cr-pane textarea,.cr-pane input")]
+      .filter((el) => !el.hasAttribute("title") || !el.title.trim())
+      .map((el) => `${el.tagName.toLowerCase()}#${el.id}[${el.getAttribute("data-action") ?? ""}]`));
+    const unnamed = async () => page.evaluate(() => [...document.querySelectorAll<HTMLElement>(".cr-pane button,.cr-pane input")]
+      .filter((el) => !el.getAttribute("aria-label")?.trim() && !el.closest("label") && !el.textContent?.trim() && !el.getAttribute("title")?.trim())
+      .map((el) => `${el.tagName.toLowerCase()}#${el.id}[${el.getAttribute("data-action") ?? ""}]`));
+    expect(await untitled()).toEqual([]);
+    expect(await unnamed()).toEqual([]);
+    expect(await page.locator(".cr-toolbar [data-action=send]").isDisabled()).toBe(true);
+    expect(await page.locator(".cr-toolbar [data-action=send]").getAttribute("title")).toContain("Include at least one open thread");
     await page.locator('[data-action=line-comment][data-line="2"]').click();
     await page.locator("#cr-body").fill("Reject an empty name first.");
     await page.waitForTimeout(650);
     await page.locator("[data-action=post]").click();
     await page.waitForSelector(".cr-thread", { timeout: 5000 });
+    expect(await untitled()).toEqual([]);
+    expect(await unnamed()).toEqual([]);
     expect(calls).toBe(0);
     expect(store.listReviews(ctx)).toHaveLength(1);
     const review = store.listReviews(ctx)[0]!;
     expect(store.listThreads(ctx, review.id)).toHaveLength(1);
-    await page.locator(".cr-thread [data-pick]").check();
+    const checkbox = page.locator(".cr-thread [data-pick]");
+    expect(await checkbox.getAttribute("title")).toContain("next review sent to the agent");
+    await checkbox.check();
+    expect(await page.locator(".cr-toolbar [data-action=send]").isDisabled()).toBe(false);
+    expect(await page.locator(".cr-toolbar [data-action=send]").getAttribute("title")).toContain("Preview selected guidance");
+    expect(calls).toBe(0);
     await page.locator("[data-action=send]").click();
     await page.waitForSelector(".cr-drawer");
+    expect(await untitled()).toEqual([]);
+    expect(await unnamed()).toEqual([]);
+    expect(await page.locator("[data-action=confirm-send]").getAttribute("title")).toContain("Queue one review");
+    expect(calls).toBe(0);
     await page.locator("[data-action=confirm-send]").click();
     await page.waitForFunction(() =>
       document.querySelector(".cr-status")?.textContent?.includes("accepted"),
     );
     expect(calls).toBe(1);
+    expect(await page.locator(".cr-toolbar [data-action=send]").isDisabled()).toBe(true);
+    expect(await page.locator(".cr-toolbar [data-action=send]").getAttribute("title")).toContain("Include at least one open thread");
+    expect(await untitled()).toEqual([]);
+    await page.locator(".cr-thread [data-action=expand]").click();
+    expect(await page.locator(".cr-thread [data-action=send-thread]").getAttribute("title")).toContain("Preview this concern");
     const thread = store.listThreads(ctx, review.id)[0]!;
     expect(store.getThread(ctx, thread.id).messages[0]?.body).toBe(
       "Reject an empty name first.",
