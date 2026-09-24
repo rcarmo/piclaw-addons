@@ -99,6 +99,12 @@ acceptance scenarios and are not full Piclaw integration proof.
   without another enqueue. Controls and states survive browser reload. The
   fixture uses the real review service behind a disposable browser API; it
   does not prove a remote host receipt or all denial/cancellation branches.
+- Focused CR-083/089/119/121 tests check exact byte and line limits, diff
+  computation/changed-line budgets, escaped plain-text fallback, bounded
+  response pages and independent full-snapshot old/new highlighting. File
+  pages still split and escape the complete allowed source on each request;
+  diff pages recompute the whole diff before slicing. Lazy rendering, cache
+  budgets, cancellation and repeated-tab idle performance are not verified.
 - The browser fixture now commits a public reply while losing its response,
   then retries from the same composer and receives the original reply without
   creating a second message or queueing another agent turn (focused CR-069).
