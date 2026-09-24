@@ -426,6 +426,48 @@ hostTest(
         expect(bounds!.width).toBeGreaterThan(250);
         expect(await page.locator(".cr-pane [data-action=send]").first().getAttribute("title")).toBeTruthy();
       }
+      if (process.env.PICLAW_REVIEW_CLASSIC_UI_TEST === "1") {
+        if (uiMode !== "classic") throw Error("Classic UI checks require PICLAW_REVIEW_UI_MODE=classic.");
+        await page.setViewportSize({ width: 390, height: 844 });
+        const before = new Database(reviewDb, { readonly: true });
+        let dispatches: number;
+        try { dispatches = (before.query("SELECT COUNT(*) AS n FROM dispatches").get() as { n: number }).n; }
+        finally { before.close(); }
+        for (const line of [1, 3]) {
+          await page.locator(`.cr-line [data-action=select-line][data-line="${line}"]`).focus();
+          await page.keyboard.press("Enter");
+        }
+        expect(await page.locator(".cr-selection").innerText()).toContain("source lines 1–3");
+        await page.locator("[data-action=range-comment]").focus();
+        await page.keyboard.press("Enter");
+        expect(await page.evaluate(() => document.activeElement?.id)).toBe("cr-body");
+        await page.locator("#cr-body").fill("Keep the three-line range");
+        await page.locator("[data-action=post]").focus();
+        await page.keyboard.press("Enter");
+        await page.waitForFunction(() => document.querySelectorAll(".cr-thread").length >= 2);
+        const saved = new Database(reviewDb, { readonly: true });
+        try {
+          const row = saved.query("SELECT anchor_json FROM threads ORDER BY created_at DESC,id DESC LIMIT 1").get() as { anchor_json: string };
+          expect(JSON.parse(row.anchor_json)).toMatchObject({ scope: "range", startLine: 1, endLine: 3 });
+          expect((saved.query("SELECT COUNT(*) AS n FROM dispatches").get() as { n: number }).n).toBe(dispatches);
+        } finally { saved.close(); }
+        await page.locator("[data-action=threads]").focus();
+        await page.keyboard.press("Enter");
+        await page.waitForSelector(".cr-drawer");
+        expect(await page.locator(".cr-drawer").getAttribute("role")).toBe("dialog");
+        const drawer = await page.locator(".cr-drawer").boundingBox();
+        const pane = await page.locator(".cr-pane").boundingBox();
+        expect(drawer).not.toBeNull(); expect(pane).not.toBeNull();
+        expect(drawer!.width).toBeLessThanOrEqual(pane!.width + 1);
+        await page.locator(".cr-drawer button").first().focus();
+        await page.keyboard.press("Escape");
+        expect(await page.locator(".cr-drawer").count()).toBe(0);
+        expect(await page.evaluate(() => document.activeElement?.getAttribute("data-action"))).toBe("threads");
+        await page.emulateMedia({ forcedColors: "active" });
+        expect(await page.locator(".cr-pane [data-action=send]").first().isVisible()).toBe(true);
+        expect(await page.locator(".cr-source").isVisible()).toBe(true);
+        await page.emulateMedia({ forcedColors: "none" });
+      }
       expect(errors).toEqual([]);
       console.log("REAL HOST PASS", {
         core,

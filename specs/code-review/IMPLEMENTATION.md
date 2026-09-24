@@ -207,6 +207,14 @@ acceptance scenarios and are not full Piclaw integration proof.
   page errors or paid provider calls. An add-on pane fixture at 390px also
   uses keyboard Enter to select a three-line range, opens/posts its composer,
   and closes the thread drawer with Escape and restored focus; no enqueue occurs.
+  A real authenticated Classic host keyboard check at 390px now selects a
+  three-line range with Enter, posts it, confirms its saved range anchor and
+  zero extra dispatches, and closes the thread drawer with Escape and restored
+  focus. It exposed Escape bubbling to the host's chat composer; the pane now
+  stops propagation only when it consumes Escape for its menu or drawer.
+  Forced-colour emulation confirms the source and Send remain visible, but
+  this is not a screen-reader or full forced-colour audit. The same checks pass
+  from the newly packed tarball with a loopback provider and zero paid calls.
   Focused browser CR-116/117/118 assertions check titles/accessibility names
   across initial, posted, selected, preview and accepted-send states: an empty
   selection keeps Send disabled with its blocker, checkbox selection alone

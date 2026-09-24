@@ -1404,15 +1404,17 @@ export class CodeReviewPane {
       }
     }
     if (event.key === "Escape") {
-      if (this.moreMenu) {
-        this.moreMenu = false;
-        this.render();
-      } else if (this.drawer) {
-        this.drawer = null;
-        this.render();
-        this.element
-          .querySelector<HTMLElement>("[data-action=threads]")
-          ?.focus();
+      if (this.moreMenu || this.drawer) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (this.moreMenu) {
+          this.moreMenu = false;
+          this.render();
+        } else {
+          this.drawer = null;
+          this.render();
+          this.element.querySelector<HTMLElement>("[data-action=threads]")?.focus();
+        }
       }
     }
   };
