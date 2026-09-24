@@ -86,8 +86,13 @@ acceptance scenarios and are not full Piclaw integration proof.
   completed/blocked item states, numbered retries after definite rejection,
   unknown delivery without replay and explicit reconciliation against the
   original dispatch after reopen. These are focused CR-040/041/175/176/180
-  slices. They do not simulate two separate host processes claiming the same
-  attempt or prove the full browser receipt workflow.
+  slices. The browser receipt workflow still needs broader coverage.
+- An additional CR-176 fixture now starts two distinct Bun processes against
+  the same owned SQLite file: one queue bridge is invoked and the accepted
+  attempt is durable. A child deliberately exits after its bridge marker;
+  reopening marks the attempt unknown and does not resend. Eight consecutive
+  runs passed. The marker models host acceptance; it does not make an external
+  host queue transactional with SQLite or prove routing across machines.
 - The browser fixture now commits a public reply while losing its response,
   then retries from the same composer and receives the original reply without
   creating a second message or queueing another agent turn (focused CR-069).
