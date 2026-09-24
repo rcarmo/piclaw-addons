@@ -326,7 +326,12 @@ test("CR-104/105 batch preview and send preserve item order, snapshot identity a
     ]);
     expect(f.counts()).toEqual({ dispatches: 1, items: 2, attempts: 1 });
 
-    const agentView = f.store.inspectDispatch(f.agent, submitted.dispatchId);
+    const scopedAgent = {
+      ...f.agent,
+      reference: { addonId: "code-review", intentId: submitted.dispatchId },
+    };
+
+    const agentView = f.store.inspectDispatch(scopedAgent, submitted.dispatchId);
     expect(agentView.items.map((item: any) => item.thread_id)).toEqual([
       f.utilThread.threadId,
       f.mainThread.threadId,
@@ -338,14 +343,14 @@ test("CR-104/105 batch preview and send preserve item order, snapshot identity a
     expect(JSON.stringify(agentView)).not.toContain(DRAFT_BODY);
 
     f.store.reply(
-      f.agent,
+      scopedAgent,
       f.mainThread.threadId,
       MAIN_REPLY,
       f.mutation(1),
       1,
     );
     f.store.resolveThread(
-      f.agent,
+      scopedAgent,
       f.mainThread.threadId,
       {
         explanation: MAIN_RESOLUTION,
@@ -356,7 +361,7 @@ test("CR-104/105 batch preview and send preserve item order, snapshot identity a
       f.mutation(2),
     );
     f.store.updateWork(
-      f.agent,
+      scopedAgent,
       submitted.dispatchId,
       f.mainThread.threadId,
       {
@@ -368,14 +373,14 @@ test("CR-104/105 batch preview and send preserve item order, snapshot identity a
       f.mutation(),
     );
     f.store.reply(
-      f.agent,
+      scopedAgent,
       f.utilThread.threadId,
       UTIL_REPLY,
       f.mutation(1),
       1,
     );
     f.store.updateWork(
-      f.agent,
+      scopedAgent,
       submitted.dispatchId,
       f.utilThread.threadId,
       {

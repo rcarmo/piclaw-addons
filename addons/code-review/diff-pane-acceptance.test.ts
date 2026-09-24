@@ -432,7 +432,7 @@ test(
       expect(await page.locator(`#cr-${thread.threadId} header .cr-muted`).textContent()).toBe(
         "old lines 2–2",
       );
-      await page.locator(`#cr-${thread.threadId} [data-action=expand]`).click();
+      if (await page.locator(`#cr-${thread.threadId} [data-action=expand]`).getAttribute("aria-expanded") !== "true") await page.locator(`#cr-${thread.threadId} [data-action=expand]`).click();
       expect(await page.locator(`#cr-${thread.threadId} .cr-message-body`).innerText()).toContain(
         THREAD_BODY,
       );

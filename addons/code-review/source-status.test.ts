@@ -24,6 +24,7 @@ async function fixture() {
   const ctx: LocalContext = {
     version: 1, accessMode: "single-user", ownerId: who.ownerId, actorId: "branch1", kind: "agent",
     workspaceRoot: dir, workspaceId: who.workspaceId, chatJid: target.chatId, chatIncarnation: target.incarnation,
+    reference: { addonId: "code-review", intentId: dispatch.dispatchId },
     async listTargets() { return [hostTarget]; },
     async resolveTarget() { return hostTarget; },
     async enqueue() { throw Error("unexpected agent dispatch"); },

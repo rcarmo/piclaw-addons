@@ -540,9 +540,10 @@ for (const mode of ["files", "file"] as const) {
               body.fileId === harness.snapshotOneFileId,
         );
 
+        if (!(await page.locator("#cr-snapshot").isVisible())) await page.locator(".cr-snapshot-history summary").click();
         await page.locator("#cr-snapshot").selectOption(harness.snapshotOneId);
         await hold.started;
-        await page.locator("#cr-snapshot").selectOption(harness.snapshotTwoId);
+        if (!(await page.locator("#cr-snapshot").isVisible())) await page.locator(".cr-snapshot-history summary").click();        await page.locator("#cr-snapshot").selectOption(harness.snapshotTwoId);
         await harness.waitForAction(
           "fresh snapshot file load",
           (body) => body.action === "file" && body.fileId === harness.snapshotTwoFileId,

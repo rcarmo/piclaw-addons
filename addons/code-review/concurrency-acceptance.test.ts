@@ -516,8 +516,27 @@ test("CR-073/179/180 comment CRUD, refresh, delivery, and resolve preserve Git s
       f.service(),
     ) as CreatedThread;
 
+    const scoped = f.service().submit(
+      f.operator,
+      created.reviewId,
+      {
+        target: f.target,
+        items: [{ threadId: comment.threadId, version: comment.version }],
+      },
+      f.mutation(undefined, "seed-scope"),
+    );
+    await f.service().deliver(f.operator, scoped.dispatchId, {
+      async enqueue() {
+        return { status: "accepted" as const, rowId: 700 };
+      },
+    });
+    const agentCtx = {
+      ...f.agentCtx,
+      reference: { addonId: "code-review", intentId: scoped.dispatchId },
+    } satisfies LocalContext;
+
     const agentReply = await reviewAction(
-      f.agentCtx,
+      agentCtx,
       "reply",
       {
         threadId: comment.threadId,
@@ -542,7 +561,7 @@ test("CR-073/179/180 comment CRUD, refresh, delivery, and resolve preserve Git s
     );
 
     await reviewAction(
-      f.agentCtx,
+      agentCtx,
       "deleteMessage",
       {
         messageId: agentReply.messageId,
@@ -555,6 +574,18 @@ test("CR-073/179/180 comment CRUD, refresh, delivery, and resolve preserve Git s
     );
 
     const afterCrud = f.service().getThread(f.operator, comment.threadId);
+    f.service().updateWork(
+      f.agent,
+      scoped.dispatchId,
+      comment.threadId,
+      {
+        state: "completed",
+        itemVersion: 1,
+        threadVersion: afterCrud.version,
+        assignmentEpoch: 1,
+      },
+      f.mutation(undefined, "seed-work-complete"),
+    );
     expect(afterCrud.messages.map((message) => ({
       ordinal: message.ordinal,
       body: message.body,

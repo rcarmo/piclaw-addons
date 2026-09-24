@@ -85,10 +85,11 @@ test("RC-1/2/3 render the approved mock source, diff and send states with real s
       if (width === 1280) { expect(actual.toolbar).toBeLessThanOrEqual(46); expect(expected.toolbar).toBeLessThanOrEqual(46); }
       expect(actual.overflow).toBe(false);
       dimensions.push({ width, actual, mock: expected });
+      expect(await real.locator("#cr-snapshot").isVisible()).toBe(false);
       expect(await real.locator(".cr-message").first().innerText()).toContain(body);
       expect(await real.locator(".cr-delivery").first().innerText()).toBe("Not sent");
       await shot("source", width);
-      await real.locator(".cr-thread [data-action=expand]").click();
+      expect(await real.locator(".cr-thread [data-action=expand]").getAttribute("aria-expanded")).toBe("true");
       await real.locator(".cr-message-body").waitFor();
       expect(await real.locator(".cr-message-body").innerText()).toBe(body);
       await shot("discussion", width);
@@ -102,7 +103,6 @@ test("RC-1/2/3 render the approved mock source, diff and send states with real s
       await shot("send", width);
       await real.locator("button[data-action=close-drawer]").click();
       await reference.locator("#close-drawer").click();
-      await real.locator(".cr-thread [data-action=expand]").click();
     }
     await real.locator("#cr-source-mode").selectOption("unstaged");
     await real.waitForFunction(() => document.querySelector("#cr-snapshot option:checked")?.textContent?.includes("unstaged"));

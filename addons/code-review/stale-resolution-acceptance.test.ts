@@ -16,11 +16,12 @@ test("CR-042 agent cannot resolve an old guidance version after the operator edi
     async listTargets() { return [target]; }, async resolveTarget() { return target; },
     async enqueue() { return { status: "accepted", rowId: 1 }; },
   };
-  const agent: LocalContext = { ...operator, kind: "agent", actorId: "branch-1", chatJid: target.chatJid, chatIncarnation: target.incarnation };
+  const agentBase: LocalContext = { ...operator, kind: "agent", actorId: "branch-1", chatJid: target.chatJid, chatIncarnation: target.incarnation };
   try {
     const review: any = await reviewAction(operator, "create", { path: "source.ts", target: { agentName: "worker" }, requestId: "create" }, store);
     const created: any = await reviewAction(operator, "comment", { reviewId: review.reviewId, fileId: review.files[0], side: "source", range: { startLine: 1, endLine: 1 }, body: "Check behavior", requestId: "root" }, store);
     const dispatched: any = await reviewAction(operator, "send", { reviewId: review.reviewId, target: { chatId: target.chatJid, incarnation: target.incarnation }, items: [{ threadId: created.threadId, version: 1 }], requestId: "send" }, store);
+    const agent = { ...agentBase, reference: { addonId: "code-review", intentId: dispatched.id } } satisfies LocalContext;
     expect(dispatched.attempts[0].state).toBe("accepted");
     const first: any = await reviewAction(agent, "thread", { threadId: created.threadId }, store);
     expect(first.version).toBe(1);

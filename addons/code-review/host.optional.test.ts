@@ -349,7 +349,7 @@ hostTest(
       await page.waitForTimeout(650);
       await page.locator("[data-action=post]").click();
       await page.waitForSelector(".cr-thread", { timeout: 10000 });
-      await page.locator(".cr-thread [data-action=expand]").click();
+      if (await page.locator(".cr-thread [data-action=expand]").getAttribute("aria-expanded") !== "true") await page.locator(".cr-thread [data-action=expand]").click();
       expect(await page.locator(".cr-message-body").innerText()).toContain(
         "Validate empty strings",
       );
@@ -582,7 +582,7 @@ hostTest(
           await action.click();
           await page.waitForSelector(".cr-thread");
           expect(await page.locator(".cr-thread header").innerText()).toContain("resolved");
-          await page.locator(".cr-thread [data-action=expand]").click();
+          if (await page.locator(".cr-thread [data-action=expand]").getAttribute("aria-expanded") !== "true") await page.locator(".cr-thread [data-action=expand]").click();
           await page.waitForFunction(() => document.querySelector(".cr-message-body")?.textContent?.includes("Validate empty strings"), null, { timeout: 10000 });
           const saved = await page.locator(".cr-message-body").allInnerTexts();
           expect(saved.join("\n")).toContain("Validate empty strings");
@@ -640,7 +640,7 @@ hostTest(
         await page.locator("[data-action=refresh]").click();
         const thread = page.locator(`#cr-${result.result!.threadId}`);
         await thread.waitFor({ state: "visible" });
-        await thread.locator("[data-action=expand]").click();
+        if (await thread.locator("[data-action=expand]").getAttribute("aria-expanded") !== "true") await thread.locator("[data-action=expand]").click();
         await thread.locator(".cr-message-body").waitFor({ state: "visible" });
         expect(await page.evaluate(() => (window as any).__reviewScriptRan)).toBeUndefined();
         expect(await thread.locator("script,iframe,img").count()).toBe(0);

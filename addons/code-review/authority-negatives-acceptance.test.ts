@@ -127,12 +127,13 @@ function createFixture() {
     },
   };
 
-  const agentCtx = (target = current): LocalContext => ({
+  const agentCtx = (target = current, intentId?: string): LocalContext => ({
     ...operatorCtx,
     actorId: `agent:${target.incarnation}`,
     kind: "agent",
     chatJid: target.chatJid,
     chatIncarnation: target.incarnation,
+    ...(intentId ? { reference: { addonId: "code-review", intentId } } : {}),
   });
 
   const counts = (): Counts => ({
@@ -382,6 +383,36 @@ test("CR-078 stale selectors cannot redirect target authority and rotated agent 
       f.service,
     )) as { version: number; assignmentEpoch: number };
 
+    await expect(
+      reviewAction(
+        f.agentCtx(f.rotated),
+        "reply",
+        {
+          threadId: commented.threadId,
+          body: "missing scope",
+          expectedVersion: rotated.version,
+          assignmentEpoch: rotated.assignmentEpoch,
+          requestId: f.requestId("reply-no-scope"),
+        },
+        f.service,
+      ),
+    ).rejects.toThrow("scope is unavailable");
+
+    const rotatedDispatch = f.service.submit(
+      { ownerId: f.operatorCtx.ownerId, actorId: f.operatorCtx.actorId, kind: "operator", workspaceId: f.operatorCtx.workspaceId },
+      created.reviewId,
+      {
+        target: { chatId: f.rotated.chatJid, incarnation: f.rotated.incarnation, label: f.rotated.label },
+        items: [{ threadId: commented.threadId, version: rotated.version }],
+      },
+      { requestId: f.requestId("send-rotated") },
+    );
+    await f.service.deliver(
+      { ownerId: f.operatorCtx.ownerId, actorId: f.operatorCtx.actorId, kind: "operator", workspaceId: f.operatorCtx.workspaceId },
+      rotatedDispatch.dispatchId,
+      { async enqueue() { return { status: "accepted", rowId: 2 }; } },
+    );
+
     const countsBeforeFailures = f.counts();
     await expect(
       reviewAction(
@@ -400,7 +431,7 @@ test("CR-078 stale selectors cannot redirect target authority and rotated agent 
 
     await expect(
       reviewAction(
-        f.agentCtx(f.rotated),
+        f.agentCtx(f.rotated, rotatedDispatch.dispatchId),
         "reply",
         {
           threadId: commented.threadId,

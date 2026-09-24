@@ -2,10 +2,48 @@
 
 **Decision: no release or merge yet.** The active gate is [six Classic checks](ACCEPTANCE.md).
 The results below are evidence for those checks; the old 184-scenario design is reference only.
-The agreed mock's Classic UX is unchanged. Full visual/interaction parity has
-not been signed off; the six-check simplification does not waive it.
+The agreed mock is unchanged. RC-1–RC-5 pass the supported Classic flows after
+Rui's closer-mock and separate-submission decisions. RC-6 integration/release is
+not complete.
 
-## Latest checkpoint: author actions and catalogue lifecycle
+## Latest checkpoint: closer mock and separate submissions
+
+- Open discussions on the current bounded source page expand automatically;
+  explicit collapse is retained. Saved versions and thread filters are tucked
+  into disclosures. Selection/target changes refresh the send preview automatically;
+  old responses cannot overwrite the new selection or reopen a dismissed drawer.
+  A stale-version rejection updates the preview but never sends again automatically.
+- Fresh mock/implementation screenshots: `exports/code-review-mock-aligned/`.
+  Browser comparison passes desktop/narrow source, diff, discussion and send
+  states. Both use 12px/18px code rows and a 45px desktop toolbar; narrow bars
+  measure 79px/78px without document overflow. The approved mock is unchanged.
+- Separate-submission reference is bound and verified inside core. Code Review
+  agent actions require it and expose only the selected concerns. Negative tests
+  cover other submissions in the same review/chat, another review, forged IDs,
+  absent references, stale assignment and reopen. A positive two-file batch
+  reads, replies to and resolves all its selected concerns with one Send.
+- Add-on regression: **166 pass, one opt-in skipped, 2,121 assertions**. Strict
+  TypeScript, catalogue validation and diff whitespace check pass. The final
+  19-file 0.1.2 tarball is 62.36 KB. Authenticated Classic all-options host test:
+  **259 assertions pass in 110.4 seconds**, including queue-behind-busy, actual
+  catalogue uninstall/reinstall, private-draft/receipt recovery, source/history,
+  phone/touch/keyboard/copy, untrusted rendering and 65-second idle observation.
+  Provider activity is seven review requests plus one held prior-work request,
+  all loopback. No paid calls or live service changes.
+- Core local validation: 5,641 fast tests pass (seven skipped), 25 feature tests
+  pass, nine build-smoke tests pass, and typecheck passes. The `make ci-fast` tool
+  wait timed out while its child test process continued; its fast-test log reached
+  those passing totals. The remaining feature/build stages were then run separately
+  and exited 0. This is not hosted CI or a single verified `make ci-fast` exit.
+- Final focused core scope rerun: 12 tests / 111 assertions pass. The durable
+  child-process case hit the default five-second timeout once; it now uses a
+  bounded 15-second child/20-second test timeout with the same assertions.
+- Independent judge delegation timed out without findings. Do not count that as
+  completed review. Core has pre-existing uncommitted/untracked integration work;
+  release compatibility/version, hosted CI and approval to merge/publish/install
+  are still RC-6 gates.
+
+## Earlier checkpoint: author actions and catalogue lifecycle
 
 - Author Edit/Delete controls follow PANE-DESIGN.md's overflow placement. Browser
   assertions cover 1280px/520px geometry, keyboard activation, Escape/focus return,
@@ -46,10 +84,10 @@ not been signed off; the six-check simplification does not waive it.
 
 ## Gates requiring a decision or more work
 
-1. **CR-079 host authority:** `localContext` v1 exposes chat identity, not the verified dispatch reference for the current prompt. Two reviews assigned to one chat are not isolated per prompt. See [CR-079-HOST-CONTRACT.md](CR-079-HOST-CONTRACT.md). The separately owned core contract needs explicit approval before implementation and same-chat cross-review tests.
+1. **Submission authority:** implemented and locally verified after approval; see [CR-079-HOST-CONTRACT.md](CR-079-HOST-CONTRACT.md). Core integration/review is still outstanding; this controls review tools, not ordinary file access or prior chat history.
 2. **Core integration:** The core worktree has modified and untracked files. Host-contract review, an approved integration path, hosted CI and a final version providing the APIs are outstanding. The add-on manifest's `compatibleVersions: ">=3.2.1"` is provisional.
-3. **Publication:** local `bun run check:catalog` passes with the 0.1.1 entry. The disposable manager installed the local tarball successfully, but there is no published-package install test. Do not publish until the compatible core version and security gates are settled.
-4. **Acceptance:** Sign off the six active flows. Exhaustive permutations and follow-up depth are listed as deferred in [ACCEPTANCE.md](ACCEPTANCE.md); no 184-step-handler implementation is required. Existing security, persistence and no-implicit-send checks remain mandatory.
+3. **Publication:** local `bun run check:catalog` passes with the 0.1.2 entry. The disposable manager installed the local tarball successfully, but there is no published-package install test. Do not publish until the compatible core version and security gates are settled.
+4. **Acceptance:** RC-1–RC-5 pass the supported Classic flows; RC-6 remains open. Exhaustive permutations and follow-up depth are listed as deferred in [ACCEPTANCE.md](ACCEPTANCE.md); no 184-step-handler implementation is required. Existing security, persistence and no-implicit-send checks remain mandatory.
 5. **Approval:** Merge, publication, live installation and live restart require separate explicit permission. The local `piclaw.service` was untouched.
 
 ## Busy-target and recovery follow-up

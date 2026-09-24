@@ -359,6 +359,7 @@ test(
         endLine: 1,
       });
 
+      if (!(await page.locator("#cr-snapshot").isVisible())) await page.locator(".cr-snapshot-history summary").click();
       await page.locator("#cr-snapshot").selectOption(initialSnapshotId);
       await page.waitForFunction(
         () =>

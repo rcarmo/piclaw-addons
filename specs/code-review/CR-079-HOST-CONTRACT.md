@@ -1,18 +1,56 @@
-# CR-079: verified dispatch scope for Classic Code Review
+# Separate submissions in the same chat
 
-**Status:** approval required for the separately owned Piclaw core worktree. No live deployment or core change is authorised by this note.
+Implemented locally after Rui's approval on 24 September 2026. Not installed or
+published. Host changes are in `/workspace/piclaw-worktrees/addon-workspace-context`;
+add-on changes are in the `feat/code-review` worktree.
 
-## Present gap
+## Behaviour
 
-`runtime/src/addons/local-dispatch.ts` verifies a persisted queue message against a host-generated `addon_local_dispatch` marker, its chat, content digest and message ID. `runtime/src/addons/local-context.ts` consumes that admission once for a prompt and exposes the verified chat ID and incarnation. It does **not** expose which add-on dispatch started that prompt.
+Each explicit Send creates one submission, containing one or many selected
+concerns across files. The agent can read and address every selected concern.
+A different Send has its own scope, even within the same review and agent chat.
+This limits review-tool access; it does not sandbox the agent's normal file tools
+or erase conversation history from earlier work.
 
-`addons/code-review/store.ts` therefore authorises an agent thread by owner, workspace and assigned chat/incarnation. Two reviews sent to the same chat can both be read in a prompt started by either dispatch. A `dispatchId` supplied in the tool arguments, or parsed from the queued text, cannot establish authority. The current CR-079 requirement cannot pass.
+## Host reference
 
-## Proposed minimal host contract (requires core-owner approval)
+Operator `localContext.enqueue` accepts optional `reference: {addonId, intentId}`.
+For Code Review this is `{addonId: "code-review", intentId: dispatchId}`. The host
+validates bounds and records it internally with the queued message's chat,
+incarnation, content digest and eventual persisted message ID. Public content
+blocks contain only a host-generated marker; public reference fields are ignored.
 
-1. Extend the operator-only `localContext.enqueue` request with a bounded, structured, add-on-owned intent reference, e.g. `{ addonId: "code-review", intentId: dispatchId }`. Validate the reference and bind it **inside the guarded enqueue path** to the host-generated dispatch authority record, alongside the existing chat, content digest and eventual persisted message ID. Never derive it from public message blocks, prompt text or tool parameters.
-2. After verifying the persisted message and consuming prompt admission, expose the immutable reference on `getToolContext()` for that prompt only. Keep it unavailable in unprovenanced, scheduled, remote, nested and subsequent ordinary prompts; revoke it with the current active agent scope. Preserve message-ID/content/chat-incarnation replay checks.
-3. In Code Review, require `addonId === "code-review"`; look up `intentId` as the current accepted/attempting/unknown dispatch in the same owner/workspace and current chat/incarnation. Scope every agent read and mutation to that dispatch's selected thread IDs and saved file IDs, rechecking current assignment epoch, thread state and version. The `dispatchId` argument selects a record but never grants access. Keep operator reads unchanged.
-4. Exercise two separately dispatched reviews assigned to one chat: a prompt admitted for R1 cannot list/read/reply/resolve/work on R2, even with guessed IDs, nor use an R2 parent or snapshot. A later R2 prompt can act on R2. Include rejected/rotated/deleted targets, forged wire blocks, replay and nested-turn negatives, and the existing real Classic local-provider flow.
+After verifying message admission, `getToolContext()` exposes the immutable
+reference for that prompt. Ordinary, remote, nested or scheduled prompts do not
+inherit it. Revocation and chat-lifetime checks still apply. Older consumers can
+omit the reference, but Code Review agent calls require it.
 
-A release cannot claim CR-079 acceptance from chat-incarnation checks alone. This change belongs to the core contract owner and needs review before any integration or compatibility-version update.
+## Add-on checks
+
+`reviewAction` requires the verified Code Review reference and revalidates the
+host context. The referenced dispatch must belong to the current owner/workspace
+and agent chat/incarnation and have an attempting, accepted or unknown receipt.
+Read/write actions are limited to its selected threads and saved file IDs;
+assignment epochs, ownership and optimistic versions are checked again. Dispatch
+listing returns only that submission. Caller-provided IDs select records but do
+not grant access. Operator actions are unchanged.
+
+The internal store still accepts trusted bare identities for lower-level callers;
+these are not a browser/tool entry point. Public agent calls go through
+`reviewAction` and reject missing references.
+
+## Evidence
+
+- Core local-context tests: same chat and identical prompt text with distinct
+  submission references; forged wire data; frozen references; restart/replay
+  binding; later ordinary prompt and revocation checks.
+- `submission-isolation.test.ts`: separate concerns in the same review/chat,
+  cross-review and guessed-ID denial, absent/wrong reference, old assignment,
+  receipt reopen, and one multi-file batch whose selected concerns can all be
+  read, replied to and resolved.
+- `agent-start-acceptance.test.ts` and existing batch/reassignment tests preserve
+  stale-source and per-item behaviour under the new scope.
+- Packed authenticated Classic fixture completes real loopback-provider work with
+  the verified host reference, including queue-behind-busy, restart and reinstall.
+
+Core compatibility version, integration review and publication belong to RC-6.

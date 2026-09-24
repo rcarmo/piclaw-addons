@@ -254,8 +254,13 @@ test("CR-105/110 accepted batch start revalidates items and keeps unselected gui
       f.service,
     );
 
+    const dispatchedAgent = {
+      ...f.agentCtx,
+      reference: { addonId: "code-review", intentId: dispatch.id },
+    };
+
     const agentDispatch = (await reviewAction(
-      f.agentCtx,
+      dispatchedAgent,
       "dispatch",
       { dispatchId: dispatch.id },
       f.service,
@@ -297,7 +302,7 @@ test("CR-105/110 accepted batch start revalidates items and keeps unselected gui
     expect(dispatchText).not.toContain(otherThread.threadId);
 
     const liveMainThread = (await reviewAction(
-      f.agentCtx,
+      dispatchedAgent,
       "thread",
       { threadId: mainThread.threadId },
       f.service,
@@ -316,7 +321,7 @@ test("CR-105/110 accepted batch start revalidates items and keeps unselected gui
 
     await expect(
       reviewAction(
-        f.agentCtx,
+        dispatchedAgent,
         "thread",
         { threadId: utilThread.threadId },
         f.service,
@@ -324,22 +329,20 @@ test("CR-105/110 accepted batch start revalidates items and keeps unselected gui
     ).rejects.toThrow("unavailable");
     await expect(
       reviewAction(
-        f.agentCtx,
+        dispatchedAgent,
         "drafts",
         { reviewId: created.reviewId },
         f.service,
       ),
     ).rejects.toThrow("Operator action");
-    // A published, still-assigned thread may be read by this agent directly.
-    // Selection controls dispatch membership, not durable assignment authority.
-    const unselected = await reviewAction(
-      f.agentCtx,
-      "thread",
-      { threadId: otherThread.threadId },
-      f.service,
-    ) as { messages: Array<{ body: string | null }> };
-    expect(unselected.messages.map((message) => message.body)).toEqual([OTHER_BODY]);
-    expect(JSON.stringify(unselected)).not.toContain(DRAFT_BODY);
+    await expect(
+      reviewAction(
+        dispatchedAgent,
+        "thread",
+        { threadId: otherThread.threadId },
+        f.service,
+      ),
+    ).rejects.toThrow("unavailable");
   } finally {
     f.cleanup();
   }

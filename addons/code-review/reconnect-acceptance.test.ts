@@ -96,6 +96,13 @@ function createHarness(name: string) {
       return { status: "accepted" as const, rowId: 100 + queueCalls.length };
     },
   };
+  const agentContext: LocalContext = {
+    ...ctx,
+    actorId: agent.actorId,
+    kind: "agent",
+    chatJid: target.chatId,
+    chatIncarnation: target.incarnation,
+  };
 
   const transpile = new Bun.Transpiler({ loader: "ts", target: "browser" });
   const shell = `<!doctype html><html><head><style>:root{--bg-primary:#fff;--bg-secondary:#f5f5f5;--bg-hover:#eee;--border-color:#ccc;--text-primary:#222;--text-secondary:#666;--accent-color:#176f83;--accent-contrast-text:#fff;--bg-code:#fff;--text-code:#222;--success-color:#287d42;--danger-color:#ac3131;--font-family:system-ui;--font-family-mono:monospace}html,body{height:100%;margin:0}#pane{height:calc(100% - 40px)}</style></head><body><button id="review">Review file</button><main id="pane"></main><script>const handlers=[];let pane;window.__piclaw_web={workspaceActionsVersion:1,registerPane(p){pane=p},registerWorkspaceAction(a){handlers.push(a)},openPane(ctx){window.instance=pane.mount(document.getElementById('pane'),{path:ctx.path,mode:'view'});return true}};document.getElementById('review').onclick=()=>handlers[0].run({path:'sample.ts',type:'file',name:'sample.ts',chatJid:'${hostTarget.chatJid}'});</script><script type="module" src="/web/index.ts"></script></body></html>`;
@@ -202,6 +209,7 @@ function createHarness(name: string) {
     ctx,
     operator,
     agent,
+    agentContext,
     target,
     queueCalls,
     browserActions,
@@ -275,6 +283,7 @@ test("CR-076/165 browser reload reconnects from durable state without polling or
 
     expect(harness.queueCalls).toHaveLength(1);
     expect(queued.id).toMatch(/^dispatch_/);
+    harness.agentContext.reference = { addonId: "code-review", intentId: queued.id };
     expect(queued.attempts).toEqual([
       expect.objectContaining({ number: 1, state: "accepted" }),
     ]);

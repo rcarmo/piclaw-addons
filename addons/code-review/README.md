@@ -21,10 +21,12 @@ that core change has a published version; do not publish this manifest as-is.
 
 The host supplies trusted operator or explicit review-dispatch agent identity.
 Ordinary legacy prompts, side/scheduled tasks and remote-origin turns do not gain
-review authority from an ambient chat ID. Host `localContext` v1 does not expose
-its verified dispatch ID to the add-on. CR-079 per-prompt isolation between two
-reviews assigned to one chat cannot pass until the host contract in
-`specs/code-review/CR-079-HOST-CONTRACT.md` is approved and implemented. If agent context is unavailable, use
+review authority from an ambient chat ID. Code Review requires the host-verified
+`reference: {addonId, intentId}` for the current submission. Each Send may include
+many concerns/files; another Send has separate review-tool scope even in the same
+review/chat. The local host implementation and evidence are documented in
+`specs/code-review/CR-079-HOST-CONTRACT.md`; its released core version is not yet
+settled. If agent context is unavailable, use
 **Send to agent** from an authorised review. Direct API fields never establish
 ownership. Browser actions are authenticated; there are no external peer routes.
 

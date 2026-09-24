@@ -10,6 +10,7 @@ import {
   type OriginalAnchor,
   type Mutation,
   type WorkState,
+  REVIEW_DISPATCH_ADDON_ID,
 } from "./contracts.js";
 import {
   boundedText,
@@ -81,6 +82,13 @@ interface MessageResolution {
   evidence: string[];
   addressedVersion: number;
 }
+interface AgentDispatchReferenceScope {
+  dispatchId: string;
+  reviewId: string;
+  threadIds: ReadonlySet<string>;
+  fileIds: ReadonlySet<string>;
+  assignmentEpochs: ReadonlyMap<string, number>;
+}
 export class ReviewStore {
   readonly database: ReviewDatabase;
   constructor(path: string) {
@@ -88,6 +96,60 @@ export class ReviewStore {
   }
   close() {
     this.database.close();
+  }
+  protected agentScopeUnavailable(): never {
+    throw new ReviewError(
+      "context_unavailable",
+      "Verified review dispatch scope is unavailable.",
+      403,
+    );
+  }
+  protected dispatchScope(
+    who: ReviewIdentity,
+  ): AgentDispatchReferenceScope | null {
+    // Public tool/API entry requires a host reference in scopeForAction.
+    // Bare identities remain useful to internal store callers and fixtures.
+    if (who.kind !== "agent" || !who.reference) return null;
+    const reference = who.reference;
+    if (
+      reference?.addonId !== REVIEW_DISPATCH_ADDON_ID ||
+      !reference.intentId
+    )
+      this.agentScopeUnavailable();
+    const row = this.database.get<{
+      review_id: string;
+      target_json: string;
+    }>(
+      "SELECT d.review_id,d.target_json FROM dispatches d JOIN reviews r ON r.id=d.review_id WHERE d.id=? AND r.owner_id=? AND (? IS NULL OR r.workspace_id=?) AND EXISTS(SELECT 1 FROM attempts a WHERE a.dispatch_id=d.id AND a.state IN ('attempting','accepted','unknown'))",
+      reference.intentId,
+      who.ownerId,
+      who.workspaceId ?? null,
+      who.workspaceId ?? null,
+    );
+    if (!row) return this.missing();
+    const selected = JSON.parse(row.target_json) as LocalTarget;
+    if (
+      selected.chatId !== who.chatId ||
+      selected.incarnation !== who.chatIncarnation
+    )
+      return this.missing();
+    const items = this.database.all<{
+      thread_id: string;
+      snapshot_file_id: string;
+      assignment_epoch: number;
+    }>(
+      "SELECT thread_id,snapshot_file_id,assignment_epoch FROM dispatch_items WHERE dispatch_id=? ORDER BY ordinal",
+      reference.intentId,
+    );
+    return {
+      dispatchId: reference.intentId,
+      reviewId: row.review_id,
+      threadIds: new Set(items.map((item) => item.thread_id)),
+      fileIds: new Set(items.map((item) => item.snapshot_file_id)),
+      assignmentEpochs: new Map(
+        items.map((item) => [item.thread_id, item.assignment_epoch] as const),
+      ),
+    };
   }
   protected missing(): never {
     throw new ReviewError("not_found", "Review record is unavailable.", 404);
@@ -178,6 +240,7 @@ export class ReviewStore {
   }
   protected own(who: ReviewIdentity, reviewId: string): ReviewRecord {
     identity(who);
+    const scope = this.dispatchScope(who);
     validId(reviewId);
     const record = this.database.get<ReviewRecord>(
       "SELECT * FROM reviews WHERE id=? AND owner_id=?",
@@ -186,9 +249,11 @@ export class ReviewStore {
     );
     if (!record || (who.workspaceId && who.workspaceId !== record.workspace_id))
       return this.missing();
+    if (scope && scope.reviewId !== reviewId) return this.missing();
     return record;
   }
   protected assigned(who: ReviewIdentity, thread: ThreadRecord): void {
+    const scope = this.dispatchScope(who);
     this.own(who, thread.review_id);
     if (who.kind === "agent") {
       const selected = JSON.parse(thread.target_json) as LocalTarget;
@@ -196,6 +261,12 @@ export class ReviewStore {
         selected.chatId !== who.chatId ||
         selected.incarnation !== who.chatIncarnation
       )
+        this.missing();
+      if (scope && (
+        scope.reviewId !== thread.review_id ||
+        !scope.threadIds.has(thread.id) ||
+        scope.assignmentEpochs.get(thread.id) !== thread.assignment_epoch
+      ))
         this.missing();
     }
   }
@@ -227,6 +298,7 @@ export class ReviewStore {
     reviewId: string,
     fileId: string,
   ): SnapshotFileRecord {
+    const scope = this.dispatchScope(who);
     this.own(who, reviewId);
     const file = this.database.get<SnapshotFileRecord>(
       "SELECT * FROM snapshot_files WHERE id=? AND review_id=?",
@@ -234,6 +306,8 @@ export class ReviewStore {
       reviewId,
     );
     if (!file) return this.missing();
+    if (scope && (scope.reviewId !== reviewId || !scope.fileIds.has(fileId)))
+      return this.missing();
     return file;
   }
   protected source(
@@ -575,7 +649,7 @@ export class ReviewStore {
     if (!file) return this.missing();
     return anchor.side === "old" ? file.old_path : file.new_path ?? file.old_path;
   }
-  private summaryForThread(thread: ThreadRecord, anchor: OriginalAnchor): ThreadSummary {
+  protected summaryForThread(thread: ThreadRecord, anchor: OriginalAnchor): ThreadSummary {
     const first = this.database.get<{
       body: string | null;
       author_kind: "operator" | "agent" | null;
@@ -733,18 +807,35 @@ export class ReviewStore {
     reviewId: string,
     options: { state?: string; after?: string; limit?: number } = {},
   ) {
-    this.own(who, reviewId);
-    const rows = this.database.all<ThreadRecord>(
-      "SELECT * FROM threads WHERE review_id=? AND state!='deleted' AND id>? AND (? IS NULL OR state=?) AND (?='operator' OR (json_extract(target_json,'$.chatId')=? AND json_extract(target_json,'$.incarnation')=?)) ORDER BY id LIMIT ?",
-      reviewId,
-      options.after ?? "",
-      options.state ?? null,
-      options.state ?? null,
-      who.kind,
-      who.chatId ?? "",
-      who.chatIncarnation ?? "",
-      pageSize(options.limit, LIMITS.threadPage),
-    );
+    const scope = this.dispatchScope(who);
+    if (scope) {
+      if (scope.reviewId !== reviewId) return [];
+    } else {
+      this.own(who, reviewId);
+    }
+    const rows = scope
+      ? this.database.all<ThreadRecord>(
+          "SELECT t.* FROM dispatch_items i JOIN threads t ON t.id=i.thread_id AND t.review_id=i.review_id WHERE i.dispatch_id=? AND i.review_id=? AND t.state!='deleted' AND t.id>? AND (? IS NULL OR t.state=?) AND json_extract(t.target_json,'$.chatId')=? AND json_extract(t.target_json,'$.incarnation')=? AND t.assignment_epoch=i.assignment_epoch ORDER BY t.id LIMIT ?",
+          scope.dispatchId,
+          reviewId,
+          options.after ?? "",
+          options.state ?? null,
+          options.state ?? null,
+          who.chatId ?? "",
+          who.chatIncarnation ?? "",
+          pageSize(options.limit, LIMITS.threadPage),
+        )
+      : this.database.all<ThreadRecord>(
+          "SELECT * FROM threads WHERE review_id=? AND state!='deleted' AND id>? AND (? IS NULL OR state=?) AND (?='operator' OR (json_extract(target_json,'$.chatId')=? AND json_extract(target_json,'$.incarnation')=?)) ORDER BY id LIMIT ?",
+          reviewId,
+          options.after ?? "",
+          options.state ?? null,
+          options.state ?? null,
+          who.kind,
+          who.chatId ?? "",
+          who.chatIncarnation ?? "",
+          pageSize(options.limit, LIMITS.threadPage),
+        );
     return rows.map((row) => {
       const anchor = JSON.parse(row.anchor_json) as OriginalAnchor;
       return {
@@ -793,6 +884,15 @@ export class ReviewStore {
         contextAfter: anchor.contextAfter,
       },
     };
+  }
+  messageThreadId(messageId: string): string | null {
+    validId(messageId, "message ID");
+    return (
+      this.database.get<{ thread_id: string }>(
+        "SELECT thread_id FROM messages WHERE id=?",
+        messageId,
+      )?.thread_id ?? null
+    );
   }
   reply(
     who: ReviewIdentity,

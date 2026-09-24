@@ -1,4 +1,8 @@
-import type { ReviewIdentity, LocalTarget } from "./contracts.js";
+import type {
+  ReviewIdentity,
+  LocalContextReference,
+  LocalTarget,
+} from "./contracts.js";
 import { ReviewError } from "./contracts.js";
 /** Structural copy of the proposed public core v1 contract. No private runtime imports. */
 export interface HostTarget {
@@ -18,6 +22,7 @@ export interface LocalContext {
   workspaceId: string;
   chatJid?: string;
   chatIncarnation?: string;
+  reference?: LocalContextReference;
   listTargets(): Promise<HostTarget[]>;
   resolveTarget(input: {
     chatJid?: string;
@@ -28,6 +33,7 @@ export interface LocalContext {
     target: { chatJid: string; incarnation: string };
     content: string;
     mode: "queue";
+    reference?: LocalContextReference;
   }): Promise<{ status: "accepted"; rowId: number | null }>;
 }
 export interface Runtime {
@@ -80,6 +86,7 @@ export function storeIdentity(ctx: LocalContext): ReviewIdentity {
     workspaceId: ctx.workspaceId,
     chatId: ctx.chatJid,
     chatIncarnation: ctx.chatIncarnation,
+    reference: ctx.reference,
   };
 }
 export function storeTarget(value: HostTarget): LocalTarget {

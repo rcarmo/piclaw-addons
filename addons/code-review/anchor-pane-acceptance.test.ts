@@ -59,7 +59,7 @@ test("CR-056/057 missing and ambiguous projections stay off source rows while or
     await page.evaluate((path: string) => (window as any).__piclaw_web.openPane({ path }), `piclaw://addon/code-review/${created.reviewId}`);
     await page.waitForSelector(".cr-line");
     for (const [id, snapshotId] of [["ambiguous", snapshots[2]], ["missing", snapshots[1]]] as const) {
-      await page.locator("#cr-snapshot").selectOption(snapshotId);
+      if (!(await page.locator("#cr-snapshot").isVisible())) await page.locator(".cr-snapshot-history summary").click();      await page.locator("#cr-snapshot").selectOption(snapshotId);
       await page.waitForFunction((selected) => (document.querySelector("#cr-snapshot") as HTMLSelectElement | null)?.value === selected, snapshotId);
       const selectedFile = store.snapshotFiles(ctx, created.reviewId, snapshotId)[0]!;
       await page.waitForFunction((hash) => document.querySelector(".cr-file-header .cr-muted")?.textContent?.includes(hash) === true, selectedFile.new_hash!.slice(0, 10));
@@ -74,7 +74,7 @@ test("CR-056/057 missing and ambiguous projections stay off source rows while or
       expect(await page.locator(`#cr-${thread.threadId} .cr-message-body`).innerText()).toContain("Handle the original concern");
       expect(store.getThread(ctx, thread.threadId).anchor).toEqual(anchor);
     }
-    await page.locator("#cr-snapshot").selectOption(snapshots[2]!);
+    if (!(await page.locator("#cr-snapshot").isVisible())) await page.locator(".cr-snapshot-history summary").click();    await page.locator("#cr-snapshot").selectOption(snapshots[2]!);
     const ambiguousFile = store.snapshotFiles(ctx, created.reviewId, snapshots[2]!)[0]!;
     await page.waitForFunction((hash) => document.querySelector(".cr-file-header .cr-muted")?.textContent?.includes(hash) === true, ambiguousFile.new_hash!.slice(0, 10));
     expect(await page.locator(`#cr-${thread.threadId}`).count()).toBe(0);

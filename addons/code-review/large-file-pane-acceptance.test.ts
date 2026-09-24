@@ -288,7 +288,7 @@ test("CR-083/089/149/151 browser pages a bounded large saved file honestly and s
     expect(stored.messages[0]?.body).toBe(COMMENT_BODY);
     expect(await rowCount()).toBe(PAGE_SIZE);
     await page.waitForSelector(`#cr-${thread.id}`);
-    await page.locator(`#cr-${thread.id} [data-action="expand"]`).click();
+    expect(await page.locator(`#cr-${thread.id} [data-action="expand"]`).getAttribute("aria-expanded")).toBe("true");
     await page.waitForFunction(
       ({ id, body }) => document.querySelector(`#cr-${id} .cr-message-body`)?.textContent === body,
       { id: thread.id, body: COMMENT_BODY },

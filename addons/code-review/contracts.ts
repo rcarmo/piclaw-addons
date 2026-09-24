@@ -1,4 +1,9 @@
 /** Shared durable contracts. Host supplies identity; client IDs never confer authority. */
+export type LocalContextReference = Readonly<{
+  addonId: string;
+  intentId: string;
+}>;
+export const REVIEW_DISPATCH_ADDON_ID = "code-review";
 export type ReviewIdentity = Readonly<{
   ownerId: string;
   actorId: string;
@@ -6,6 +11,7 @@ export type ReviewIdentity = Readonly<{
   workspaceId?: string;
   chatId?: string;
   chatIncarnation?: string;
+  reference?: LocalContextReference;
 }>;
 export type LocalTarget = Readonly<{
   chatId: string;

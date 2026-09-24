@@ -63,7 +63,7 @@ test("CR-011 missing and unreadable current files retain saved discussion and ne
     await page.waitForSelector(".cr-current-source");
     expect(await page.locator(".cr-current-source").innerText()).toBe("Current saved file: missing");
     expect(await page.locator(".cr-line code").first().textContent()).toBe(saved.trim());
-    await page.locator(`#cr-${thread.threadId} [data-action=expand]`).click();
+    if (await page.locator(`#cr-${thread.threadId} [data-action=expand]`).getAttribute("aria-expanded") !== "true") await page.locator(`#cr-${thread.threadId} [data-action=expand]`).click();
     expect(await page.locator(`#cr-${thread.threadId} .cr-message-body`).innerText()).toContain("Keep original review guidance");
     expect(service.getThread(ctx, thread.threadId).anchor).toEqual(original);
     mkdirSync(source);

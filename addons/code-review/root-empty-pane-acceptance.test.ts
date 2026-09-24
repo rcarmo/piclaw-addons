@@ -258,7 +258,7 @@ function createHarness(name: string) {
       if (!open) throw Error("Pane bridge unavailable.");
       open({ path });
     }, PATH_PREFIX + reviewId);
-    await page.waitForSelector("#cr-snapshot");
+    await page.waitForSelector("#cr-snapshot", { state: "attached" });
   };
 
   return {
@@ -398,6 +398,7 @@ test(
       await harness.waitForShell(page);
       await harness.openReview(page, created.reviewId);
 
+      if (!(await page.locator("#cr-snapshot").isVisible())) await page.locator(".cr-snapshot-history summary").click();
       await page.locator("#cr-snapshot").selectOption(rootSnapshotId);
       await page.waitForFunction(
         (snapshotId) =>
@@ -439,7 +440,7 @@ test(
         startLine: 2,
         endLine: 2,
       });
-      await page.locator(`#cr-${rootThread.id} [data-action="expand"]`).click();
+      expect(await page.locator(`#cr-${rootThread.id} [data-action="expand"]`).getAttribute("aria-expanded")).toBe("true");
       await page.waitForSelector(`#cr-${rootThread.id} .cr-message-body`);
       expect(
         await page.locator(`#cr-${rootThread.id}`).innerText(),
@@ -448,6 +449,7 @@ test(
         await page.locator(`#cr-${rootThread.id} header`).innerText(),
       ).toContain("new lines 2–2");
 
+      if (!(await page.locator("#cr-snapshot").isVisible())) await page.locator(".cr-snapshot-history summary").click();
       await page.locator("#cr-snapshot").selectOption(unchangedSnapshotId);
       await page.waitForFunction(
         (snapshotId) =>
@@ -518,7 +520,7 @@ test(
         startLine: null,
         endLine: null,
       });
-      await page.locator(`#cr-${fileThread.id} [data-action="expand"]`).click();
+      expect(await page.locator(`#cr-${fileThread.id} [data-action="expand"]`).getAttribute("aria-expanded")).toBe("true");
       await page.waitForSelector(`#cr-${fileThread.id} .cr-message-body`);
       const fileThreadText = await page.locator(`#cr-${fileThread.id}`).innerText();
       if (!fileThreadText.includes("Whole file"))

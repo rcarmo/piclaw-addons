@@ -379,10 +379,32 @@ test("RC-3 mixed-target selection shows the mock's explicit reassignment warning
     expect(harness.store.getThread(harness.operator, harness.utilThreadId).target).toEqual(otherTarget);
     await page.locator(`.cr-drawer [data-pick="${harness.utilThreadId}"]`).uncheck();
     expect(await page.locator(".cr-target-warning").count()).toBe(0);
-    expect(await page.locator("[data-action=confirm-send]").isDisabled()).toBe(true);
-    await page.locator("[data-action=refresh-send-preview]").click();
     await page.waitForFunction(() => !(document.querySelector("[data-action=confirm-send]") as HTMLButtonElement)?.disabled);
-    expect(harness.queueCalls).toHaveLength(0);
+    // An older automatic preview must not overwrite a newer selection or
+    // reopen a drawer dismissed while the response was held.
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    let started!: () => void;
+    const held = new Promise<void>((resolve) => { started = resolve; });
+    let first = true;
+    await page.route("**/agent/addons/api/code-review/action", async (route) => {
+      const payload = JSON.parse(route.request().postData() || "{}");
+      if (payload.action === "preview" && first) { first = false; started(); await gate; }
+      await route.continue();
+    });
+    try {
+      await page.locator(`.cr-drawer [data-pick="${harness.otherThreadId}"]`).check();
+      await held;
+      expect(await page.locator("[data-action=confirm-send]").isDisabled()).toBe(true);
+      await page.locator(`.cr-drawer [data-pick="${harness.otherThreadId}"]`).uncheck();
+      await page.waitForFunction(() => !(document.querySelector("[data-action=confirm-send]") as HTMLButtonElement)?.disabled);
+      expect(await page.locator(".cr-send-preview li").count()).toBe(1);
+      await page.locator("button[data-action=close-drawer]").click();
+      release();
+      await page.waitForTimeout(150);
+      expect(await page.locator(".cr-drawer").count()).toBe(0);
+      expect(harness.queueCalls).toHaveLength(0);
+    } finally { release(); await page.unroute("**/agent/addons/api/code-review/action"); }
     expect(errors).toEqual([]);
   } finally { await browser?.close(); await harness.cleanup(); }
 }, 45_000);
@@ -589,7 +611,7 @@ test(
       await page.waitForFunction(() =>
         document
           .querySelector(".cr-status")
-          ?.textContent?.includes("The record changed; reload before retrying."),
+          ?.textContent?.includes("Guidance changed. Review the updated selection"),
       );
 
       expect(harness.queueCalls).toHaveLength(0);
@@ -617,20 +639,15 @@ test(
       ).toBe(false);
       expect(await page.locator("#cr-summary").inputValue()).toBe(SUMMARY);
       expect(await page.locator(".cr-status").textContent()).toContain(
-        "The record changed; reload before retrying.",
+        "Guidance changed. Review the updated selection",
       );
       expect(await page.locator(".cr-send-preview li").count()).toBe(2);
       await page.locator(".cr-preview-details summary").click();
-      expect(await page.locator(".cr-send-preview li").nth(1).innerText()).toContain("Guidance v1");
+      expect(await page.locator(".cr-send-preview li").nth(1).innerText()).toContain("Guidance v2");
       expect(await page.locator('[data-action="confirm-send"]').isDisabled()).toBe(false);
-      await page.locator('[data-action="refresh-send-preview"]').click();
-      await page.waitForFunction(() => document.querySelector('.cr-send-preview li:nth-child(2)')?.textContent?.includes('Guidance v2'));
-      await page.locator(".cr-preview-details summary").click();
+      expect(await page.locator('[data-action="refresh-send-preview"]').count()).toBe(0);
       expect(await page.locator('.cr-send-preview li').nth(1).innerText()).toContain(harness.utilFileId);
       await page.locator(`.cr-drawer [data-pick="${harness.otherThreadId}"]`).check();
-      expect(await page.locator('.cr-send-preview li').count()).toBe(0);
-      expect(await page.locator('[data-action="confirm-send"]').isDisabled()).toBe(true);
-      await page.locator('[data-action="refresh-send-preview"]').click();
       await page.waitForFunction(() => document.querySelectorAll('.cr-send-preview li').length === 3);
       expect(await page.locator('.cr-send-preview li').nth(2).getAttribute('data-preview-thread')).toBe(harness.otherThreadId);
       expect(await page.locator('[data-action="confirm-send"]').isDisabled()).toBe(false);

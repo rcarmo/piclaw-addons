@@ -20,9 +20,9 @@ test("CR-182 copied store preserves records but denies a different host workspac
   const initial = new ReviewService(originalDb);
   let copy: ReviewService | undefined;
   const target = { chatJid: "web:worker", incarnation: "branch-1", agentName: "worker", label: "Worker", active: false };
-  const ctx = (root: string, workspaceId: string, incarnation = target.incarnation, kind: "operator" | "agent" = "operator"): LocalContext => ({
+  const ctx = (root: string, workspaceId: string, incarnation = target.incarnation, kind: "operator" | "agent" = "operator", intentId?: string): LocalContext => ({
     version: 1, accessMode: "single-user", ownerId: "owner", actorId: kind === "agent" ? incarnation : "human", kind,
-    workspaceRoot: root, workspaceId, ...(kind === "agent" ? { chatJid: target.chatJid, chatIncarnation: incarnation } : {}),
+    workspaceRoot: root, workspaceId, ...(kind === "agent" ? { chatJid: target.chatJid, chatIncarnation: incarnation, ...(intentId ? { reference: { addonId: "code-review", intentId } } : {}) } : {}),
     async listTargets() { return [target]; },
     async resolveTarget(input) { return input.incarnation && input.incarnation !== target.incarnation ? null : target; },
     async enqueue() { throw Error("Restored unknown work must never enqueue automatically."); },
@@ -54,7 +54,7 @@ test("CR-182 copied store preserves records but denies a different host workspac
     expect(saved.currentSource.status).toBe("replaced");
     expect(saved.currentSource).not.toHaveProperty("savedHash");
     expect((await reviewAction(sameWorkspace, "drafts", { reviewId: created.reviewId }, copy) as any[]).map((row) => row.id)).toEqual([draft.draftId]);
-    const assigned = ctx(restored, trusted.workspaceId, target.incarnation, "agent");
+    const assigned = ctx(restored, trusted.workspaceId, target.incarnation, "agent", dispatched.dispatchId);
     const agentThread: any = await reviewAction(assigned, "thread", { threadId: thread.threadId }, copy);
     expect(agentThread.currentSource.status).toBe("replaced");
     expect(agentThread.messages.map((m: any) => m.body)).toEqual(["Retained discussion"]);

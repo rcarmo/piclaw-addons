@@ -122,7 +122,7 @@ test("CR-001/012/033/111 browser drives real review persistence and one explicit
     expect(await page.locator("#viewed").count()).toBe(0);
     expect(await page.locator("#cr-source-mode").inputValue()).toBe("source");
     expect(await page.locator('#cr-source-mode option[value="commit"]').isDisabled()).toBe(true);
-    expect(await page.locator("#cr-snapshot").locator("..").getAttribute("class")).toBe("cr-file-header");
+    expect(await page.locator("#cr-snapshot").locator("..").getAttribute("class")).toBe("cr-snapshot-history");
     const untitled = async () => page.evaluate(() => [...document.querySelectorAll<HTMLElement>(".cr-pane button,.cr-pane select,.cr-pane textarea,.cr-pane input")]
       .filter((el) => !el.hasAttribute("title") || !el.title.trim())
       .map((el) => `${el.tagName.toLowerCase()}#${el.id}[${el.getAttribute("data-action") ?? ""}]`));
@@ -169,7 +169,7 @@ test("CR-001/012/033/111 browser drives real review persistence and one explicit
     expect(await page.locator(".cr-toolbar [data-action=send]").isDisabled()).toBe(true);
     expect(await page.locator(".cr-toolbar [data-action=send]").getAttribute("title")).toContain("Include at least one open thread");
     expect(await untitled()).toEqual([]);
-    await page.locator(".cr-thread [data-action=expand]").click();
+    if (await page.locator(".cr-thread [data-action=expand]").getAttribute("aria-expanded") !== "true") await page.locator(".cr-thread [data-action=expand]").click();
     await page.locator(".cr-message-body").waitFor({ state: "visible" });
     expect(await page.locator(".cr-thread [data-action=send-thread]").getAttribute("title")).toContain("Preview this concern");
     const thread = store.listThreads(ctx, review.id)[0]!;
@@ -281,7 +281,7 @@ test("CR-001/012/033/111 browser drives real review persistence and one explicit
     // CR-069: the server commits a reply but the browser loses its response.
     // Retrying the same composer uses its original request ID and never sends work.
     const firstThreadId = store.listThreads(ctx, review.id)[0]!.id;
-    await page.locator(".cr-thread [data-action=expand]").first().click();
+    if (await page.locator(".cr-thread [data-action=expand]").first().getAttribute("aria-expanded") !== "true") await page.locator(".cr-thread [data-action=expand]").first().click();
     await page.locator(".cr-thread [data-action=reply]").first().click();
     await page.locator("#cr-body").fill("One reply despite a lost acknowledgement.");
     await page.waitForFunction(() => document.querySelector(".cr-composer small")?.textContent === "Draft saved");
@@ -322,7 +322,7 @@ test("CR-001/012/033/111 browser drives real review persistence and one explicit
     await earlyTab.waitForFunction(() => !!(window as any).__piclaw_web?.workspaceActionsVersion && document.querySelector<HTMLButtonElement>("#review")?.onclick !== null);
     await earlyTab.locator("#review").click();
     await earlyTab.waitForSelector(".cr-line");
-    await page.locator(".cr-thread [data-action=expand]").first().click();
+    if (await page.locator(".cr-thread [data-action=expand]").first().getAttribute("aria-expanded") !== "true") await page.locator(".cr-thread [data-action=expand]").first().click();
     await page.locator(".cr-thread [data-action=reply]").first().click();
     await page.locator("#cr-body").fill("Cross-tab acknowledgement was lost.");
     await page.waitForFunction(() => document.querySelector(".cr-composer small")?.textContent === "Draft saved");

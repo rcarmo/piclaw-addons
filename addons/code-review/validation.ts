@@ -55,6 +55,10 @@ export function identity(value: ReviewIdentity): ReviewIdentity {
     validId(value.chatId, "agent chat");
     validId(value.chatIncarnation, "agent incarnation");
   }
+  if (value.reference) {
+    validId(value.reference.addonId, "reference addon");
+    validId(value.reference.intentId, "reference intent");
+  }
   return value;
 }
 export function operator(value: ReviewIdentity): void {

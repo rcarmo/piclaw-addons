@@ -116,6 +116,7 @@ test("CR-111/112/164 real API operations capture, comment, preview and queue", a
       actorId: "agent1",
       chatJid: "web:worker",
       chatIncarnation: "b1",
+      reference: { addonId: "code-review", intentId: d.id },
     };
     expect(
       (
@@ -226,6 +227,7 @@ test("CR-110 agent can report deleted queued items superseded through the real a
       actorId: "agent1",
       chatJid: "web:worker",
       chatIncarnation: "b1",
+      reference: { addonId: "code-review", intentId: d.id },
     };
     const outcome: any = await reviewAction(
       agent,

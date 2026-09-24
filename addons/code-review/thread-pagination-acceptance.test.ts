@@ -58,7 +58,7 @@ test("CR-074 browser pages a long thread without crossing threads or clearing a 
     await page.waitForFunction(() => (window as any).__codeReviewReady === true);
     await page.locator("#review").click();
     await page.waitForSelector(`[data-thread="${thread.threadId}"][data-action="expand"]`);
-    await page.locator(`[data-thread="${thread.threadId}"][data-action="expand"]`).click();
+    if (await page.locator(`[data-thread="${thread.threadId}"][data-action="expand"]`).getAttribute("aria-expanded") !== "true") await page.locator(`[data-thread="${thread.threadId}"][data-action="expand"]`).click();
     await page.waitForFunction((id) => document.querySelector(`#cr-${id} .cr-message-body`)?.textContent === "Root guidance", thread.threadId);
     expect(await page.locator(`#cr-${thread.threadId} .cr-message`).count()).toBe(100);
     expect(await page.locator(`#cr-${thread.threadId} [data-action=more-messages]`).count()).toBe(1);
@@ -75,12 +75,12 @@ test("CR-074 browser pages a long thread without crossing threads or clearing a 
     expect(bodies[104]).toBe("Reply 104");
     expect(await page.locator(`#cr-${thread.threadId} [data-action=more-messages]`).count()).toBe(0);
     expect(await page.locator("#cr-body").inputValue()).toBe("Unsent private reply");
-    expect(await page.locator(`#cr-${other.threadId} .cr-message-body`).count()).toBe(0);
+    expect(await page.locator(`#cr-${other.threadId} .cr-message-body`).allTextContents()).toEqual(["Another discussion"]);
     expect(errors).toEqual([]);
     await page.reload();
     await page.waitForFunction(() => (window as any).__codeReviewReady === true);
     await page.locator("#review").click();
-    await page.locator(`[data-thread="${thread.threadId}"][data-action="expand"]`).click();
+    if (await page.locator(`[data-thread="${thread.threadId}"][data-action="expand"]`).getAttribute("aria-expanded") !== "true") await page.locator(`[data-thread="${thread.threadId}"][data-action="expand"]`).click();
     await page.waitForFunction((id) => document.querySelectorAll(`#cr-${id} .cr-message`).length === 100, thread.threadId);
     expect(store.getThread(ctx, thread.threadId).messages).toHaveLength(100);
     expect(store.getThread(ctx, thread.threadId, 100, 100).messages).toHaveLength(5);

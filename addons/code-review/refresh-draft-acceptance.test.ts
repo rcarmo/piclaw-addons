@@ -22,7 +22,10 @@ test("CR-063 source refresh and a new agent reply preserve an acknowledged reply
   try {
     const review: any = await reviewAction(ctx, "create", { path: "source.ts", target: { agentName: "worker" }, requestId: "create" }, store);
     const thread: any = await reviewAction(ctx, "comment", { reviewId: review.reviewId, fileId: review.files[0], side: "source", range: { startLine: 2, endLine: 2 }, body: "Preserve the concern", requestId: "thread" }, store);
-    const agentCtx: LocalContext = { ...ctx, kind: "agent", actorId: "b1", chatJid: target.chatJid, chatIncarnation: target.incarnation };
+    const trusted = { ownerId: ctx.ownerId, actorId: ctx.actorId, kind: "operator" as const, workspaceId: ctx.workspaceId };
+    const submitted = store.submit(trusted, review.reviewId, { target: { chatId: target.chatJid, incarnation: target.incarnation, label: target.label }, items: [{ threadId: thread.threadId, version: thread.version }] }, { requestId: "seed-send" });
+    await store.deliver(trusted, submitted.dispatchId, { async enqueue() { return { status: "accepted" as const, rowId: 1 }; } });
+    const agentCtx: LocalContext = { ...ctx, kind: "agent", actorId: "b1", chatJid: target.chatJid, chatIncarnation: target.incarnation, reference: { addonId: "code-review", intentId: submitted.dispatchId } };
     const transpile = new Bun.Transpiler({ loader: "ts", target: "browser" });
     const shell = `<!doctype html><html><head><style>:root{--bg-primary:#fff;--bg-secondary:#f5f5f5;--bg-hover:#eee;--border-color:#ccc;--text-primary:#222;--text-secondary:#666;--accent-color:#176f83;--danger-color:#ac3131;--font-family:system-ui;--font-family-mono:monospace}#pane{height:800px}</style></head><body><main id="pane"></main><script>window.__codeReviewReady=false;let pane;window.__piclaw_web={workspaceActionsVersion:1,registerPane(p){pane=p;window.__codeReviewReady=true},registerWorkspaceAction(){},openPane(ctx){window.instance=pane.mount(document.getElementById('pane'),{path:ctx.path,mode:'view'});return true}};</script><script type="module" src="/web/index.ts"></script></body></html>`;
     server = Bun.serve({ hostname: "127.0.0.1", port: 0, async fetch(req) {
@@ -39,7 +42,7 @@ test("CR-063 source refresh and a new agent reply preserve an acknowledged reply
     await page.goto(server.url.href); await page.waitForFunction(() => (window as any).__codeReviewReady === true);
     await page.evaluate((path: string) => (window as any).__piclaw_web.openPane({ path }), `piclaw://addon/code-review/${review.reviewId}`);
     await page.waitForSelector(`#cr-${thread.threadId}`);
-    await page.locator(`#cr-${thread.threadId} [data-action=expand]`).click();
+    if (await page.locator(`#cr-${thread.threadId} [data-action=expand]`).getAttribute("aria-expanded") !== "true") await page.locator(`#cr-${thread.threadId} [data-action=expand]`).click();
     await page.locator(`#cr-${thread.threadId} [data-action=reply]`).click();
     await page.locator("#cr-body").fill("Unsent answer stays targeted to this thread");
     for (let n = 0; n < 30 && !store.listDrafts(ctx, review.reviewId).some((d: any) => d.body === "Unsent answer stays targeted to this thread" && d.thread_id === thread.threadId); n++) await Bun.sleep(100);

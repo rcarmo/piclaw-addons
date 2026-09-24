@@ -407,7 +407,7 @@ test(
       expect(await page.locator(".cr-thread header .cr-muted").first().textContent()).toBe(
         "old lines 2–2",
       );
-      await page.locator('.cr-thread [data-action="expand"]').first().click();
+      if (await page.locator('.cr-thread [data-action="expand"]').first().getAttribute("aria-expanded") !== "true") await page.locator('.cr-thread [data-action="expand"]').first().click();
       await page.waitForFunction(
         (body) =>
           document.querySelector(".cr-thread .cr-message-body")?.textContent === body,
@@ -442,7 +442,7 @@ test(
       expect(await page.locator(".cr-thread header .cr-muted").first().textContent()).toBe(
         "Whole file",
       );
-      await page.locator('.cr-thread [data-action="expand"]').first().click();
+      if (await page.locator('.cr-thread [data-action="expand"]').first().getAttribute("aria-expanded") !== "true") await page.locator('.cr-thread [data-action="expand"]').first().click();
       await page.waitForFunction(
         (body) =>
           document.querySelector(".cr-thread .cr-message-body")?.textContent === body,

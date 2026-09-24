@@ -1,5 +1,9 @@
 import { join } from "node:path";
-import { ReviewService, type DispatchInput } from "./dispatch.js";
+import {
+  ReviewService,
+  type AgentDispatchScope,
+  type DispatchInput,
+} from "./dispatch.js";
 import { SourceReader, type CaptureRequest } from "./source.js";
 import { compareSource, highlightSourcePage, type DiffRow } from "./render-source.js";
 import { renderComment } from "./markdown.js";
@@ -10,7 +14,7 @@ import {
   storeIdentity,
   type LocalContext,
 } from "./host.js";
-import { LIMITS, ReviewError, type Mutation, type ReviewIdentity } from "./contracts.js";
+import { LIMITS, REVIEW_DISPATCH_ADDON_ID, ReviewError, type Mutation, type ReviewIdentity } from "./contracts.js";
 import { operator, pageSize } from "./validation.js";
 interface ServiceState {
   service: ReviewService;
@@ -24,6 +28,10 @@ const diffPages = new WeakMap<ReviewService, Map<string, DiffRow[]>>();
 const DIFF_CACHE_BYTES = 256 * 1024;
 const DIFF_CACHE_ROWS = 10_000;
 const DIFF_CACHE_ROW_BYTES = 512 * 1024;
+interface ActiveAgentScope extends Omit<AgentDispatchScope, "threadIds" | "fileIds"> {
+  threadIds: ReadonlySet<string>;
+  fileIds: ReadonlySet<string>;
+}
 function diffForFile(service: ReviewService, reviewId: string, file: {
   id: string; oldText: string | null; newText: string | null;
 }): DiffRow[] {
@@ -158,8 +166,6 @@ function freshBody(input: Record<string, any>) {
 }
 async function verifyAgentBinding(
   ctx: LocalContext,
-  service: ReviewService,
-  threadId?: string,
 ) {
   if (ctx.kind !== "agent") return;
   const target = await ctx.resolveTarget({
@@ -172,7 +178,60 @@ async function verifyAgentBinding(
       "Agent chat no longer exists.",
       403,
     );
-  if (threadId) service.getThread(storeIdentity(ctx), threadId, 0, 1);
+}
+function agentScopeUnavailable(): never {
+  throw new ReviewError(
+    "context_unavailable",
+    "Verified review dispatch scope is unavailable.",
+    403,
+  );
+}
+function scopedNotFound(): never {
+  throw new ReviewError(
+    "not_found",
+    "Review record is unavailable.",
+    404,
+  );
+}
+function scopeForAction(
+  who: ReviewIdentity,
+  service: ReviewService,
+): ActiveAgentScope | null {
+  if (who.kind !== "agent") return null;
+  if (who.reference?.addonId !== REVIEW_DISPATCH_ADDON_ID || !who.reference.intentId)
+    agentScopeUnavailable();
+  const scope = service.agentDispatchScope(who, who.reference.intentId);
+  return {
+    ...scope,
+    threadIds: new Set(scope.threadIds),
+    fileIds: new Set(scope.fileIds),
+  };
+}
+function assertScopedReview(scope: ActiveAgentScope | null, reviewId: unknown): void {
+  if (!scope || reviewId === undefined) return;
+  if (typeof reviewId !== "string" || reviewId !== scope.reviewId) scopedNotFound();
+}
+function assertScopedDispatch(scope: ActiveAgentScope | null, dispatchId: unknown): void {
+  if (!scope || dispatchId === undefined) return;
+  if (typeof dispatchId !== "string" || dispatchId !== scope.dispatchId) scopedNotFound();
+}
+function assertScopedThread(scope: ActiveAgentScope | null, threadId: unknown): void {
+  if (!scope || threadId === undefined) return;
+  if (typeof threadId !== "string" || !scope.threadIds.has(threadId)) scopedNotFound();
+}
+function assertScopedFile(scope: ActiveAgentScope | null, fileId: unknown): void {
+  if (!scope || fileId === undefined) return;
+  if (typeof fileId !== "string" || !scope.fileIds.has(fileId)) scopedNotFound();
+}
+function assertScopedMessage(
+  scope: ActiveAgentScope | null,
+  service: ReviewService,
+  messageId: unknown,
+): void {
+  if (!scope || messageId === undefined) return;
+  if (typeof messageId !== "string") scopedNotFound();
+  const threadId = service.messageThreadId(messageId);
+  if (!threadId || !scope.threadIds.has(threadId)) scopedNotFound();
 }
 /** Browser/API and tool callers use exactly the same scoped domain operations. */
 export async function reviewAction(
@@ -190,11 +249,8 @@ export async function reviewAction(
   // Flat fields are informational; the method revalidates the host-owned active scope on every action.
   await ctx.listTargets();
   const service = providedService ?? reviewService();
-  await verifyAgentBinding(
-    ctx,
-    service,
-    action === "work" ? undefined : body.threadId,
-  );
+  await verifyAgentBinding(ctx);
+  const agentScope = scopeForAction(who, service);
   const recheck = async () => {
     await ctx.listTargets();
   };
@@ -299,8 +355,12 @@ export async function reviewAction(
       operator(who);
       return reader().history(body.path, body.limit, body.skip);
     case "threads":
-      return service.listThreads(who, body.reviewId, body);
+      assertScopedReview(agentScope, body.reviewId);
+      return agentScope
+        ? service.listScopedThreads(who, agentScope.dispatchId, body)
+        : service.listThreads(who, body.reviewId, body);
     case "thread": {
+      assertScopedThread(agentScope, body.threadId);
       // All asynchronous host checks precede the discussion read. No stale
       // discussion row can survive a same-thread mutation during those checks.
       await recheck();
@@ -334,6 +394,8 @@ export async function reviewAction(
       operator(who);
       return service.replyReceipt(who, body.reviewId, body.requestId, body.threadId);
     case "projection":
+      assertScopedThread(agentScope, body.threadId);
+      assertScopedFile(agentScope, body.fileId);
       return service.project(who, body.threadId, body.fileId);
     case "reanchor":
       if (body.confirm !== true)
@@ -365,6 +427,7 @@ export async function reviewAction(
         mutation(body),
       );
     case "reply":
+      assertScopedThread(agentScope, body.threadId);
       return service.reply(
         who,
         body.threadId,
@@ -374,6 +437,7 @@ export async function reviewAction(
         body.reopen === true,
       );
     case "edit":
+      assertScopedMessage(agentScope, service, body.messageId);
       return service.editMessage(
         who,
         body.messageId,
@@ -382,6 +446,7 @@ export async function reviewAction(
         body.assignmentEpoch,
       );
     case "deleteMessage":
+      assertScopedMessage(agentScope, service, body.messageId);
       if (body.confirm !== true)
         throw new ReviewError(
           "confirmation_required",
@@ -402,6 +467,8 @@ export async function reviewAction(
         );
       return service.deleteThread(who, body.threadId, mutation(body));
     case "resolve":
+      assertScopedThread(agentScope, body.threadId);
+      assertScopedFile(agentScope, body.fileId);
       return service.resolveThread(
         who,
         body.threadId,
@@ -483,6 +550,7 @@ export async function reviewAction(
             },
             content: request.content,
             mode: "queue",
+            reference: request.reference,
           }),
       });
     }
@@ -506,14 +574,22 @@ export async function reviewAction(
             },
             content: request.content,
             mode: "queue",
+            reference: request.reference,
           }),
       });
     }
     case "dispatches":
-      return service.listDispatches(who, body.reviewId, body.after, body.limit);
+      assertScopedReview(agentScope, body.reviewId);
+      if (!agentScope) return service.listDispatches(who, body.reviewId, body.after, body.limit);
+      pageSize(body.limit, LIMITS.threadPage);
+      if ((body.after ?? "") >= agentScope.dispatchId) return [];
+      return [service.directoryDispatch(who, agentScope.dispatchId)];
     case "dispatch":
+      assertScopedDispatch(agentScope, body.dispatchId);
       return service.inspectDispatch(who, body.dispatchId);
     case "work":
+      assertScopedDispatch(agentScope, body.dispatchId);
+      assertScopedThread(agentScope, body.threadId);
       return service.updateWork(
         who,
         body.dispatchId,
@@ -540,6 +616,7 @@ export async function reviewAction(
             },
             content: request.content,
             mode: "queue",
+            reference: request.reference,
           }),
       });
     }
