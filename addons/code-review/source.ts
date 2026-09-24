@@ -606,10 +606,15 @@ export class SourceReader {
     const full = this.path(path, true),
       repo = this.repository(full);
     if (!repo) return [];
+    let directory = false;
+    try { directory = statSync(full).isDirectory(); } catch { /* Deleted file history is still selectable. */ }
     const output = this.git(repo, [
       "log",
-      `--max-count=${limit}`,
-      `--skip=${skip}`,
+      ...(directory ? [] : ["--follow", "--find-renames"]),
+      // --follow cannot rediscover a rename when Git skips past it first.
+      // Walk only the bounded prefix, then paginate locally.
+      `--max-count=${directory ? limit : limit + skip}`,
+      ...(directory ? [`--skip=${skip}`] : []),
       "--format=%H%x00%P%x00%at%x00%s%x00",
       "--",
       relative(repo, full),
@@ -626,6 +631,6 @@ export class SourceReader {
         subject: fields[n + 3]!.slice(0, 512),
       });
     }
-    return rows;
+    return directory ? rows : rows.slice(skip, skip + limit);
   }
 }

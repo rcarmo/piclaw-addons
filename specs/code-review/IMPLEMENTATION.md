@@ -66,8 +66,11 @@ acceptance scenarios and are not full Piclaw integration proof.
   need acceptance coverage.
 - A staged rename with a new line inserted before the anchored block also
   passes via real Git capture: the concern projects to the shifted new-side
-  range while the original anchor stays at its saved line. Equal-plausibility
-  rename candidates and pane navigation remain open.
+  range while the original anchor stays at its saved line. Bounded single-file
+  history now uses Git rename following; an owned four-commit repository returns
+  its two pre-rename commits on the older page without moving HEAD or modifying
+  the worktree. Explicit historical rename-path labels, equal-plausibility
+  candidates and pane navigation remain open.
 - CR-061 has an owned Git wrapper that changes one saved file before or after
   a capture boundary. Capture returns coherent source bytes or the explicit
   `changed_during_read` error; it never persists a mixed revision. An atomic

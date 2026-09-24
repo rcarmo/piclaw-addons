@@ -348,6 +348,30 @@ test("CR-081 invalid Git path encoding is rejected instead of being remapped", a
   }
 });
 
+test("CR-091 single-file history follows a verified Git rename across bounded pages without changing checkout", async () => {
+  const f = fixture();
+  try {
+    f.write("old.ts", "first\n");
+    f.git("add", "old.ts");
+    f.git("commit", "-qm", "first");
+    f.write("old.ts", "second\n");
+    f.git("add", "old.ts");
+    f.git("commit", "-qm", "second");
+    f.git("mv", "old.ts", "renamed.ts");
+    f.git("commit", "-qm", "rename");
+    f.write("renamed.ts", "fourth\n");
+    f.git("add", "renamed.ts");
+    f.git("commit", "-qm", "fourth");
+    const head = f.git("rev-parse", "HEAD");
+    const status = f.git("status", "--porcelain=v1");
+    expect((await f.reader.history("renamed.ts", 2)).map((row) => row.subject)).toEqual(["fourth", "rename"]);
+    const older = await f.reader.history("renamed.ts", 2, 2);
+    expect(older.map((row) => row.subject)).toEqual(["second", "first"]);
+    expect(older.every((row) => /^[a-f0-9]{40}$/.test(row.commit))).toBe(true);
+    expect(f.git("rev-parse", "HEAD")).toBe(head);
+    expect(f.git("status", "--porcelain=v1")).toBe(status);
+  } finally { f.cleanup(); }
+});
 test("CR-083 bounded source and explicit history pages", async () => {
   const f = fixture();
   try {
