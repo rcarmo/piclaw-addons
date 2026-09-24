@@ -260,7 +260,12 @@ acceptance scenarios and are not full Piclaw integration proof.
   A CR-042 adapter fixture rejects an agent's stale version-1 resolution after
   operator guidance becomes version 2; a fresh agent read can resolve version
   2 and records its addressed version/evidence without a spurious earlier
-  resolution event. This does not close CR-079's per-prompt authority gap.
+  resolution event. A CR-043/044 adapter fixture reassigns a thread between
+  durable chat incarnations: original ID/anchor/messages persist, the former
+  agent cannot read or reply, the new agent requires epoch 2, and the earlier
+  accepted dispatch remains a distinct receipt rather than being cancelled.
+  Neither fixture closes CR-079's per-prompt authority gap or proves real host
+  chat deletion and context rotation.
 - The browser fixture now commits a public reply while losing its response,
   then retries from the same composer and receives the original reply without
   creating a second message or queueing another agent turn (focused CR-069).
