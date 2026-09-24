@@ -3,9 +3,10 @@
 Saved-source and Git-diff review with durable local discussions and explicitly
 queued agent work. Source is read-only. This branch is not release-ready.
 
-The approved design and 184 Gherkin scenarios are under `specs/code-review/` in the
-repository. Implemented tests are tracked separately; a unit-test name mentioning
-an ID does not imply that its whole acceptance scenario has passed.
+The design and 184 Gherkin scenario IDs are under `specs/code-review/` in the
+repository. This delivery targets Classic only; CR-087 and CR-138 now state
+Classic requirements. Implemented tests are tracked separately; a unit-test
+name mentioning an ID does not imply that its whole scenario has passed.
 
 ## Required host API
 
@@ -17,7 +18,10 @@ that core change has a published version; do not publish this manifest as-is.
 
 The host supplies trusted operator or explicit review-dispatch agent identity.
 Ordinary legacy prompts, side/scheduled tasks and remote-origin turns do not gain
-review authority from an ambient chat ID. If agent context is unavailable, use
+review authority from an ambient chat ID. Host `localContext` v1 does not expose
+its verified dispatch ID to the add-on. CR-079 per-prompt isolation between two
+reviews assigned to one chat cannot pass until the host contract in
+`specs/code-review/CR-079-HOST-CONTRACT.md` is approved and implemented. If agent context is unavailable, use
 **Send to agent** from an authorised review. Direct API fields never establish
 ownership. Browser actions are authenticated; there are no external peer routes.
 
@@ -42,9 +46,12 @@ workspace, profile and fake queue adapter. `PICLAW_REVIEW_TEST_BROWSER` may name
 existing Chromium executable; it never names a target server. No paid provider or
 live Piclaw instance is used. The opt-in `host.optional.test.ts` instead boots
 a disposable Piclaw worktree with its own workspace, profile and SQLite store;
-`PICLAW_REVIEW_AGENT_TEST=1` uses a deterministic local provider. It never
-installs or reloads the running instance. Full scenario and UI matrix coverage
-is still required.
+`PICLAW_REVIEW_AUTH_TEST=1` enables a fixture-only TOTP session, and
+`PICLAW_REVIEW_AGENT_TEST=1` uses a deterministic local provider. Set
+`PICLAW_REVIEW_PACKAGE_TARBALL` to a locally packed tarball to replace the
+source-tree copy and install its production dependencies in that fixture.
+It never installs or reloads the running instance. Classic acceptance beyond
+the bounded checked slices is still required.
 
 Agent `thread` reads compare the bounded current saved file against the original
 anchor side. The `currentSource` status is observational and may be `unverified`
