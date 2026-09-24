@@ -13,7 +13,7 @@ afterEach(() => {
   }
 });
 
-async function importStandaloneAddon(slug: "a2a" | "autoresearch" | "cheapskate" | "codex-conversion" | "delegate" | "drawio-editor" | "editable-table" | "goal" | "image-processing" | "imap" | "kanban-editor" | "lite-term" | "m365" | "mindmap" | "observability" | "office-tools" | "office-viewer" | "plan-sidebar" | "portainer" | "proxmox" | "remote-peer" | "session-tree" | "skill-model-effort" | "smart-compaction" | "vent" | "voice-pipeline" | "win-ui" | "yolo-vibe") {
+async function importStandaloneAddon(slug: "a2a" | "autoresearch" | "cheapskate" | "code-review" | "codex-conversion" | "delegate" | "drawio-editor" | "editable-table" | "goal" | "image-processing" | "imap" | "kanban-editor" | "lite-term" | "m365" | "mindmap" | "observability" | "office-tools" | "office-viewer" | "plan-sidebar" | "portainer" | "proxmox" | "remote-peer" | "session-tree" | "skill-model-effort" | "smart-compaction" | "vent" | "voice-pipeline" | "win-ui" | "yolo-vibe") {
   const tempRoot = mkdtempSync(join(tmpdir(), `piclaw-addon-${slug}-`));
   tempDirs.push(tempRoot);
 
@@ -62,6 +62,11 @@ test("standalone piclaw-addon-cheapskate imports outside the monorepo root", asy
   const mod = await importStandaloneAddon("cheapskate");
   expect(typeof mod.default).toBe("function");
 });
+
+test("standalone piclaw-addon-code-review imports outside the monorepo root", async () => {
+  const mod = await importStandaloneAddon("code-review");
+  expect(typeof mod.default).toBe("function");
+}, 120_000);
 
 test("standalone piclaw-addon-codex-conversion imports outside the monorepo root", async () => {
   const mod = await importStandaloneAddon("codex-conversion");
