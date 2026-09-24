@@ -243,6 +243,36 @@ test("CR-001/012/033/111 browser drives real review persistence and one explicit
     await page.waitForFunction(() => document.querySelector(".cr-composer small")?.textContent === "Draft saved");
     expect(store.listDrafts(ctx, review.id).some((d: any) => d.body === "Keep this text after the failed write.")).toBe(true);
     expect(await page.evaluate(async () => { await (window as any).instance.beforeDetachFromHost(); return (window as any).instance.isDirty(); })).toBe(false);
+    // CR-069: the server commits a reply but the browser loses its response.
+    // Retrying the same composer uses its original request ID and never sends work.
+    const firstThreadId = store.listThreads(ctx, review.id)[0]!.id;
+    await page.locator(".cr-thread [data-action=expand]").first().click();
+    await page.locator(".cr-thread [data-action=reply]").first().click();
+    await page.locator("#cr-body").fill("One reply despite a lost acknowledgement.");
+    await page.waitForFunction(() => document.querySelector(".cr-composer small")?.textContent === "Draft saved");
+    let committedReply = 0;
+    await page.route("**/agent/addons/api/code-review/action", async (route) => {
+      const payload = JSON.parse(route.request().postData() || "{}");
+      if (payload.action === "reply") {
+        committedReply++;
+        await reviewAction(ctx, payload.action, payload, store);
+        await route.fulfill({
+          status: 503,
+          contentType: "application/json",
+          body: JSON.stringify({ ok: false, error: { message: "Reply response lost." } }),
+        });
+      } else await route.continue();
+    });
+    await page.locator("[data-action=post]").click();
+    await page.waitForFunction(() => document.querySelector(".cr-status")?.textContent?.includes("Reply response lost"));
+    expect(committedReply).toBe(1);
+    expect(store.getThread(ctx, firstThreadId).messages.filter((m: any) => m.body === "One reply despite a lost acknowledgement.")).toHaveLength(1);
+    expect(await page.locator("#cr-body").inputValue()).toBe("One reply despite a lost acknowledgement.");
+    await page.unroute("**/agent/addons/api/code-review/action");
+    await page.locator("[data-action=post]").click();
+    await page.waitForFunction(() => document.querySelector(".cr-status")?.textContent?.includes("Comment saved"));
+    expect(store.getThread(ctx, firstThreadId).messages.filter((m: any) => m.body === "One reply despite a lost acknowledgement.")).toHaveLength(1);
+    expect(await page.locator("#cr-body").count()).toBe(0);
     expect(calls).toBe(1);
     expect(errors).toEqual([]);
   } finally {

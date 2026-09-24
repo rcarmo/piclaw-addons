@@ -82,6 +82,10 @@ acceptance scenarios and are not full Piclaw integration proof.
   Retrying after storage recovers saves the same draft; the pane updates its
   saved/unsaved label on acknowledgement. This is a focused CR-018/094 check;
   offline reconnect and every pane close/popout route still need host coverage.
+- The browser fixture now commits a public reply while losing its response,
+  then retries from the same composer and receives the original reply without
+  creating a second message or queueing another agent turn (focused CR-069).
+  Browser reload before the retry and external concurrent edits remain open.
 - These are focused implementation tests, not full CR-001–CR-184 acceptance.
   The copied-backup check reopens the store, not a restored
   Piclaw host. CR-181 tests rejection of a newer unsupported schema; no older
