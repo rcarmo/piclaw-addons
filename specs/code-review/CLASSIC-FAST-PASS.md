@@ -6,7 +6,29 @@ The agreed mock is unchanged. RC-1–RC-5 pass the supported Classic flows after
 Rui's closer-mock and separate-submission decisions. RC-6 integration/release is
 not complete.
 
-## Latest checkpoint: closer mock and separate submissions
+## Pull-request and hosted CI checkpoint
+
+- Core PR: https://github.com/rcarmo/piclaw/pull/1407, branch
+  `feat/addon-workspace-context`, head `de954e532`.
+- Add-on draft PR: https://github.com/rcarmo/piclaw-addons/pull/144, branch
+  `feat/code-review`. Both branches include current main via merge.
+- Core hosted CI run `36069057362` passed in 6m40s: canonical fast CI,
+  Chromium/WebKit SVG checks and isolated Git global-install smoke test.
+  The previous run caught a generated-HTML merge error; restoring current main's
+  marked theme bootstrap fixed it, and its two local regression tests passed.
+- Add-on hosted validation run `36068434701` passed: Code Review regression and
+  browser tests (166 pass, one opt-in skipped), metadata/Earendil checks, standalone
+  imports and Remote Peer tests. Build run `36068434641` also passed. The dedicated
+  Code Review CI job is now checked in.
+- Packed 0.1.2 against the merged core branch passed the combined 259-assertion
+  Classic fixture again in 96.1 seconds, including busy queueing and actual
+  catalogue removal/reinstall. No paid provider calls or live service changes.
+- Core integration is committed and pushed; neither PR is merged. The add-on PR
+  stays draft until the core dependency is integrated and its actual release
+  version replaces the provisional compatibility range. Publication and live
+  installation/restart need separate approval. RC-6 is therefore still open.
+
+## Earlier checkpoint: closer mock and separate submissions
 
 - Open discussions on the current bounded source page expand automatically;
   explicit collapse is retained. Saved versions and thread filters are tucked
@@ -39,9 +61,9 @@ not complete.
   child-process case hit the default five-second timeout once; it now uses a
   bounded 15-second child/20-second test timeout with the same assertions.
 - Independent judge delegation timed out without findings. Do not count that as
-  completed review. Core has pre-existing uncommitted/untracked integration work;
-  release compatibility/version, hosted CI and approval to merge/publish/install
-  are still RC-6 gates.
+  completed review. At that checkpoint core integration was uncommitted; the
+  later PR/CI result above supersedes that repository state. Release compatibility
+  and approval to merge/publish/install remain RC-6 gates.
 
 ## Earlier checkpoint: author actions and catalogue lifecycle
 
@@ -85,7 +107,7 @@ not complete.
 ## Gates requiring a decision or more work
 
 1. **Submission authority:** implemented and locally verified after approval; see [CR-079-HOST-CONTRACT.md](CR-079-HOST-CONTRACT.md). Core integration/review is still outstanding; this controls review tools, not ordinary file access or prior chat history.
-2. **Core integration:** The core worktree has modified and untracked files. Host-contract review, an approved integration path, hosted CI and a final version providing the APIs are outstanding. The add-on manifest's `compatibleVersions: ">=3.2.1"` is provisional.
+2. **Core integration:** PR #1407 is committed, pushed and passes hosted CI. Merge/release approval and a final core version providing these APIs are outstanding. The add-on manifest's `compatibleVersions: ">=3.2.1"` is provisional.
 3. **Publication:** local `bun run check:catalog` passes with the 0.1.2 entry. The disposable manager installed the local tarball successfully, but there is no published-package install test. Do not publish until the compatible core version and security gates are settled.
 4. **Acceptance:** RC-1–RC-5 pass the supported Classic flows; RC-6 remains open. Exhaustive permutations and follow-up depth are listed as deferred in [ACCEPTANCE.md](ACCEPTANCE.md); no 184-step-handler implementation is required. Existing security, persistence and no-implicit-send checks remain mandatory.
 5. **Approval:** Merge, publication, live installation and live restart require separate explicit permission. The local `piclaw.service` was untouched.

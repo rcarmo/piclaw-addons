@@ -46,10 +46,11 @@ and references to old scenario IDs do not change status automatically.
 
 ## What is left
 
-- **RC-6:** review/integrate the core worktree, assign the actual compatible core
-  release version, obtain hosted CI, and obtain permission for merge/publication/
-  deployment. Local catalogue metadata includes 0.1.2 and `check:catalog` passes;
-  the package has not been published. `>=3.2.1` is still provisional.
+- **RC-6:** core PR [piclaw#1407](https://github.com/rcarmo/piclaw/pull/1407) and
+  draft add-on PR [piclaw-addons#144](https://github.com/rcarmo/piclaw-addons/pull/144)
+  are pushed and pass hosted CI. Merge/release approval and the actual compatible
+  core release version remain open. Catalogue metadata includes 0.1.2 and
+  `check:catalog` passes; nothing is published. `>=3.2.1` is still provisional.
 - RC-1–RC-5 pass on the owned Classic fixtures. The [evidence ledger](CLASSIC-FAST-PASS.md)
   records regression, browser and packed-host results. [Submission isolation](CR-079-HOST-CONTRACT.md)
   is implemented in both worktrees after approval and verified locally.
