@@ -14,6 +14,7 @@ import { spawn } from "node:child_process";
 import { runCr077Scenario } from "./tests/steps/cr077.steps.js";
 import { runCr078Scenario } from "./tests/steps/cr078.steps.js";
 import { runCr081Scenario } from "./tests/steps/cr081.steps.js";
+import { runCr083Scenario } from "./tests/steps/cr083.steps.js";
 import { startReviewProvider } from "./provider-fixture.js";
 import {
   prepareAddonTestInstance,
@@ -282,6 +283,10 @@ hostTest(
           providerRequests: () => provider?.requests.length ?? 0,
         });
         await runCr081Scenario({
+          url, workspace: paths.workspace, reviewDb, cookie: sessionCookie!,
+          providerRequests: () => provider?.requests.length ?? 0,
+        });
+        await runCr083Scenario({
           url, workspace: paths.workspace, reviewDb, cookie: sessionCookie!,
           providerRequests: () => provider?.requests.length ?? 0,
         });

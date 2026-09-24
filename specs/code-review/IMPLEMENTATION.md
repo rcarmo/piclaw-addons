@@ -160,7 +160,14 @@ acceptance scenarios and are not full Piclaw integration proof.
   revision returns `invalid_revision`, the fixture's hostile Git helper marker
   stays absent, and SQLite counts/queue work are unchanged. The isolated Git
   setup is fixture-owned; these probes do not establish a general proof that
-  every possible filesystem/Git side effect is impossible.
+  every possible filesystem/Git side effect is impossible. Canonical CR-083
+  steps also run against the authenticated host after a legitimate comment:
+  a source over 2 MiB and an unstaged diff with over 10,000 changed lines
+  report `limit` (byte/computation budgets), and a comment over 16 KiB UTF-8
+  reports `invalid_input`. The rejected content is absent from the real SQLite
+  store, guessed/overlarge file reads fail, and the existing authorised thread
+  remains readable. This is a bounded limit slice, not full-file splitting,
+  near-limit timing, unrestricted-download or broad performance acceptance.
 - File-backed delivery tests now check concurrent claim-once queueing, independent
   completed/blocked item states, numbered retries after definite rejection,
   unknown delivery without replay and explicit reconciliation against the
