@@ -491,9 +491,11 @@ hostTest(
         if (uiMode !== "classic") throw Error("Classic UI checks require PICLAW_REVIEW_UI_MODE=classic.");
         await page.setViewportSize({ width: 390, height: 844 });
         const before = new Database(reviewDb, { readonly: true });
-        let dispatches: number;
-        try { dispatches = (before.query("SELECT COUNT(*) AS n FROM dispatches").get() as { n: number }).n; }
-        finally { before.close(); }
+        let dispatches: number, threads: number;
+        try {
+          dispatches = (before.query("SELECT COUNT(*) AS n FROM dispatches").get() as { n: number }).n;
+          threads = (before.query("SELECT COUNT(*) AS n FROM threads").get() as { n: number }).n;
+        } finally { before.close(); }
         for (const line of [1, 3]) {
           await page.locator(`.cr-line [data-action=select-line][data-line="${line}"]`).focus();
           await page.keyboard.press("Enter");
@@ -505,11 +507,12 @@ hostTest(
         await page.locator("#cr-body").fill("Keep the three-line range");
         await page.locator("[data-action=post]").focus();
         await page.keyboard.press("Enter");
-        await page.waitForFunction(() => document.querySelectorAll(".cr-thread").length >= 2);
+        await page.waitForFunction((count) => document.querySelectorAll(".cr-thread").length > count, threads);
         const saved = new Database(reviewDb, { readonly: true });
         try {
-          const row = saved.query("SELECT anchor_json FROM threads ORDER BY created_at DESC,id DESC LIMIT 1").get() as { anchor_json: string };
-          expect(JSON.parse(row.anchor_json)).toMatchObject({ scope: "range", startLine: 1, endLine: 3 });
+          const row = saved.query("SELECT t.anchor_json FROM threads t JOIN messages m ON m.thread_id=t.id JOIN message_revisions r ON r.message_id=m.id AND r.version=m.version WHERE r.body='Keep the three-line range' LIMIT 1").get() as { anchor_json: string } | null;
+          expect(row).not.toBeNull();
+          expect(JSON.parse(row!.anchor_json)).toMatchObject({ scope: "range", startLine: 1, endLine: 3 });
           expect((saved.query("SELECT COUNT(*) AS n FROM dispatches").get() as { n: number }).n).toBe(dispatches);
         } finally { saved.close(); }
         await page.locator("[data-action=threads]").focus();
