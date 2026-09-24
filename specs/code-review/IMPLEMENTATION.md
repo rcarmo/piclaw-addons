@@ -231,7 +231,14 @@ acceptance scenarios and are not full Piclaw integration proof.
   exposed an unchanged-diff rendering bug: all-context rows appeared as a
   collapsed context expander. The pane now shows “No changes” while retaining
   file-level discussion and its original snapshot; source, index and HEAD
-  stay unchanged.
+  stay unchanged. A grouped authenticated Classic-host check now initialises
+  an owned Git baseline, selects the real file-history commit through the
+  pane, captures its unstaged working diff, and confirms the displayed diff
+  plus bounded API file rows. Source bytes, Git HEAD, dispatch count and local
+  provider request count do not change during that browsing. The grouped
+  keyboard/history/diff/loopback-provider flow also passes, as does the
+  history/diff flow from the packed 19-file tarball; this is not complete
+  history/rename or no-egress acceptance.
 - A disposable Git-backed diff-pane browser fixture now exercises staged and
   unstaged snapshots from the same owned repository. It checks old/new line
   coordinates, side-specific syntax, a deleted old-side comment, unified and

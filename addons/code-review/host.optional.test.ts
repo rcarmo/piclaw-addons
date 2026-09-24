@@ -241,7 +241,7 @@ hostTest(
       page.on("response", (r) => {
         if (r.status() >= 400) console.log("HTTPERROR", r.status(), r.url());
       });
-      page.on("dialog", (d) => d.accept());
+      page.on("dialog", (d) => d.accept(d.type() === "prompt" && process.env.PICLAW_REVIEW_CLASSIC_SOURCE_TEST === "1" ? "1" : undefined));
       await page.goto(url, { waitUntil: "domcontentloaded" });
       try {
         await page.waitForFunction(
@@ -467,6 +467,59 @@ hostTest(
         expect(await page.locator(".cr-pane [data-action=send]").first().isVisible()).toBe(true);
         expect(await page.locator(".cr-source").isVisible()).toBe(true);
         await page.emulateMedia({ forcedColors: "none" });
+      }
+      if (process.env.PICLAW_REVIEW_CLASSIC_SOURCE_TEST === "1") {
+        if (uiMode !== "classic" || !sessionCookie) throw Error("Classic source checks require an authenticated Classic fixture.");
+        const git = (...args: string[]) => execFileSync("git", ["-c", "core.fsmonitor=false", "-c", "diff.external=", ...args], {
+          cwd: paths.workspace, encoding: "utf8",
+          env: { PATH: process.env.PATH, HOME: paths.home, GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: "/dev/null" },
+        }).trim();
+        const sourcePath = join(paths.workspace, "review-fixture.ts");
+        const original = readFileSync(sourcePath, "utf8");
+        git("init", "-q");
+        writeFileSync(sourcePath, original.replace("value.trim()", "value"));
+        git("add", "--", "review-fixture.ts");
+        git("-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "-c", "commit.gpgSign=false", "commit", "-qm", "review baseline");
+        const commit = git("rev-parse", "HEAD");
+        writeFileSync(sourcePath, original);
+        const db = new Database(reviewDb, { readonly: true });
+        let before: number;
+        try { before = (db.query("SELECT COUNT(*) AS n FROM dispatches").get() as { n: number }).n; }
+        finally { db.close(); }
+        const providerBefore = provider?.requests.length ?? 0;
+        const reviewApi = async (payload: object) => {
+          const response = await fetch(url + "/agent/addons/api/code-review/action", {
+            method: "POST", headers: { "Content-Type": "application/json", Origin: url, Cookie: sessionCookie },
+            body: JSON.stringify(payload),
+          });
+          expect(response.status).toBe(200);
+          const result = await response.json() as { ok: boolean; error?: { code: string; message: string }; result?: any };
+          expect(result.ok).toBe(true);
+          return result.result;
+        };
+        const history = await reviewApi({ action: "history", path: "review-fixture.ts", limit: 20 });
+        expect(history[0]).toMatchObject({ commit, subject: "review baseline" });
+        await page.locator("[data-action=options]").click();
+        await page.locator("[data-action=history]").click();
+        await page.waitForFunction(() => document.querySelector("#cr-snapshot option:checked")?.textContent?.includes("commit"), null, { timeout: 10000 });
+        expect(await page.locator(".cr-pane .cr-file-header").innerText()).toContain("review-fixture.ts");
+        await page.locator("[data-action=options]").click();
+        await page.locator("[data-action=unstaged]").click();
+        await page.waitForFunction(() => document.querySelector("#cr-snapshot option:checked")?.textContent?.includes("unstaged"), null, { timeout: 10000 });
+        const review = (await reviewApi({ action: "list", limit: 10 }))[0];
+        const snapshots = await reviewApi({ action: "snapshots", reviewId: review.id });
+        const latest = snapshots.find((snapshot: any) => snapshot.mode === "unstaged");
+        const files = await reviewApi({ action: "files", reviewId: review.id, snapshotId: latest.id });
+        expect(files).toHaveLength(1);
+        const diff = await reviewApi({ action: "file", reviewId: review.id, fileId: files[0].id, limit: 300 });
+        expect(diff.diffTotal).toBeGreaterThan(0);
+        expect(JSON.stringify(diff.diff)).toContain("value.trim()");
+        expect(readFileSync(sourcePath, "utf8")).toBe(original);
+        expect(git("rev-parse", "HEAD")).toBe(commit);
+        const after = new Database(reviewDb, { readonly: true });
+        try { expect((after.query("SELECT COUNT(*) AS n FROM dispatches").get() as { n: number }).n).toBe(before); }
+        finally { after.close(); }
+        expect(provider?.requests.length ?? 0).toBe(providerBefore);
       }
       expect(errors).toEqual([]);
       console.log("REAL HOST PASS", {
