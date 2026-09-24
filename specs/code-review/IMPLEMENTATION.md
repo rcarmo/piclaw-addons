@@ -146,10 +146,13 @@ acceptance scenarios and are not full Piclaw integration proof.
   split layouts, unchanged-context expansion and wrap toggling. A separate
   CR-007 browser fixture reviews an untracked new-only file and a tracked
   deleted old-only file in one snapshot, posts side-correct comments, and
-  switches between both without staging or restoring either. Exact saved
-  snapshot bytes, working-file bytes, Git index, status and HEAD remain intact;
-  no agent queue call occurs. These are focused CR-006/007/119/142/148/149
-  slices, not the full layout/theme/touch or copy-fidelity matrix.
+  switches between both without staging or restoring either. A CR-011 fixture
+  shows the unchanged saved source and original thread when its current file
+  is missing or unreadable; replacement at the same path reports `replaced`.
+  The current-source label exposes neither live bytes nor a digest. Exact
+  saved snapshot bytes, working-file bytes, Git index, status and HEAD remain
+  intact; no agent queue call occurs. These are focused CR-006/007/011/119/
+  142/148/149 slices, not the full layout/theme/touch or copy-fidelity matrix.
 - Focused CR-083/089/119/121 tests check exact byte and line limits, diff
   computation/changed-line budgets, escaped plain-text fallback, bounded
   response pages and independent full-snapshot old/new highlighting. A local

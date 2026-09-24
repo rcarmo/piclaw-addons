@@ -48,6 +48,7 @@ export const styles = `
 .cr-main{display:flex;flex:1;flex-direction:column;min-width:0;min-height:0;overflow:hidden}
 .cr-file-header{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:5px 10px;border-bottom:1px solid var(--border-color);flex:none}
 .cr-file-header strong{font:12px var(--font-family-mono,monospace);overflow-wrap:anywhere}
+.cr-current-source{font-size:11px;color:var(--warning-color,var(--text-secondary));overflow-wrap:anywhere}
 .cr-source{flex:1;min-height:80px;overflow:auto;background:var(--bg-code,var(--bg-primary));color:var(--text-code,var(--text-primary))}
 .cr-line{display:grid;grid-template-columns:24px 42px 18px minmax(0,1fr);min-width:max-content;font:12px/18px var(--font-family-mono,monospace);padding:0;min-height:18px}
 .cr-line>button{font:11px/18px var(--font-family-mono,monospace);height:18px;min-height:0;border:0;padding:0 3px;background:transparent;color:var(--text-secondary);border-radius:0}

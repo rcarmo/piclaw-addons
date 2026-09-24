@@ -218,6 +218,9 @@ export async function reviewAction(
         ...file,
         oldText: undefined,
         newText: undefined,
+        currentSource: file.change_kind === "source" && file.new_path
+          ? reader().currentStatus(file.new_path, file.new_hash, file.file_identity)
+          : null,
         old,
         new: next,
         diff: page ?? null,
