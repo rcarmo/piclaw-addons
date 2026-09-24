@@ -423,8 +423,10 @@ export class CodeReviewPane {
         }));
     const mounted = new Set<string>();
     let html = "";
-    if (!rows.length)
-      return '<p class="cr-empty">No changes in this comparison.</p>';
+    if (!rows.length || (c.diff && rows.every((row: any) => row.kind === "context")))
+      return '<p class="cr-empty">No changes in this comparison.</p>' +
+        this.threadRows().filter((thread) => thread.anchor.scope === "file")
+          .map((thread) => this.threadHtml(thread)).join("");
     const visible = new Set<number>();
     if (!this.contextExpanded && this.view !== "source") {
       rows.forEach((r: any, i: number) => {

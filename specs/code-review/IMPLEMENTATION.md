@@ -140,6 +140,12 @@ acceptance scenarios and are not full Piclaw integration proof.
   action registration. The optional Visual test now fails with that capability
   diagnostic. CR-087 and the Visual host contract are blocked until an approved
   core change wires the generic workspace-action API into Visual.
+- A CR-010 browser fixture checks a root commit against the explicit empty
+  tree and posts added-side guidance without changing checkout. It also
+  exposed an unchanged-diff rendering bug: all-context rows appeared as a
+  collapsed context expander. The pane now shows “No changes” while retaining
+  file-level discussion and its original snapshot; source, index and HEAD
+  stay unchanged.
 - A disposable Git-backed diff-pane browser fixture now exercises staged and
   unstaged snapshots from the same owned repository. It checks old/new line
   coordinates, side-specific syntax, a deleted old-side comment, unified and
