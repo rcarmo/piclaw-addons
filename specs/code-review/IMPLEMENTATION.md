@@ -82,6 +82,12 @@ acceptance scenarios and are not full Piclaw integration proof.
   Retrying after storage recovers saves the same draft; the pane updates its
   saved/unsaved label on acknowledgement. This is a focused CR-018/094 check;
   offline reconnect and every pane close/popout route still need host coverage.
+- File-backed delivery tests now check concurrent claim-once queueing, independent
+  completed/blocked item states, numbered retries after definite rejection,
+  unknown delivery without replay and explicit reconciliation against the
+  original dispatch after reopen. These are focused CR-040/041/175/176/180
+  slices. They do not simulate two separate host processes claiming the same
+  attempt or prove the full browser receipt workflow.
 - The browser fixture now commits a public reply while losing its response,
   then retries from the same composer and receives the original reply without
   creating a second message or queueing another agent turn (focused CR-069).
