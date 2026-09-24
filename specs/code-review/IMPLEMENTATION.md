@@ -105,6 +105,14 @@ acceptance scenarios and are not full Piclaw integration proof.
   pages still split and escape the complete allowed source on each request;
   diff pages recompute the whole diff before slicing. Lazy rendering, cache
   budgets, cancellation and repeated-tab idle performance are not verified.
+- Multi-file batch tests now cover ordered selection of two saved source files,
+  frozen snapshot and thread versions, exclusion of an unselected thread and
+  private draft, independent per-thread completion/blocker outcomes, and
+  all-or-nothing rejection of changed, retargeted, deleted or cross-review
+  items. Matching intent IDs reuse a single dispatch; conflicting payloads
+  fail, and a deleted item before enqueue rejects the batch without delivery.
+  This is focused CR-104–110 service coverage, not the browser batch workflow
+  or the accepted-then-agent-start authority check.
 - The browser fixture now commits a public reply while losing its response,
   then retries from the same composer and receives the original reply without
   creating a second message or queueing another agent turn (focused CR-069).
