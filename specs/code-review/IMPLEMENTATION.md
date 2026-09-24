@@ -112,8 +112,12 @@ acceptance scenarios and are not full Piclaw integration proof.
   two SQLite connections, and retain message IDs/ordinals through reopen.
   Comment CRUD, saved-source refresh, accepted delivery, resolution evidence
   and reopen leave the owned source bytes, Git index, HEAD and status unchanged.
-  These are deterministic serial orders, not simultaneous multi-process
-  writers; true contention and browser presentation need separate coverage.
+  A separate CR-071/072 fixture starts two Bun writer processes against one
+  owned file-backed store with synchronized starts. Same-version replies and
+  reply/delete races produce exactly one durable serial winner, a conflict or
+  unavailable loser, stable message IDs/ordinals and clean foreign keys after
+  reopen; the focused fixture passed eight consecutive runs. Broader mutation
+  contention and browser presentation need separate coverage.
 - Focused CR-078/080/081 adapter tests reject body-forged authority fields,
   unavailable targets, reused chat incarnations, wrong owner/workspace IDs,
   traversal, symlinks and crafted Git revisions without creating review work.
