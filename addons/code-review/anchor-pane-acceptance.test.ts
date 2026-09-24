@@ -46,10 +46,14 @@ test("CR-056/057 missing and ambiguous projections stay off source rows while or
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     const errors: string[] = []; page.on("pageerror", (error) => errors.push(error.message));
     const dialogs: string[] = [];
+    let cancelNextReanchor = false;
     page.on("dialog", async (dialog) => {
       dialogs.push(dialog.message());
       if (dialog.type() === "prompt") await dialog.accept(thread.threadId);
-      else await dialog.accept();
+      else if (cancelNextReanchor && dialog.message().includes("Reopen and re-anchor")) {
+        cancelNextReanchor = false;
+        await dialog.dismiss();
+      } else await dialog.accept();
     });
     await page.goto(server.url.href); await page.waitForFunction(() => (window as any).__codeReviewReady === true);
     await page.evaluate((path: string) => (window as any).__piclaw_web.openPane({ path }), `piclaw://addon/code-review/${created.reviewId}`);
@@ -82,6 +86,29 @@ test("CR-056/057 missing and ambiguous projections stay off source rows while or
     expect(store.getThread(ctx, thread.threadId).messages[0]?.body).toBe("Handle the original concern");
     expect(store.project(ctx, thread.threadId, ambiguousFile.id)).toMatchObject({ method: "manual", startLine: 9, endLine: 9 });
     expect(await page.locator(`#cr-${thread.threadId} header .cr-muted`).innerText()).toContain("source lines 9–9");
+    const beforeResolution = store.getThread(ctx, thread.threadId);
+    const resolved: any = await reviewAction(ctx, "resolve", {
+      threadId: thread.threadId, fileId: ambiguousFile.id,
+      explanation: "Addressed the first confirmed range", evidence: ["source.ts#L9"],
+      expectedVersion: beforeResolution.version, requestId: "resolve-confirmed-range",
+    }, store);
+    await page.reload(); await page.waitForFunction(() => (window as any).__codeReviewReady === true);
+    await page.evaluate((path: string) => (window as any).__piclaw_web.openPane({ path }), `piclaw://addon/code-review/${created.reviewId}`);
+    await page.waitForSelector(".cr-line[data-line='10']");
+    await page.locator('.cr-line [data-action=select-line][data-line="10"]').click();
+    cancelNextReanchor = true;
+    await page.locator('[data-action=reanchor]').click();
+    expect(dialogs.at(-1)).toBe("Reopen and re-anchor this concern?");
+    expect(store.getThread(ctx, thread.threadId)).toMatchObject({ state: "resolved", version: resolved.version });
+    expect(store.project(ctx, thread.threadId, ambiguousFile.id)).toMatchObject({ method: "manual", startLine: 9, endLine: 9 });
+    await page.locator('[data-action=reanchor]').click();
+    await page.waitForFunction((id) => document.querySelector(`#cr-${id} header strong`)?.textContent === "open", thread.threadId);
+    expect(dialogs.at(-1)).toBe("Reopen and re-anchor this concern?");
+    expect(store.getThread(ctx, thread.threadId)).toMatchObject({ state: "open", version: resolved.version + 1, anchor });
+    expect(store.project(ctx, thread.threadId, ambiguousFile.id)).toMatchObject({ method: "manual", startLine: 10, endLine: 10 });
+    const oldResolution = (store.events(ctx, created.reviewId) as any[]).find((event) => event.kind === "thread.resolved");
+    expect(JSON.parse(oldResolution.data_json)).toMatchObject({ fileId: ambiguousFile.id, addressedVersion: beforeResolution.version, evidence: ["source.ts#L9"] });
+    expect(store.getThread(ctx, thread.threadId).messages[0]?.body).toBe("Handle the original concern");
     expect(queueCalls).toBe(0); expect(errors).toEqual([]);
   } finally { await browser?.close(); server?.stop(true); store.close(); rmSync(root, { recursive: true, force: true }); }
 }, 45_000);
