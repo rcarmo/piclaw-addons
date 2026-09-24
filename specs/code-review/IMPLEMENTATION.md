@@ -238,7 +238,14 @@ acceptance scenarios and are not full Piclaw integration proof.
   provider request count do not change during that browsing. The grouped
   keyboard/history/diff/loopback-provider flow also passes, as does the
   history/diff flow from the packed 19-file tarball; this is not complete
-  history/rename or no-egress acceptance.
+  history/rename or no-egress acceptance. A separate real touch-enabled
+  Classic browser opens at 1180px, then resizes the review to 390px with
+  CSS zoom 200%: source, Threads and the drawer stay reachable and fit the
+  pane; no extra dispatch or provider request occurs. Direct 390px entry
+  remains unverified: the Classic host starts `workspace-collapsed` with a
+  hidden `.workspace-toggle-tab`, so the owned fixture cannot reach the file.
+  That host entry defect needs core-owner triage; this resize check does not
+  stand in for a phone-entry or full touch accessibility pass.
 - A disposable Git-backed diff-pane browser fixture now exercises staged and
   unstaged snapshots from the same owned repository. It checks old/new line
   coordinates, side-specific syntax, a deleted old-side comment, unified and

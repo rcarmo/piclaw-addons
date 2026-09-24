@@ -468,6 +468,50 @@ hostTest(
         expect(await page.locator(".cr-source").isVisible()).toBe(true);
         await page.emulateMedia({ forcedColors: "none" });
       }
+      if (process.env.PICLAW_REVIEW_CLASSIC_TOUCH_TEST === "1") {
+        if (uiMode !== "classic") throw Error("Classic touch checks require PICLAW_REVIEW_UI_MODE=classic.");
+        // The host currently hides the workspace toggle on direct phone entry;
+        // enter at desktop width, then exercise the add-on at 390px with touch.
+        const touch = await browser.newContext({ viewport: { width: 1180, height: 820 }, hasTouch: true, deviceScaleFactor: 2 });
+        try {
+          if (sessionCookie) {
+            const [name, value] = sessionCookie.split("=", 2);
+            await touch.addCookies([{ name: name!, value: value!, url, httpOnly: true, sameSite: "Strict" }]);
+          }
+          const mobile = await touch.newPage();
+          mobile.on("dialog", (dialog) => dialog.accept());
+          await mobile.goto(url, { waitUntil: "domcontentloaded" });
+          await mobile.waitForSelector(".workspace-toggle-tab", { state: "attached" });
+          const show = mobile.getByRole("button", { name: "Show workspace", exact: true });
+          if (await show.isVisible()) await show.tap();
+          const mobileFile = mobile.getByText("review-fixture.ts", { exact: true }).first();
+          await mobileFile.waitFor({ state: "visible", timeout: 10000 });
+          await mobileFile.tap();
+          const action = mobile.getByRole("button", { name: "Review file", exact: true }).first();
+          if (!(await action.isVisible())) await mobile.getByRole("button", { name: "Workspace actions", exact: true }).tap();
+          await action.tap();
+          await mobile.waitForSelector(".cr-pane .cr-line");
+          await mobile.setViewportSize({ width: 390, height: 844 });
+          await mobile.evaluate(() => { document.documentElement.style.zoom = "2"; });
+          await mobile.waitForFunction(() => document.querySelector<HTMLElement>(".cr-pane")?.dataset.narrow === "true");
+          expect(await mobile.locator(".cr-pane [data-action=threads]").isVisible()).toBe(true);
+          expect(await mobile.locator(".cr-source").isVisible()).toBe(true);
+          await mobile.locator(".cr-pane [data-action=threads]").tap();
+          await mobile.waitForSelector(".cr-drawer");
+          const bounds = await mobile.locator(".cr-drawer").boundingBox();
+          const paneBounds = await mobile.locator(".cr-pane").boundingBox();
+          expect(bounds).not.toBeNull(); expect(paneBounds).not.toBeNull();
+          expect(bounds!.x).toBeGreaterThanOrEqual(paneBounds!.x - 1);
+          expect(bounds!.width).toBeLessThanOrEqual(paneBounds!.width + 1);
+          await mobile.locator(".cr-drawer [data-action=close-drawer]").tap();
+          expect(await mobile.locator(".cr-drawer").count()).toBe(0);
+          const db = new Database(reviewDb, { readonly: true });
+          try {
+            expect((db.query("SELECT COUNT(*) AS n FROM dispatches").get() as { n: number }).n).toBe(provider ? 1 : 0);
+          } finally { db.close(); }
+          expect(provider?.requests.length ?? 0).toBe(provider ? 7 : 0);
+        } finally { await touch.close(); }
+      }
       if (process.env.PICLAW_REVIEW_CLASSIC_SOURCE_TEST === "1") {
         if (uiMode !== "classic" || !sessionCookie) throw Error("Classic source checks require an authenticated Classic fixture.");
         const git = (...args: string[]) => execFileSync("git", ["-c", "core.fsmonitor=false", "-c", "diff.external=", ...args], {
