@@ -15,6 +15,13 @@ test("code-review standalone entry, startup API and web entry remain self-contai
       filter(path) { return !/\.test\.ts$/.test(path); },
     });
     const manifest = JSON.parse(readFileSync(join(target, "package.json"), "utf8"));
+    const packaged = [manifest.main, ...manifest.pi.runtime.entries, ...manifest.pi.web.entries,
+      "skills/code-review/SKILL.md", "README.md", "anchors.ts", "contracts.ts", "database.ts",
+      "dispatch.ts", "host.ts", "markdown.ts", "render-source.ts", "source.ts", "store.ts", "validation.ts", "web/api.ts", "web/pane.ts", "web/styles.ts"];
+    expect(manifest.files).toContain("skills/code-review/SKILL.md");
+    expect(manifest.files).toContain("web/*.ts");
+    expect(manifest.files.some((path: string) => path.endsWith(".test.ts") || path === "provider-fixture.ts")).toBe(false);
+    for (const file of packaged) expect(await Bun.file(join(target, file)).exists()).toBe(true);
     expect(manifest.main).toBe("index.ts");
     expect(manifest.pi.runtime.entries).toEqual(["runtime.ts"]);
     expect(manifest.pi.web.entries).toEqual(["web/index.ts"]);

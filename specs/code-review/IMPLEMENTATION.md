@@ -267,12 +267,14 @@ acceptance scenarios and are not full Piclaw integration proof.
 - A standalone check copies the add-on with its dependencies to an owned
   directory outside the monorepo, imports its runtime and extension entry,
   verifies startup API/tool registration and checks the web/skill paths.
-  `bun pm pack --dry-run --cwd addons/code-review` produced a provisional
-  59-file, 0.67 MB unpacked package that still includes test sources.
-  `bun run check:catalog` fails because this unreleased add-on has no generated
-  `catalog.json` or root-package entry. Do not sync/publish it until the host
-  API and version range are settled; package exclusions, catalogue metadata
-  and the full standalone matrix remain release gates.
+  `bun pm pack --dry-run --cwd addons/code-review` now produces a provisional
+  19-file, 222 KB unpacked package with the runtime, web entry, skill and
+  dependencies declared, excluding test sources and the loopback provider.
+  The standalone import test verifies that allowlist. `bun run check:catalog`
+  fails because this unreleased add-on has no generated `catalog.json` or
+  root-package entry. Do not sync/publish it until the host API and version
+  range are settled; catalogue metadata and the full standalone/platform
+  matrix remain release gates.
 - These are focused implementation tests, not full CR-001–CR-184 acceptance.
   The copied-backup check reopens the store, not a restored
   Piclaw host. CR-181 tests rejection of a newer unsupported schema; no older

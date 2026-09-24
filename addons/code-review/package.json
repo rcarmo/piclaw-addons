@@ -5,6 +5,23 @@
   "type": "module",
   "main": "index.ts",
   "license": "MIT",
+  "files": [
+    "README.md",
+    "index.ts",
+    "runtime.ts",
+    "anchors.ts",
+    "contracts.ts",
+    "database.ts",
+    "dispatch.ts",
+    "host.ts",
+    "markdown.ts",
+    "render-source.ts",
+    "source.ts",
+    "store.ts",
+    "validation.ts",
+    "web/*.ts",
+    "skills/code-review/SKILL.md"
+  ],
   "piclaw": {
     "type": "extension",
     "compatibleVersions": ">=3.2.1",
