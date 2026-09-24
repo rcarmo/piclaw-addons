@@ -1043,12 +1043,16 @@ export class CodeReviewPane {
         this.pendingPayload = null;
         if (name === "refresh-send-preview") await this.reloadThreads();
         if (!this.selected.size) throw Error("No open selected threads remain; select guidance again.");
-        this.pendingPayload = {
+        const payload = {
           target: { ...this.activeTarget },
           items: this.selectionItems(),
           summary: this.summary,
         };
-        this.sendPreview = await this.api("preview", this.pendingPayload);
+        this.pendingPayload = payload;
+        const preview = await this.api<typeof this.sendPreview>("preview", payload);
+        // Selection/target may change while the inert preview request is in flight.
+        if (this.pendingPayload !== payload) return;
+        this.sendPreview = preview;
         this.sendIntent = requestId();
         this.drawer = "send";
         this.status = "";
@@ -1287,7 +1291,7 @@ export class CodeReviewPane {
         el.checked
           ? this.selected.add(el.dataset.pick)
           : this.selected.delete(el.dataset.pick);
-        if (this.drawer === "send") {
+        if (this.drawer === "send" || this.pendingPayload) {
           this.pendingPayload = null;
           this.sendPreview = null;
           this.sendIntent = null;

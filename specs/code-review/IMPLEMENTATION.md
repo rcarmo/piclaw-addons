@@ -117,8 +117,17 @@ acceptance scenarios and are not full Piclaw integration proof.
   the other selected item remains readable. The unselected published thread
   stays out of the dispatch, but is directly readable because its current
   assignment still matches the agent. Private drafts remain operator-only.
-  Review-scope isolation across two same-target reviews and deleted/resolved
-  before-start variants still need separate evidence.
+  CR-079 review isolation across two same-target reviews is not established:
+  `localContext` v1 verifies the persisted dispatch but exposes only durable
+  chat ID/incarnation to the add-on, not the trusted dispatch ID of the current
+  prompt. The add-on currently authorises thread reads by assignment, so an
+  agent can address a known published thread in another review assigned to
+  that same chat. Requiring a caller-supplied dispatch ID could hide reviews
+  never dispatched to the chat, but could not guarantee that a prompt started
+  by R1 cannot pivot to separately dispatched R2. True per-prompt isolation
+  needs a host contract carrying its verified dispatch ID; no core change is
+  authorised in this checkpoint. Deleted/resolved before-start variants still
+  need separate evidence.
 - A disposable browser fixture now selects two of three public threads across
   files, verifies the visible selected count, target and summary, and confirms
   that Preview creates no dispatch. Explicit Confirm records one queue-mode
@@ -128,7 +137,9 @@ acceptance scenarios and are not full Piclaw integration proof.
   now shows each selected thread ID, guidance version, assignment epoch and
   saved snapshot-file ID from the inert server preview. Changing the selection
   or target requires Refresh preview before confirmation; a stale version is
-  re-read without creating an intent. These are still focused browser checks.
+  re-read without creating an intent. A delayed preview cannot reopen an old
+  selection after the user changes it while the request is in flight. These
+  are still focused browser checks.
 - The browser fixture now commits a public reply while losing its response,
   then retries from the same composer and receives the original reply without
   creating a second message or queueing another agent turn (focused CR-069).

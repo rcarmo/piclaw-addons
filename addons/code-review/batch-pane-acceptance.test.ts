@@ -472,6 +472,57 @@ test(
 );
 
 test(
+  "CR-106 in-flight preview cannot reopen a drawer after the selection changes",
+  async () => {
+    const harness = createHarness("in-flight");
+    let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
+    let release: (() => void) | undefined;
+    try {
+      const launched = await harness.launchPage();
+      browser = launched.browser;
+      const { page, errors } = launched;
+      await harness.waitForShell(page);
+      await harness.openReview(page);
+      await selectAcrossFiles(page, {
+        mainThreadId: harness.mainThreadId,
+        utilThreadId: harness.utilThreadId,
+      });
+      const gate = new Promise<void>((resolve) => { release = resolve; });
+      let intercepted!: () => void;
+      const previewStarted = new Promise<void>((resolve) => { intercepted = resolve; });
+      await page.route("**/agent/addons/api/code-review/action", async (route) => {
+        const body = JSON.parse(route.request().postData() || "{}");
+        if (body.action === "preview") {
+          intercepted();
+          await gate;
+        }
+        await route.continue();
+      });
+      await page.locator(".cr-toolbar [data-action=send]").click();
+      await previewStarted;
+      await page.locator(`[data-pick="${harness.utilThreadId}"]`).uncheck();
+      expect(await page.locator(".cr-toolbar [data-action=send]").textContent()).toContain("(1)");
+      release?.();
+      await page.waitForTimeout(150);
+      expect(await page.locator(".cr-drawer").count()).toBe(0);
+      expect(harness.store.listDispatches(harness.operator, harness.reviewId)).toEqual([]);
+      expect(harness.queueCalls).toHaveLength(0);
+      await page.unroute("**/agent/addons/api/code-review/action");
+      await page.locator(".cr-toolbar [data-action=send]").click();
+      await page.waitForSelector(".cr-send-preview li");
+      expect(await page.locator(".cr-send-preview li").count()).toBe(1);
+      expect(await page.locator(".cr-send-preview li").first().getAttribute("data-preview-thread")).toBe(harness.mainThreadId);
+      expect(errors).toEqual([]);
+    } finally {
+      release?.();
+      await browser?.close();
+      await harness.cleanup();
+    }
+  },
+  45_000,
+);
+
+test(
   "CR-106 slice: a changed preview is rejected before enqueue and the drawer keeps the conflict bounded",
   async () => {
     const harness = createHarness("conflict");
