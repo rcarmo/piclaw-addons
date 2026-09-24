@@ -87,6 +87,13 @@ acceptance scenarios and are not full Piclaw integration proof.
   file/thread references through public service methods. Transaction counts,
   foreign-key checks and orphan checks stay unchanged after rejection and reopen.
   They do not cover every projection and delivery mutation path.
+- A copied-store CR-182 adapter fixture checks retained snapshot/thread/draft
+  and unknown receipt state after reopen. A new host workspace ID is denied
+  even with an identical relative file path; an explicitly simulated old ID
+  can inspect retained records but sees same-byte live content at a new inode
+  as `replaced`. The unknown delivery is not re-enqueued. Because the fixture
+  supplies fake trusted contexts, this does not prove a real restored host
+  derives/grants the old workspace ID or authorises the old agent binding.
 - A browser draft-save failure now blocks detaching with unpublished text intact.
   Retrying after storage recovers saves the same draft; the pane updates its
   saved/unsaved label on acknowledgement. A focused CR-088 browser check also
