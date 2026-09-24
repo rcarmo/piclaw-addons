@@ -137,8 +137,11 @@ acceptance scenarios and are not full Piclaw integration proof.
 - Focused CR-078/080/081 adapter tests reject body-forged authority fields,
   unavailable targets, reused chat incarnations, wrong owner/workspace IDs,
   traversal, symlinks and crafted Git revisions without creating review work.
-  Their fake `LocalContext` does not establish host auth/CSRF (CR-077) or the
-  unresolved trusted-dispatch isolation for CR-079.
+  A separate real disposable Classic-host CR-077 probe sends a foreign-Origin
+  Code Review create POST; the host returns 403 before `reviews.db` is created.
+  The Explorer/comment and loopback-provider flow still pass after that probe.
+  This proves the cross-origin guard in the no-auth single-user fixture, not
+  authenticated-session denial; CR-079 trusted-dispatch isolation is unresolved.
 - File-backed delivery tests now check concurrent claim-once queueing, independent
   completed/blocked item states, numbered retries after definite rejection,
   unknown delivery without replay and explicit reconciliation against the

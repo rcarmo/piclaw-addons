@@ -164,6 +164,18 @@ hostTest(
         await Bun.sleep(500);
       }
       if (!ready) throw Error("Fixture did not start: " + log.slice(-6000));
+      // CR-077: the real host guard rejects a foreign-origin mutation before
+      // the add-on handler can create review state or queue agent work.
+      const foreign = await fetch(url + "/agent/addons/api/code-review/action", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Origin: "https://evil.example" },
+        body: JSON.stringify({ action: "create", path: "review-fixture.ts", target: { agentName: "worker" }, requestId: "foreign-origin" }),
+      });
+      expect(foreign.status).toBe(403);
+      const foreignResult = await foreign.json() as { error?: string };
+      expect(foreignResult.error).toBe("Origin not allowed");
+      const reviewDb = join(paths.data, "addons", "code-review", "reviews.db");
+      expect(existsSync(reviewDb)).toBe(false);
       browser = await chromium.launch({
         headless: true,
         executablePath: process.env.PICLAW_REVIEW_TEST_BROWSER || undefined,
