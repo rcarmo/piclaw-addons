@@ -58,7 +58,11 @@ acceptance scenarios and are not full Piclaw integration proof.
   delivery and copied-backup access checks. A focused CR-056/057 browser fixture
   now labels missing/ambiguous projections as not mapped in the drawer, places
   no marker on an arbitrary refreshed line, and jumps back to the immutable
-  original discussion. Manual re-anchor browser confirmation still needs work. Unknown file identity never grants
+  original discussion. The same browser fixture explicitly selects a new range
+  on the ambiguous snapshot, prompts for the thread and confirmation, and
+  records a manual projection without changing the S1 anchor or comment body;
+  no queue call is made. Resolved reopen-and-re-anchor browser behavior remains
+  a separate acceptance gap. Unknown file identity never grants
   same-path projection; Git rename requires a matching old-side blob. The
   `currentSource` check returns no live source bytes or digest, and reports
   `unverified` when no saved-file identity is available.

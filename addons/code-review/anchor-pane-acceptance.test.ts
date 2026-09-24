@@ -45,6 +45,12 @@ test("CR-056/057 missing and ambiguous projections stay off source rows while or
     browser = await chromium.launch({ headless: true, executablePath: process.env.PICLAW_REVIEW_TEST_BROWSER || undefined, args: ["--no-sandbox"], env });
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     const errors: string[] = []; page.on("pageerror", (error) => errors.push(error.message));
+    const dialogs: string[] = [];
+    page.on("dialog", async (dialog) => {
+      dialogs.push(dialog.message());
+      if (dialog.type() === "prompt") await dialog.accept(thread.threadId);
+      else await dialog.accept();
+    });
     await page.goto(server.url.href); await page.waitForFunction(() => (window as any).__codeReviewReady === true);
     await page.evaluate((path: string) => (window as any).__piclaw_web.openPane({ path }), `piclaw://addon/code-review/${created.reviewId}`);
     await page.waitForSelector(".cr-line");
@@ -64,6 +70,18 @@ test("CR-056/057 missing and ambiguous projections stay off source rows while or
       expect(await page.locator(`#cr-${thread.threadId} .cr-message-body`).innerText()).toContain("Handle the original concern");
       expect(store.getThread(ctx, thread.threadId).anchor).toEqual(anchor);
     }
+    await page.locator("#cr-snapshot").selectOption(snapshots[2]!);
+    const ambiguousFile = store.snapshotFiles(ctx, created.reviewId, snapshots[2]!)[0]!;
+    await page.waitForFunction((hash) => document.querySelector(".cr-file-header .cr-muted")?.textContent?.includes(hash) === true, ambiguousFile.new_hash!.slice(0, 10));
+    expect(await page.locator(`#cr-${thread.threadId}`).count()).toBe(0);
+    await page.locator('.cr-line [data-action=select-line][data-line="9"]').click();
+    await page.locator('[data-action=reanchor]').click();
+    await page.waitForFunction((id) => document.querySelector(`#cr-${id}`) !== null, thread.threadId);
+    expect(dialogs).toEqual(["Thread ID to re-anchor", "Re-anchor this concern?"]);
+    expect(store.getThread(ctx, thread.threadId).anchor).toEqual(anchor);
+    expect(store.getThread(ctx, thread.threadId).messages[0]?.body).toBe("Handle the original concern");
+    expect(store.project(ctx, thread.threadId, ambiguousFile.id)).toMatchObject({ method: "manual", startLine: 9, endLine: 9 });
+    expect(await page.locator(`#cr-${thread.threadId} header .cr-muted`).innerText()).toContain("source lines 9–9");
     expect(queueCalls).toBe(0); expect(errors).toEqual([]);
   } finally { await browser?.close(); server?.stop(true); store.close(); rmSync(root, { recursive: true, force: true }); }
 }, 45_000);
