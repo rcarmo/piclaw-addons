@@ -347,6 +347,11 @@ acceptance scenarios and are not full Piclaw integration proof.
   dispatch, item, attempt or queue call. Reload discards transient selection;
   no Viewed/read-progress table or control exists. Other non-mutating views
   and host-level navigation still need separate checks.
+- A real authenticated Classic host fixture also leaves the pane open for
+  65 seconds with and without a completed local-provider dispatch. It records
+  no additional Code Review API requests, provider requests or dispatch rows
+  during that window. This does not establish cancellation, hidden-pane or
+  multi-hour idle budgets.
 - A CR-076/165 reload fixture leaves a browser open while an agent reply,
   work outcome, resolution and newer saved-source snapshot are written to the
   owned store. No recurring browser API calls or enqueue occur while idle;

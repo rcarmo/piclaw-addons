@@ -227,8 +227,10 @@ hostTest(
       }
       let page = await context.newPage();
       const browserDestinations: string[] = [];
+      const reviewActions: string[] = [];
       page.on("request", (request) => {
         if (/^https?:/.test(request.url())) browserDestinations.push(request.url());
+        if (request.url().includes("/agent/addons/api/code-review/action")) reviewActions.push(request.url());
       });
       const errors: string[] = [];
       page.on("pageerror", (error) => {
@@ -564,6 +566,19 @@ hostTest(
         try { expect((after.query("SELECT COUNT(*) AS n FROM dispatches").get() as { n: number }).n).toBe(before); }
         finally { after.close(); }
         expect(provider?.requests.length ?? 0).toBe(providerBefore);
+      }
+      if (process.env.PICLAW_REVIEW_IDLE_TEST === "1") {
+        const before = { actions: reviewActions.length, provider: provider?.requests.length ?? 0 };
+        const db = new Database(reviewDb, { readonly: true });
+        let dispatches: number;
+        try { dispatches = (db.query("SELECT COUNT(*) AS n FROM dispatches").get() as { n: number }).n; }
+        finally { db.close(); }
+        await page.waitForTimeout(65_000);
+        expect(reviewActions.length).toBe(before.actions);
+        expect(provider?.requests.length ?? 0).toBe(before.provider);
+        const after = new Database(reviewDb, { readonly: true });
+        try { expect((after.query("SELECT COUNT(*) AS n FROM dispatches").get() as { n: number }).n).toBe(dispatches); }
+        finally { after.close(); }
       }
       expect(errors).toEqual([]);
       console.log("REAL HOST PASS", {
