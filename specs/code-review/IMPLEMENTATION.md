@@ -138,7 +138,9 @@ acceptance scenarios and are not full Piclaw integration proof.
   does not prove a remote host receipt or all denial/cancellation branches.
 - Classic real-host Explorer → Review file → comment passed again on an owned
   fixture, including viewport widths 1440, 1024, 520 and 390px with no browser
-  page errors or paid provider calls. Visual did **not** reach the pane: its
+  page errors or paid provider calls. An add-on pane fixture at 390px also
+  uses keyboard Enter to select a three-line range, opens/posts its composer,
+  and closes the thread drawer with Escape and restored focus; no enqueue occurs. Visual did **not** reach the pane: its
   `visual/frontend/src/app/addon-boot.ts` currently exposes only settings and
   activity-bar registration, not `workspaceActionsVersion` or pane/workspace
   action registration. The optional Visual test now fails with that capability
