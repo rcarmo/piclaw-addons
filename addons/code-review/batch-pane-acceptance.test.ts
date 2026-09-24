@@ -399,7 +399,17 @@ test(
           .isChecked(),
       ).toBe(false);
       expect(await page.locator("#cr-summary").inputValue()).toBe(SUMMARY);
-      expect(await page.locator(".cr-drawer p").textContent()).toContain(
+      const previewItems = page.locator(".cr-send-preview li");
+      expect(await previewItems.count()).toBe(2);
+      expect(await previewItems.first().getAttribute("data-preview-thread")).toBe(harness.mainThreadId);
+      expect(await previewItems.nth(1).getAttribute("data-preview-thread")).toBe(harness.utilThreadId);
+      const firstPreview = await previewItems.first().innerText();
+      const secondPreview = await previewItems.nth(1).innerText();
+      expect(firstPreview).toContain("Guidance v1 · assignment 1");
+      expect(firstPreview).toContain(harness.mainFileId);
+      expect(secondPreview).toContain("Guidance v1 · assignment 1");
+      expect(secondPreview).toContain(harness.utilFileId);
+      expect(await page.locator(".cr-drawer p").last().textContent()).toContain(
         "Queue to Implementation behind current work. No interruption.",
       );
       expect(harness.queueCalls).toHaveLength(0);
@@ -527,6 +537,21 @@ test(
       expect(await page.locator(".cr-status").textContent()).toContain(
         "The record changed; reload before retrying.",
       );
+      expect(await page.locator(".cr-send-preview li").count()).toBe(2);
+      expect(await page.locator(".cr-send-preview li").nth(1).innerText()).toContain("Guidance v1");
+      expect(await page.locator('[data-action="confirm-send"]').isDisabled()).toBe(false);
+      await page.locator('[data-action="refresh-send-preview"]').click();
+      await page.waitForFunction(() => document.querySelector('.cr-send-preview li:nth-child(2)')?.textContent?.includes('Guidance v2'));
+      expect(await page.locator('.cr-send-preview li').nth(1).innerText()).toContain(harness.utilFileId);
+      await page.locator(`.cr-drawer [data-pick="${harness.otherThreadId}"]`).check();
+      expect(await page.locator('.cr-send-preview li').count()).toBe(0);
+      expect(await page.locator('[data-action="confirm-send"]').isDisabled()).toBe(true);
+      await page.locator('[data-action="refresh-send-preview"]').click();
+      await page.waitForFunction(() => document.querySelectorAll('.cr-send-preview li').length === 3);
+      expect(await page.locator('.cr-send-preview li').nth(2).getAttribute('data-preview-thread')).toBe(harness.otherThreadId);
+      expect(await page.locator('[data-action="confirm-send"]').isDisabled()).toBe(false);
+      expect(harness.store.listDispatches(harness.operator, harness.reviewId)).toEqual([]);
+      expect(harness.queueCalls).toHaveLength(0);
       expect(errors).toEqual([]);
     } finally {
       await browser?.close();

@@ -70,6 +70,14 @@ export class CodeReviewPane {
   private draftEpoch = 0;
   private busy = false;
   private pendingPayload: Record<string, unknown> | null = null;
+  private sendPreview: {
+    items: Array<{
+      threadId: string;
+      version: number;
+      assignmentEpoch: number;
+      anchor: { snapshotFileId: string };
+    }>;
+  } | null = null;
   private commentThreadVersion: number | undefined;
   private view: "source" | "unified" | "split" = "source";
   private wrap = false;
@@ -558,7 +566,7 @@ export class CodeReviewPane {
           )
           .join(
             "",
-          )}${this.hasMoreThreads ? button("more-threads", "More threads", "Load the next bounded page of review concerns.") : ""}${this.drawer === "send" ? `<textarea id="cr-summary" title="Optional overall instruction sent with selected thread references." placeholder="Overall guidance (optional)">${e(this.summary)}</textarea><p>Queue to ${e(this.activeTarget?.label)} behind current work. No interruption.</p>${button("confirm-send", "Queue selected review", "Queue one review; replies and resolutions remain per thread.", `data-settings-button="primary" ${!this.selected.size ? "disabled" : ""}`)}` : ""}</aside>`
+          )}${this.hasMoreThreads ? button("more-threads", "More threads", "Load the next bounded page of review concerns.") : ""}${this.drawer === "send" ? `<section class="cr-send-preview" aria-label="Selected guidance and saved source versions">${this.sendPreview ? `<strong>Selected guidance (${this.sendPreview.items.length})</strong><ol>${this.sendPreview.items.map((item) => `<li data-preview-thread="${e(item.threadId)}"><code title="Selected thread ID">${e(item.threadId)}</code><small>Guidance v${e(item.version)} · assignment ${e(item.assignmentEpoch)}</small><small>Snapshot file <code title="Saved snapshot file ID">${e(item.anchor.snapshotFileId)}</code></small></li>`).join("")}</ol>` : `<p>Selection or target changed. Refresh the preview before queueing.</p>`}</section><textarea id="cr-summary" title="Optional overall instruction sent with selected thread references." placeholder="Overall guidance (optional)">${e(this.summary)}</textarea><p>Queue to ${e(this.activeTarget?.label)} behind current work. No interruption.</p>${button("refresh-send-preview", "Refresh preview", "Check current guidance versions and source snapshots without queueing work.")}${button("confirm-send", "Queue selected review", "Queue one review; replies and resolutions remain per thread.", `data-settings-button="primary" ${!this.sendPreview || !this.selected.size ? "disabled" : ""}`)}` : ""}</aside>`
       : ""
   }`;
     const source = this.element.querySelector(".cr-source");
@@ -800,6 +808,8 @@ export class CodeReviewPane {
       case "close-drawer":
         this.drawer = null;
         this.sendIntent = null;
+        this.sendPreview = null;
+        this.pendingPayload = null;
         break;
       case "more-threads": {
         const rows = await this.api("threads", { after: this.threadPageAfter });
@@ -1027,19 +1037,25 @@ export class CodeReviewPane {
         this.selected.add(t().id);
         this.activeTarget = t().target; // fall through
       case "send":
+      case "refresh-send-preview":
+        this.sendPreview = null;
+        this.sendIntent = null;
+        this.pendingPayload = null;
+        if (name === "refresh-send-preview") await this.reloadThreads();
+        if (!this.selected.size) throw Error("No open selected threads remain; select guidance again.");
         this.pendingPayload = {
           target: { ...this.activeTarget },
           items: this.selectionItems(),
           summary: this.summary,
         };
-        await this.api("preview", this.pendingPayload);
+        this.sendPreview = await this.api("preview", this.pendingPayload);
         this.sendIntent = requestId();
         this.drawer = "send";
+        this.status = "";
         break;
       case "confirm-send": {
         const intent = this.sendIntent;
-        if (!intent) throw Error("Preview the review before sending.");
-        if (!this.pendingPayload)
+        if (!intent || !this.pendingPayload || !this.sendPreview)
           throw Error("Preview the review before sending.");
         const result = await this.api("send", {
           ...this.pendingPayload,
@@ -1051,6 +1067,8 @@ export class CodeReviewPane {
         this.drawer = null;
         this.selected.clear();
         this.sendIntent = null;
+        this.sendPreview = null;
+        this.pendingPayload = null;
         break;
       }
       case "refresh":
@@ -1270,12 +1288,9 @@ export class CodeReviewPane {
           ? this.selected.add(el.dataset.pick)
           : this.selected.delete(el.dataset.pick);
         if (this.drawer === "send") {
-          this.pendingPayload = {
-            target: { ...this.activeTarget },
-            items: this.selectionItems(),
-            summary: this.summary,
-          };
-          this.sendIntent = requestId();
+          this.pendingPayload = null;
+          this.sendPreview = null;
+          this.sendIntent = null;
         }
       } else if (el.id === "cr-target") {
         const selected = this.targets.find((t) => t.chatJid === el.value);
@@ -1285,6 +1300,8 @@ export class CodeReviewPane {
           label: selected.label,
         };
         this.sendIntent = null;
+        this.sendPreview = null;
+        this.pendingPayload = null;
       } else if (el.id === "cr-snapshot") {
         if (this.dirty) throw Error("Save the comment draft first.");
         this.snapshotId = el.value;

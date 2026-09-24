@@ -81,6 +81,10 @@ export const styles = `
 .cr-drawer>header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
 .cr-drawer-item{display:flex;flex-wrap:wrap;align-items:center;gap:7px;padding:10px 0;border-bottom:1px solid var(--border-color)}
 .cr-drawer-item small{width:100%}
+.cr-send-preview{margin-top:12px;font-size:12px;color:var(--text-secondary)}
+.cr-send-preview ol{margin:8px 0;padding-left:20px}
+.cr-send-preview li{padding:5px 0;overflow-wrap:anywhere}
+.cr-send-preview li small{display:block}
 .cr-drawer>textarea{width:100%;margin-top:12px;min-height:75px}
 .cr-drawer>p{font-size:12px;color:var(--text-secondary)}
 .cr-pane[data-medium=true] .cr-files{display:none}

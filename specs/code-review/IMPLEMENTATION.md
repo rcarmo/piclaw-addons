@@ -111,16 +111,24 @@ acceptance scenarios and are not full Piclaw integration proof.
   all-or-nothing rejection of changed, retargeted, deleted or cross-review
   items. Matching intent IDs reuse a single dispatch; conflicting payloads
   fail, and a deleted item before enqueue rejects the batch without delivery.
-  This is focused CR-104–110 service coverage, not the browser batch workflow
-  or the accepted-then-agent-start authority check.
+  The accepted-then-agent-start adapter check now verifies per-item authority:
+  after one selected item is reassigned to a new chat incarnation, its dispatch
+  entry is body-free/superseded and its thread unavailable to the old agent;
+  the other selected item remains readable. The unselected published thread
+  stays out of the dispatch, but is directly readable because its current
+  assignment still matches the agent. Private drafts remain operator-only.
+  Review-scope isolation across two same-target reviews and deleted/resolved
+  before-start variants still need separate evidence.
 - A disposable browser fixture now selects two of three public threads across
   files, verifies the visible selected count, target and summary, and confirms
   that Preview creates no dispatch. Explicit Confirm records one queue-mode
   dispatch with ordered file IDs, omits the unselected thread/private draft,
   and does not enqueue again on reload. A changed thread before Confirm leaves
-  the selection and drawer visible with a conflict and no enqueue. The pane
-  does not yet show guidance versions or snapshot IDs in the preview drawer;
-  those are asserted from persisted dispatch state.
+  the selection and drawer visible with a conflict and no enqueue. The drawer
+  now shows each selected thread ID, guidance version, assignment epoch and
+  saved snapshot-file ID from the inert server preview. Changing the selection
+  or target requires Refresh preview before confirmation; a stale version is
+  re-read without creating an intent. These are still focused browser checks.
 - The browser fixture now commits a public reply while losing its response,
   then retries from the same composer and receives the original reply without
   creating a second message or queueing another agent turn (focused CR-069).
