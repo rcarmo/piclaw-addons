@@ -2,6 +2,7 @@ import { test, expect } from "bun:test";
 import {
   compareSource,
   highlightSource,
+  highlightSourcePage,
   sourceLines,
 } from "./render-source.js";
 test("CR-147/148/149 tokenise complete source context and preserve text", () => {
@@ -29,6 +30,21 @@ test("CR-082/121/150/151 hostile or unsupported source stays escaped plain text"
   expect(highlightSource("README.md", "# Heading").lines[0]?.html).toContain(
     "tok-heading",
   );
+});
+test("paged fallback escapes only requested lines and leaves cached token pages isolated", () => {
+  const long = Array.from({ length: 3000 }, (_, i) => `<line ${i + 1}>`).join("\n");
+  const fallback = highlightSourcePage("large.ts", long, 2500, 5);
+  expect(fallback).toMatchObject({ highlighted: false, total: 3000 });
+  expect(fallback.lines.map((line) => line.number)).toEqual([2501, 2502, 2503, 2504, 2505]);
+  expect(fallback.lines[0]?.html).toBe("&lt;line 2501&gt;");
+  expect(highlightSourcePage("large.ts", long, 0, 5, new Set([9, 2, null])).lines.map((line) => line.number)).toEqual([2, 9]);
+  const first = highlightSourcePage("small.ts", "const answer = 42;\n", 0, 1);
+  first.lines[0]!.html = "mutated";
+  expect(highlightSourcePage("small.ts", "const answer = 42;\n", 0, 1).lines[0]!.html).not.toBe("mutated");
+  const direct = highlightSource("small.ts", "const answer = 42;\n");
+  direct.lines[0]!.html = "poisoned";
+  expect(highlightSource("small.ts", "const answer = 42;\n").lines[0]!.html).not.toBe("poisoned");
+  expect(highlightSourcePage("small.ts", "const answer = 42;\n", 0, 1).lines[0]!.html).not.toBe("poisoned");
 });
 test("CR-130 diff coordinates come from independent snapshots", () => {
   expect(compareSource("one\ntwo\nthree\n", "one\nchanged\nthree\n")).toEqual([

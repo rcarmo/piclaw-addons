@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { ReviewService, type DispatchInput } from "./dispatch.js";
 import { SourceReader, type CaptureRequest } from "./source.js";
-import { compareSource, highlightSource } from "./render-source.js";
+import { compareSource, highlightSourcePage, type DiffRow } from "./render-source.js";
 import { renderComment } from "./markdown.js";
 import {
   getRuntime,
@@ -17,6 +17,41 @@ interface ServiceState {
   close: () => void;
 }
 const states = new Map<string, ServiceState>();
+// Cache only small immutable diff rows; the large permitted files still use
+// the computation budget on each request rather than holding many expanded rows.
+// Scope by service (owned SQLite store), review and snapshot file.
+const diffPages = new WeakMap<ReviewService, Map<string, DiffRow[]>>();
+const DIFF_CACHE_BYTES = 256 * 1024;
+const DIFF_CACHE_ROWS = 10_000;
+const DIFF_CACHE_ROW_BYTES = 512 * 1024;
+function diffForFile(service: ReviewService, reviewId: string, file: {
+  id: string; oldText: string | null; newText: string | null;
+}): DiffRow[] {
+  const key = `${reviewId}:${file.id}`;
+  let cache = diffPages.get(service);
+  const hit = cache?.get(key);
+  if (hit) {
+    cache!.delete(key);
+    cache!.set(key, hit);
+    return hit;
+  }
+  const rows = compareSource(file.oldText, file.newText);
+  const inputBytes = Buffer.byteLength(file.oldText ?? "") + Buffer.byteLength(file.newText ?? "");
+  if (inputBytes <= DIFF_CACHE_BYTES && rows.length <= DIFF_CACHE_ROWS) {
+    let rowBytes = 0;
+    for (const row of rows) {
+      rowBytes += Buffer.byteLength(row.text);
+      if (rowBytes > DIFF_CACHE_ROW_BYTES) break;
+    }
+    if (rowBytes <= DIFF_CACHE_ROW_BYTES) {
+      cache ??= new Map();
+      if (cache.size >= 2) cache.delete(cache.keys().next().value!);
+      cache.set(key, rows);
+      diffPages.set(service, cache);
+    }
+  }
+  return rows;
+}
 export function reviewService(): ReviewService {
   const runtime = getRuntime();
   if (runtime?.localContext?.version !== 1 || runtime.messaging?.version !== 1)
@@ -172,34 +207,19 @@ export async function reviewAction(
       if (!Number.isSafeInteger(offset) || offset < 0)
         throw new ReviewError("invalid_input", "Invalid line offset.");
       pageSize(limit, 1000);
-      const path = file.new_path || file.old_path || "";
-      const old = highlightSource(path, file.oldText ?? ""),
-        next = highlightSource(path, file.newText ?? "");
-      const diff =
-        file.change_kind === "source"
-          ? null
-          : compareSource(file.oldText, file.newText);
-      const page = diff?.slice(offset, offset + limit);
-      const oldNumbers = new Set(page?.map((row) => row.oldLine)),
-        newNumbers = new Set(page?.map((row) => row.newLine));
+      const diff = file.change_kind === "source"
+        ? null : diffForFile(service, body.reviewId, file);
+      const page = diff?.slice(offset, offset + limit).map((row) => ({ ...row }));
+      const oldNumbers = page ? new Set(page.map((row) => row.oldLine)) : undefined;
+      const newNumbers = page ? new Set(page.map((row) => row.newLine)) : undefined;
+      const old = highlightSourcePage(file.old_path ?? "", file.oldText ?? "", offset, limit, oldNumbers),
+        next = highlightSourcePage(file.new_path ?? "", file.newText ?? "", offset, limit, newNumbers);
       return {
         ...file,
         oldText: undefined,
         newText: undefined,
-        old: {
-          ...old,
-          lines: page
-            ? old.lines.filter((line) => oldNumbers.has(line.number))
-            : old.lines.slice(offset, offset + limit),
-          total: old.lines.length,
-        },
-        new: {
-          ...next,
-          lines: page
-            ? next.lines.filter((line) => newNumbers.has(line.number))
-            : next.lines.slice(offset, offset + limit),
-          total: next.lines.length,
-        },
+        old,
+        new: next,
         diff: page ?? null,
         diffTotal: diff?.length ?? 0,
         offset,

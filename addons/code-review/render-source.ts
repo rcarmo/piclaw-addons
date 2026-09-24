@@ -73,7 +73,9 @@ const tokenCache = new Map<
   string,
   { language: string; highlighted: boolean; lines: CodeLine[] }
 >();
-export function highlightSource(path: string, text: string) {
+const copyHighlight = (value: { language: string; highlighted: boolean; lines: CodeLine[] }) =>
+  ({ ...value, lines: value.lines.map((line) => ({ ...line })) });
+function highlightSourceCached(path: string, text: string) {
   const language = languageFor(path),
     cacheKey = `${language}:v1:${hashText(text)}`;
   const hit = tokenCache.get(cacheKey);
@@ -145,6 +147,39 @@ export function highlightSource(path: string, text: string) {
   if (tokenCache.size >= 16) tokenCache.delete(tokenCache.keys().next().value!);
   tokenCache.set(cacheKey, result);
   return result;
+}
+export function highlightSource(path: string, text: string) {
+  return copyHighlight(highlightSourceCached(path, text));
+}
+// Large/unsupported source never needs full-file HTML for a bounded page.
+// Keep line coordinates from the complete immutable snapshot, escape only selected rows.
+export function highlightSourcePage(
+  path: string,
+  text: string,
+  offset: number,
+  limit: number,
+  selectedLines?: Set<number | null>,
+) {
+  const language = languageFor(path);
+  const raw = sourceLines(text);
+  if (Buffer.byteLength(text) <= 96 * 1024 && raw.length <= 2500 && language !== "text") {
+    const result = highlightSourceCached(path, text);
+    const page = selectedLines ? result.lines.filter((line) => selectedLines.has(line.number)) : result.lines.slice(offset, offset + limit);
+    return { ...result, total: result.lines.length, lines: page.map((line) => ({ ...line })) };
+  }
+  const lines: CodeLine[] = [];
+  if (selectedLines) {
+    for (const number of selectedLines) {
+      if (number === null || number < 1 || number > raw.length) continue;
+      const value = raw[number - 1]!;
+      lines.push({ number, text: value, html: escapeHtml(value) });
+    }
+    lines.sort((a, b) => a.number - b.number);
+  } else for (let index = Math.min(offset, raw.length); index < Math.min(raw.length, offset + limit); index++) {
+    const value = raw[index]!;
+    lines.push({ number: index + 1, text: value, html: escapeHtml(value) });
+  }
+  return { language, highlighted: false, total: raw.length, lines };
 }
 export function compareSource(
   oldText: string | null,

@@ -280,11 +280,36 @@ test("CR-089 file pages stay bounded under long permitted source via the real ac
     expect(page.new.lines[0]).toMatchObject({ number: 2501, text: "<row 2501>" });
     expect(page.new.lines[0]?.html).toBe("&lt;row 2501&gt;");
     expect(page.new.lines.at(-1)).toMatchObject({ number: 2525, text: "<row 2525>" });
+    const later = await reviewAction(f.ctx, "file", {
+      reviewId: created.reviewId, fileId: created.files[0], offset: 2525, limit: 25,
+    }, f.service) as typeof page;
+    expect(later.new.lines[0]).toMatchObject({ number: 2526, html: "&lt;row 2526&gt;" });
+    expect(later.new.lines).toHaveLength(25);
+    expect(later.new.total).toBe(page.new.total);
   } finally {
     f.cleanup();
   }
 });
 
+test("CR-119 a renamed diff uses each side's original file extension for highlighting", async () => {
+  const f = runtimeFixture("placeholder.ts", "const placeholder = true;\n");
+  try {
+    const capture: SourceCapture = {
+      workspaceId: f.who.workspaceId, worktreeId: "worktree-rename", mode: "staged",
+      base: "base", head: "head", capturedAt: new Date().toISOString(),
+      files: [{ oldPath: "notes.md", newPath: "notes.ts", oldText: "# Heading\n", newText: "const heading = 1;\n", change: "renamed", fileIdentity: null }],
+    };
+    const review = f.service.createFromCapture(f.who,
+      { title: "Rename", focusPath: "notes.md", target: f.target }, capture, { requestId: "rename-highlight" });
+    const page: any = await reviewAction(f.ctx, "file", {
+      reviewId: review.reviewId, fileId: review.files[0], offset: 0, limit: 10,
+    }, f.service);
+    expect(page.old.language).toBe("markdown");
+    expect(page.new.language).toBe("typescript");
+    expect(htmlAt(page.old.lines, 1)).toContain("tok-heading");
+    expect(htmlAt(page.new.lines, 1)).toContain("tok-keyword");
+  } finally { f.cleanup(); }
+});
 test("CR-119 diff pages highlight each snapshot independently before slicing", async () => {
   const f = runtimeFixture("placeholder.ts", "const placeholder = true;\n");
   const oldText =
@@ -336,6 +361,18 @@ test("CR-119 diff pages highlight each snapshot independently before slicing", a
     expect(htmlAt(page.old.lines, 2)).toContain("tok-comment");
     expect(htmlAt(page.new.lines, 2)).not.toContain("tok-comment");
     expect(htmlAt(page.new.lines, 3)).toContain("tok-string2");
+    const next = await reviewAction(f.ctx, "file", {
+      reviewId: review.reviewId, fileId: review.files[0], offset: 3, limit: 3,
+    }, f.service) as typeof page;
+    expect(next.old.total).toBe(page.old.total);
+    expect(next.new.total).toBe(page.new.total);
+    expect(next.new.lines.some((line) => line.number === 3 && line.html.includes("tok-string2"))).toBe(true);
+    const savedRow = (next as any).diff[0];
+    savedRow.text = "poisoned diff";
+    const repeated: any = await reviewAction(f.ctx, "file", {
+      reviewId: review.reviewId, fileId: review.files[0], offset: 3, limit: 3,
+    }, f.service);
+    expect(repeated.diff[0].text).not.toBe("poisoned diff");
   } finally {
     f.cleanup();
   }
