@@ -91,6 +91,7 @@ export class CodeReviewPane {
   private threadFilter = "all";
   private page = 0;
   private loadEpoch = 0;
+  private filesEpoch = 0;
   private loading = false;
   private observer: ResizeObserver;
   private moreMenu = false;
@@ -301,10 +302,16 @@ export class CodeReviewPane {
     }
   }
   private async loadFiles() {
-    if (!this.snapshotId) return;
-    this.files = await this.api("files", { snapshotId: this.snapshotId });
-    if (!this.files.some((f) => f.id === this.fileId))
-      this.fileId = this.files[0]?.id || "";
+    const epoch = ++this.filesEpoch;
+    // Invalidate any older file/projection request as soon as the snapshot changes.
+    ++this.loadEpoch;
+    const snapshotId = this.snapshotId;
+    if (!snapshotId) return;
+    const files = await this.api<any[]>("files", { snapshotId });
+    if (epoch !== this.filesEpoch || snapshotId !== this.snapshotId || this.disposed) return;
+    this.files = files;
+    if (!files.some((f) => f.id === this.fileId))
+      this.fileId = files[0]?.id || "";
     this.page = 0;
     await this.loadContent();
   }

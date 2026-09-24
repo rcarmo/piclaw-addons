@@ -196,7 +196,11 @@ acceptance scenarios and are not full Piclaw integration proof.
   1.79 MiB saved-source fixture measured roughly 9–13 ms per 300-line page
   before the current change; a 159 KiB staged diff measured roughly 2–4 ms.
   The file action now splits the source for line coordinates but escapes only
-  requested rows on large/plain fallback pages. A browser fixture pages a
+  requested rows on large/plain fallback pages. A CR-152 browser race fixture
+  holds old snapshot file-list and file-content responses while S2 is selected:
+  late S1 responses cannot start stale file/projection reads or repaint S2.
+  `loadFiles()` now invalidates in-flight content immediately and checks its
+  own snapshot epoch before changing pane state. No queue work is triggered. A browser fixture pages a
   permitted source above the 96 KiB/2500-line highlighting threshold through
   300-line pages, preserving tabs, blank lines and escaped HTML-like text;
   a line-301 comment remains on its original snapshot without a source edit or
