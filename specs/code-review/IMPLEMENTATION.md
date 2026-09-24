@@ -169,10 +169,13 @@ acceptance scenarios and are not full Piclaw integration proof.
   1.79 MiB saved-source fixture measured roughly 9–13 ms per 300-line page
   before the current change; a 159 KiB staged diff measured roughly 2–4 ms.
   The file action now splits the source for line coordinates but escapes only
-  requested rows on large/plain fallback pages. It caches small immutable diff
-  row sets per service and file (two entries, bounded by input, row count and
-  row-text bytes), and copies output rows to avoid callers mutating a cached
-  page. Near-limit diffs still recompute under the existing timeout. These
+  requested rows on large/plain fallback pages. A browser fixture pages a
+  permitted source above the 96 KiB/2500-line highlighting threshold through
+  300-line pages, preserving tabs, blank lines and escaped HTML-like text;
+  a line-301 comment remains on its original snapshot without a source edit or
+  enqueue. It caches small immutable diff row sets per service and file (two
+  entries, bounded by input, row count and row-text bytes), and copies output
+  rows to avoid callers mutating a cached page. Near-limit diffs still recompute under the existing timeout. These
   numbers are observations, not test thresholds; cancellation, worker-offload,
   repeated-tab idle usage and broad performance gates remain open.
 - Multi-file batch tests now cover ordered selection of two saved source files,
