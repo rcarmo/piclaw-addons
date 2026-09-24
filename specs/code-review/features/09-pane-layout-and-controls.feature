@@ -129,11 +129,11 @@ Feature: Review code in a compact Piclaw pane with familiar controls
     And source remains selectable through keyboard or explicit range controls without requiring hover
     And compact source rows do not inherit large toolbar-button minimum heights
 
-  Scenario: CR-138 Match Settings and Add-ons action-button appearance in each skin
-    Given reference secondary, primary and danger actions render in the active skin's Settings add-on surface
+  Scenario: CR-138 Match Classic Settings and Add-ons action-button appearance
+    Given reference secondary, primary and danger actions render in Classic's Settings add-on surface
     When equivalent review actions render and enter hover, focus-visible or disabled states
     Then their font, padding, border, radius, theme colours and state styling match those host controls
-    And Classic and Visual retain their respective sizing and typography contracts
+    And Classic sizing and typography match its host controls
     And primary text uses the host accent-contrast foreground
     And ordinary Reply, Resolve, Post and Send actions do not use unrelated compact or link variants
 

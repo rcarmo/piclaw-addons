@@ -191,7 +191,7 @@ and complete. No implementation or executed behaviour tests are claimed.
 - **CR-084** — Review content is not sent to external services by opening a pane
 - **CR-085** — Keyboard users can annotate and converse
 - **CR-086** — Tablet users can target a precise range
-- **CR-087** — Classic and Visual retain usable narrow layouts
+- **CR-087** — Classic retains usable narrow layouts
 - **CR-088** — Preserve draft safety on Escape and tab close
 - **CR-089** — Keep idle work bounded
 - **CR-090** — Export and clipboard actions do not leak by implication
@@ -222,7 +222,7 @@ and complete. No implementation or executed behaviour tests are claimed.
 - **CR-135** — Use the thread drawer to find current and outdated concerns
 - **CR-136** — Adapt to pane width rather than browser width
 - **CR-137** — Keep narrow controls reachable without inflating code rows
-- **CR-138** — Match Settings and Add-ons action-button appearance in each skin
+- **CR-138** — Match Classic Settings and Add-ons action-button appearance
 - **CR-139** — Keep icon controls consistent without duplicating the tab close action
 - **CR-140** — Keep control help meaningful after updates
 - **CR-141** — Present queue feedback only after an actual send attempt

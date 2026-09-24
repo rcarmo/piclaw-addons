@@ -65,12 +65,12 @@ Feature: Keep reviews local authorised accessible and bounded
     And source scrolling does not accidentally post or delete a comment
     And the reply controls remain reachable with the on-screen keyboard open
 
-  Scenario: CR-087 Classic and Visual retain usable narrow layouts
-    Given the pane is opened in each supported skin and light or dark theme
+  Scenario: CR-087 Classic retains usable narrow layouts
+    Given the pane is opened in Classic with a light or dark theme
     When its viewport is resized through desktop, tablet, 520px and 390px widths
     Then the source and thread areas can be switched or resized without hidden actions
     And comments, controls and status text do not clip outside the pane
-    And text fields and buttons follow the corresponding core skin's control contract
+    And text fields and buttons follow Classic's control contract
     And long lines can scroll without pushing the conversation controls off-screen
 
   Scenario: CR-088 Preserve draft safety on Escape and tab close

@@ -4,6 +4,17 @@ Branch `feat/code-review`, worktree `code-review-implementation`. Implementation
 was authorised on 23 September 2026. No merge, runtime installation or restart
 has been requested by this branch.
 
+## Active Classic scope (24 September)
+
+The operator removed Visual from the current delivery scope. Classic is the only
+skin in the active integration and release checks. The 184 scenario IDs stay
+intact. CR-087 and CR-138 now specify Classic-only behaviour; historical
+cross-skin mock evidence does not establish Classic host acceptance. Do not create one host test per scenario. Group
+release-critical assertions into a few real disposable-host flows and record
+which steps they actually exercise. The other acceptance gaps, especially
+CR-079's trusted per-prompt review boundary, stay open. Publication, merge and
+live installation still require separate approval.
+
 ## Ownership
 
 - Add-on data/service/source/pane: @addons-3 (this worktree).
@@ -198,13 +209,9 @@ acceptance scenarios and are not full Piclaw integration proof.
   without remounting, even when the OS preference opposes the host theme and
   semantic success/danger colours coincide. Computed syntax, code surface,
   distinct add/delete washes, source-row geometry, selected range and draft
-  persist. This does not replace real Visual host, screen-reader, forced-colour
-  or full skin-parity testing. Visual did **not** reach the pane: its
-  `visual/frontend/src/app/addon-boot.ts` currently exposes only settings and
-  activity-bar registration, not `workspaceActionsVersion` or pane/workspace
-  action registration. The optional Visual test now fails with that capability
-  diagnostic. CR-087 and the Visual host contract are blocked until an approved
-  core change wires the generic workspace-action API into Visual.
+  persist. Screen-reader and forced-colour tests have not run on the Classic
+  host. The Visual diagnostic is historical only; Visual was removed from the
+  active delivery scope on 24 September.
 - A CR-010 browser fixture checks a root commit against the explicit empty
   tree and posts added-side guidance without changing checkout. It also
   exposed an unchanged-diff rendering bug: all-context rows appeared as a
@@ -350,10 +357,12 @@ acceptance scenarios and are not full Piclaw integration proof.
   and run them. `coverage.ts` deliberately reports acceptance pending; unit ID
   references are trace links only.
 - Integrate the tested core host contract and run actual queue/provenance/restart
-  and Classic/Visual browser tests on disposable Piclaw, not just the fake host.
+  and Classic browser tests on disposable Piclaw, not just the fake host.
+  Visual host and cross-skin parity tests are deferred by operator direction.
 - Full regression/typecheck/catalog/standalone/package/CI/platform gates and final
   compatibility version, docs/screenshots, review and approved merge/deployment.
 
-The complete original acceptance scope is unchanged. No catalogue entry has been
-published for this unfinished package; the compatibility range in package.json is
+The 184 scenario IDs remain available; CR-087 and CR-138 now test Classic only.
+No catalogue entry has been published
+for this unfinished package; the compatibility range in package.json is
 provisional and must be raised to the version providing the required host APIs.
