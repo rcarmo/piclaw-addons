@@ -1102,14 +1102,14 @@ function extractDelegateStatusArgs(args: unknown): Record<string, unknown> | nul
   return nested || record;
 }
 
-export function buildDelegateStatusUpdate(model: string, prompt: string): string {
-  return `Delegate model: ${model}\nArguments: ${delegateTaskPreview(prompt, 160)}`;
+export function buildDelegateStatusUpdate(model: string, prompt: string, count = 0): string {
+  return `Delegate${count > 0 ? ` (${count})` : ""} model: ${model}\nArguments: ${delegateTaskPreview(prompt, 160)}`;
 }
 
 function modelFromDelegateStatusPreview(payload: Record<string, unknown> | null): string | null {
   const preview = readTrimmedString(payload?.output_preview, payload?.outputPreview);
   if (!preview) return null;
-  const match = preview.match(/^Delegate model:\s*([^\n]+)/i);
+  const match = preview.match(/^Delegate(?: \(\d+\))? model:\s*([^\n]+)/i);
   return match?.[1]?.trim() || null;
 }
 
@@ -1144,9 +1144,9 @@ registerToolStatusHintProvider({
   },
 });
 
-function setDelegateProgress(ctx: any, options: { model: string; category: TaskCategory; prompt: string }): void {
+function setDelegateProgress(ctx: any, options: { model: string; category: TaskCategory; prompt: string }, count: number): void {
   const preview = delegateTaskPreview(options.prompt);
-  const message = `Delegating ${options.category} to ${options.model}: ${preview}`;
+  const message = `Delegate (${count}): ${options.category} to ${options.model}: ${preview}`;
   try { ctx?.ui?.setStatus?.(DELEGATE_STATUS_KEY, `🤝 ${message}`); } catch { /* UI may not support status in all modes */ }
   try { ctx?.ui?.setWorkingMessage?.(message); } catch { /* UI may not support working messages in all modes */ }
 }
@@ -1279,6 +1279,11 @@ if (typeof registerAddonConfigApi === "function") {
 // ── Extension ──────────────────────────────────────────────────
 
 export default function (pi: any) {
+  // Factory-local: concurrent calls share a count, other chat sessions do not.
+  const runningDelegates = new Map<symbol, (count: number) => void>();
+  const refreshProgress = () => {
+    for (const publish of runningDelegates.values()) publish(runningDelegates.size);
+  };
   const updateRuntimeCatalog = async (ctx: any) => {
     runtimeCatalogSnapshot = await captureRuntimeCatalog(ctx, runtimeCatalogSnapshot);
   };
@@ -1521,6 +1526,7 @@ export default function (pi: any) {
       remainingBudget("delegate setup");
       const attemptFailures: Array<{ model: string; kind: DelegateFailureKind; message: string }> = [];
       let lastAttemptedModel = effectiveModel;
+      const progressId = Symbol();
       try {
         for (let attempt = 0; attempt < modelChain.length; attempt += 1) {
           const attemptModel = modelChain[attempt];
@@ -1530,18 +1536,26 @@ export default function (pi: any) {
           lastAttemptedModel = attemptModel;
           const remainingMs = deadlineAt - Date.now();
           if (remainingMs <= 0) throw new Error(`timed out after ${timeout}s`);
-          setDelegateProgress(ctx, { model: attemptModel, category, prompt: params.prompt });
-          onUpdate?.(result(buildDelegateStatusUpdate(attemptModel, params.prompt), { status: "starting", model: attemptModel, attempt: attempt + 1 }));
+          let progress: DelegateProcessProgress | undefined;
+          const publishProgress = (count: number) => {
+            setDelegateProgress(ctx, { model: attemptModel, category, prompt: params.prompt }, count);
+            const text = buildDelegateStatusUpdate(attemptModel, params.prompt, count);
+            try {
+              onUpdate?.(result(progress ? `${text}\nProgress: ${progress.message}` : text, {
+                status: progress?.type ?? "starting", model: attemptModel, attempt: attempt + 1,
+                ...(progress ? { tool: progress.toolName, is_error: progress.isError } : {}),
+              }));
+            } catch { /* A stale progress callback must not fail another running delegate. */ }
+          };
+          runningDelegates.set(progressId, publishProgress);
+          refreshProgress();
           const piArgs = ["--mode", "json", "--no-session", "--no-extensions", "--model", attemptModel, "--tools", toolsArg, ...staticArgs];
           const processResult = await runDelegateProcess(
             piArgs,
             fullPrompt,
             remainingMs,
             signal,
-            (progress) => onUpdate?.(result(
-              `${buildDelegateStatusUpdate(attemptModel, params.prompt)}\nProgress: ${progress.message}`,
-              { status: progress.type, model: attemptModel, attempt: attempt + 1, tool: progress.toolName, is_error: progress.isError },
-            )),
+            (update) => { progress = update; publishProgress(runningDelegates.size); },
           );
 
           const processFailure = delegateProcessFailure(processResult);
@@ -1603,7 +1617,10 @@ export default function (pi: any) {
         }
         throw err;
       } finally {
-        clearDelegateProgress(ctx);
+        if (runningDelegates.delete(progressId)) {
+          if (runningDelegates.size) refreshProgress();
+          else clearDelegateProgress(ctx);
+        }
       }
     },
   });

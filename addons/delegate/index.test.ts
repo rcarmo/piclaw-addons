@@ -41,6 +41,8 @@ describe("delegate addon", () => {
     );
     expect(delegateStatusModelHint({ model: "anthropic/claude-sonnet-4.6", prompt })).toBe("anthropic/claude-sonnet-4.6");
     expect(delegateStatusModelHint({ prompt }, { output_preview: buildDelegateStatusUpdate("openai/gpt-5.4-mini", prompt) })).toBe("openai/gpt-5.4-mini");
+    expect(buildDelegateStatusUpdate("openai/gpt-5.4-mini", prompt, 2)).toStartWith("Delegate (2) model:");
+    expect(delegateStatusModelHint({ prompt }, { output_preview: buildDelegateStatusUpdate("openai/gpt-5.4-mini", prompt, 2) })).toBe("openai/gpt-5.4-mini");
   });
 
   test("parses pi model list output", () => {
@@ -809,6 +811,96 @@ anthropic       claude-sonnet-4.6  200K     32K      yes       yes
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+
+  test("parallel Delegate calls keep per-session text counts and clear only after the last exit", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "delegate-text-count-"));
+    const previousCli = process.env.PI_DELEGATE_CLI;
+    const globals = globalThis as any;
+    const previousRegistrar = globals.__piclaw_registerAddonConfigApi;
+    const controllers: AbortController[] = [];
+    const jobs: Promise<any>[] = [];
+    try {
+      const cli = join(dir, "cli.ts");
+      writeFileSync(cli, `import {existsSync,writeFileSync} from 'node:fs';
+        if(process.argv.includes('--list-models')) {
+          console.log('provider model context max-out thinking images');
+          console.log('github-copilot gpt-6-sol 1M 128K yes yes');
+          console.log('github-copilot gpt-6-luna 1M 128K yes yes');
+          process.exit(0);
+        }
+        const prompt=await Bun.stdin.text();
+        const key=prompt.match(/fixture-key:([a-z]+)/)[1];
+        const model=process.argv[process.argv.indexOf('--model')+1];
+        writeFileSync(${JSON.stringify(dir)}+'/'+key+'-'+model.split('/')[1], 'started');
+        if(key==='fallback'&&model.endsWith('sol')) {
+          console.log(JSON.stringify({type:'message_end',message:{role:'assistant',content:[],stopReason:'error',errorMessage:'No API key for provider'}}));process.exit(1);
+        }
+        while(!existsSync(${JSON.stringify(dir)}+'/'+key+'.finish')) await Bun.sleep(5);
+        if(key==='error'){console.error('fixture child failure');process.exit(2);}
+        console.log(JSON.stringify({type:'message_end',message:{role:'assistant',provider:'github-copilot',model:model.split('/')[1],content:[{type:'text',text:'OK'}],stopReason:'stop'}}));
+      `);
+      process.env.PI_DELEGATE_CLI = `${process.execPath} ${cli}`;
+      let api: any;
+      globals.__piclaw_registerAddonConfigApi = (_id: string, action: string, handler: any) => { if (action === 'config') api = handler; };
+      const module = await import(`./delegate.ts?count-test=${encodeURIComponent(dir)}`);
+      globals.__piclaw_registerAddonConfigApi = previousRegistrar;
+      await api.set({searchable_providers:['github-copilot'],excluded_providers:[],excluded_models:[]});
+      const makeSession = () => {
+        let tool: any;
+        module.default({on(){},registerTool(value: any){tool=value;}});
+        const working: Array<string|undefined> = [], statuses: Array<string|undefined> = [];
+        const ctx = { model:{provider:'github-copilot',id:'gpt-6-sol'},modelRegistry:{getAvailable(){return [];}},ui:{
+          setWorkingMessage(text: string|undefined){working.push(text);},
+          setStatus(_key: string,text: string|undefined){statuses.push(text);},
+        }};
+        return {tool,ctx,working,statuses};
+      };
+      const a=makeSession(), other=makeSession();
+      const start = (session: ReturnType<typeof makeSession>, key: string, params: any = {}, brokenUpdate = false) => {
+        const updates: string[] = [];
+        const controller=new AbortController();controllers.push(controller);
+        const done=session.tool.execute(key,{prompt:`fixture-key:${key}`,task_category:'code',tools:'read',timeout_sec:10,...params},controller.signal,(update:any)=>{
+          if(brokenUpdate)throw Error('closed UI');updates.push(update.content[0].text);
+        },session.ctx).then((value:any)=>({value}), (error:Error)=>({error}));
+        jobs.push(done);return {updates,controller,done};
+      };
+      const started = async (key: string, model='gpt-6-sol') => {
+        const deadline=Date.now()+3000;
+        while(!existsSync(join(dir,`${key}-${model}`))&&Date.now()<deadline)await Bun.sleep(5);
+        expect(existsSync(join(dir,`${key}-${model}`))).toBe(true);
+      };
+      const first=start(a,'first');await started('first');expect(first.updates.at(-1)).toContain('Delegate (1) model:');
+      const second=start(a,'second');await started('second');
+      expect(first.updates.at(-1)).toContain('Delegate (2) model:');expect(second.updates.at(-1)).toContain('Delegate (2) model:');
+      const foreign=start(other,'error');await started('error');
+      expect(foreign.updates.at(-1)).toContain('Delegate (1) model:');expect(a.working.at(-1)).toContain('Delegate (2):');
+      const denied=start(a,'denied',{model:'unapproved/unknown'});expect((await denied.done).error).toBeTruthy();
+      expect(a.working.at(-1)).toContain('Delegate (2):');
+      writeFileSync(join(dir,'first.finish'),'');expect((await first.done).value).toBeTruthy();
+      expect(second.updates.at(-1)).toContain('Delegate (1) model:');expect(a.working.at(-1)).toContain('Delegate (1):');
+      expect(a.working).not.toContain(undefined);
+      writeFileSync(join(dir,'error.finish'),'');expect((await foreign.done).error).toBeTruthy();
+      expect(other.working.at(-1)).toBeUndefined();expect(a.working.at(-1)).toContain('Delegate (1):');
+      second.controller.abort();expect((await second.done).error).toBeTruthy();
+      expect(a.working.at(-1)).toBeUndefined();expect(a.statuses.at(-1)).toBeUndefined();
+      const fallback=start(a,'fallback');await started('fallback','gpt-6-luna');
+      expect(fallback.updates.some(text=>text.includes('Delegate (2)'))).toBe(false);
+      expect(fallback.updates.at(-1)).toContain('Delegate (1) model: github-copilot/gpt-6-luna');
+      writeFileSync(join(dir,'fallback.finish'),'');expect((await fallback.done).value).toBeTruthy();expect(a.working.at(-1)).toBeUndefined();
+      const broken=start(a,'broken',{},true);await started('broken');writeFileSync(join(dir,'broken.finish'),'');
+      expect((await broken.done).value).toBeTruthy();expect(a.working.at(-1)).toBeUndefined();
+      const timeout=start(a,'timeout');await started('timeout');expect((await timeout.done).error?.message).toMatch(/timed out/i);
+      expect(a.working.at(-1)).toBeUndefined();
+      const final=start(a,'final');await started('final');expect(final.updates.at(-1)).toContain('Delegate (1) model:');
+      writeFileSync(join(dir,'final.finish'),'');expect((await final.done).value).toBeTruthy();
+    } finally {
+      controllers.forEach(controller=>controller.abort());await Promise.all(jobs);
+      globals.__piclaw_registerAddonConfigApi=previousRegistrar;
+      if(previousCli===undefined)delete process.env.PI_DELEGATE_CLI;else process.env.PI_DELEGATE_CLI=previousCli;
+      invalidateExecutableCatalog();rmSync(dir,{recursive:true,force:true});
+    }
+  }, 20000);
 
   test("delegate package stays dependency-light for add-on installs", () => {
     const manifest = JSON.parse(readFileSync(resolve(addonDir, "package.json"), "utf8")) as {
