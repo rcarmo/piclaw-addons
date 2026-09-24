@@ -120,6 +120,10 @@ hostTest(
       safe.PICLAW_WEB_PORT = String(port);
       safe.PICLAW_E2E_DISPOSABLE = "1";
       safe.PICLAW_DB_IN_MEMORY = "0";
+      const uiMode = process.env.PICLAW_REVIEW_UI_MODE || "classic";
+      if (!["classic", "visual"].includes(uiMode))
+        throw Error("PICLAW_REVIEW_UI_MODE must be classic or visual.");
+      safe.PICLAW_WEB_UI_MODE = uiMode;
       const env = preparedInstanceEnvironment(safe),
         url = `http://127.0.0.1:${port}`;
       child = spawn(
@@ -188,12 +192,19 @@ hostTest(
       });
       page.on("dialog", (d) => d.accept());
       await page.goto(url, { waitUntil: "domcontentloaded" });
-      await page.waitForFunction(
-        () => !!(window as any).__piclaw_web?.workspaceActionsVersion,
-        { timeout: 45000 },
-      );
+      try {
+        await page.waitForFunction(
+          () => !!(window as any).__piclaw_web?.workspaceActionsVersion,
+          null,
+          { timeout: 12000 },
+        );
+      } catch {
+        const capabilities = await page.evaluate(() => Object.keys((window as any).__piclaw_web || {}));
+        throw Error(`${uiMode} host lacks workspaceActionsVersion; exposed add-on APIs: ${capabilities.join(", ") || "none"}. Review file cannot open until this host surface is implemented.`);
+      }
       await page.waitForFunction(
         () => document.querySelector(".workspace-toggle-tab") !== null,
+        null,
         { timeout: 60000 },
       );
       // Use the registered public action through real explorer UI when present.
@@ -217,6 +228,7 @@ hostTest(
       expect(
         await page.locator(".cr-pane .cr-file-header").innerText(),
       ).toContain("review-fixture.ts");
+      expect(await page.locator(".cr-pane").getAttribute("data-skin")).toBe(uiMode);
       await page
         .locator('.cr-pane [data-action=line-comment][data-line="2"]')
         .click();
@@ -276,10 +288,27 @@ hostTest(
           "resolved",
         );
       }
+      // Core mode and add-on control layout under owned responsive viewports.
+      // No implicit dispatch or source mutation occurs when resizing the pane.
+      for (const width of [1024, 520, 390]) {
+        await page.setViewportSize({ width, height: 844 });
+        await page.waitForFunction((w) => {
+          const pane = document.querySelector<HTMLElement>(".cr-pane");
+          return pane && pane.dataset.narrow === String(pane.getBoundingClientRect().width < 720)
+            && document.documentElement.clientWidth === w;
+        }, width);
+        const pane = page.locator(".cr-pane");
+        expect(await pane.getAttribute("data-skin")).toBe(uiMode);
+        const bounds = await pane.boundingBox();
+        expect(bounds).not.toBeNull();
+        expect(bounds!.width).toBeGreaterThan(250);
+        expect(await page.locator(".cr-pane [data-action=send]").first().getAttribute("title")).toBeTruthy();
+      }
       expect(errors).toEqual([]);
       console.log("REAL HOST PASS", {
         core,
         port,
+        uiMode,
         operatorComments: true,
         localFixtureTurns: provider?.requests.length ?? 0,
         paidProviderCalls: 0,

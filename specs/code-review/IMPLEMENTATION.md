@@ -111,6 +111,14 @@ acceptance scenarios and are not full Piclaw integration proof.
   without another enqueue. Controls and states survive browser reload. The
   fixture uses the real review service behind a disposable browser API; it
   does not prove a remote host receipt or all denial/cancellation branches.
+- Classic real-host Explorer → Review file → comment passed again on an owned
+  fixture, including viewport widths 1440, 1024, 520 and 390px with no browser
+  page errors or paid provider calls. Visual did **not** reach the pane: its
+  `visual/frontend/src/app/addon-boot.ts` currently exposes only settings and
+  activity-bar registration, not `workspaceActionsVersion` or pane/workspace
+  action registration. The optional Visual test now fails with that capability
+  diagnostic. CR-087 and the Visual host contract are blocked until an approved
+  core change wires the generic workspace-action API into Visual.
 - Focused CR-083/089/119/121 tests check exact byte and line limits, diff
   computation/changed-line budgets, escaped plain-text fallback, bounded
   response pages and independent full-snapshot old/new highlighting. A local
