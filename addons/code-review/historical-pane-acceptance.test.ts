@@ -46,7 +46,7 @@ function browserExecutable() {
   return undefined;
 }
 
-function createHarness() {
+function createHarness(extraCommits = 0) {
   const serial = ++harnessSerial;
   const root = mkdtempSync(join(tmpdir(), `review-historical-pane-${serial}-`));
   const workspace = join(root, "workspace");
@@ -89,6 +89,11 @@ function createHarness() {
   git("add", "renamed.ts");
   git("commit", "-qm", "fourth");
   const headCommit = git("rev-parse", "HEAD");
+  for (let n = 1; n <= extraCommits; n++) {
+    writeFileSync(join(workspace, "renamed.ts"), `later ${n}\n`);
+    git("add", "renamed.ts");
+    git("commit", "-qm", `later-${n}`);
+  }
 
   const headBefore = git("rev-parse", "HEAD");
   const statusBefore = git("status", "--porcelain=v1");
@@ -253,7 +258,7 @@ test(
       page.on("pageerror", (error) => errors.push(error.message));
       page.on("dialog", async (dialog) => {
         const message = dialog.message();
-        if (message.includes("Commit number")) {
+        if (message.includes("Commits ")) {
           commitPrompt = message;
           const line = message
             .split("\n")
@@ -421,3 +426,65 @@ test(
   },
   60_000,
 );
+
+test("CR-091 browser pages beyond 20 commits and captures the verified pre-rename path", async () => {
+  const f = createHarness(20);
+  let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
+  let server: ReturnType<typeof Bun.serve> | undefined;
+  try {
+    const created: any = await reviewAction(f.ctx, "create", {
+      path: "renamed.ts", target: { agentName: f.target.agentName }, requestId: f.requestId("create"),
+    }, f.store);
+    const calls: any[] = [];
+    const transpile = new Bun.Transpiler({ loader: "ts", target: "browser" });
+    const shell = `<!doctype html><html><head><style>:root{--bg-primary:#fff;--bg-secondary:#f5f5f5;--bg-hover:#eee;--border-color:#ccc;--text-primary:#222;--text-secondary:#666;--accent-color:#176f83;--danger-color:#ac3131;--font-family:system-ui;--font-family-mono:monospace}#pane{height:800px}</style></head><body><main id="pane"></main><script>window.__codeReviewReady=false;let pane;window.__piclaw_web={workspaceActionsVersion:1,registerPane(p){pane=p;window.__codeReviewReady=true},registerWorkspaceAction(){},openPane(ctx){window.instance=pane.mount(document.getElementById('pane'),{path:ctx.path,mode:'view'});return true}};</script><script type="module" src="/web/index.ts"></script></body></html>`;
+    server = Bun.serve({ hostname: "127.0.0.1", port: 0, async fetch(req) {
+      const path = new URL(req.url).pathname;
+      if (path === "/") return new Response(shell, { headers: { "Content-Type": "text/html" } });
+      if (["/web/index.ts", "/web/api.ts", "/web/pane.ts", "/web/styles.ts"].includes(path))
+        return new Response(transpile.transformSync(await Bun.file(join(import.meta.dir, path.slice(1))).text()), { headers: { "Content-Type": "text/javascript" } });
+      if (path === "/agent/addons/api/code-review/action") {
+        const body = await req.json(); calls.push(body);
+        try { return Response.json({ ok: true, result: await reviewAction(f.ctx, body.action, body, f.store) }); }
+        catch (error) { return Response.json({ ok: false, error: { message: (error as Error).message } }, { status: 400 }); }
+      }
+      return new Response("Not found", { status: 404 });
+    } });
+    const env: Record<string, string> = {};
+    for (const key of ["PATH", "HOME", "TMPDIR", "XDG_CACHE_HOME"]) if (process.env[key]) env[key] = process.env[key]!;
+    browser = await chromium.launch({ headless: true, executablePath: browserExecutable(), args: ["--no-sandbox"], env });
+    const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+    const dialogs: string[] = [];
+    page.on("dialog", async (dialog) => {
+      dialogs.push(dialog.message());
+      if (dialog.message().includes("Commits 1–20")) await dialog.accept("N");
+      else if (dialog.message().includes("Commits 21–24")) {
+        const entry = dialog.message().split("\n").find((line) => line.includes("second · old.ts"));
+        await dialog.accept(entry?.match(/^(\d+)\./)?.[1] ?? "999");
+      } else await dialog.dismiss();
+    });
+    await page.goto(server.url.href);
+    await page.waitForFunction(() => (window as any).__codeReviewReady === true);
+    await page.evaluate((path: string) => (window as any).__piclaw_web.openPane({ path }), PATH_PREFIX + created.reviewId);
+    await page.waitForSelector(".cr-line");
+    await page.locator("[data-action=options]").click();
+    await page.locator("[data-action=history]").click();
+    await page.waitForFunction(() => document.querySelector(".cr-file-header strong")?.textContent === "old.ts");
+    expect(dialogs).toHaveLength(2);
+    expect(dialogs[0]).toContain("Commits 1–20");
+    expect(dialogs[1]).toContain("Commits 21–24");
+    const pages = calls.filter((body) => body.action === "history");
+    expect(pages.map((body) => body.skip)).toEqual([0, 20]);
+    const selected = calls.filter((body) => body.action === "capture").at(-1);
+    expect(selected?.source).toMatchObject({ path: "old.ts", mode: "commit", commit: f.secondCommit });
+    const snapshot = (f.store.listSnapshots(f.ctx, created.reviewId) as any[]).find((row) => row.mode === "commit");
+    expect(snapshot).toMatchObject({ base: f.firstCommit, head: f.secondCommit });
+    expect(await page.locator(".cr-source").innerText()).toContain("second");
+    expect(f.git("rev-parse", "HEAD")).toBe(f.headBefore);
+    expect(f.git("status", "--porcelain=v1")).toBe(f.statusBefore);
+    expect(readFileSync(join(f.workspace, ".git", "index")).equals(f.indexBefore)).toBe(true);
+    expect(readFileSync(join(f.workspace, "renamed.ts")).equals(f.renamedBytesBefore)).toBe(true);
+  } finally {
+    await browser?.close(); server?.stop(true); f.cleanup();
+  }
+}, 60_000);

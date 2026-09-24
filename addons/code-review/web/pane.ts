@@ -1098,21 +1098,31 @@ export class CodeReviewPane {
         return;
       }
       case "history": {
-        const rows = await this.api("history", {
-          path: this.review.focus_path,
-          limit: 20,
-        });
-        const pick = prompt(
-          rows
-            .map(
-              (r: any, i: number) =>
-                `${i + 1}. ${r.commit.slice(0, 8)} ${r.subject}${r.path ? ` · ${r.path}${r.previousPath ? ` ← ${r.previousPath}` : ""}` : ""}`,
-            )
-            .join("\n") + "\nCommit number",
-        );
-        if (pick === null) return;
-        const row = rows[Number(pick) - 1];
-        if (!row) throw Error("Select a listed commit.");
+        let skip = 0;
+        let row: any;
+        for (;;) {
+          const rows = await this.api<any[]>("history", {
+            path: this.review.focus_path,
+            limit: 20,
+            skip,
+          });
+          if (!rows.length) throw Error("No further file history is available.");
+          const pick = prompt(
+            rows.map((r, i) =>
+              `${i + 1}. ${r.commit.slice(0, 8)} ${r.subject}${r.path ? ` · ${r.path}${r.previousPath ? ` ← ${r.previousPath}` : ""}` : ""}`,
+            ).join("\n") + `\nCommits ${skip + 1}–${skip + rows.length}. Enter a number${rows.length === 20 && skip + 20 < 10000 ? ", or N for older commits" : ""}.`,
+          );
+          if (pick === null) return;
+          if (pick.trim().toLowerCase() === "n" && rows.length === 20 && skip + 20 < 10000) {
+            skip += 20;
+            continue;
+          }
+          const number = Number(pick);
+          if (!Number.isSafeInteger(number) || number < 1 || number > rows.length)
+            throw Error("Select a listed commit or the next history page.");
+          row = rows[number - 1];
+          break;
+        }
         let parent;
         if (row.parents.length > 1) {
           const number = prompt(
