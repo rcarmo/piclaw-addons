@@ -244,6 +244,12 @@ acceptance scenarios and are not full Piclaw integration proof.
   unreadable browser marker requires explicit confirmation to clear. The
   correlation-only marker uses same-origin browser storage; expiry, sign-out
   handling and long-lived storage policy still need acceptance review.
+- A focused CR-184 browser/file-backed fixture verifies that browsing two
+  files, wrapping, split layout, context expansion, scrolling, range selection,
+  Include in send and preview/cancel create no draft, message, event, receipt,
+  dispatch, item, attempt or queue call. Reload discards transient selection;
+  no Viewed/read-progress table or control exists. Other non-mutating views
+  and host-level navigation still need separate checks.
 - A standalone check copies the add-on with its dependencies to an owned
   directory outside the monorepo, imports its runtime and extension entry,
   verifies startup API/tool registration and checks the web/skill paths.
