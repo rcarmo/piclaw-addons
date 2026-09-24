@@ -1110,6 +1110,7 @@ export class CodeReviewPane {
         this.snapshots = await this.api("snapshots");
         this.snapshotId = capture.snapshotId;
         this.fileId = "";
+        await this.reloadThreads();
         await this.loadFiles();
         return;
       }

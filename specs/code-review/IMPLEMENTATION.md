@@ -253,6 +253,10 @@ acceptance scenarios and are not full Piclaw integration proof.
   re-read without creating an intent. A delayed preview cannot reopen an old
   selection after the user changes it while the request is in flight. These
   are still focused browser checks.
+- A focused CR-063 browser fixture holds an acknowledged reply draft while
+  source bytes change and an assigned agent publishes a reply. Explicit
+  Refresh now rereads the expanded thread as well as capturing new source;
+  the draft text and reply target stay unchanged, with no post or enqueue.
 - The browser fixture now commits a public reply while losing its response,
   then retries from the same composer and receives the original reply without
   creating a second message or queueing another agent turn (focused CR-069).
