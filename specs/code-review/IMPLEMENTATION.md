@@ -55,7 +55,10 @@ acceptance scenarios and are not full Piclaw integration proof.
 - New add-on tests exercise moved, missing and ambiguous anchors, explicit
   re-anchoring, verified and unverified rename projection, replaced paths,
   current saved-file status, file-backed reopen, rollback, tombstones, interrupted
-  delivery and copied-backup access checks. Unknown file identity never grants
+  delivery and copied-backup access checks. A focused CR-056/057 browser fixture
+  now labels missing/ambiguous projections as not mapped in the drawer, places
+  no marker on an arbitrary refreshed line, and jumps back to the immutable
+  original discussion. Manual re-anchor browser confirmation still needs work. Unknown file identity never grants
   same-path projection; Git rename requires a matching old-side blob. The
   `currentSource` check returns no live source bytes or digest, and reports
   `unverified` when no saved-file identity is available.

@@ -572,7 +572,7 @@ export class CodeReviewPane {
           )
           .map(
             (t) =>
-              `<div class="cr-drawer-item"><label><input type="checkbox" data-pick="${t.id}" ${this.selected.has(t.id) ? "checked" : ""} ${t.state === "resolved" ? "disabled" : ""} title="Include this concern in the next explicit send. Does not resolve it.">Include in send</label><strong>${e(t.state)}</strong><small>${e(t.id.slice(-8))} · ${e(t.anchor.side)} ${t.anchor.startLine ?? "file"}</small>${button("jump", "Open discussion", "Reveal original source and public messages.", `data-thread="${t.id}"`)}</div>`,
+              `<div class="cr-drawer-item"><label><input type="checkbox" data-pick="${t.id}" ${this.selected.has(t.id) ? "checked" : ""} ${t.state === "resolved" ? "disabled" : ""} title="Include this concern in the next explicit send. Does not resolve it.">Include in send</label><strong>${e(t.state)}</strong><small>${e(t.id.slice(-8))} · ${e(t.anchor.side)} ${t.anchor.startLine ?? "file"}${this.projections.get(t.id)?.status === "missing" ? " · outdated (not mapped)" : this.projections.get(t.id)?.status === "ambiguous" ? " · ambiguous (not mapped)" : ""}</small>${button("jump", "Open discussion", "Reveal original source and public messages.", `data-thread="${t.id}"`)}</div>`,
           )
           .join(
             "",
