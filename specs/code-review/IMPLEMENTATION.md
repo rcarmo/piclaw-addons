@@ -59,9 +59,13 @@ acceptance scenarios and are not full Piclaw integration proof.
   same-path projection; Git rename requires a matching old-side blob. The
   `currentSource` check returns no live source bytes or digest, and reports
   `unverified` when no saved-file identity is available.
+- CR-059 now also has a real staged `git mv` fixture: source-mode review to
+  staged rename, matching old blob, null Git file identity, immutable original
+  anchor and unchanged Git status/index. A fabricated rename with a mismatched
+  old blob is rejected. Rename-plus-edit and ambiguous candidate UI behaviour
+  still need acceptance coverage.
 - These are focused implementation tests, not full CR-001–CR-184 acceptance.
-  The rename cases use synthetic capture rows; real Git/browser rename coverage
-  is still needed. The copied-backup check reopens the store, not a restored
+  The copied-backup check reopens the store, not a restored
   Piclaw host. CR-181 tests rejection of a newer unsupported schema; no older
   supported migration exists to inject a failed upgrade. The theme/layout
   matrix, long-history and performance gates remain open.
