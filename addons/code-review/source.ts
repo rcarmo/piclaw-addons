@@ -593,7 +593,14 @@ export class SourceReader {
       };
     }
   }
-  async history(path: string, limit = 30, skip = 0) {
+  async history(path: string, limit = 30, skip = 0): Promise<Array<{
+    commit: string;
+    parents: string[];
+    timestamp: number;
+    subject: string;
+    path?: string;
+    previousPath?: string;
+  }>> {
     if (
       !Number.isSafeInteger(limit) ||
       limit < 1 ||
@@ -610,17 +617,46 @@ export class SourceReader {
     try { directory = statSync(full).isDirectory(); } catch { /* Deleted file history is still selectable. */ }
     const output = this.git(repo, [
       "log",
-      ...(directory ? [] : ["--follow", "--find-renames"]),
+      ...(directory ? [] : ["--follow", "--find-renames", "--name-status", "-z"]),
       // --follow cannot rediscover a rename when Git skips past it first.
       // Walk only the bounded prefix, then paginate locally.
       `--max-count=${directory ? limit : limit + skip}`,
       ...(directory ? [`--skip=${skip}`] : []),
-      "--format=%H%x00%P%x00%at%x00%s%x00",
+      directory
+        ? "--format=%H%x00%P%x00%at%x00%s%x00"
+        : "--format=%x1e%H%x00%P%x00%at%x00%s%x00",
       "--",
       relative(repo, full),
-    ]).toString();
-    const fields = output.split("\0"),
-      rows = [];
+    ]);
+    const text = this.gitText(output, "Git history paths must be valid UTF-8.");
+    if (!directory) {
+      const rows = [];
+      let currentPath = relative(repo, full).split(sep).join("/");
+      for (const record of text.split("\x1e").slice(1)) {
+        const fields = record.split("\0");
+        const [oid, parents, seconds, subject] = fields;
+        if (!/^[a-f0-9]{40,64}$/.test(oid ?? "") || !/^\d+$/.test(seconds ?? ""))
+          throw new ReviewError("unsupported", "Git history record is unavailable.");
+        const status = /^\n?([AMDR])(\d{0,3})$/.exec(fields[5] ?? "");
+        const oldPath = fields[6];
+        const newPath = status?.[1] === "R" ? fields[7] : oldPath;
+        if (!status || !oldPath || newPath !== currentPath)
+          throw new ReviewError("unsupported", "Git history path needs an explicit comparison.");
+        const display = relative(this.root, resolve(repo, currentPath)).split(sep).join("/");
+        this.path(display, true);
+        rows.push({
+          commit: oid!,
+          parents: (parents ?? "").split(" ").filter(Boolean),
+          timestamp: Number(seconds) * 1000,
+          subject: (subject ?? "").slice(0, 512),
+          path: display,
+          ...(status[1] === "R" ? { previousPath: relative(this.root, resolve(repo, oldPath)).split(sep).join("/") } : {}),
+        });
+        if (status[1] === "R") currentPath = oldPath;
+      }
+      return rows.slice(skip, skip + limit);
+    }
+    const fields = text.split("\0"), rows = [];
     for (let n = 0; n + 3 < fields.length; n += 4) {
       const oid = fields[n]!.trim();
       if (!oid) continue;
@@ -631,6 +667,6 @@ export class SourceReader {
         subject: fields[n + 3]!.slice(0, 512),
       });
     }
-    return directory ? rows : rows.slice(skip, skip + limit);
+    return rows;
   }
 }

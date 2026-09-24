@@ -70,7 +70,12 @@ acceptance scenarios and are not full Piclaw integration proof.
   history now uses Git rename following; an owned four-commit repository returns
   its two pre-rename commits on the older page without moving HEAD or modifying
   the worktree. Explicit historical rename-path labels, equal-plausibility
-  candidates and pane navigation remain open.
+  candidates and older-page browser history navigation remain open. A separate
+  disposable browser fixture selects a pre-rename commit from the first 20
+  history entries, confirms the request uses its verified `old.ts` path,
+  retains its exact parent/head and saved bytes, posts an old-path historical
+  annotation, and reopens that same snapshot via thread navigation and reload.
+  Git HEAD, index, status and worktree bytes stay unchanged.
 - CR-061 has an owned Git wrapper that changes one saved file before or after
   a capture boundary. Capture returns coherent source bytes or the explicit
   `changed_during_read` error; it never persists a mixed revision. An atomic

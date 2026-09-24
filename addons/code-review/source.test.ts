@@ -364,9 +364,15 @@ test("CR-091 single-file history follows a verified Git rename across bounded pa
     f.git("commit", "-qm", "fourth");
     const head = f.git("rev-parse", "HEAD");
     const status = f.git("status", "--porcelain=v1");
-    expect((await f.reader.history("renamed.ts", 2)).map((row) => row.subject)).toEqual(["fourth", "rename"]);
+    const recent = await f.reader.history("renamed.ts", 2);
+    expect(recent.map((row) => row.subject)).toEqual(["fourth", "rename"]);
+    expect(recent.map((row) => row.path)).toEqual(["renamed.ts", "renamed.ts"]);
+    expect(recent[1]?.previousPath).toBe("old.ts");
     const older = await f.reader.history("renamed.ts", 2, 2);
     expect(older.map((row) => row.subject)).toEqual(["second", "first"]);
+    expect(older.map((row) => row.path)).toEqual(["old.ts", "old.ts"]);
+    const historical = await f.reader.capture({ path: older[0]!.path!, mode: "commit", commit: older[0]!.commit });
+    expect(historical.files[0]).toMatchObject({ oldPath: "old.ts", newPath: "old.ts", newText: "second\n" });
     expect(older.every((row) => /^[a-f0-9]{40}$/.test(row.commit))).toBe(true);
     expect(f.git("rev-parse", "HEAD")).toBe(head);
     expect(f.git("status", "--porcelain=v1")).toBe(status);

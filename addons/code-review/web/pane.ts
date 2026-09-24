@@ -1106,7 +1106,7 @@ export class CodeReviewPane {
           rows
             .map(
               (r: any, i: number) =>
-                `${i + 1}. ${r.commit.slice(0, 8)} ${r.subject}`,
+                `${i + 1}. ${r.commit.slice(0, 8)} ${r.subject}${r.path ? ` · ${r.path}${r.previousPath ? ` ← ${r.previousPath}` : ""}` : ""}`,
             )
             .join("\n") + "\nCommit number",
         );
@@ -1126,7 +1126,7 @@ export class CodeReviewPane {
         }
         const capture = await this.api("capture", {
           source: {
-            path: this.review.focus_path,
+            path: row.path ?? this.review.focus_path,
             mode: "commit",
             commit: row.commit,
             parent,
