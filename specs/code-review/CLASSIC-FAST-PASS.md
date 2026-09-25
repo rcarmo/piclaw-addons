@@ -1,12 +1,35 @@
 # Code Review Classic fast pass — 24 September 2026
 
-**25 September: release finishing after Rui's request.** The active gate is [six Classic checks](ACCEPTANCE.md).
-The results below are evidence for those checks; the old 184-scenario design is reference only.
-The agreed mock is unchanged. RC-1–RC-5 pass the supported Classic flows after
-Rui's closer-mock and separate-submission decisions. RC-6 integration/release is
-not complete.
+**Released: Code Review 0.1.4; all six checks pass for the documented Classic
+source-build scope.** See [acceptance](ACCEPTANCE.md). The 184 older scenarios
+remain design reference. The approved mock is unchanged.
 
-## 25 September release candidate
+## Public release verification
+
+- Core #1407 merged at `2a06652e9`; add-on #144 merged at `2f621bb6`.
+  Public artifact verification exposed the site builder ignoring the production
+  files allowlist. Packaging fix #145 merged at `2e95327f`, advancing to 0.1.4.
+  The builder now honours explicit files allowlists with `bun pm pack`, retains
+  legacy exclusions for other packages, and fails on pack errors; four build
+  tests pass and are included in CI.
+- Public artifact:
+  https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-code-review-0.1.4.tgz
+- SHA-256: `05b1acd662d5bc6ed1cf7705f0d6fe6b4ed7bc2c278de4100c973d320a0c9e60`.
+  Downloaded anonymously; contains exactly 19 production files without tests.
+- The downloaded artifact passed the authenticated merged-core Classic fixture:
+  **259 assertions in 97.0 seconds**, including local provider work, busy queue,
+  actual catalogue install/remove/reinstall, cold restart, private drafts,
+  tombstones/receipts, source/history/copy, phone/touch/keyboard and 65-second idle.
+  Seven review-provider requests plus one prior busy request; zero paid calls.
+- Hosted PR #145 checks passed; main workflows all succeeded: build/deploy
+  `36125839400`, validation `36125839414`, archive publication `36125839424`,
+  catalogue sync `36125839499`. Code Review regression suite: 166 pass, one
+  opt-in skipped. Strict typecheck, standalone import and catalogue checks pass.
+- README requires the merged Classic source build; tagged v3.2.2 is unsupported.
+  No guessed future version or false semver range is declared. Rollback preserves
+  the addon store. No live installation or service restart was performed.
+
+## Earlier 25 September release candidate
 
 - Core #1407 is merged at `2a06652e9e82667e0a8117232476e87c86685935`.
 - Candidate 0.1.3 removes the false numeric compatibility range and documents the
