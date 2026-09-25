@@ -46,18 +46,23 @@ and references to old scenario IDs do not change status automatically.
 
 ## Release result — 25 September
 
-All six checks passed for **Code Review 0.1.4 on the documented Classic source
+All six checks passed for **Code Review 0.1.5 on the documented Classic source
 build**. Version 0.1.5 adds HTTP-hostname request-ID compatibility and a host-rendered
-preview icon. The six-check result below is the 0.1.4 receipt; rerun the public
-tarball and merged-core disposable-host checks before signing off 0.1.5. Core [#1407](https://github.com/rcarmo/piclaw/pull/1407), add-on
+preview icon. The public archive and merged-core disposable-host checks were rerun
+for this version after the original 0.1.4 receipt. Core [#1407](https://github.com/rcarmo/piclaw/pull/1407), add-on
 [#144](https://github.com/rcarmo/piclaw-addons/pull/144) and packaging correction
 [#145](https://github.com/rcarmo/piclaw-addons/pull/145) are merged. Hosted
 validation, build/deploy, catalogue sync and archive publication succeeded.
 
-The public tarball was downloaded without credentials, verified to contain the
+The public 0.1.5 tarball was downloaded without credentials, verified to contain
 19 production files, then installed/tested in the disposable merged-core host:
-**259 assertions pass**, including local-provider work, busy queue, restart,
-actual catalogue uninstall/reinstall, record retention and idle behaviour.
+**259 assertions pass** in 97.24 seconds, including local-provider work, busy queue,
+restart, actual catalogue uninstall/reinstall, record retention and idle behaviour.
+Its SHA-256 is `97a8356241272cd42a82509c5e10cb6871d65899a206ccf58bb9cb18549cbfc2`;
+`package.json`, `web/api.ts`, `web/index.ts` and `runtime.ts` match merged source.
+The HTTP-hostname request-ID browser regression passes with `randomUUID` absent,
+using `getRandomValues` for unique UUID v4 IDs. Code Review regression has 168
+passes and one optional host skip; TypeScript and catalogue validation pass.
 
 The README requires core commit `2a06652e9` and Classic APIs. Tagged v3.2.2 lacks
 them; no false numeric compatibility range is declared. This source-build support
@@ -83,7 +88,7 @@ receipt and the accepted/completed dispatch survive. The database and any WAL
 bytes are unchanged during the package-absent boot. There are no extra provider
 turns, dispatches or attempts. The later `PICLAW_REVIEW_CATALOG_TEST=1` run uses
 the real authenticated catalogue-manager uninstall/install endpoints with an
-owned loopback catalogue and the packed 0.1.3 add-on. It verifies the same retained
+owned loopback catalogue and the packed 0.1.5 add-on. It verifies the same retained
 data after reinstall and passes alongside phone/source/copy and a 65-second idle
 check (259 assertions). This closes RC-5 for the supported local Classic flow;
 public catalogue deployment and other platform permutations are not tested.
