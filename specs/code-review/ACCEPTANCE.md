@@ -37,7 +37,7 @@ are replaced by the real implementation.
 | RC-3 | Send work | Match the mock's selection, send preview and status feedback. Only explicit single/batch Send queues work; respect busy targets, deduplicate retries and distinguish accepted/completed/unknown outcomes without replay. | passed |
 | RC-4 | Enforce permissions | Reject anonymous, cross-origin, forged-identity and unsafe-path requests; render untrusted text safely. Each Send scopes review-tool access to its selected concerns, including multi-file batches, independently of other Sends in the same review/chat. | passed |
 | RC-5 | Recover safely | Reload and restart the host with discussions, drafts and receipts intact. No surprise send, deleted-content resurrection or recurring idle scans. Retain the add-on store on removal/reinstall. | passed |
-| RC-6 | Ship a compatible package | Verify the packed add-on in a disposable Classic host; pass regression/typecheck/catalogue and hosted CI; use the correct core compatibility version and an approved rollback/deployment path. | blocked |
+| RC-6 | Ship a compatible package | Verify the packed add-on in a disposable Classic host; pass regression/typecheck/catalogue and hosted CI; document a verified core requirement and rollback/deployment path. | partial |
 
 `partial` means useful checks have passed but the whole row has not been signed
 off. `blocked` means a known dependency prevents sign-off. Neither is a pass.
@@ -46,11 +46,14 @@ and references to old scenario IDs do not change status automatically.
 
 ## What is left
 
-- **RC-6:** core PR [piclaw#1407](https://github.com/rcarmo/piclaw/pull/1407) and
-  draft add-on PR [piclaw-addons#144](https://github.com/rcarmo/piclaw-addons/pull/144)
-  are pushed and pass hosted CI. Merge/release approval and the actual compatible
-  core release version remain open. Catalogue metadata includes 0.1.2 and
-  `check:catalog` passes; nothing is published. `>=3.2.1` is still provisional.
+- **RC-6:** core PR [piclaw#1407](https://github.com/rcarmo/piclaw/pull/1407) merged
+  on 25 September at `2a06652e9`. Version 0.1.3 passes the packed combined fixture
+  against that merged core (259 assertions). Rui asked to finish the add-on on
+  25 September; merge/publication of [piclaw-addons#144](https://github.com/rcarmo/piclaw-addons/pull/144)
+  is in progress. The false `>=3.2.1` range is removed: the README requires the
+  merged core commit and Classic APIs explicitly. Tagged v3.2.2 lacks them; no
+  numeric release range is claimed until a tag includes the merged APIs.
+  The README documents uninstall/reinstall rollback without deleting the store.
 - RC-1–RC-5 pass on the owned Classic fixtures. The [evidence ledger](CLASSIC-FAST-PASS.md)
   records regression, browser and packed-host results. [Submission isolation](CR-079-HOST-CONTRACT.md)
   is implemented in both worktrees after approval and verified locally.
@@ -71,7 +74,7 @@ receipt and the accepted/completed dispatch survive. The database and any WAL
 bytes are unchanged during the package-absent boot. There are no extra provider
 turns, dispatches or attempts. The later `PICLAW_REVIEW_CATALOG_TEST=1` run uses
 the real authenticated catalogue-manager uninstall/install endpoints with an
-owned loopback catalogue and the packed 0.1.2 add-on. It verifies the same retained
+owned loopback catalogue and the packed 0.1.3 add-on. It verifies the same retained
 data after reinstall and passes alongside phone/source/copy and a 65-second idle
 check (259 assertions). This closes RC-5 for the supported local Classic flow;
 public catalogue deployment and other platform permutations are not tested.
@@ -128,7 +131,7 @@ restore are follow-up work. They are not independent first-release gates and are
 not claimed as supported or verified here. The agreed mock's UX is not deferred.
 Supported-path security, data-loss and accidental-dispatch failures still block
 the relevant row. Unsupported inputs must
-fail safely. Rui separately approved core submission-isolation edits. Publishing,
-merging, live installation and restart still require explicit permission.
+fail safely. Rui approved core submission-isolation edits and later asked to
+finish the add-on release. Live installation and restart remain separate actions.
 
 Report progress as these six checks, not “180 scenarios remaining”.

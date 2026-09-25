@@ -1,12 +1,33 @@
 # Code Review Classic fast pass — 24 September 2026
 
-**Decision: no release or merge yet.** The active gate is [six Classic checks](ACCEPTANCE.md).
+**25 September: release finishing after Rui's request.** The active gate is [six Classic checks](ACCEPTANCE.md).
 The results below are evidence for those checks; the old 184-scenario design is reference only.
 The agreed mock is unchanged. RC-1–RC-5 pass the supported Classic flows after
 Rui's closer-mock and separate-submission decisions. RC-6 integration/release is
 not complete.
 
-## Pull-request and hosted CI checkpoint
+## 25 September release candidate
+
+- Core #1407 is merged at `2a06652e9e82667e0a8117232476e87c86685935`.
+- Candidate 0.1.3 removes the false numeric compatibility range and documents the
+  exact merged source requirement plus Classic APIs. Source main still reports
+  3.2.2, while tagged v3.2.2 lacks the APIs; a semver range cannot distinguish them.
+  No new core release is implied or required to test the known source build.
+- Against merged `/workspace/piclaw`, the packed all-options authenticated host
+  fixture passes 259 assertions in 97.4 seconds, including local provider work,
+  busy queue, restart, actual catalogue uninstall/reinstall, retained records,
+  phone/touch/copy/history and idle observation. Add-on regression: 166 pass,
+  one opt-in skipped; typecheck and catalogue checks pass.
+- The first merged-checkout browser run exposed an old ignored gzip sidecar in
+  the core checkout. The test now copies current static assets to its owned
+  fixture without compressed sidecars. Live/core checkout files were not changed.
+- The README now has installation/use/rollback guidance, including preserving
+  the review store. Review delegation timed out without results; it is not
+  counted as independent review evidence.
+- Add-on merge/publication and public-tarball verification are the remaining
+  release steps. No live add-on installation or process restart is part of them.
+
+## Earlier pull-request and hosted CI checkpoint
 
 - Core PR: https://github.com/rcarmo/piclaw/pull/1407, branch
   `feat/addon-workspace-context`, head `de954e532`.

@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-code-review",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Saved-source and Git-diff reviews with durable inline discussions and explicit queued agent work",
   "type": "module",
   "main": "index.ts",
@@ -24,7 +24,6 @@
   ],
   "piclaw": {
     "type": "extension",
-    "compatibleVersions": ">=3.2.1",
     "tags": [
       "code-review",
       "workspace",

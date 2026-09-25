@@ -165,6 +165,14 @@ hostTest(
         const split = entry.indexOf("=");
         safe[entry.slice(0, split)] = entry.slice(split + 1);
       }
+      // Source checkouts may contain ignored sidecars from an older build.
+      // Keep fixture assets owned and coherent without touching a live checkout.
+      const staticDir = join(paths.root, "static");
+      cpSync(join(core, "runtime/web/static"), staticDir, {
+        recursive: true,
+        filter: (path) => !path.endsWith(".gz") && !path.endsWith(".br"),
+      });
+      safe.PICLAW_WEB_STATIC_DIR = staticDir;
       safe.PICLAW_WEB_HOST = "127.0.0.1";
       safe.PICLAW_WEB_PORT = String(port);
       safe.PICLAW_E2E_DISPOSABLE = "1";
@@ -285,6 +293,7 @@ hostTest(
         );
       } catch {
         const capabilities = await page.evaluate(() => Object.keys((window as any).__piclaw_web || {}));
+        console.error("Fixture UI diagnostics", await page.evaluate(() => ({ href: location.href, scripts: [...document.scripts].map((s) => s.src).filter(Boolean) })));
         throw Error(`${uiMode} host lacks workspaceActionsVersion; exposed add-on APIs: ${capabilities.join(", ") || "none"}. Review file cannot open until this host surface is implemented.`);
       }
       await page.waitForFunction(

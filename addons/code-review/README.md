@@ -1,7 +1,8 @@
-# Code Review — implementation in progress
+# Code Review
 
-Saved-source and Git-diff review with durable local discussions and explicitly
-queued agent work. Source is read-only. This branch is not release-ready.
+Review saved source and Git diffs in Classic, keep inline discussions and private
+drafts, and send selected concerns to a local agent. Source is read-only; posting
+a comment does not start agent work.
 
 The active release checklist is six Classic-only checks in
 `specs/code-review/ACCEPTANCE.md`. The 184 older Gherkin IDs remain archived
@@ -13,20 +14,25 @@ the simplified checklist does not authorise UX deviations.
 
 ## Required host API
 
-Feature-detect `__piclaw_web.workspaceActionsVersion === 1` and
-`__piclaw_runtime.localContext.version === 1`. Required localContext APIs and the
-namespaced `piclaw://addon/code-review/<id>` route are being implemented in a
-separate core worktree. The declared package compatibility is provisional until
-that core change has a published version; do not publish this manifest as-is.
+**Requires Classic on a Piclaw source build containing commit
+`2a06652e9e82667e0a8117232476e87c86685935` (merged PR #1407, 25 September 2026)
+or a later build retaining those APIs. The tagged v3.2.2 release does not contain
+them.** Visual is not supported for this first release.
+
+The pane feature-detects `__piclaw_web.workspaceActionsVersion === 1`; the backend
+requires `__piclaw_runtime.localContext.version === 1` and host-verified submission
+references. Its route is `piclaw://addon/code-review/<id>`. No numeric
+`compatibleVersions` range is declared yet: the merged source and old tagged
+release both identify as 3.2.2, so a numeric range would give a false guarantee.
+Use the source-build requirement above until a tagged release contains these APIs.
 
 The host supplies trusted operator or explicit review-dispatch agent identity.
 Ordinary legacy prompts, side/scheduled tasks and remote-origin turns do not gain
 review authority from an ambient chat ID. Code Review requires the host-verified
 `reference: {addonId, intentId}` for the current submission. Each Send may include
 many concerns/files; another Send has separate review-tool scope even in the same
-review/chat. The local host implementation and evidence are documented in
-`specs/code-review/CR-079-HOST-CONTRACT.md`; its released core version is not yet
-settled. If agent context is unavailable, use
+review/chat. The host implementation and evidence are documented in
+`specs/code-review/CR-079-HOST-CONTRACT.md`. If agent context is unavailable, use
 **Send to agent** from an authorised review. Direct API fields never establish
 ownership. Browser actions are authenticated; there are no external peer routes.
 
@@ -55,8 +61,8 @@ a disposable Piclaw worktree with its own workspace, profile and SQLite store;
 `PICLAW_REVIEW_AGENT_TEST=1` uses a deterministic local provider. Set
 `PICLAW_REVIEW_PACKAGE_TARBALL` to a locally packed tarball to replace the
 source-tree copy and install its production dependencies in that fixture.
-It never installs or reloads the running instance. Classic acceptance beyond
-the bounded checked slices is still required.
+It never installs or reloads the running instance. The acceptance ledger records
+verified Classic flows and the platform/stress combinations not covered.
 
 Agent `thread` reads compare the bounded current saved file against the original
 anchor side. The `currentSource` status is observational and may be `unverified`
@@ -71,10 +77,25 @@ it never resends automatically. The server checks the current operator, actor,
 review and thread before returning a body-free receipt. A missing receipt
 retains the acknowledged draft. If the marker is unreadable, reply posting is
 blocked until the operator confirms clearing that browser marker after checking
-saved replies and drafts. Marker expiry and sign-out behaviour still need a
-release decision; no source text or authority token is stored in the marker.
+saved replies and drafts. The browser marker contains only identifiers and grants no authority; every
+lookup requires a current authorised session. It is not automatically expired on
+sign-out. Clear it explicitly from the pane after checking the saved reply.
 
 Install dependencies for this package using `bun install` in its directory. Source
 capture uses safe Git argv and bounded UTF-8 regular-file reads. Syntax parsing
 uses packaged Lezer dependencies and returns escaped plain text on unsupported or
-large input. These capabilities remain subject to the acceptance/security gates.
+large input.
+
+## Use and rollback
+
+1. On a compatible Classic source build, install **Code Review** from Add-ons.
+2. Select a saved file in the workspace and choose **Review file**.
+3. Post comments, select the concerns to include, then explicitly **Send to agent**.
+   One submission can include all selected concerns across multiple files.
+4. To remove the add-on, use Add-ons → Uninstall, then restart when convenient.
+   Its review database is retained. Reinstall the same version to reopen the work;
+   do not delete or replace the store as part of rollback.
+
+Installing/removing an add-on requires the normal host restart to load/unload it.
+Do not reset the database or downgrade its schema. Back it up consistently before
+upgrading the host or package.
