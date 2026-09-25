@@ -86,6 +86,37 @@ capture uses safe Git argv and bounded UTF-8 regular-file reads. Syntax parsing
 uses packaged Lezer dependencies and returns escaped plain text on unsupported or
 large input.
 
+## Discussing and sending follow-ups
+
+- **Post comment/reply** saves it without starting the agent. Drafts stay private;
+  posted replies are public in the discussion. Use **Send** to request another turn.
+- A saved reply, edited/deleted human message, reopened concern or changed anchor
+  can be sent while earlier accepted work is queued, running, waiting, blocked or
+  finished. A new non-empty overall instruction in the send drawer also counts.
+  The follow-up queues behind current work; it never interrupts it.
+- An unchanged send is blocked as already sent. Repeated requests with the same
+  request ID reuse the original submission. A failed work item can be explicitly
+  retried with a new Send without rewriting the guidance.
+- When the host begins delivering the follow-up, it takes over only the selected
+  concerns. An older submission cannot reply to or resolve those concerns, but
+  keeps access to unaffected concerns in its batch. This cannot undo file work
+  already performed by an earlier turn.
+- **Delivery unknown** means there is no reliable queue receipt. Keep discussing,
+  but check Delivery receipts before sending again. **Not delivered** means a
+  definite rejection: retry the existing receipt if guidance is unchanged, or Send
+  the changed guidance as a new submission. These are delivery failures, not the
+  normal answer-and-continue workflow.
+- Resolve does not mark agent work completed, and an agent finishing does not
+  resolve a concern. Reopen is explicit and does not send. Reassignment is explicit
+  and invalidates the previous assignment; preview rejects mixed-target batches.
+- For a batch, select concerns with new guidance (or supply a new overall
+  instruction). An unchanged already-sent concern is reported before anything is
+  queued; the server never silently drops part of your selected batch.
+
+The pane distinguishes **Agent working**, **Waiting for your reply**, **Agent
+blocked**, **Agent finished**, and **Follow-up not sent**. An old work status is
+not evidence that an agent process is still running.
+
 ## Use and rollback
 
 1. On a compatible Classic source build, install **Code Review** from Add-ons.

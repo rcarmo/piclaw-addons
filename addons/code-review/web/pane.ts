@@ -63,6 +63,7 @@ export class CodeReviewPane {
     this.render();
   };
   private draftTimer: ReturnType<typeof setTimeout> | undefined;
+  private previewTimer: ReturnType<typeof setTimeout> | undefined;
   private savedDrafts: any[] = [];
   private savingDraft = false;
   private draftPromise: Promise<void> | null = null;
@@ -180,6 +181,7 @@ export class CodeReviewPane {
     if (this.disposed) return;
     this.disposed = true;
     this.abort.abort();
+    clearTimeout(this.previewTimer);
     clearTimeout(this.draftTimer);
     this.observer.disconnect();
     this.element.ownerDocument.defaultView?.removeEventListener("storage", this.storageListener);
@@ -426,12 +428,16 @@ export class CodeReviewPane {
     });
   }
   private deliveryLabel(thread: any) {
-    return ({ accepted: "Queued", prepared: "Ready to send", attempting: "Sending",
-      rejected: "Rejected", unknown: "Delivery unknown" } as Record<string, string>)[thread.summary?.deliveryState] || "Not sent";
+    const summary = thread.summary;
+    if (summary?.deliveryState === "accepted") {
+      if (summary.hasUnsentGuidance) return "Follow-up not sent";
+      return ({ not_started: "Queued", in_progress: "Agent working", waiting_user: "Waiting for your reply",
+        blocked: "Agent blocked", failed: "Work failed", completed: "Agent finished", superseded: "Replaced by follow-up" } as Record<string, string>)[summary.workState] || "Delivered";
+    }
+    return ({ prepared: "Ready to send", attempting: "Sending", rejected: "Not delivered", unknown: "Delivery unknown" } as Record<string, string>)[summary?.deliveryState] || "Not sent";
   }
   private deliveryHtml(thread: any) {
-    const work = thread.summary?.workState;
-    return `<small class="cr-delivery" title="Delivery is separate from concern resolution.">${e(this.deliveryLabel(thread))}${work && work !== "not_started" ? ` · ${e(work.replaceAll("_", " "))}` : ""}</small>`;
+    return `<small class="cr-delivery" title="Posting saves a reply; Send explicitly queues the next agent turn. Resolution is separate.">${e(this.deliveryLabel(thread))}</small>`;
   }
   private threadLocation(thread: any) {
     const anchor = thread.anchor;
@@ -632,7 +638,7 @@ export class CodeReviewPane {
             (t) =>
               this.threadFilter === "all" ||
               this.threadFilter === t.state ||
-              (this.threadFilter === "pending" && t.state === "open" && !t.summary?.deliveryState) ||
+              (this.threadFilter === "pending" && t.state === "open" && (!t.summary?.deliveryState || t.summary?.hasUnsentGuidance)) ||
               (this.threadFilter === "outdated" && !this.relevant(t)),
           )
           .map(
@@ -645,7 +651,7 @@ export class CodeReviewPane {
       : ""
   }`;
     const toolbar = this.element.querySelector(".cr-toolbar")!;
-    this.element.querySelector("#cr-thread-filter")?.insertAdjacentHTML("beforeend", `<option value="pending" ${this.threadFilter === "pending" ? "selected" : ""} title="Open concerns not yet sent to their current target.">Pending to send</option>`);
+    this.element.querySelector("#cr-thread-filter")?.insertAdjacentHTML("beforeend", `<option value="pending" ${this.threadFilter === "pending" ? "selected" : ""} title="Open concerns with saved guidance not yet sent to their current target.">Pending to send</option>`);
     const modes = [["source", "Saved file"], ["unstaged", "Unstaged changes"], ["staged", "Staged changes"], ["commit", "Commit comparison"]];
     toolbar.insertAdjacentHTML("afterbegin", `<select id="cr-source-mode" aria-label="Review source" title="Choose saved source or a Git comparison; source remains read-only.">${modes.map(([value, label]) => `<option value="${value}" ${snapshot?.mode === value ? "selected" : ""} ${value !== "source" && this.review.gitAvailable === false ? "disabled" : ""} title="${e(value !== "source" && this.review.gitAvailable === false ? "Git is unavailable for this file." : label)}">${label}</option>`).join("")}</select>`);
     const snapshotPicker = this.element.querySelector<HTMLSelectElement>("#cr-snapshot");
@@ -984,6 +990,7 @@ export class CodeReviewPane {
         this.drawer = "threads";
         break;
       case "close-drawer":
+        clearTimeout(this.previewTimer);
         ++this.previewEpoch;
         this.previewLoading = false;
         this.drawer = null;
@@ -1256,6 +1263,11 @@ export class CodeReviewPane {
         this.sendIntent = requestId();
         this.drawer = "send";
         this.status = "";
+        } catch (error) {
+          if (previewEpoch === this.previewEpoch && error instanceof ApiError && error.code === "already_queued") {
+            this.drawer = "send";
+            this.status = error.message;
+          } else throw error;
         } finally {
           if (previewEpoch === this.previewEpoch) { this.previewLoading = false; this.render(); }
         }
@@ -1575,7 +1587,17 @@ export class CodeReviewPane {
     } else if (el.id === "cr-summary") {
       this.summary = el.value;
       if (this.drawer === "send") {
-        this.sendIntent = requestId();
+        clearTimeout(this.previewTimer);
+        ++this.previewEpoch;
+        this.sendIntent = null;
+        this.sendPreview = null;
+        this.pendingPayload = null;
+        this.previewLoading = true;
+        this.render();
+        this.previewTimer = setTimeout(() => {
+          if (!this.disposed && this.drawer === "send")
+            void this.perform("refresh-send-preview", el).catch((error) => this.fail(error));
+        }, 250);
       }
     } else if (el.id === "cr-filter") {
       this.fileFilter = el.value;
@@ -1642,6 +1664,7 @@ export class CodeReviewPane {
           this.moreMenu = false;
           this.render();
         } else {
+          clearTimeout(this.previewTimer);
           ++this.previewEpoch;
           this.previewLoading = false;
           this.pendingPayload = null;

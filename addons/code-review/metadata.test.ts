@@ -162,6 +162,7 @@ test("metadata summaries stay current, skip drafts, and enforce owner/workspace 
       filePath: "src/main.ts",
       deliveryState: null,
       workState: null,
+      hasUnsentGuidance: true,
     });
     expect(JSON.stringify(beforeDelete.summary)).not.toContain("PRIVATE DRAFT BODY");
     expect(() =>
@@ -183,6 +184,7 @@ test("metadata summaries stay current, skip drafts, and enforce owner/workspace 
       filePath: "src/main.ts",
       deliveryState: null,
       workState: null,
+      hasUnsentGuidance: true,
     });
   } finally {
     f.cleanup();
@@ -224,6 +226,7 @@ test("metadata delivery tracks the latest matching epoch and keeps delivery dist
     expect((f.service.listThreads(operator, f.reviewId)[0] as any).summary).toMatchObject({
       deliveryState: null,
       workState: null,
+      hasUnsentGuidance: true,
     });
 
     const unknown = f.service.submit(
