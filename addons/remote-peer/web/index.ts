@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { remotePeerStyles } from "./styles.ts";
 const ui = globalThis.__piclawPreactHtm || globalThis.__piclawPreact;
 const html = ui?.html,
   useState = ui?.useState,
@@ -76,22 +77,6 @@ function PeerPermissions({ peer, advertised, busy, enabled, onApply }) {
     finally { setRemoteBusy(false); }
   }
   return html`<div class="remote-peer-permissions">
-    <style>${`
-      @layer remote-peer-permissions-fallback {
-        .remote-peer-permissions .settings-addon-field { display:flex;flex-direction:column;gap:6px;min-width:0;margin:12px 0; }
-        .remote-peer-permissions .settings-addon-control { box-sizing:border-box;max-width:100%;min-width:0;padding:6px 10px;border:1px solid var(--border-color);border-radius:6px;background:var(--bg-primary);color:var(--text-primary); }
-        .remote-peer-permissions .settings-addon-actions { display:flex;gap:8px;flex-wrap:wrap;align-items:center; }
-        .remote-peer-permissions .settings-addon-help { color:var(--text-secondary);font-size:.85em;overflow-wrap:anywhere; }
-        .remote-peer-permissions .settings-addon-error { color:var(--danger-color); }
-        .remote-peer-permissions button { padding:6px 14px;border:1px solid var(--border-color);border-radius:6px;background:var(--bg-hover,var(--bg-secondary));color:var(--text-primary);cursor:pointer; }
-        .remote-peer-permissions :is(button,input,select):focus-visible { outline:2px solid var(--accent-color);outline-offset:2px; }
-        .remote-peer-permissions :disabled { opacity:.5; }
-      }
-      .remote-peer-permissions fieldset { min-width:0;margin:12px 0;padding:10px;border:1px solid var(--border-color);border-radius:6px; }
-      .remote-peer-permissions .remote-peer-checks { display:flex;gap:8px;flex-wrap:wrap; }
-      .remote-peer-permissions .remote-peer-checks label { display:inline-flex;gap:6px;align-items:center;overflow-wrap:anywhere; }
-      .remote-peer-permissions .remote-peer-saved { overflow-wrap:anywhere; }
-    `}</style>
     <section class="settings-addon-section" aria-label="Incoming permissions">
       <h5>Incoming — what this peer may send to this instance</h5>
       <p class="settings-addon-help">You control these permissions for ${peer.alias} only. They do not grant remote tool execution.</p>
@@ -115,7 +100,7 @@ function PeerPermissions({ peer, advertised, busy, enabled, onApply }) {
             <div class="remote-peer-checks">${selectable.map(name => html`<label><input type="checkbox" disabled=${draft.scope !== "named-agents"} checked=${draft.agents.includes(name)} onChange=${e => toggle("agents", name, e.target.checked)} />@${name}${advertised.some(a => a.alias === name) ? "" : " (not currently advertised)"}</label>`)}</div>
             ${!selectable.length && html`<p class="settings-addon-help">No locally advertised agents.</p>`}
           </fieldset>
-          <label><input type="checkbox" aria-describedby=${prefix + "-limits"} checked=${draft.files} onChange=${e => change({ files: e.target.checked })} /> Allow this peer to send files here</label>
+          <label class="remote-peer-check"><input type="checkbox" aria-describedby=${prefix + "-limits"} checked=${draft.files} onChange=${e => change({ files: e.target.checked })} /> Allow this peer to send files here</label>
           ${dirty && needsConfirmation(draft) && html`<div class="settings-addon-field">
             <label class="settings-addon-label" for=${prefix + "-confirmation"}>Confirm wider incoming access</label>
             <input id=${prefix + "-confirmation"} class="settings-addon-control" autocomplete="off" value=${confirmation} placeholder="ALLOW REMOTE ACCESS" onInput=${e => setConfirmation(e.target.value)} aria-describedby=${prefix + "-confirm-help"} />
@@ -125,7 +110,7 @@ function PeerPermissions({ peer, advertised, busy, enabled, onApply }) {
         ${conflict && html`<p class="settings-addon-error" role="alert">Saved permissions changed while you were editing. Revert to reload them before applying.</p>`}
         <p class="settings-addon-status" role="status">${saving ? "Applying incoming permissions…" : dirty ? "Unsaved changes" : "No unsaved changes"}</p>
         <div class="settings-addon-actions">
-          <button disabled=${locked || !dirty || conflict || !draft.modes.length || (needsConfirmation(draft) && confirmation !== "ALLOW REMOTE ACCESS")} onClick=${apply}>Apply</button>
+          <button data-settings-button="primary" disabled=${locked || !dirty || conflict || !draft.modes.length || (needsConfirmation(draft) && confirmation !== "ALLOW REMOTE ACCESS")} onClick=${apply}>Apply</button>
           <button disabled=${saving} onClick=${() => reset(true)}>Revert</button>
           <button disabled=${saving} onClick=${() => reset(false)}>Cancel</button>
         </div>`}
@@ -238,40 +223,16 @@ function RemotePeerSettings() {
   };
   if (!state) return html`<p>${error || "Loading Remote Peer…"}</p>`;
   const c = state.config;
-  const box = {
-    border: "1px solid var(--border-color)",
-    borderRadius: "8px",
-    padding: "12px",
-    marginBottom: "12px",
-  };
-  const row = {
-    display: "flex",
-    gap: "8px",
-    flexWrap: "wrap",
-    alignItems: "center",
-    margin: "8px 0",
-  };
-  return html`<div class="remote-peer-settings" style="max-width:900px;min-width:0">
-    <style>${`
-      @layer remote-peer-fields-fallback {
-        .remote-peer-settings .settings-addon-field { display:flex;flex-direction:column;gap:6px;min-width:0;margin:12px 0; }
-        .remote-peer-settings .settings-addon-label { font-size:.88em;color:var(--text-secondary); }
-        .remote-peer-settings .settings-addon-control { box-sizing:border-box;width:280px;min-width:0;max-width:100%;padding:6px 10px;border:1px solid var(--border-color);border-radius:6px;background:var(--bg-primary);color:var(--text-primary);font-size:.88em; }
-        .remote-peer-settings textarea.settings-addon-control { resize:vertical; }
-        .remote-peer-settings .settings-addon-control:focus-visible { outline:2px solid var(--accent-color);outline-offset:2px; }
-        .remote-peer-settings .settings-addon-control:disabled { opacity:.5; }
-        @media(max-width:640px) { .remote-peer-settings .settings-addon-control { width:100%; } }
-      }
-      .remote-peer-settings code { overflow-wrap:anywhere; }
-    `}</style>
-    <section style=${box}>
+  return html`<div class="remote-peer-settings">
+    <style>${remotePeerStyles}</style>
+    <section class="remote-peer-section">
       <h4>Iroh Remote Peer</h4>
-      <p>
+      <p class="remote-peer-description">
         Fresh client identity and Iroh-only peer connections. Older HTTP peers
         and databases are not supported.
       </p>
-      <div style=${row}>
-        <label
+      <div class="remote-peer-row">
+        <label class="remote-peer-check"
           ><input
             type="checkbox"
             checked=${c.enabled}
@@ -291,10 +252,10 @@ function RemotePeerSettings() {
           }}
         />
       </div>
-      <label>Your client ID</label>
-      <div style=${row}>
-        <code style="overflow-wrap:anywhere">${state.identity.clientId}</code
-        ><button onClick=${() => copy(state.identity.clientId)}>Copy ID</button>
+      <span class="settings-addon-label">Your client ID</span>
+      <div class="remote-peer-identity">
+        <code class="remote-peer-id">${state.identity.clientId}</code>
+        <div class="remote-peer-actions"><button onClick=${() => copy(state.identity.clientId)}>Copy ID</button>
         <button
           disabled=${busy ||
           state.peers.some((peer) => peer.status !== "revoked")}
@@ -307,19 +268,19 @@ function RemotePeerSettings() {
           }}
         >
           Rotate identity
-        </button>
+        </button></div>
       </div>
-      <p>
+      <p class="remote-peer-description">
         Rotation requires every peer and pending request to be revoked first.
       </p>
-      <p>
+      <p class="settings-addon-status" role="status">
         ${state.transport.active ? "Listening" : "Stopped"} ·
         ${state.transport.relay ? "Relay connected" : "No relay yet"} · last
         path ${state.transport.lastPath || "none"}
       </p>
       ${state.transport.error &&
-      html`<p role="alert">${state.transport.error}</p>`}
-      <label
+      html`<p class="settings-addon-error" role="alert">${state.transport.error}</p>`}
+      <label class="remote-peer-check"
         ><input
           type="checkbox"
           checked=${c.addressLookup}
@@ -328,7 +289,7 @@ function RemotePeerSettings() {
         />
         Internet address lookup for pasted IDs</label
       >
-      <p>
+      <p class="remote-peer-description">
         When enabled, Iroh publishes and resolves endpoint address records
         through n0 discovery services. This does not grant trust. When off, use
         a ticket or opt-in nearby discovery.
@@ -349,7 +310,7 @@ function RemotePeerSettings() {
           /></div><button onClick=${() => copy(localTicket)}>Copy ticket</button>`}
       </details>
     </section>
-    <section style=${box}>
+    <section class="remote-peer-section">
       <h4>Add peer</h4>
       <div class="settings-addon-field">
         <label class="settings-addon-label" for="remote-peer-client-id">Peer client ID</label>
@@ -376,7 +337,7 @@ function RemotePeerSettings() {
           onInput=${(e) => setTicket(e.target.value)}
         /></div>
       </details>
-      <button
+      <button data-settings-button="primary"
         disabled=${busy || !c.enabled || !client.trim()}
         onClick=${() =>
           run({
@@ -388,14 +349,14 @@ function RemotePeerSettings() {
       >
         Request pairing
       </button>
-      <p>
+      <p class="remote-peer-description">
         The other instance must explicitly accept. Knowing a client ID never
         grants access.
       </p>
     </section>
-    <section style=${box}>
+    <section class="remote-peer-section">
       <h4>Local discovery</h4>
-      <label
+      <label class="remote-peer-check"
         ><input
           type="checkbox"
           checked=${c.mdnsEnabled}
@@ -404,7 +365,7 @@ function RemotePeerSettings() {
         />
         Enable mDNS on this network (off by default)</label
       >
-      <p>
+      <p class="remote-peer-description">
         Advertises the public client ID locally and lists untrusted nearby
         candidates. Does not auto-pair.
       </p>
@@ -419,13 +380,13 @@ function RemotePeerSettings() {
         }}
       />
       </div>
-      <p>
+      <p class="settings-addon-status" role="status">
         ${state.discovery.active ? "Discovery active" : "Discovery stopped"}
         ${state.discovery.error || ""}
       </p>
       ${state.candidates.map(
         (candidate) =>
-          html`<div style=${row}>
+          html`<div class="remote-peer-row">
             <span>${candidate.name}</span><code>${candidate.clientId}</code
             ><button
               disabled=${busy}
@@ -438,17 +399,15 @@ function RemotePeerSettings() {
           </div>`,
       )}
     </section>
-    <section style=${box}>
+    <section class="remote-peer-section">
       <h4>Peers and requests</h4>
       ${!state.peers.length && html`<p>No paired clients.</p>`}
       ${state.peers.map(
         (peer) =>
-          html`<div style=${box} key=${peer.id + ":" + peer.epoch} data-peer-id=${peer.id}>
-            <strong>${peer.alias}</strong> ${peer.name} · ${peer.status}
-            <div style="overflow-wrap:anywhere">
-              <code>${peer.clientId}</code>
-            </div>
-            <div style=${row}>
+          html`<div class="remote-peer-card" key=${peer.id + ":" + peer.epoch} data-peer-id=${peer.id}>
+            <header class="remote-peer-card-header"><strong>${peer.alias}</strong><span class="remote-peer-name">${peer.name}</span><span class="remote-peer-state">${peer.status}</span></header>
+            <code class="remote-peer-id">${peer.clientId}</code>
+            <div class="remote-peer-row">
               ${peer.status === "incoming" &&
               html`<button
                 disabled=${busy}
@@ -513,11 +472,12 @@ function RemotePeerSettings() {
           </div>`,
       )}
     </section>
-    <section style=${box}>
+    <section class="remote-peer-section">
       <h4>Advertised agents</h4>
+      ${!state.advertised.length && html`<p class="settings-addon-help">No local agents advertised.</p>`}
       ${state.advertised.map(
         (a) =>
-          html`<div style=${row}>
+          html`<div class="remote-peer-row">
             @${a.alias} → ${a.local_agent}<button
               onClick=${() => run({ action: "unadvertise", alias: a.alias })}
             >
@@ -550,7 +510,7 @@ function RemotePeerSettings() {
       </select>
       </div>
     </section>
-    <section style=${box}>
+    <section class="remote-peer-section">
       <h4>Relays</h4>
       <div class="settings-addon-field">
       <label class="settings-addon-label" for="remote-peer-relay-mode">Relay mode</label>
@@ -596,11 +556,12 @@ function RemotePeerSettings() {
         Save relay list
       </button>
     </section>
-    <section style=${box}>
+    <section class="remote-peer-section">
       <h4>Delivery</h4>
+      ${!state.messages.length && html`<p class="settings-addon-help">No recent deliveries.</p>`}
       ${state.messages.map(
         (m) =>
-          html`<div style=${row}>
+          html`<div class="remote-peer-row">
             <code>${m.id}</code> ${m.status}
             ${m.error || ""}${m.status === "failed" &&
             html`<button
@@ -612,9 +573,10 @@ function RemotePeerSettings() {
           </div>`,
       )}
     </section>
-    <section style=${box}>
+    <section class="remote-peer-section">
       <h4>Mediated work</h4>
-      <p>Remote requests never execute tools automatically.</p>
+      <p class="remote-peer-description">Remote requests never execute tools automatically.</p>
+      ${!state.work.some(w => w.direction === "inbound" && ["pending", "response-pending"].includes(w.status)) && html`<p class="settings-addon-help">No requests awaiting review.</p>`}
       ${state.work
         .filter(
           (w) =>
@@ -623,10 +585,10 @@ function RemotePeerSettings() {
         )
         .map(
           (w) =>
-            html`<div style=${box}>
+            html`<div class="remote-peer-card">
               <code>${w.id}</code>
-              <pre style="white-space:pre-wrap">${w.data.prompt}</pre>
-              <button
+              <pre class="remote-peer-work-prompt">${w.data.prompt}</pre>
+              <div class="remote-peer-actions"><button
                 disabled=${busy}
                 onClick=${() => {
                   const result = prompt("Reviewed result");
@@ -653,11 +615,11 @@ function RemotePeerSettings() {
                   })}
               >
                 Reject
-              </button>
+              </button></div>
             </div>`,
         )}
     </section>
-    ${error && html`<p role="alert">${error}</p>`}
+    ${error && html`<p class="settings-addon-error" role="alert">${error}</p>`}
   </div>`;
 }
 if (html && useState && useEffect) {

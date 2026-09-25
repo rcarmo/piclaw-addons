@@ -7,10 +7,22 @@ let fixture: Awaited<ReturnType<typeof settingsPaneFixture>>;
 beforeAll(async () => { if (settingsBrowserEnabled) fixture = await settingsPaneFixture(new URL("./web/index.ts", import.meta.url).pathname, { realHost: true }); }, 30000);
 afterAll(async () => { await fixture?.close(); });
 
-async function setup(skin: string, width: number) {
-  const f = await fixture.page(skin, width);
+async function setup(skin: string, width: number, options: { long?: boolean; colorScheme?: 'light' | 'dark' } = {}) {
+  const f = await fixture.page(skin, width, options.colorScheme ?? 'light');
   const peer = (id: string, alias: string) => ({ id, alias, name: alias, clientId: "PCL1-" + id, status: "paired", epoch: "epoch", scope: "named-agents", agents: ["research", "hidden"], modes: ["queue", "auto"], files: false });
-  const data = { config: { enabled: true, instanceName: "Test", relays: [], relayMode: "disabled", mdnsEnabled: false, addressLookup: false }, identity: { clientId: "PCL1-local" }, transport: { active: true }, discovery: { active: false }, peers: [peer("first", "Lab"), peer("second", "Other")], advertised: [{ alias: "research", local_agent: "research" }], candidates: [], messages: [], work: [], localAgents: [] };
+  const data: any = { config: { enabled: true, instanceName: "Test", relays: [], relayMode: "disabled", mdnsEnabled: false, addressLookup: false }, identity: { clientId: "PCL1-local" }, transport: { active: true }, discovery: { active: false }, peers: [peer("first", "Lab"), peer("second", "Other")], advertised: [{ alias: "research", local_agent: "research" }], candidates: [], messages: [], work: [], localAgents: [] };
+  if (options.long) {
+    const id = 'PCL1-' + '0123456789abcdef'.repeat(12);
+    data.identity.clientId = id;
+    data.peers[0].clientId = id;
+    data.peers[0].alias = 'Research ' + 'very-long-name-'.repeat(6);
+    data.peers[0].name = 'Same long instance ' + 'label'.repeat(12);
+    data.peers.push({ ...data.peers[1], id: 'incoming', epoch: 'pending', alias: 'Pending peer', status: 'incoming', clientId: id });
+    data.candidates = [{name:'Nearby test device',clientId:id}];
+    data.messages = [{id:'message-'+'a'.repeat(160),status:'failed',error:'Offline '+ 'error-detail'.repeat(15)}];
+    data.work = [{id:'work-'+'b'.repeat(160),direction:'inbound',status:'pending',data:{prompt:'Untrusted sample request '+ 'long-line'.repeat(60)}}];
+    data.transport.error = 'Fixture transport error: '+ 'address'.repeat(40);
+  }
   const writes: any[] = [];
   const failure = { post: false, get: false, remote: false, hold: null as null | Promise<void>, remoteCalls: 0, beforeWrite: null as null | (() => void) };
   await f.page.route("**/agent/addons/api/remote-peer/dashboard", async (route: any) => {
@@ -180,3 +192,38 @@ for (const race of ["narrow", "re-pair"]) browserTest(`Apply rejects ${race} bet
     expect(f.errors).toEqual([]);
   } finally { await page.close(); }
 }, 15000);
+
+for (const skin of ['classic','visual']) for (const colorScheme of ['light','dark'] as const) for (const width of [1366,820,390]) {
+  browserTest(`Remote Peer ${skin}/${colorScheme}/${width} long content fits the actual Settings pane`, async()=>{
+    const f=await setup(skin,width,{long:true,colorScheme});
+    try {
+      const root=f.page.locator('.remote-peer-settings');
+      expect(await root.locator(':scope > .remote-peer-section').count()).toBe(8);
+      expect(await root.locator('.remote-peer-identity .remote-peer-actions button').count()).toBe(2);
+      const overflow=await root.evaluate((el:HTMLElement)=>{
+        const bound=el.getBoundingClientRect();
+        return [...el.querySelectorAll<HTMLElement>('section,fieldset,button,input,select,textarea,code,pre')]
+          .filter(node=>node.getClientRects().length && (node.getBoundingClientRect().right>bound.right+2||node.getBoundingClientRect().left<bound.left-2))
+          .map(node=>({tag:node.tagName,class:node.className}));
+      });
+      expect(overflow).toEqual([]);
+      expect(await root.evaluate((el:HTMLElement)=>el.scrollWidth<=el.clientWidth+1)).toBe(true);
+      const sizes=await root.locator('input[type=checkbox]').evaluateAll((nodes:HTMLInputElement[])=>nodes.map(el=>({w:el.getBoundingClientRect().width,h:el.getBoundingClientRect().height,type:el.type})));
+      for(const size of sizes){expect(size.type).toBe('checkbox');expect(size.w).toBeLessThan(30);expect(size.h).toBeLessThan(30);}
+      const field=await f.page.getByLabel('Peer client ID',{exact:true}).evaluate((el:HTMLElement)=>{
+        const box=el.getBoundingClientRect(),parent=el.parentElement!.getBoundingClientRect();
+        return {w:box.width,parent:parent.width};
+      });
+      expect(field.w).toBeGreaterThan(field.parent*0.9);
+      const fonts=await root.evaluate((el:HTMLElement)=>({base:getComputedStyle(el).fontSize,heading:getComputedStyle(el.querySelector('h4')!).fontSize}));
+      expect(fonts).toEqual({base:'13px',heading:skin === 'visual' ? '13px' : '14px'});
+      const evidence=process.env.PICLAW_REMOTE_PEER_SCREENSHOT_DIR;
+      if(evidence && [1366,390].includes(width)) {
+        if(!isAbsolute(evidence))throw Error('Screenshot directory must be absolute');
+        mkdirSync(evidence,{recursive:true});
+        await root.screenshot({path:join(evidence,`settings-${skin}-${colorScheme}-${width}.png`)});
+      }
+      expect(f.writes).toEqual([]);expect(f.failure.remoteCalls).toBe(0);expect(f.errors).toEqual([]);
+    }finally{await f.page.close();}
+  },20000);
+}
