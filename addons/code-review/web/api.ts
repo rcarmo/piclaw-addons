@@ -46,3 +46,43 @@ export const escapeText = (value: unknown) =>
         c
       ]!,
   );
+
+/** Existing host profiles are presentation only; they never confer review authority. */
+export type ReviewProfiles = {
+  user?: { name?: string | null; avatar_url?: string | null };
+  agents?: Array<{ name?: string | null; avatar_url?: string | null }>;
+};
+export async function loadReviewProfiles(signal?: AbortSignal): Promise<ReviewProfiles> {
+  try {
+    const response = await fetch('/agent/roster', { credentials: 'same-origin', signal });
+    if (!response.ok) return {};
+    const body = await response.json();
+    return body && typeof body === 'object' ? body : {};
+  } catch { return {}; /* A missing profile must not prevent review access. */ }
+}
+export function reviewAuthor(
+  kind: unknown, authorId: unknown, profiles: ReviewProfiles, targets: any[],
+): { name: string; avatar: string | null } {
+  if (kind !== 'operator' && kind !== 'agent') return { name: 'Unknown author', avatar: null };
+  const agent = Array.isArray(profiles.agents) ? profiles.agents[0] : undefined;
+  const target = kind === 'agent' && typeof authorId === 'string'
+    ? targets.find(item => item.incarnation === authorId) : undefined;
+  const profileName = kind === 'operator' ? profiles.user?.name : target ? agent?.name : null;
+  const name = typeof profileName === 'string' && profileName.trim()
+    ? profileName.trim() : kind === 'operator' ? 'You' : 'Agent';
+  const handle = typeof target?.agentName === 'string' ? target.agentName.trim() : '';
+  const avatar = kind === 'operator' ? profiles.user?.avatar_url : target ? agent?.avatar_url : null;
+  return {
+    name: handle && handle.toLowerCase() !== name.toLowerCase() ? `${name} (@${handle})` : name,
+    avatar: safeReviewAvatar(avatar),
+  };
+}
+function safeReviewAvatar(value: unknown): string | null {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  const url = value.trim();
+  if (url.startsWith('/') && !url.startsWith('//') && !url.includes('\\') && !/[\u0000-\u0020]/.test(url)) return url;
+  try {
+    const parsed = new URL(url);
+    return ['https:', 'http:'].includes(parsed.protocol) && !parsed.username && !parsed.password ? parsed.href : null;
+  } catch { return null; }
+}

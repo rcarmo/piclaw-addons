@@ -398,7 +398,7 @@ hostTest(
           expect(provider.busyStarted).toBe(true);
           expect(provider.busyFinished).toBe(false);
         }
-        await page.locator(".cr-thread [data-pick]").check();
+        expect(await page.locator(".cr-thread [data-pick]").count()).toBe(0);
         expect(provider.requests).toHaveLength(0);
         await page.locator(".cr-pane [data-action=send]").click();
         await page.waitForSelector(".cr-drawer");
@@ -408,7 +408,7 @@ hostTest(
           () =>
             document
               .querySelector(".cr-status")
-              ?.textContent?.includes("accepted"),
+              ?.textContent?.includes("Queued"),
           { timeout: 15000 },
         );
         if (busyTarget) {

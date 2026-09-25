@@ -1,8 +1,55 @@
 # Code Review
 
 Review saved source and Git diffs in Classic, keep inline discussions and private
-drafts, and send selected concerns to a local agent. Source is read-only; posting
-a comment does not start agent work.
+drafts, and send new or updated discussions to a local agent. Source is read-only;
+posting a comment does not start agent work.
+
+![Code Review showing named authors, avatars and inline discussion](docs/code-review-discussion.png)
+
+*Classic pane, rendered from the real add-on with disposable sample source and
+profiles. The screenshot uses no live review data.*
+
+## Review and send
+
+- Choose **Review file** from the workspace explorer. Git is optional; unchanged
+  saved files are supported alongside staged, unstaged and commit comparisons.
+- Messages and thread summaries show the configured operator/agent name and
+  avatar. Agent handles are resolved by the stored author's identity, not the
+  thread's current assignment. Missing profiles/images fall back to labels/initials.
+- Post comments and replies normally. **Send to agent** automatically discovers
+  open, new or updated discussions for the chosen agent; there are no inclusion
+  checkboxes. Review the preview and confirm to queue a batch of up to 50 threads.
+  Additional discussions can be sent in a later batch. Private drafts are excluded.
+- **Unsent** includes changed guidance since the last send. Discussions with
+  queued/running or uncertain work wait for that work to finish or be reconciled.
+  Other targets are not silently reassigned.
+- Resolve your own discussion with one click, or reopen it without sending work.
+  Agent resolutions still require an explanation and valid source mapping.
+- Delivery status stays beside the discussion: **Queued**, **Failed**, or
+  **Delivery uncertain**. There is no receipts pane. Uncertain sends have an
+  explicit **Check delivery** action; they are never replayed automatically.
+
+## Manage saved reviews
+
+Open **Settings → Add-ons → Code Review** for the Reviews list. **Open** uses the
+stored review ID and snapshots, so it works after the source file is renamed or
+deleted. Closing a review tab only closes its pane.
+
+**Delete** permanently removes that review's messages, revisions, private drafts,
+snapshots and stored source bytes from the active add-on database. Source files are
+never deleted. Confirmation is required; an in-flight send must finish first.
+Already accepted work cannot be recalled, but subsequent review-tool reads/writes
+fail once the review is deleted. Minimal body-free request tombstones prevent
+old requests from recreating it. Backups and already-delivered instructions are
+not erased; this is logical deletion, not a forensic purge of SQLite pages.
+
+**Automatically delete reviews older than N days** is off by default. Enable it
+with confirmation and a whole number from 1 to 3650 days. Age means time since
+last review activity, including recent drafts. The add-on checks hourly after a
+verified workspace context has been seen, and when Settings refreshes, deleting
+up to 100 old reviews per pass. The saved policy survives restart. Queued, running
+and uncertain work is skipped; inactive unsent discussions can expire under this
+policy. Reviews in another workspace are never selected by the cleanup pass.
 
 The active release checklist is six Classic-only checks in
 `specs/code-review/ACCEPTANCE.md`. The 184 older Gherkin IDs remain archived
@@ -14,17 +61,15 @@ the simplified checklist does not authorise UX deviations.
 
 ## Required host API
 
-**Requires Classic on a Piclaw source build containing commit
-`2a06652e9e82667e0a8117232476e87c86685935` (merged PR #1407, 25 September 2026)
-or a later build retaining those APIs. The tagged v3.2.2 release does not contain
-them.** Visual is not supported for this first release.
+**Requires Piclaw 3.2.3 or later, using Classic.** Version 3.2.3 is the first tagged
+release containing the required add-on APIs from PR #1407. Version 3.2.2 does not
+contain them. Visual is not supported for this release.
 
 The pane feature-detects `__piclaw_web.workspaceActionsVersion === 1`; the backend
 requires `__piclaw_runtime.localContext.version === 1` and host-verified submission
-references. Its route is `piclaw://addon/code-review/<id>`. No numeric
-`compatibleVersions` range is declared yet: the merged source and old tagged
-release both identify as 3.2.2, so a numeric range would give a false guarantee.
-Use the source-build requirement above until a tagged release contains these APIs.
+references. Its route is `piclaw://addon/code-review/<id>`. The package declares
+`compatibleVersions: ">=3.2.3"`; the packed add-on is tested against the tagged
+3.2.3 source in a disposable authenticated host.
 
 The host supplies trusted operator or explicit review-dispatch agent identity.
 Ordinary legacy prompts, side/scheduled tasks and remote-origin turns do not gain
@@ -88,10 +133,10 @@ large input.
 
 ## Use and rollback
 
-1. On a compatible Classic source build, install **Code Review** from Add-ons.
+1. On Piclaw 3.2.3 or later in Classic, install **Code Review** from Add-ons.
 2. Select a saved file in the workspace and choose **Review file**.
-3. Post comments, select the concerns to include, then explicitly **Send to agent**.
-   One submission can include all selected concerns across multiple files.
+3. Post comments, then use **Send to agent** to preview new or updated discussions
+   for that target. Confirming queues one submission across the included files.
 4. To remove the add-on, use Add-ons → Uninstall, then restart when convenient.
    Its review database is retained. Reinstall the same version to reopen the work;
    do not delete or replace the store as part of rollback.

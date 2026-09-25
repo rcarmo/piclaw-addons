@@ -436,7 +436,7 @@ test(
 
       await waitForShell(page, harness.server.url.href);
       await openReview(page);
-      await page.waitForSelector(`[data-pick="${harness.mainThreadId}"]`);
+      await page.waitForSelector(`#cr-${harness.mainThreadId}`);
 
       const uiTextBefore = await page.locator(".cr-pane").innerText();
       expect(uiTextBefore).not.toContain("Viewed");
@@ -457,13 +457,13 @@ test(
         }),
       ).toBeGreaterThan(0);
 
-      await page.locator(`[data-pick="${harness.mainThreadId}"]`).check();
+      expect(await page.locator("[data-pick]").count()).toBe(0);
       expect(
         await page.locator(".cr-toolbar [data-action=send]").textContent(),
-      ).toContain("(1)");
+      ).toContain("(2)");
 
       await openFile(page, "src/util.ts");
-      await page.waitForSelector(`[data-pick="${harness.utilThreadId}"]`);
+      await page.waitForSelector(`#cr-${harness.utilThreadId}`);
       await page.locator('[data-action="select-line"][data-side="new"][data-line="44"]').click();
       await page.locator('[data-action="select-line"][data-side="new"][data-line="45"]').click();
       expect(await page.locator(".cr-selection").textContent()).toContain("new lines 44–45");
@@ -474,7 +474,7 @@ test(
         }),
       ).toBeGreaterThan(0);
 
-      await page.locator(`[data-pick="${harness.utilThreadId}"]`).check();
+      expect(await page.locator("[data-pick]").count()).toBe(0);
       expect(
         await page.locator(".cr-toolbar [data-action=send]").textContent(),
       ).toContain("(2)");
@@ -483,12 +483,7 @@ test(
       await page.locator(".cr-toolbar [data-action=send]").click();
       await page.waitForSelector(".cr-drawer");
       expect(await page.locator(".cr-send-preview li").count()).toBe(2);
-      expect(
-        await page.locator(".cr-send-preview li").first().getAttribute("data-preview-thread"),
-      ).toBe(harness.mainThreadId);
-      expect(
-        await page.locator(".cr-send-preview li").nth(1).getAttribute("data-preview-thread"),
-      ).toBe(harness.utilThreadId);
+      expect(new Set(await page.locator('.cr-send-preview li').evaluateAll(nodes => nodes.map(n => n.getAttribute('data-preview-thread'))))).toEqual(new Set([harness.mainThreadId,harness.utilThreadId]));
       expect(await page.locator(".cr-status").count()).toBe(0);
       expect(harness.queueCalls).toEqual([]);
       expect(harness.store.listDispatches(harness.operator, harness.reviewId)).toEqual([]);
@@ -511,7 +506,7 @@ test(
       await page.reload();
       await waitForShell(page, harness.server.url.href);
       await openReview(page);
-      await page.waitForSelector(`[data-pick="${harness.mainThreadId}"]`);
+      await page.waitForSelector(`#cr-${harness.mainThreadId}`);
 
       expect(
         snapshotState({
@@ -523,7 +518,7 @@ test(
       ).toEqual(before);
       expect(await page.locator(".cr-selection").count()).toBe(0);
       expect(await page.locator('.cr-thread input[data-pick]:checked').count()).toBe(0);
-      expect(await page.locator(".cr-toolbar [data-action=send]").isDisabled()).toBe(true);
+      expect(await page.locator(".cr-toolbar [data-action=send]").isDisabled()).toBe(false);
       expect(await page.locator(".cr-status").count()).toBe(0);
       expect(await page.locator("#viewed,.cr-viewed,[data-read-progress]").count()).toBe(0);
       expect(harness.queueCalls).toEqual([]);

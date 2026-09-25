@@ -155,10 +155,9 @@ function createHarness(name: string) {
     await page.waitForSelector(".cr-line");
   };
 
-  const openReceipts = async (page: Page) => {
+  const openOptionsMenu = async (page: Page) => {
     await page.locator(".cr-toolbar [data-action=options]").click();
-    await page.locator(".cr-menu [data-action=receipts]").click();
-    await page.waitForSelector(".cr-receipts");
+    await page.waitForSelector(".cr-menu");
   };
 
   const openDrafts = async (page: Page) => {
@@ -216,7 +215,7 @@ function createHarness(name: string) {
     launchPage,
     waitForShell,
     openReview,
-    openReceipts,
+    openOptionsMenu,
     openDrafts,
     cleanup,
   };
@@ -363,20 +362,14 @@ test("CR-076/165 browser reload reconnects from durable state without polling or
     expect(await threadCard.textContent()).toContain(AGENT_REPLY);
     expect(await threadCard.textContent()).toContain(RESOLUTION);
 
-    await harness.openReceipts(launched.page);
+    expect(await threadCard.locator(".cr-delivery").innerText()).toBe("Queued · completed");
+    expect(await threadCard.locator("[data-action=reconcile]").count()).toBe(0);
+    expect(await launched.page.locator(".cr-receipts").count()).toBe(0);
+    await harness.openOptionsMenu(launched.page);
     expect(
-      await launched.page.locator(".cr-receipts article").first().textContent(),
-    ).toContain("accepted");
-    expect(
-      await launched.page.locator(".cr-receipts article").first().textContent(),
-    ).toContain("1/1 items completed");
-    expect(
-      await launched.page.locator(".cr-receipts [data-action=retry]").count(),
+      await launched.page.locator(".cr-menu [data-action=receipts]").count(),
     ).toBe(0);
-    expect(
-      await launched.page.locator(".cr-receipts [data-action=reconcile]").count(),
-    ).toBe(0);
-    await launched.page.locator(".cr-receipts [data-action=close-receipts]").click();
+    await launched.page.locator(".cr-toolbar [data-action=options]").click();
 
     await harness.openDrafts(launched.page);
     expect(await launched.page.locator("#cr-body").inputValue()).toBe(DRAFT_BODY);

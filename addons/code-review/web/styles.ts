@@ -1,4 +1,15 @@
 export const styles = `
+.cr-author{display:inline-flex;align-items:center;gap:6px;min-width:0;max-width:100%}
+.cr-avatar{position:relative;display:inline-grid;place-items:center;flex:0 0 24px;width:24px;height:24px;border-radius:50%;overflow:hidden;background:var(--bg-hover);color:var(--text-primary);font-size:11px}
+.cr-avatar img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:var(--bg-secondary)}
+.cr-author-name{overflow-wrap:anywhere}
+.cr-reviews-settings{font:inherit;color:var(--text-primary);display:flex;flex-direction:column;gap:12px}
+.cr-reviews-settings .cr-review-list{display:flex;flex-direction:column;gap:8px}
+.cr-review-list article{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px;border:1px solid var(--border-color);border-radius:6px}
+.cr-review-list .cr-review-description{flex:1;min-width:160px;overflow-wrap:anywhere}
+.cr-review-description small{display:block;color:var(--text-secondary)}
+.cr-retention{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.cr-retention input[type=number]{max-width:90px}
 .cr-pane{
   --green:var(--success-color);
   --green-bg:color-mix(in srgb,#2da44e 14%,var(--bg-code,var(--bg-primary)));

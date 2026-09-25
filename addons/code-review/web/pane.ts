@@ -1,4 +1,4 @@
-import { action, ApiError, requestId, escapeText as e } from "./api.ts";
+import { action, ApiError, requestId, loadReviewProfiles, reviewAuthor, type ReviewProfiles, escapeText as e } from "./api.ts";
 const X =
   '<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="m4 4 8 8m0-8-8 8"/></svg>';
 const pathPrefix = "piclaw://addon/code-review/";
@@ -100,7 +100,8 @@ export class CodeReviewPane {
   private previewLoading = false;
   private collapsedThreads = new Set<string>();
   private loadError = "";
-  private receipts: any[] | null = null;
+  private profiles: ReviewProfiles = {};
+  private avatarError = (event: Event) => { const image = event.target; if (image instanceof HTMLImageElement && image.closest(".cr-avatar")) image.remove(); };
   private fileDrafts = new Map<string, DraftState>();
   private sourceSelection = new Map<
     string,
@@ -132,6 +133,7 @@ export class CodeReviewPane {
     this.element.addEventListener("input", this.input);
     this.element.addEventListener("keydown", this.keydown);
     this.element.addEventListener("copy", this.copySource);
+    this.element.addEventListener("error", this.avatarError, true);
     this.element.ownerDocument.defaultView?.addEventListener("storage", this.storageListener);
     this.observer = new ResizeObserver((entries) => {
       const width = entries[0]?.contentRect.width ?? 1200;
@@ -182,6 +184,7 @@ export class CodeReviewPane {
     this.abort.abort();
     clearTimeout(this.draftTimer);
     this.observer.disconnect();
+    this.element.removeEventListener("error", this.avatarError, true);
     this.element.ownerDocument.defaultView?.removeEventListener("storage", this.storageListener);
     this.element.remove();
   }
@@ -283,12 +286,14 @@ export class CodeReviewPane {
         this.snapshots,
         this.threads,
         this.savedDrafts,
+        this.profiles,
       ] = await Promise.all([
         this.api("review"),
         this.api("targets"),
         this.api("snapshots"),
         this.api("threads"),
         this.api("drafts"),
+        loadReviewProfiles(this.abort.signal),
       ]);
       const target = JSON.parse(this.review.target_json);
       this.activeTarget ??= target;
@@ -426,12 +431,16 @@ export class CodeReviewPane {
     });
   }
   private deliveryLabel(thread: any) {
-    return ({ accepted: "Queued", prepared: "Ready to send", attempting: "Sending",
-      rejected: "Rejected", unknown: "Delivery unknown" } as Record<string, string>)[thread.summary?.deliveryState] || "Not sent";
+    const summary = thread.summary;
+    return summary?.deliveryState === "prepared" || summary?.deliveryState === "attempting" ? "Queued"
+      : summary?.deliveryState === "unknown" ? "Delivery uncertain"
+      : summary?.deliveryState === "rejected" ? "Failed"
+      : summary?.unsent ? "Unsent"
+      : summary?.deliveryState === "accepted" ? "Queued" : "Unsent";
   }
   private deliveryHtml(thread: any) {
     const work = thread.summary?.workState;
-    return `<small class="cr-delivery" title="Delivery is separate from concern resolution.">${e(this.deliveryLabel(thread))}${work && work !== "not_started" ? ` · ${e(work.replaceAll("_", " "))}` : ""}</small>`;
+    return `<small class="cr-delivery" title="Delivery is separate from concern resolution.">${e(this.deliveryLabel(thread))}${work && work !== "not_started" ? ` · ${e(work.replaceAll("_", " "))}` : ""}</small>${thread.summary?.deliveryState === 'unknown' && thread.summary.dispatchId ? button('reconcile','Check delivery','Record a delivery outcome only after checking evidence; never resend automatically.',`data-dispatch="${e(thread.summary.dispatchId)}"`) : ''}`;
   }
   private threadLocation(thread: any) {
     const anchor = thread.anchor;
@@ -449,6 +458,15 @@ export class CodeReviewPane {
     };
     return `<section class="cr-evidence" aria-label="Resolution evidence"><strong>Resolution evidence</strong><small>Addressed guidance v${e(message.resolution.addressedVersion)}</small><ul>${message.resolution.evidence.map((value: string) => `<li>${reference(value)}</li>`).join("")}</ul></section>`;
   }
+  private authorHtml(kind: unknown, id: unknown): string {
+    const author = reviewAuthor(kind, id, this.profiles, this.targets);
+    const initial = Array.from(author.name)[0]?.toUpperCase() || '?';
+    return `<span class="cr-author"><span class="cr-avatar" aria-hidden="true"><span>${e(initial)}</span>${author.avatar ? `<img src="${e(author.avatar)}" alt="" referrerpolicy="no-referrer">` : ''}</span><strong class="cr-author-name">${e(author.name)}</strong></span>`;
+  }
+  private syncUnsent() {
+    this.selected = new Set(this.threads.filter(t => t.state === 'open' && t.summary?.unsent && !t.summary?.outstanding
+      && t.target.chatId === this.activeTarget?.chatId && t.target.incarnation === this.activeTarget?.incarnation).map(t => t.id));
+  }
   private threadHtml(thread: any) {
     const data = this.detail.get(thread.id),
       anchor = thread.anchor,
@@ -459,7 +477,7 @@ export class CodeReviewPane {
       anchor.scope === "file"
         ? "Whole file"
         : `${p?.side || anchor.side} lines ${p?.startLine ?? anchor.startLine}–${p?.endLine ?? anchor.endLine}`;
-    return `<article class="cr-thread" id="cr-${thread.id}"><header><label title="Select this concern for a later explicit send. Does not send or resolve it."><input type="checkbox" data-pick="${thread.id}" ${this.selected.has(thread.id) ? "checked" : ""} ${thread.state !== "open" ? "disabled" : ""} title="Include this thread in the next review sent to the agent.">Include in send</label><strong>${e(thread.state)}</strong><span class="cr-muted">${e(location)}${p?.status === "moved" ? " · moved since review" : ""}</span>${button("expand", "Discussion", data ? "Collapse this discussion." : "Load public messages and replies.", `data-thread="${thread.id}" aria-expanded="${Boolean(data)}"`)}</header>${data ? `<div class="cr-messages">${data.messages.map((m: any) => `<div class="cr-message"><div class="cr-message-meta"><strong>${e(m.author_kind === "agent" ? "Agent" : "You")}</strong> <small>${e(m.updated_at)}${m.version > 1 ? " · edited" : ""}</small>${m.author_kind === "operator" && !m.deleted ? `<details class="cr-message-options"><summary title="Edit or delete your message; neither sends agent work." aria-label="Message actions">⋯</summary><div class="cr-message-actions">${button("edit", "Edit", "Edit your message; this does not send updated instructions.", `data-message="${m.id}" data-thread="${thread.id}"`)}${button("delete-message", "Delete", "Delete this message body while retaining its replies.", `data-message="${m.id}" data-thread="${thread.id}" data-settings-button="danger"`)}</div></details>` : ""}</div><div class="cr-message-body">${m.html ?? e(m.body ?? "Comment deleted")}</div></div>`).join("")}</div>${this.moreMessages.get(thread.id) ? button("more-messages", "More replies", "Load the next bounded page of this thread.", `data-thread="${thread.id}"`) : ""}<footer>${button("reply", "Reply", thread.state === "resolved" ? "Reopen this thread before replying." : "Write a reply without starting agent work.", `data-thread="${thread.id}" ${thread.state === "resolved" ? "disabled" : ""}`)}${button(thread.state === "resolved" ? "reopen" : "resolve", thread.state === "resolved" ? "Reopen" : "Resolve", "Change concern state explicitly; queued work is not cancelled.", `data-thread="${thread.id}"`)}${button("send-thread", "Send thread", "Preview this concern before sending to its bound local agent.", `data-thread="${thread.id}" ${thread.state !== "open" ? "disabled" : ""}`)}${button("reassign", "Reassign", "Bind this thread explicitly to the selected toolbar target; old work is not cancelled.", `data-thread="${thread.id}"`)}${button("delete-thread", "Delete thread", "Confirm removing this discussion; already delivered work cannot be recalled.", `data-thread="${thread.id}" data-settings-button="danger"`)}</footer>` : `<div class="cr-message cr-muted">${e(first)}</div>`}</article>`;
+    return `<article class="cr-thread" id="cr-${thread.id}"><header><strong>${e(thread.state)}</strong><span class="cr-muted">${e(location)}${p?.status === "moved" ? " · moved since review" : ""}</span>${button("expand", "Discussion", data ? "Collapse this discussion." : "Load public messages and replies.", `data-thread="${thread.id}" aria-expanded="${Boolean(data)}"`)}</header>${data ? `<div class="cr-messages">${data.messages.map((m: any) => `<div class="cr-message"><div class="cr-message-meta">${this.authorHtml(m.author_kind, m.author_id)} <small>${e(m.updated_at)}${m.version > 1 ? " · edited" : ""}</small>${m.author_kind === "operator" && !m.deleted ? `<details class="cr-message-options"><summary title="Edit or delete your message; neither sends agent work." aria-label="Message actions">⋯</summary><div class="cr-message-actions">${button("edit", "Edit", "Edit your message; this does not send updated instructions.", `data-message="${m.id}" data-thread="${thread.id}"`)}${button("delete-message", "Delete", "Delete this message body while retaining its replies.", `data-message="${m.id}" data-thread="${thread.id}" data-settings-button="danger"`)}</div></details>` : ""}</div><div class="cr-message-body">${m.html ?? e(m.body ?? "Comment deleted")}</div></div>`).join("")}</div>${this.moreMessages.get(thread.id) ? button("more-messages", "More replies", "Load the next bounded page of this thread.", `data-thread="${thread.id}"`) : ""}<footer>${button("reply", "Reply", thread.state === "resolved" ? "Reopen this thread before replying." : "Write a reply without starting agent work.", `data-thread="${thread.id}" ${thread.state === "resolved" ? "disabled" : ""}`)}${button(thread.state === "resolved" ? "reopen" : "resolve", thread.state === "resolved" ? "Reopen" : "Resolve", "Change concern state explicitly; queued work is not cancelled.", `data-thread="${thread.id}"`)}${button("send-thread", "Send thread", "Preview this concern before sending to its bound local agent.", `data-thread="${thread.id}" ${thread.state !== "open" ? "disabled" : ""}`)}${button("reassign", "Reassign", "Bind this thread explicitly to the selected toolbar target; old work is not cancelled.", `data-thread="${thread.id}"`)}${button("delete-thread", "Delete thread", "Confirm removing this discussion; already delivered work cannot be recalled.", `data-thread="${thread.id}" data-settings-button="danger"`)}</footer>` : `<div class="cr-message cr-muted">${e(first)}</div>`}</article>`;
   }
   private codeLine(
     side: string,
@@ -585,6 +603,7 @@ export class CodeReviewPane {
   }
   private render() {
     if (this.disposed) return;
+    if (this.drawer !== "send") this.syncUnsent();
     const active = this.element.ownerDocument.activeElement as HTMLInputElement;
     const focusId =
       active?.closest(".cr-pane") === this.element ? active.id : "";
@@ -606,17 +625,7 @@ export class CodeReviewPane {
         .toLowerCase()
         .includes(this.fileFilter.toLowerCase()) && (!this.unresolvedFilesOnly || f.stats?.openThreads > 0),
     );
-    this.element.innerHTML = `<div class="cr-toolbar">${button("files", "Files", "Show the files in this review.")}<select id="cr-snapshot" title="Choose an immutable saved-source or Git comparison snapshot.">${this.snapshots.map((s) => `<option value="${s.id}" ${s.id === this.snapshotId ? "selected" : ""} title="${e(s.mode + " captured " + s.captured_at)}">${e(s.mode + " · " + s.captured_at.slice(11, 19))}</option>`).join("")}</select><span class="cr-grow"></span><select id="cr-target" title="Choose a local target. Existing thread assignments require explicit reassignment.">${this.targets.map((t) => `<option value="${e(t.chatJid)}" ${t.chatJid === this.activeTarget?.chatId ? "selected" : ""}>${e(t.label)}</option>`).join("")}</select>${button("threads", `Threads (${this.threads.length})`, "Browse saved open, resolved and outdated concerns.")}${button("send", `Send to agent${this.selected.size ? " (" + this.selected.size + ")" : ""}`, this.selected.size ? "Preview selected guidance before queueing one review." : "Include at least one open thread to send.", `data-settings-button="primary" ${!this.selected.size ? "disabled" : ""}`)}<div class="cr-options">${button("options", "⋯", "View and capture options.", 'data-settings-button="icon" aria-label="View options"')}${this.moreMenu ? `<div class="cr-menu">${button("refresh", "Refresh saved source", "Capture the newest saved bytes; comments retain original anchors.")}${button("wrap", "Wrap long lines", "Toggle visual wrapping without changing saved source.")}${button("layout", this.view === "split" ? "Unified diff" : "Split diff", "Switch diff layout; unavailable in source mode.", this.view === "source" ? "disabled" : "")}${button("staged", "Staged changes", "Capture HEAD to index without staging or writing source.")}${button("unstaged", "Working changes", "Capture index to saved worktree, including untracked text files.")}${button("history", "Recent commits", "Select a bounded file-history commit to review.")}${button("add-file", "Add file", "Add another saved workspace file to this review explicitly.")}${button("drafts", `Drafts (${this.savedDrafts.length})`, "Restore an acknowledged private comment draft.")}${button("receipts", "Delivery receipts", "Inspect queued, failed and unknown attempts without resending.")}</div>` : ""}</div></div>
-  ${
-    this.receipts
-      ? `<section class="cr-receipts" aria-label="Delivery receipts"><header><strong>Delivery receipts</strong>${button("close-receipts", X, "Close delivery receipts without changing queued work.", 'data-settings-button="icon" aria-label="Close receipts"')}</header>${this.receipts
-          .map((d) => {
-            const last = d.attempts.at(-1);
-            return `<article><strong>${e(d.target.label)}</strong> <code>${e(d.id.slice(-8))}</code> <span>${e(last?.state || "unknown")}</span><small>${d.items.filter((i: any) => i.work_state === "completed").length}/${d.items.length} items completed</small>${last?.state === "rejected" ? button("retry", "Retry rejected send", "Create a numbered retry only after definite rejection.", `data-dispatch="${d.id}"`) : ""}${last?.state === "unknown" ? button("reconcile", "Reconcile outcome", "Inspect host evidence and explicitly record accepted or rejected; never blindly replay.", `data-dispatch="${d.id}"`) : ""}</article>`;
-          })
-          .join("")}</section>`
-      : ""
-  }
+    this.element.innerHTML = `<div class="cr-toolbar">${button("files", "Files", "Show the files in this review.")}<select id="cr-snapshot" title="Choose an immutable saved-source or Git comparison snapshot.">${this.snapshots.map((s) => `<option value="${s.id}" ${s.id === this.snapshotId ? "selected" : ""} title="${e(s.mode + " captured " + s.captured_at)}">${e(s.mode + " · " + s.captured_at.slice(11, 19))}</option>`).join("")}</select><span class="cr-grow"></span><select id="cr-target" title="Choose a local target. Existing thread assignments require explicit reassignment.">${this.targets.map((t) => `<option value="${e(t.chatJid)}" ${t.chatJid === this.activeTarget?.chatId ? "selected" : ""}>${e(t.label)}</option>`).join("")}</select>${button("threads", `Threads (${this.threads.length})`, "Browse saved open, resolved and outdated concerns.")}${button("send", `Send to agent${this.selected.size ? " (" + this.selected.size + ")" : ""}`, this.selected.size ? "Send new or updated discussions to this agent." : "No unsent discussions for this agent.", `data-settings-button="primary" ${!this.selected.size ? "disabled" : ""}`)}<div class="cr-options">${button("options", "⋯", "View and capture options.", 'data-settings-button="icon" aria-label="View options"')}${this.moreMenu ? `<div class="cr-menu">${button("refresh", "Refresh saved source", "Capture the newest saved bytes; comments retain original anchors.")}${button("wrap", "Wrap long lines", "Toggle visual wrapping without changing saved source.")}${button("layout", this.view === "split" ? "Unified diff" : "Split diff", "Switch diff layout; unavailable in source mode.", this.view === "source" ? "disabled" : "")}${button("staged", "Staged changes", "Capture HEAD to index without staging or writing source.")}${button("unstaged", "Working changes", "Capture index to saved worktree, including untracked text files.")}${button("history", "Recent commits", "Select a bounded file-history commit to review.")}${button("add-file", "Add file", "Add another saved workspace file to this review explicitly.")}${button("drafts", `Drafts (${this.savedDrafts.length})`, "Restore an acknowledged private comment draft.")}</div>` : ""}</div></div>
   ${this.status ? `<div class="cr-status" role="status">${e(this.status)}${button("dismiss", X, "Dismiss status.", 'data-settings-button="icon" aria-label="Dismiss status"')}</div>` : ""}
   ${this.pendingReply ? `<div class="cr-pending-reply" role="status">Reply acknowledgement uncertain. Check the saved receipt before sending another reply. ${button("reconcile-reply", "Reconcile reply", "Read the authorised reply receipt; never resend automatically.")}${button("dismiss-reply", "Dismiss", "Forget only this browser's pending reply marker; preserve saved drafts and replies.")}</div>` : ""}
   ${!this.replyStorageAvailable ? `<div class="cr-recovery-error" role="alert">Pending reply marker is unreadable. No reply was sent. ${button("clear-recovery", "Clear browser marker", "Forget only the unreadable local marker after confirming; saved drafts and published replies remain.")}</div>` : ""}
@@ -627,25 +636,25 @@ export class CodeReviewPane {
   ${this.composer ? `<section class="cr-composer"><strong>${this.editMessage ? "Edit message" : this.composer.threadId ? "Reply" : this.composer.range ? "Range comment" : "File comment"}</strong><textarea id="cr-body" title="Write public guidance; posting does not send it to an agent." placeholder="What should change or be checked?">${e(this.composer.body)}</textarea><footer><small>${this.dirty ? "Draft not yet saved" : "Draft saved"}</small><span class="cr-grow"></span>${button("cancel", "Cancel", "Discard this unpublished text with confirmation if needed.")}${button("post", this.editMessage ? "Save edit" : "Post comment", "Save guidance without queueing agent work.", 'data-settings-button="primary"')}</footer></section>` : ""}</main></div>
   ${
     this.drawer
-      ? `<div class="cr-backdrop" data-action="close-drawer"></div><aside class="cr-drawer" role="dialog" aria-modal="true" aria-label="Review threads"><header><strong>${this.drawer === "send" ? "Send selected review" : "Threads"}</strong>${button("close-drawer", X, "Close without sending; keep the selection.", 'data-settings-button="icon" aria-label="Close review drawer"')}</header><select id="cr-thread-filter" title="Filter concerns without changing their state.">${["all", "open", "resolved", "outdated"].map((v) => `<option ${v === this.threadFilter ? "selected" : ""}>${v}</option>`).join("")}</select>${this.threads
+      ? `<div class="cr-backdrop" data-action="close-drawer"></div><aside class="cr-drawer" role="dialog" aria-modal="true" aria-label="Review threads"><header><strong>${this.drawer === "send" ? "Send review" : "Threads"}</strong>${button("close-drawer", X, "Close without sending; keep the selection.", 'data-settings-button="icon" aria-label="Close review drawer"')}</header><select id="cr-thread-filter" title="Filter concerns without changing their state.">${["all", "open", "resolved", "outdated"].map((v) => `<option value="${v}" ${v === this.threadFilter ? "selected" : ""}>${v[0].toUpperCase()+v.slice(1)}</option>`).join("")}</select>${this.threads
           .filter(
             (t) =>
               this.threadFilter === "all" ||
               this.threadFilter === t.state ||
-              (this.threadFilter === "pending" && t.state === "open" && !t.summary?.deliveryState) ||
+              (this.threadFilter === "pending" && t.state === "open" && t.summary?.unsent) ||
               (this.threadFilter === "outdated" && !this.relevant(t)),
           )
           .map(
             (t) =>
-              `<div class="cr-drawer-item"><label><input type="checkbox" data-pick="${t.id}" ${this.selected.has(t.id) ? "checked" : ""} ${t.state === "resolved" ? "disabled" : ""} title="Include this concern in the next explicit send. Does not resolve it.">Include in send</label><strong>${e(t.state)}</strong><small>${e(t.id.slice(-8))} · ${e(t.anchor.side)} ${t.anchor.startLine ?? "file"}${this.projections.get(t.id)?.status === "missing" ? " · outdated (not mapped)" : this.projections.get(t.id)?.status === "ambiguous" ? " · ambiguous (not mapped)" : ""}</small>${button("jump", "Open discussion", "Reveal original source and public messages.", `data-thread="${t.id}"`)}</div>`,
+              `<div class="cr-drawer-item" data-thread-id="${t.id}"><strong>${e(t.state)}</strong><small>${e(t.id.slice(-8))} · ${e(t.anchor.side)} ${t.anchor.startLine ?? "file"}${this.projections.get(t.id)?.status === "missing" ? " · outdated (not mapped)" : this.projections.get(t.id)?.status === "ambiguous" ? " · ambiguous (not mapped)" : ""}</small>${button("jump", "Open discussion", "Reveal original source and public messages.", `data-thread="${t.id}"`)}</div>`,
           )
           .join(
             "",
-          )}${this.hasMoreThreads ? button("more-threads", "More threads", "Load the next bounded page of review concerns.") : ""}${this.drawer === "send" ? `<section class="cr-send-preview" aria-label="Selected guidance and saved source versions">${this.sendPreview ? `<strong>Selected guidance (${this.sendPreview.items.length})</strong><ol>${this.sendPreview.items.map((item) => `<li data-preview-thread="${e(item.threadId)}"><code title="Selected thread ID">${e(item.threadId)}</code><small>Guidance v${e(item.version)} · assignment ${e(item.assignmentEpoch)}</small><small>Snapshot file <code title="Saved snapshot file ID">${e(item.anchor.snapshotFileId)}</code></small></li>`).join("")}</ol>` : `<p>${this.previewLoading ? "Updating the selection…" : "Select open concerns to preview before sending."}</p>`}</section><textarea id="cr-summary" title="Optional overall instruction sent with selected thread references." placeholder="Overall guidance (optional)">${e(this.summary)}</textarea><p>Queue to ${e(this.activeTarget?.label)} behind current work. No interruption.</p>${!this.sendPreview && !this.previewLoading && this.selected.size && !this.hasTargetMismatch() ? button("refresh-send-preview", "Retry preview", "Retry checking saved guidance without sending work.") : ""}${button("confirm-send", "Queue selected review", "Queue one review; replies and resolutions remain per thread.", `data-settings-button="primary" ${!this.sendPreview || !this.selected.size ? "disabled" : ""}`)}` : ""}</aside>`
+          )}${this.hasMoreThreads ? button("more-threads", "More threads", "Load the next bounded page of review concerns.") : ""}${this.drawer === "send" ? `<section class="cr-send-preview" aria-label="Updated discussions and saved source versions">${this.sendPreview ? `<strong>Updated discussions (${this.sendPreview.items.length})</strong><ol>${this.sendPreview.items.map((item) => `<li data-preview-thread="${e(item.threadId)}"><code title="Thread ID">${e(item.threadId)}</code><small>Guidance v${e(item.version)} · assignment ${e(item.assignmentEpoch)}</small><small>Snapshot file <code title="Saved snapshot file ID">${e(item.anchor.snapshotFileId)}</code></small></li>`).join("")}</ol>` : `<p>${this.previewLoading ? "Updating the selection…" : "No unsent discussions for this agent."}</p>`}</section><textarea id="cr-summary" title="Optional overall instruction sent with selected thread references." placeholder="Overall guidance (optional)">${e(this.summary)}</textarea><p>Queue to ${e(this.activeTarget?.label)} behind current work. No interruption.</p>${!this.sendPreview && !this.previewLoading && this.selected.size && !this.hasTargetMismatch() ? button("refresh-send-preview", "Retry preview", "Retry checking saved guidance without sending work.") : ""}${button("confirm-send", "Send to agent", "Queue one review; replies and resolutions remain per thread.", `data-settings-button="primary" ${!this.sendPreview || !this.selected.size ? "disabled" : ""}`)}` : ""}</aside>`
       : ""
   }`;
     const toolbar = this.element.querySelector(".cr-toolbar")!;
-    this.element.querySelector("#cr-thread-filter")?.insertAdjacentHTML("beforeend", `<option value="pending" ${this.threadFilter === "pending" ? "selected" : ""} title="Open concerns not yet sent to their current target.">Pending to send</option>`);
+    this.element.querySelector("#cr-thread-filter")?.insertAdjacentHTML("beforeend", `<option value="pending" ${this.threadFilter === "pending" ? "selected" : ""} title="Open concerns not yet sent to their current target.">Unsent</option>`);
     const modes = [["source", "Saved file"], ["unstaged", "Unstaged changes"], ["staged", "Staged changes"], ["commit", "Commit comparison"]];
     toolbar.insertAdjacentHTML("afterbegin", `<select id="cr-source-mode" aria-label="Review source" title="Choose saved source or a Git comparison; source remains read-only.">${modes.map(([value, label]) => `<option value="${value}" ${snapshot?.mode === value ? "selected" : ""} ${value !== "source" && this.review.gitAvailable === false ? "disabled" : ""} title="${e(value !== "source" && this.review.gitAvailable === false ? "Git is unavailable for this file." : label)}">${label}</option>`).join("")}</select>`);
     const snapshotPicker = this.element.querySelector<HTMLSelectElement>("#cr-snapshot");
@@ -686,7 +695,7 @@ export class CodeReviewPane {
       filters.append(threadFilter);
       filters.hidden = this.drawer === "send";
     }
-    drawerHeader?.insertAdjacentHTML("afterend", `<p class="cr-drawer-intro">${this.drawer === "send" ? "Check the selection and destination. One batch creates one queued agent instruction." : "Select open concerns across files, or jump to their saved source."}</p>`);
+    drawerHeader?.insertAdjacentHTML("afterend", `<p class="cr-drawer-intro">${this.drawer === "send" ? "New or updated discussions for this agent will be queued together." : "New or updated discussions are included automatically when you send."}</p>`);
     const queueHelp = this.element.querySelector(".cr-drawer > textarea + p");
     if (queueHelp) {
       queueHelp.className = "cr-queue-help";
@@ -720,7 +729,7 @@ export class CodeReviewPane {
       if (header) header.insertAdjacentHTML("beforeend", this.deliveryHtml(thread));
       if (article && !this.detail.has(thread.id)) {
         const summary = article.querySelector(".cr-message");
-        if (summary) summary.insertAdjacentHTML("afterbegin", `<div class="cr-summary-author"><strong>${thread.summary?.authorKind === "agent" ? "Agent" : "You"}</strong> <small>on this snapshot</small></div>`);
+        if (summary) summary.insertAdjacentHTML("afterbegin", `<div class="cr-summary-author">${this.authorHtml(thread.summary?.authorKind, thread.summary?.authorId)} <small>on this snapshot</small></div>`);
         const footer = this.element.ownerDocument.createElement("footer");
         footer.innerHTML = `${button("reply", "Reply", "Read current guidance and reply without sending agent work.", `data-thread="${thread.id}" ${thread.state === "resolved" ? "disabled" : ""}`)}${button(thread.state === "resolved" ? "reopen" : "resolve", thread.state === "resolved" ? "Reopen" : "Resolve", "Change concern state explicitly; discussion history is retained.", `data-thread="${thread.id}"`)}${button("send-thread", "Send thread", "Preview only this thread before explicit queue confirmation.", `data-thread="${thread.id}" ${thread.state !== "open" ? "disabled" : ""}`)}`;
         const expand = article.querySelector("[data-action=expand]");
@@ -731,7 +740,7 @@ export class CodeReviewPane {
       article?.querySelectorAll(".cr-message").forEach((element, index) => {
         if (messages[index]) element.insertAdjacentHTML("beforeend", this.evidenceHtml(messages[index]));
       });
-      const item = this.element.querySelector<HTMLInputElement>(`.cr-drawer [data-pick="${thread.id}"]`)?.closest(".cr-drawer-item");
+      const item = this.element.querySelector<HTMLInputElement>(`.cr-drawer .cr-drawer-item[data-thread-id="${thread.id}"]`)?.closest(".cr-drawer-item");
       if (item) {
         const location = item.querySelector("small");
         if (location) {
@@ -739,7 +748,7 @@ export class CodeReviewPane {
           location.textContent = `${this.threadLocation(thread)} · ${thread.state} · ${this.deliveryLabel(thread)}${status === "missing" ? " · outdated (not mapped)" : status === "ambiguous" ? " · ambiguous (not mapped)" : !this.relevant(thread) ? " · original context" : ""}`;
           location.setAttribute("title", `Thread ${thread.id}`);
         }
-        item.insertAdjacentHTML("afterbegin", `<strong class="cr-thread-path">${e(thread.summary?.filePath ?? "Original source")}</strong>`);
+        item.insertAdjacentHTML("afterbegin", `${this.authorHtml(thread.summary?.authorKind, thread.summary?.authorId)}<strong class="cr-thread-path">${e(thread.summary?.filePath ?? "Original source")}</strong>`);
         item.insertAdjacentHTML("beforeend", `<p class="cr-thread-summary">${e(thread.summary?.body ?? "Comment deleted")}</p>`);
       }
     }
@@ -1192,12 +1201,10 @@ export class CodeReviewPane {
         }
         return;
       case "resolve": {
-        const reason = prompt("Resolution explanation");
-        if (reason === null) return;
         await this.api("resolve", {
           threadId: t().id,
           expectedVersion: t().version,
-          explanation: reason,
+          explanation: "",
           fileId: this.fileId,
           requestId: requestId(),
         });
@@ -1226,6 +1233,7 @@ export class CodeReviewPane {
       case "send-thread":
         this.selected.clear();
         this.selected.add(t().id);
+        if (t().summary?.outstanding) throw Error('This discussion is already queued or delivery is uncertain.');
         this.activeTarget = t().target; // fall through
       case "send":
       case "refresh-send-preview": {
@@ -1235,9 +1243,15 @@ export class CodeReviewPane {
         this.sendIntent = null;
         this.pendingPayload = null;
         try {
-        if (name === "refresh-send-preview") await this.reloadThreads();
+        if (name !== "send-thread") {
+          let rows: any[] = [], after = "";
+          for (;;) { const page = await this.api<any[]>("threads", {after}); rows.push(...page); if (page.length < 50) break; after = page.at(-1).id; }
+          this.threads = rows;
+          this.syncUnsent();
+        }
         if (previewEpoch !== this.previewEpoch || this.disposed) return;
-        if (!this.selected.size) throw Error("No open selected threads remain; select guidance again.");
+        if (!this.selected.size) throw Error("No unsent discussions for this agent.");
+        if (this.selected.size > 50) this.selected = new Set([...this.selected].slice(0,50));
         if (this.hasTargetMismatch()) {
           this.drawer = "send";
           this.status = "";
@@ -1285,7 +1299,7 @@ export class CodeReviewPane {
           throw error;
         }
         const attempt = result.attempts.at(-1);
-        this.status = `Review ${result.id}: ${attempt.state}. ${attempt.state === "accepted" ? "Queued behind current work. No concern is resolved by queue acceptance." : "Inspect receipts before retrying."}`;
+        this.status = attempt.state === "accepted" ? "Queued" : attempt.state === "rejected" ? "Failed" : "Delivery uncertain. Check the discussion before retrying.";
         this.drawer = null;
         this.selected.clear();
         this.sendIntent = null;
@@ -1415,19 +1429,6 @@ export class CodeReviewPane {
         this.draftEpoch++;
         break;
       }
-      case "receipts": {
-        const rows = await this.api("dispatches");
-        this.receipts = await Promise.all(
-          rows
-            .slice(0, 20)
-            .map((row: any) => this.api("dispatch", { dispatchId: row.id })),
-        );
-        if (!rows.length) this.status = "No delivery attempts.";
-        break;
-      }
-      case "close-receipts":
-        this.receipts = null;
-        break;
       case "retry": {
         if (!confirm("Retry this definitively rejected send?")) return;
         const result = await this.api("retry", {
@@ -1435,15 +1436,11 @@ export class CodeReviewPane {
           requestId: requestId(),
         });
         this.status = "Retry outcome: " + result.attempts.at(-1).state;
-        this.receipts = this.receipts!.map((d) =>
-          d.id === result.id ? result : d,
-        );
+        await this.reloadThreads();
         break;
       }
       case "reconcile": {
-        const receipt = this.receipts!.find(
-            (d) => d.id === el.dataset.dispatch,
-          ),
+        const receipt = await this.api("dispatch", {dispatchId: el.dataset.dispatch}),
           last = receipt.attempts.at(-1);
         const decision = prompt(
           "After checking host receipts, type accepted or rejected. Cancel if still unknown.",
@@ -1465,10 +1462,7 @@ export class CodeReviewPane {
           confirm: true,
           requestId: requestId(),
         });
-        const updated = await this.api("dispatch", { dispatchId: receipt.id });
-        this.receipts = this.receipts!.map((d) =>
-          d.id === updated.id ? updated : d,
-        );
+        await this.reloadThreads();
         break;
       }
       case "reanchor": {
@@ -1513,7 +1507,6 @@ export class CodeReviewPane {
   private change = (event: Event) => {
     const el = event.target as HTMLInputElement;
     if (
-      !el.dataset.pick &&
       !["cr-target", "cr-snapshot", "cr-source-mode", "cr-thread-filter", "cr-unresolved-files"].includes(el.id)
     )
       return;
@@ -1530,17 +1523,6 @@ export class CodeReviewPane {
       }
       if (el.id === "cr-unresolved-files") {
         this.unresolvedFilesOnly = el.checked;
-      } else if (el.dataset.pick) {
-        ++this.previewEpoch;
-        this.previewLoading = false;
-        el.checked
-          ? this.selected.add(el.dataset.pick)
-          : this.selected.delete(el.dataset.pick);
-        if (this.drawer === "send" || this.pendingPayload) {
-          this.pendingPayload = null;
-          this.sendPreview = null;
-          this.sendIntent = null;
-        }
       } else if (el.id === "cr-target") {
         ++this.previewEpoch;
         this.previewLoading = false;
@@ -1559,7 +1541,8 @@ export class CodeReviewPane {
         await this.loadFiles();
       } else if (el.id === "cr-thread-filter") this.threadFilter = el.value;
       this.render();
-      if (this.drawer === "send" && (el.dataset.pick || el.id === "cr-target")) {
+      if (this.drawer === "send" && el.id === "cr-target") {
+        this.syncUnsent();
         if (this.selected.size) await this.perform("refresh-send-preview", el);
       }
     })().catch((error) => this.fail(error));

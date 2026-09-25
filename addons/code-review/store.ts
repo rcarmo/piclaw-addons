@@ -72,9 +72,13 @@ interface MessageRecord {
 interface ThreadSummary {
   body: string | null;
   authorKind: "operator" | "agent" | null;
+  authorId: string | null;
+  unsent: boolean;
+  outstanding: boolean;
   messageCount: number;
   filePath: string | null;
   deliveryState: DeliveryState | null;
+  dispatchId: string | null;
   workState: WorkState | null;
 }
 interface MessageResolution {
@@ -89,6 +93,14 @@ interface AgentDispatchReferenceScope {
   fileIds: ReadonlySet<string>;
   assignmentEpochs: ReadonlyMap<string, number>;
 }
+export interface ReviewSettings {
+  retentionDays: number | null;
+}
+export interface ReviewCleanupResult extends ReviewSettings {
+  deletedCount: number;
+  deletedReviewIds: string[];
+}
+const RETENTION_REVIEW_LIMIT = 100;
 export class ReviewStore {
   readonly database: ReviewDatabase;
   constructor(path: string) {
@@ -96,6 +108,36 @@ export class ReviewStore {
   }
   close() {
     this.database.close();
+  }
+  protected workspaceScope(who: ReviewIdentity) {
+    operator(who);
+    return {
+      ownerId: who.ownerId,
+      workspaceId: validId(who.workspaceId, "workspace"),
+    };
+  }
+  protected retentionDays(value: unknown): number | null {
+    if (value === null || value === undefined) return null;
+    if (
+      !Number.isInteger(value) ||
+      Number(value) < 1 ||
+      Number(value) > 3650
+    )
+      throw new ReviewError(
+        "invalid_input",
+        "Retention days must be null or an integer from 1 to 3650.",
+      );
+    return Number(value);
+  }
+  protected settings(ownerId: string, workspaceId: string): ReviewSettings {
+    return {
+      retentionDays:
+        this.database.get<{ retention_days: number | null }>(
+          "SELECT retention_days FROM review_settings WHERE owner_id=? AND workspace_id=?",
+          ownerId,
+          workspaceId,
+        )?.retention_days ?? null,
+    };
   }
   protected agentScopeUnavailable(): never {
     throw new ReviewError(
@@ -181,7 +223,9 @@ export class ReviewStore {
             "Request ID already has a different action or payload.",
             409,
           );
-        return JSON.parse(existing.result_json) as T;
+        const result = JSON.parse(existing.result_json);
+        if (result.reviewDeleted && action !== 'deleteReview') return this.missing();
+        return result as T;
       }
       const result = run(); // Store only IDs/versions: receipts never cache comment text.
       this.database.run(
@@ -227,6 +271,8 @@ export class ReviewStore {
     threadId: string | null = null,
     dispatchId: string | null = null,
   ) {
+    if (!this.database.get("SELECT id FROM reviews WHERE id=?", reviewId)) return;
+    this.database.run("UPDATE reviews SET updated_at=? WHERE id=?", now(), reviewId);
     this.database.run(
       "INSERT INTO events(review_id,thread_id,dispatch_id,actor_id,kind,data_json,created_at) VALUES(?,?,?,?,?,?,?)",
       reviewId,
@@ -237,6 +283,55 @@ export class ReviewStore {
       JSON.stringify(data),
       now(),
     );
+  }
+  private ids(sql: string, ...params: any[]): string[] {
+    return this.database
+      .all<{ id: string }>(sql, ...params)
+      .map((row) => row.id);
+  }
+  private purgeDeletedReviewReceipts(
+    ownerId: string,
+    reviewId: string,
+  ) {
+    const stale = {
+      threadIds: new Set(this.ids("SELECT id FROM threads WHERE review_id=?", reviewId)),
+      messageIds: new Set(this.ids("SELECT id FROM messages WHERE review_id=?", reviewId)),
+      draftIds: new Set(this.ids("SELECT id FROM drafts WHERE review_id=?", reviewId)),
+      dispatchIds: new Set(this.ids("SELECT id FROM dispatches WHERE review_id=?", reviewId)),
+      snapshotIds: new Set(this.ids("SELECT id FROM snapshots WHERE review_id=?", reviewId)),
+    };
+    const receipts = this.database.all<{
+      actor_id: string;
+      request_id: string;
+      result_json: string;
+    }>(
+      "SELECT actor_id,request_id,result_json FROM request_receipts WHERE owner_id=?",
+      ownerId,
+    );
+    for (const receipt of receipts) {
+      let result: Record<string, unknown> | null = null;
+      try {
+        const parsed = JSON.parse(receipt.result_json);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed))
+          result = parsed as Record<string, unknown>;
+      } catch {}
+      if (!result) continue;
+      const staleResult =
+        result.reviewId === reviewId ||
+        (typeof result.threadId === "string" && stale.threadIds.has(result.threadId)) ||
+        (typeof result.messageId === "string" && stale.messageIds.has(result.messageId)) ||
+        (typeof result.draftId === "string" && stale.draftIds.has(result.draftId)) ||
+        (typeof result.dispatchId === "string" && stale.dispatchIds.has(result.dispatchId)) ||
+        (typeof result.snapshotId === "string" && stale.snapshotIds.has(result.snapshotId));
+      if (!staleResult) continue;
+      this.database.run(
+        "UPDATE request_receipts SET result_json=? WHERE owner_id=? AND actor_id=? AND request_id=?",
+        JSON.stringify({reviewDeleted:true}),
+        ownerId,
+        receipt.actor_id,
+        receipt.request_id,
+      );
+    }
   }
   protected own(who: ReviewIdentity, reviewId: string): ReviewRecord {
     identity(who);
@@ -428,6 +523,95 @@ export class ReviewStore {
   getReview(who: ReviewIdentity, reviewId: string) {
     operator(who);
     return this.own(who, reviewId);
+  }
+  getSettings(who: ReviewIdentity): ReviewSettings {
+    const scope = this.workspaceScope(who);
+    return this.settings(scope.ownerId, scope.workspaceId);
+  }
+  saveSettings(who: ReviewIdentity, retentionDays: unknown): ReviewSettings {
+    operator(who);
+    if (!who.workspaceId) throw new ReviewError('scope_mismatch', 'Workspace identity required.');
+    const days = this.retentionDays(retentionDays);
+    this.database.run('INSERT INTO review_settings(owner_id,workspace_id,retention_days,updated_at) VALUES(?,?,?,?) ON CONFLICT(owner_id,workspace_id) DO UPDATE SET retention_days=excluded.retention_days,updated_at=excluded.updated_at', who.ownerId, who.workspaceId, days, now());
+    return {retentionDays:days};
+  }
+  cleanupOldReviews(who: ReviewIdentity, at = Date.now()): ReviewCleanupResult {
+    const days = this.getSettings(who).retentionDays;
+    if (days === null) return {retentionDays:days,deletedCount:0,deletedReviewIds:[]};
+    const cutoff = new Date(at - days * 86400000).toISOString();
+    return this.database.transaction(() => {
+      const rows = this.database.all<ReviewRecord>(
+        `SELECT r.* FROM reviews r WHERE r.owner_id=? AND r.workspace_id=? AND r.updated_at<?
+        AND NOT EXISTS(SELECT 1 FROM events WHERE review_id=r.id AND created_at>=?)
+        AND NOT EXISTS(SELECT 1 FROM drafts WHERE review_id=r.id AND updated_at>=?)
+        AND NOT EXISTS(SELECT 1 FROM dispatches d JOIN attempts a ON a.dispatch_id=d.id
+          WHERE d.review_id=r.id AND a.number=(SELECT MAX(number) FROM attempts WHERE dispatch_id=d.id)
+          AND (a.state IN ('prepared','attempting','unknown') OR (a.state='accepted' AND EXISTS(
+            SELECT 1 FROM dispatch_items i WHERE i.dispatch_id=d.id AND i.work_state IN ('not_started','in_progress','waiting_user','blocked')))))
+        ORDER BY r.updated_at LIMIT ?`, who.ownerId,who.workspaceId,cutoff,cutoff,cutoff,RETENTION_REVIEW_LIMIT);
+      for (const row of rows) this.deleteReview(who,{reviewId:row.id,expectedVersion:row.version,requestId:'retention-'+row.id});
+      return {retentionDays:days,deletedCount:rows.length,deletedReviewIds:rows.map(r=>r.id)};
+    });
+  }
+  /** Persisted opt-in policy grants only deletion of this add-on's own scoped records. */
+  cleanupConfiguredReviews(workspaceId: string): number {
+    let deleted = 0;
+    for (const policy of this.database.all<{owner_id:string;workspace_id:string}>('SELECT owner_id,workspace_id FROM review_settings WHERE retention_days IS NOT NULL AND workspace_id=?', workspaceId)) {
+      deleted += this.cleanupOldReviews({ownerId:policy.owner_id,actorId:policy.owner_id,workspaceId:policy.workspace_id,kind:'operator'}).deletedCount;
+    }
+    return deleted;
+  }
+  deleteReview(
+    who: ReviewIdentity,
+    input: { reviewId: string; expectedVersion?: number; requestId: string },
+  ) {
+    operator(who);
+    return this.mutation(
+      who,
+      { requestId: input.requestId, expectedVersion: input.expectedVersion },
+      "deleteReview",
+      { reviewId: input.reviewId, version: input.expectedVersion, workspaceId: who.workspaceId },
+      () => {
+        const review = this.own(who, input.reviewId);
+        version(review.version, input.expectedVersion);
+        if (this.database.get("SELECT 1 FROM attempts a JOIN dispatches d ON d.id=a.dispatch_id WHERE d.review_id=? AND a.state='attempting' LIMIT 1", input.reviewId))
+          throw new ReviewError('busy', 'A send is in progress. Wait for its outcome before deleting this review.', 409);
+        this.purgeDeletedReviewReceipts(who.ownerId, input.reviewId);
+        this.database.run(
+          "DELETE FROM projections WHERE review_id=?",
+          input.reviewId,
+        );
+        this.database.run(
+          "DELETE FROM message_revisions WHERE message_id IN (SELECT id FROM messages WHERE review_id=?)",
+          input.reviewId,
+        );
+        this.database.run("DELETE FROM messages WHERE review_id=?", input.reviewId);
+        this.database.run("DELETE FROM drafts WHERE review_id=?", input.reviewId);
+        this.database.run("DELETE FROM events WHERE review_id=?", input.reviewId);
+        this.database.run(
+          "DELETE FROM dispatch_items WHERE review_id=?",
+          input.reviewId,
+        );
+        this.database.run(
+          "DELETE FROM attempts WHERE dispatch_id IN (SELECT id FROM dispatches WHERE review_id=?)",
+          input.reviewId,
+        );
+        this.database.run("DELETE FROM dispatches WHERE review_id=?", input.reviewId);
+        this.database.run("DELETE FROM threads WHERE review_id=?", input.reviewId);
+        this.database.run(
+          "DELETE FROM snapshot_files WHERE review_id=?",
+          input.reviewId,
+        );
+        this.database.run("DELETE FROM snapshots WHERE review_id=?", input.reviewId);
+        this.database.run("DELETE FROM blobs WHERE review_id=?", input.reviewId);
+        this.database.run(
+          "DELETE FROM reviews WHERE id=? AND owner_id=?",
+          input.reviewId,
+          who.ownerId,
+        );
+        return { reviewId: input.reviewId, deleted: true };
+      },
+    );
   }
   setTarget(
     who: ReviewIdentity,
@@ -653,8 +837,9 @@ export class ReviewStore {
     const first = this.database.get<{
       body: string | null;
       author_kind: "operator" | "agent" | null;
+      author_id: string;
     }>(
-      "SELECT substr(r.body,1,240) AS body,m.author_kind FROM messages m JOIN message_revisions r ON r.message_id=m.id AND r.version=m.version WHERE m.thread_id=? AND m.deleted=0 AND r.body IS NOT NULL ORDER BY m.ordinal LIMIT 1",
+      "SELECT substr(r.body,1,240) AS body,m.author_kind,m.author_id FROM messages m JOIN message_revisions r ON r.message_id=m.id AND r.version=m.version WHERE m.thread_id=? AND m.deleted=0 AND r.body IS NOT NULL ORDER BY m.ordinal LIMIT 1",
       thread.id,
     );
     const counts = this.database.get<{ message_count: number }>(
@@ -663,10 +848,12 @@ export class ReviewStore {
     );
     const selected = JSON.parse(thread.target_json) as LocalTarget;
     const dispatch = this.database.get<{
+      dispatch_id: string;
       work_state: WorkState;
       delivery_state: DeliveryState;
+      thread_version: number;
     }>(
-      "SELECT i.work_state,a.state AS delivery_state FROM dispatch_items i JOIN dispatches d ON d.id=i.dispatch_id AND d.review_id=i.review_id JOIN attempts a ON a.dispatch_id=d.id AND a.number=(SELECT MAX(number) FROM attempts WHERE dispatch_id=d.id) WHERE i.thread_id=? AND i.assignment_epoch=? AND json_extract(d.target_json,'$.chatId')=? AND json_extract(d.target_json,'$.incarnation')=? ORDER BY d.rowid DESC LIMIT 1",
+      "SELECT i.dispatch_id,i.work_state,i.thread_version,a.state AS delivery_state FROM dispatch_items i JOIN dispatches d ON d.id=i.dispatch_id AND d.review_id=i.review_id JOIN attempts a ON a.dispatch_id=d.id AND a.number=(SELECT MAX(number) FROM attempts WHERE dispatch_id=d.id) WHERE i.thread_id=? AND i.assignment_epoch=? AND json_extract(d.target_json,'$.chatId')=? AND json_extract(d.target_json,'$.incarnation')=? ORDER BY d.rowid DESC LIMIT 1",
       thread.id,
       thread.assignment_epoch,
       selected.chatId,
@@ -675,9 +862,14 @@ export class ReviewStore {
     return {
       body: first?.body ? this.trimSummaryBody(first.body) : null,
       authorKind: first?.author_kind ?? null,
+      authorId: first?.author_id ?? null,
+      unsent: thread.state === 'open' && (!dispatch || dispatch.delivery_state === 'rejected' || thread.version > dispatch.thread_version),
+      outstanding: Boolean(dispatch && (['prepared','attempting','unknown'].includes(dispatch.delivery_state)
+        || (dispatch.delivery_state === 'accepted' && ['not_started','in_progress','waiting_user','blocked'].includes(dispatch.work_state)))),
       messageCount: counts?.message_count ?? 0,
       filePath: this.anchorFilePath(thread.review_id, anchor),
       deliveryState: dispatch?.delivery_state ?? null,
+      dispatchId: dispatch?.dispatch_id ?? null,
       workState: dispatch?.work_state ?? null,
     };
   }
@@ -1020,7 +1212,7 @@ export class ReviewStore {
     m: Mutation,
   ) {
     this.thread(who, threadId);
-    boundedText(input.explanation, "resolution explanation");
+    boundedText(input.explanation ?? '', "resolution explanation", LIMITS.commentBytes, who.kind === 'operator');
     if (
       input.evidence &&
       (input.evidence.length > 10 ||
@@ -1051,7 +1243,8 @@ export class ReviewStore {
           );
         if (thread.state !== "open")
           throw new ReviewError("resolved", "Thread is already resolved.", 409);
-        const messageId = this.append(who, thread, input.explanation);
+        const explanation = who.kind === 'operator' && !input.explanation?.trim() ? null : input.explanation;
+        const messageId = explanation === null ? null : this.append(who, thread, explanation);
         this.database.run(
           "UPDATE threads SET state='resolved',version=version+1,updated_at=? WHERE id=?",
           now(),
