@@ -21,6 +21,7 @@ export function installCodeReviewWeb(host = runtime) {
   host.registerWorkspaceAction({
     id: "code-review.review-file",
     label: "Review file",
+    icon: "review",
     title:
       "Review this saved file with inline comments; no code is edited and no agent work starts.",
     when: (context: any) => context?.type === "file",
