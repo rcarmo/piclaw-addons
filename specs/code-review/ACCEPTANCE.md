@@ -37,26 +37,33 @@ are replaced by the real implementation.
 | RC-3 | Send work | Match the mock's selection, send preview and status feedback. Only explicit single/batch Send queues work; respect busy targets, deduplicate retries and distinguish accepted/completed/unknown outcomes without replay. | passed |
 | RC-4 | Enforce permissions | Reject anonymous, cross-origin, forged-identity and unsafe-path requests; render untrusted text safely. Each Send scopes review-tool access to its selected concerns, including multi-file batches, independently of other Sends in the same review/chat. | passed |
 | RC-5 | Recover safely | Reload and restart the host with discussions, drafts and receipts intact. No surprise send, deleted-content resurrection or recurring idle scans. Retain the add-on store on removal/reinstall. | passed |
-| RC-6 | Ship a compatible package | Verify the packed add-on in a disposable Classic host; pass regression/typecheck/catalogue and hosted CI; document a verified core requirement and rollback/deployment path. | partial |
+| RC-6 | Ship a compatible package | Verify the packed add-on in a disposable Classic host; pass regression/typecheck/catalogue and hosted CI; document a verified core requirement and rollback/deployment path. | passed |
 
 `partial` means useful checks have passed but the whole row has not been signed
 off. `blocked` means a known dependency prevents sign-off. Neither is a pass.
 Record a pass only with concrete results for the required behaviour. Test counts
 and references to old scenario IDs do not change status automatically.
 
-## What is left
+## Release result — 25 September
 
-- **RC-6:** core PR [piclaw#1407](https://github.com/rcarmo/piclaw/pull/1407) merged
-  on 25 September at `2a06652e9`. Version 0.1.3 passes the packed combined fixture
-  against that merged core (259 assertions). Rui asked to finish the add-on on
-  25 September; merge/publication of [piclaw-addons#144](https://github.com/rcarmo/piclaw-addons/pull/144)
-  is in progress. The false `>=3.2.1` range is removed: the README requires the
-  merged core commit and Classic APIs explicitly. Tagged v3.2.2 lacks them; no
-  numeric release range is claimed until a tag includes the merged APIs.
-  The README documents uninstall/reinstall rollback without deleting the store.
-- RC-1–RC-5 pass on the owned Classic fixtures. The [evidence ledger](CLASSIC-FAST-PASS.md)
-  records regression, browser and packed-host results. [Submission isolation](CR-079-HOST-CONTRACT.md)
-  is implemented in both worktrees after approval and verified locally.
+All six checks pass for **Code Review 0.1.4 on the documented Classic source
+build**. Core [#1407](https://github.com/rcarmo/piclaw/pull/1407), add-on
+[#144](https://github.com/rcarmo/piclaw-addons/pull/144) and packaging correction
+[#145](https://github.com/rcarmo/piclaw-addons/pull/145) are merged. Hosted
+validation, build/deploy, catalogue sync and archive publication succeeded.
+
+The public tarball was downloaded without credentials, verified to contain the
+19 production files, then installed/tested in the disposable merged-core host:
+**259 assertions pass**, including local-provider work, busy queue, restart,
+actual catalogue uninstall/reinstall, record retention and idle behaviour.
+
+The README requires core commit `2a06652e9` and Classic APIs. Tagged v3.2.2 lacks
+them; no false numeric compatibility range is declared. This source-build support
+is the released scope, not support for all 3.2.2 installations. The README documents
+uninstall/reinstall rollback without deleting the store. Live installation and
+restart were not performed. The [evidence ledger](CLASSIC-FAST-PASS.md) records the
+artifact hash and runs; [submission isolation](CR-079-HOST-CONTRACT.md) describes
+the per-Send boundary.
 
 ### Send and recovery follow-up
 
