@@ -28,6 +28,18 @@ Those behaviours pass the browser comparison below. This is layout/interaction
 acceptance, not a pixel-identical claim. Mock-only persistence and agent simulation
 are replaced by the real implementation.
 
+## 25 September UX follow-up (0.1.7 candidate)
+
+Rui's later instructions supersede the mock's manual selection and receipts UI:
+use profile names/avatars, automatically include new/updated discussions on explicit
+Send, label the filter **Unsent**, remove the separate receipts pane, and make
+operator Resolve one click. Agent resolution explanations remain required.
+Settings now lists stored reviews for Open/Delete independently of source files,
+with opt-in age-based cleanup. Internal delivery records and no-replay guarantees
+remain required. The earlier mock stays historical layout evidence, not authority
+to restore the removed controls. Fresh regression/browser results for this candidate
+must accompany the PR; the released 0.1.5 receipts below are unchanged.
+
 ## Six checks
 
 | ID | Check | Required result | Status |

@@ -158,6 +158,8 @@ test("metadata summaries stay current, skip drafts, and enforce owner/workspace 
     expect(beforeDelete.summary).toEqual({
       body: Array.from(edited).slice(0, 240).join(""),
       authorKind: "operator",
+      authorId: operator.actorId,
+      unsent: true, outstanding: false, dispatchId: null,
       messageCount: 2,
       filePath: "src/main.ts",
       deliveryState: null,
@@ -180,6 +182,8 @@ test("metadata summaries stay current, skip drafts, and enforce owner/workspace 
     expect(afterDelete.summary).toEqual({
       body: reply,
       authorKind: "agent",
+      authorId: agent(target).actorId,
+      unsent: true, outstanding: false, dispatchId: null,
       messageCount: 1,
       filePath: "src/main.ts",
       deliveryState: null,
@@ -273,7 +277,7 @@ test("thread messages expose matching resolution evidence but omit it for delete
       addressedVersion: 1,
     });
 
-    f.service.editMessage(agent(target), resolved.messageId, null, m(1), 1);
+    f.service.editMessage(agent(target), resolved.messageId!, null, m(1), 1);
     const afterDelete: any = f.service.getThread(operator, f.thread.threadId);
     const deletedResolution = afterDelete.messages.find(
       (message: any) => message.id === resolved.messageId,

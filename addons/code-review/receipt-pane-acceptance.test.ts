@@ -13,6 +13,8 @@ type QueueOutcome =
   | { kind: "rejected"; code: string }
   | { kind: "unknown"; message: string };
 
+type DialogResponse = string | true | null | undefined;
+
 function createHarness(name: string) {
   const root = mkdtempSync(join(tmpdir(), `review-receipts-${name}-`));
   const workspace = join(root, "workspace");
@@ -165,7 +167,9 @@ function createHarness(name: string) {
     };
   };
 
-  const launchPage = async (onDialog: (message: string) => string | true) => {
+  const launchPage = async (
+    onDialog: (message: string) => DialogResponse,
+  ) => {
     const env: Record<string, string> = {};
     for (const key of ["PATH", "HOME", "TMPDIR", "XDG_CACHE_HOME"])
       if (process.env[key]) env[key] = process.env[key]!;
@@ -183,7 +187,13 @@ function createHarness(name: string) {
     page.on("pageerror", (error) => errors.push(error.message));
     page.on("dialog", async (dialog) => {
       const response = onDialog(dialog.message());
-      await dialog.accept(response === true ? undefined : response);
+      if (response === null) {
+        await dialog.dismiss();
+        return;
+      }
+      await dialog.accept(
+        response === true || response === undefined ? undefined : response,
+      );
     });
     return { browser, page, errors };
   };
@@ -203,10 +213,20 @@ function createHarness(name: string) {
     await page.waitForSelector(".cr-thread");
   };
 
-  const openReceipts = async (page: any) => {
+  const openOptionsMenu = async (page: any) => {
     await page.locator(".cr-toolbar [data-action=options]").click();
-    await page.locator(".cr-menu [data-action=receipts]").click();
-    await page.waitForSelector(".cr-receipts");
+    await page.waitForSelector(".cr-menu");
+  };
+
+  const openThreadSendPreview = async (page: any, threadId: string) => {
+    await page.locator(`#cr-${threadId} [data-action=send-thread]`).click();
+    await page.waitForSelector(".cr-drawer [data-action=confirm-send]");
+    await page.waitForFunction(() => {
+      const button = document.querySelector(
+        ".cr-drawer [data-action=confirm-send]",
+      ) as HTMLButtonElement | null;
+      return !!button && !button.disabled;
+    });
   };
 
   const pushOutcome = (outcome: QueueOutcome) => {
@@ -230,12 +250,13 @@ function createHarness(name: string) {
     launchPage,
     waitForShell,
     openSeededReview,
-    openReceipts,
+    openOptionsMenu,
+    openThreadSendPreview,
     cleanup,
   };
 }
 
-test("CR-040/098 browser retry keeps one dispatch, creates attempt 2, and does not repost the thread", async () => {
+test("CR-040/098 browser surfaces rejected sends as failed unsent work, requires explicit resend, and does not replay automatically", async () => {
   const harness = createHarness("retry");
   const seeded = await harness.seedReview(
     "retry",
@@ -243,7 +264,7 @@ test("CR-040/098 browser retry keeps one dispatch, creates attempt 2, and does n
     { kind: "rejected", code: "target_unavailable" },
   );
   let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
-  const beforeRetryCalls = harness.queueCalls.length;
+  const initialQueueCalls = harness.queueCalls.length;
   try {
     expect(seeded.dispatch.id).toMatch(/^dispatch_/);
     expect(seeded.dispatch.attempts).toEqual([
@@ -252,21 +273,50 @@ test("CR-040/098 browser retry keeps one dispatch, creates attempt 2, and does n
 
     const launched = await harness.launchPage((message) => {
       if (message.includes("Reopen existing review")) return true;
-      if (message.includes("Retry this definitively rejected send?")) return true;
       return true;
     });
     browser = launched.browser;
 
     await harness.waitForShell(launched.page);
     await harness.openSeededReview(launched.page);
-    await harness.openReceipts(launched.page);
+    await launched.page.waitForFunction(
+      (threadId) =>
+        document.querySelector(`#cr-${threadId} .cr-delivery`)?.textContent ===
+          "Failed",
+      seeded.threadId,
+    );
+
+    await harness.openOptionsMenu(launched.page);
+    expect(
+      await launched.page.locator(".cr-menu [data-action=receipts]").count(),
+    ).toBe(0);
+    expect(await launched.page.locator(".cr-receipts").count()).toBe(0);
+    await launched.page.locator(".cr-toolbar [data-action=options]").click();
 
     expect(
-      await launched.page.locator(".cr-receipts [data-action=retry]").count(),
-    ).toBe(1);
-    expect(await launched.page.locator(".cr-receipts article").first().textContent()).toContain(
-      "rejected",
-    );
+      await launched.page.locator(`#cr-${seeded.threadId} .cr-delivery`).innerText(),
+    ).toBe("Failed");
+    expect(
+      await launched.page.locator(`#cr-${seeded.threadId} [data-action=reconcile]`).count(),
+    ).toBe(0);
+    expect(
+      await launched.page.locator(".cr-toolbar [data-action=send]").textContent(),
+    ).toContain("(1)");
+    expect(
+      await launched.page.locator(".cr-toolbar [data-action=send]").isDisabled(),
+    ).toBe(false);
+    expect(harness.queueCalls.length).toBe(initialQueueCalls);
+
+    await launched.page.reload();
+    await harness.waitForShell(launched.page);
+    await harness.openSeededReview(launched.page);
+    expect(
+      await launched.page.locator(`#cr-${seeded.threadId} .cr-delivery`).innerText(),
+    ).toBe("Failed");
+    expect(
+      await launched.page.locator(".cr-toolbar [data-action=send]").textContent(),
+    ).toContain("(1)");
+    expect(harness.queueCalls.length).toBe(initialQueueCalls);
 
     const originalMessages = harness.store.getThread(harness.who, seeded.threadId)
       .messages
@@ -274,59 +324,78 @@ test("CR-040/098 browser retry keeps one dispatch, creates attempt 2, and does n
     expect(originalMessages).toEqual([seeded.body]);
 
     const expectedRowId = 41;
-    const retryStartCalls = harness.queueCalls.length;
-    const lastAttemptBeforeRetry = harness.store.inspectDispatch(
+    harness.pushOutcome({ kind: "accepted", rowId: expectedRowId });
+    await harness.openThreadSendPreview(launched.page, seeded.threadId);
+    expect(await launched.page.locator(".cr-send-preview li").count()).toBe(1);
+    expect(
+      await launched.page.locator(".cr-send-preview li").first().textContent(),
+    ).toContain(seeded.threadId);
+
+    await launched.page.locator("[data-action=confirm-send]").click();
+    await launched.page.waitForFunction(
+      () => document.querySelector(".cr-status")?.textContent?.includes("Queued") ?? false,
+    );
+    await launched.page.waitForFunction(
+      (threadId) =>
+        document.querySelector(`#cr-${threadId} .cr-delivery`)?.textContent?.includes(
+          "Queued",
+        ) === true,
+      seeded.threadId,
+    );
+
+    expect(harness.queueCalls.length).toBe(initialQueueCalls + 1);
+    expect(harness.queueCalls.at(-1)?.content).toContain("dispatch ");
+    expect(harness.queueCalls.at(-1)?.content).not.toContain(seeded.body);
+
+    const dispatches = harness.store.listDispatches(harness.who, seeded.reviewId);
+    expect(dispatches).toHaveLength(2);
+    const resentRow = dispatches.find((row: any) => row.id !== seeded.dispatch.id);
+    expect(resentRow).toBeTruthy();
+    expect(harness.queueCalls.at(-1)?.content).toContain(`dispatch ${resentRow!.id}`);
+
+    const originalDispatch = harness.store.inspectDispatch(
       harness.who,
       seeded.dispatch.id,
-    ).attempts.at(-1);
-    expect(lastAttemptBeforeRetry?.state).toBe("rejected");
-
-    harness.pushOutcome({ kind: "accepted", rowId: expectedRowId });
-    await launched.page.locator(".cr-receipts [data-action=retry]").click();
-    await launched.page.waitForFunction(
-      () =>
-        document.querySelector(".cr-status")?.textContent?.includes(
-          "Retry outcome: accepted",
-        ) ?? false,
     );
-
-    expect(harness.queueCalls.length - retryStartCalls).toBe(1);
-    expect(harness.queueCalls.length - beforeRetryCalls).toBe(1);
-    expect(harness.queueCalls.at(-1)?.content).toContain(
-      `dispatch ${seeded.dispatch.id}`,
-    );
-
-    const retried = harness.store.inspectDispatch(harness.who, seeded.dispatch.id);
-    expect(retried.id).toBe(seeded.dispatch.id);
-    expect(retried.attempts.map((attempt) => ({
+    expect(originalDispatch.attempts.map((attempt) => ({
       number: attempt.number,
       state: attempt.state,
       hostRow: attempt.host_row_id,
     }))).toEqual([
       { number: 1, state: "rejected", hostRow: null },
-      { number: 2, state: "accepted", hostRow: expectedRowId },
     ]);
-    expect(harness.store.listDispatches(harness.who, seeded.reviewId)).toHaveLength(1);
-    expect(harness.store.listThreads(harness.who, seeded.reviewId)).toEqual([
-      expect.objectContaining({ id: seeded.threadId }),
+
+    const resentDispatch = harness.store.inspectDispatch(
+      harness.who,
+      resentRow!.id,
+    );
+    expect(resentDispatch.id).not.toBe(seeded.dispatch.id);
+    expect(resentDispatch.attempts.map((attempt) => ({
+      number: attempt.number,
+      state: attempt.state,
+      hostRow: attempt.host_row_id,
+    }))).toEqual([
+      { number: 1, state: "accepted", hostRow: expectedRowId },
     ]);
     expect(
       harness.store.getThread(harness.who, seeded.threadId).messages.map((message) => message.body),
     ).toEqual([seeded.body]);
     expect(
-      await launched.page.locator(".cr-receipts [data-action=retry]").count(),
-    ).toBe(0);
+      await launched.page.locator(".cr-toolbar [data-action=send]").isDisabled(),
+    ).toBe(true);
 
     await launched.page.reload();
     await harness.waitForShell(launched.page);
     await harness.openSeededReview(launched.page);
-    await harness.openReceipts(launched.page);
-    expect(await launched.page.locator(".cr-receipts article").first().textContent()).toContain(
-      "accepted",
-    );
     expect(
-      await launched.page.locator(".cr-receipts [data-action=retry]").count(),
+      await launched.page.locator(`#cr-${seeded.threadId} .cr-delivery`).innerText(),
+    ).toBe("Queued");
+    expect(harness.queueCalls.length).toBe(initialQueueCalls + 1);
+    await harness.openOptionsMenu(launched.page);
+    expect(
+      await launched.page.locator(".cr-menu [data-action=receipts]").count(),
     ).toBe(0);
+    expect(await launched.page.locator(".cr-receipts").count()).toBe(0);
     expect(launched.errors).toEqual([]);
   } finally {
     await browser?.close();
@@ -334,7 +403,7 @@ test("CR-040/098 browser retry keeps one dispatch, creates attempt 2, and does n
   }
 }, 45_000);
 
-test("CR-041 browser reconcile marks an unknown attempt with evidence and does not replay queue work", async () => {
+test("CR-041 browser reconciles an unknown attempt to accepted evidence without replaying queued work", async () => {
   const harness = createHarness("reconcile");
   const seeded = await harness.seedReview(
     "reconcile",
@@ -358,23 +427,33 @@ test("CR-041 browser reconcile marks an unknown attempt with evidence and does n
 
     await harness.waitForShell(launched.page);
     await harness.openSeededReview(launched.page);
-    await harness.openReceipts(launched.page);
-
-    expect(
-      await launched.page.locator(".cr-receipts [data-action=reconcile]").count(),
-    ).toBe(1);
-    expect(await launched.page.locator(".cr-receipts article").first().textContent()).toContain(
-      "unknown",
+    await launched.page.waitForFunction(
+      (threadId) =>
+        document.querySelector(`#cr-${threadId} .cr-delivery`)?.textContent ===
+          "Delivery uncertain",
+      seeded.threadId,
     );
 
+    await harness.openOptionsMenu(launched.page);
+    expect(
+      await launched.page.locator(".cr-menu [data-action=receipts]").count(),
+    ).toBe(0);
+    expect(await launched.page.locator(".cr-receipts").count()).toBe(0);
+    await launched.page.locator(".cr-toolbar [data-action=options]").click();
+
+    expect(
+      await launched.page.locator(`#cr-${seeded.threadId} [data-action=reconcile]`).count(),
+    ).toBe(1);
     const callsBeforeReconcile = harness.queueCalls.length;
-    await launched.page.locator(".cr-receipts [data-action=reconcile]").click();
+
+    await launched.page.locator(`#cr-${seeded.threadId} [data-action=reconcile]`).click();
     await launched.page.waitForFunction(
-      () =>
-        !document.querySelector(".cr-receipts [data-action=reconcile]") &&
-        (document.querySelector(".cr-receipts article span")?.textContent?.includes(
-          "accepted",
-        ) ?? false),
+      (threadId) =>
+        !document.querySelector(`#cr-${threadId} [data-action=reconcile]`) &&
+        document.querySelector(`#cr-${threadId} .cr-delivery`)?.textContent?.includes(
+          "Queued",
+        ) === true,
+      seeded.threadId,
     );
     expect(harness.queueCalls.length).toBe(callsBeforeReconcile);
 
@@ -409,13 +488,13 @@ test("CR-041 browser reconcile marks an unknown attempt with evidence and does n
     await launched.page.reload();
     await harness.waitForShell(launched.page);
     await harness.openSeededReview(launched.page);
-    await harness.openReceipts(launched.page);
-    expect(await launched.page.locator(".cr-receipts article").first().textContent()).toContain(
-      "accepted",
-    );
     expect(
-      await launched.page.locator(".cr-receipts [data-action=reconcile]").count(),
+      await launched.page.locator(`#cr-${seeded.threadId} .cr-delivery`).innerText(),
+    ).toBe("Queued");
+    expect(
+      await launched.page.locator(`#cr-${seeded.threadId} [data-action=reconcile]`).count(),
     ).toBe(0);
+    expect(harness.queueCalls.length).toBe(callsBeforeReconcile);
     expect(launched.errors).toEqual([]);
   } finally {
     await browser?.close();
@@ -423,7 +502,111 @@ test("CR-041 browser reconcile marks an unknown attempt with evidence and does n
   }
 }, 45_000);
 
-test("reply to a waiting agent saves privately until an explicit follow-up Send", async () => {
+test("CR-041 browser keeps unknown delivery unchanged when reconciliation is cancelled, then records rejected evidence without replay", async () => {
+  const harness = createHarness("reconcile-cancel");
+  const seeded = await harness.seedReview(
+    "reconcile-cancel",
+    "Do not guess whether the host queued this work.",
+    { kind: "unknown", message: "host timed out before acknowledging" },
+  );
+  let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
+  const decisions: Array<DialogResponse> = [null, "rejected"];
+  const evidence = ["Checked the host queue audit; no receipt row exists."];
+  try {
+    const launched = await harness.launchPage((message) => {
+      if (message.includes("Reopen existing review")) return true;
+      if (message.includes("accepted or rejected")) return decisions.shift();
+      if (message.includes("Public evidence or receipt reference"))
+        return evidence.shift();
+      return true;
+    });
+    browser = launched.browser;
+
+    await harness.waitForShell(launched.page);
+    await harness.openSeededReview(launched.page);
+    await launched.page.waitForFunction(
+      (threadId) =>
+        document.querySelector(`#cr-${threadId} .cr-delivery`)?.textContent ===
+          "Delivery uncertain",
+      seeded.threadId,
+    );
+    await harness.openOptionsMenu(launched.page);
+    expect(
+      await launched.page.locator(".cr-menu [data-action=receipts]").count(),
+    ).toBe(0);
+    await launched.page.locator(".cr-toolbar [data-action=options]").click();
+
+    const queueCallsBeforeCancel = harness.queueCalls.length;
+    await launched.page.locator(`#cr-${seeded.threadId} [data-action=reconcile]`).click();
+    await launched.page.waitForTimeout(100);
+    expect(harness.queueCalls.length).toBe(queueCallsBeforeCancel);
+    expect(
+      await launched.page.locator(`#cr-${seeded.threadId} .cr-delivery`).innerText(),
+    ).toBe("Delivery uncertain");
+    expect(
+      await launched.page.locator(`#cr-${seeded.threadId} [data-action=reconcile]`).count(),
+    ).toBe(1);
+    expect(
+      harness.store.inspectDispatch(harness.who, seeded.dispatch.id).attempts.map((attempt) => attempt.state),
+    ).toEqual(["unknown"]);
+
+    await launched.page.reload();
+    await harness.waitForShell(launched.page);
+    await harness.openSeededReview(launched.page);
+    expect(
+      await launched.page.locator(`#cr-${seeded.threadId} .cr-delivery`).innerText(),
+    ).toBe("Delivery uncertain");
+    expect(
+      await launched.page.locator(`#cr-${seeded.threadId} [data-action=reconcile]`).count(),
+    ).toBe(1);
+    expect(harness.queueCalls.length).toBe(queueCallsBeforeCancel);
+
+    await launched.page.locator(`#cr-${seeded.threadId} [data-action=reconcile]`).click();
+    await launched.page.waitForFunction(
+      (threadId) =>
+        !document.querySelector(`#cr-${threadId} [data-action=reconcile]`) &&
+        document.querySelector(`#cr-${threadId} .cr-delivery`)?.textContent ===
+          "Failed",
+      seeded.threadId,
+    );
+    expect(harness.queueCalls.length).toBe(queueCallsBeforeCancel);
+
+    const reconciled = harness.store.inspectDispatch(harness.who, seeded.dispatch.id);
+    expect(reconciled.attempts.map((attempt) => ({
+      number: attempt.number,
+      state: attempt.state,
+      hostRow: attempt.host_row_id,
+      errorCode: attempt.error_code,
+    }))).toEqual([
+      {
+        number: 1,
+        state: "rejected",
+        hostRow: null,
+        errorCode: "enqueue_failed",
+      },
+    ]);
+    expect(
+      await launched.page.locator(".cr-toolbar [data-action=send]").textContent(),
+    ).toContain("(1)");
+    expect(
+      await launched.page.locator(".cr-toolbar [data-action=send]").isDisabled(),
+    ).toBe(false);
+
+    await launched.page.reload();
+    await harness.waitForShell(launched.page);
+    await harness.openSeededReview(launched.page);
+    expect(
+      await launched.page.locator(`#cr-${seeded.threadId} .cr-delivery`).innerText(),
+    ).toBe("Failed");
+    expect(harness.queueCalls.length).toBe(queueCallsBeforeCancel);
+    expect(launched.errors).toEqual([]);
+  } finally {
+    await browser?.close();
+    await harness.cleanup();
+  }
+}, 45_000);
+
+test("reply to a waiting agent saves without queueing until an explicit follow-up Send", async () => {
   const h = createHarness("followup");
   const seeded = await h.seedReview("followup", "Please check this", { kind: "accepted", rowId: 1 });
   const agent = { ...h.who, kind: "agent" as const, actorId: "agent", chatId: h.target.chatJid, chatIncarnation: h.target.incarnation, reference: { addonId: "code-review", intentId: seeded.dispatch.id } };
@@ -434,17 +617,17 @@ test("reply to a waiting agent saves privately until an explicit follow-up Send"
     const launched = await h.launchPage(() => true); browser = launched.browser;
     const { page } = launched;
     await h.waitForShell(page); await h.openSeededReview(page);
-    expect(await page.locator(".cr-thread .cr-delivery").innerText()).toBe("Waiting for your reply");
+    expect(await page.locator(".cr-thread .cr-delivery").innerText()).toBe("Queued · waiting user");
     await page.locator(".cr-thread [data-action=reply]").click();
     await page.locator("#cr-body").fill("Yes, reject empty names.");
     await page.locator("[data-action=post]").click();
-    await page.waitForFunction(() => document.querySelector(".cr-thread .cr-delivery")?.textContent === "Follow-up not sent");
+    await page.waitForFunction(() => document.querySelector(".cr-thread .cr-delivery")?.textContent?.startsWith("Unsent"));
     expect(h.queueCalls).toHaveLength(1);
     await page.locator(".cr-thread [data-action=send-thread]").click();
     await page.waitForSelector(".cr-drawer");
     expect(h.queueCalls).toHaveLength(1);
     await page.locator("[data-action=confirm-send]").click();
-    await page.waitForFunction(() => document.querySelector(".cr-status")?.textContent?.includes("accepted"));
+    await page.waitForFunction(() => document.querySelector(".cr-status")?.textContent?.includes("Queued"));
     expect(h.queueCalls).toHaveLength(2);
     expect(h.queueCalls.at(-1)!.mode).toBe("queue");
     expect(h.store.listDispatches(h.who, seeded.reviewId)).toHaveLength(2);

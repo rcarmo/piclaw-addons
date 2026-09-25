@@ -19,6 +19,7 @@ import { operator, pageSize } from "./validation.js";
 interface ServiceState {
   service: ReviewService;
   close: () => void;
+  workspaceId: string | null;
 }
 const states = new Map<string, ServiceState>();
 // Cache only small immutable diff rows; the large permitted files still use
@@ -127,14 +128,21 @@ export function reviewService(): ReviewService {
   if (existing) return existing.service;
   const service = new ReviewService(join(dir, "reviews.db"));
   service.recoverInterrupted();
+  const cleanup = () => {
+    try { const workspaceId = states.get(dir)?.workspaceId; if (workspaceId) service.cleanupConfiguredReviews(workspaceId); }
+    catch (error) { console.warn('[code-review] Retention cleanup failed', error instanceof Error ? error.name : 'Error'); }
+  };
+  const cleanupTimer = setInterval(cleanup, 60 * 60 * 1000);
+  cleanupTimer.unref?.();
   let closed = false;
   const close = () => {
     if (closed) return;
     closed = true;
+    clearInterval(cleanupTimer);
     service.close();
     states.delete(dir);
   };
-  states.set(dir, { service, close });
+  states.set(dir, { service, close, workspaceId: null });
   runtime.lifecycle?.onShutdown(close);
   return service;
 }
@@ -249,6 +257,7 @@ export async function reviewAction(
   // Flat fields are informational; the method revalidates the host-owned active scope on every action.
   await ctx.listTargets();
   const service = providedService ?? reviewService();
+  for (const state of states.values()) if (state.service === service) state.workspaceId = ctx.workspaceId;
   await verifyAgentBinding(ctx);
   const agentScope = scopeForAction(who, service);
   const recheck = async () => {
@@ -283,6 +292,23 @@ export async function reviewAction(
       const review = service.getReview(who, body.reviewId);
       return { ...review, gitAvailable: reader().hasGit(review.focus_path) };
     }
+    case "getSettings":
+      operator(who);
+      return service.getSettings(who);
+    case "saveSettings":
+      operator(who);
+      if (body.retentionDays !== null && body.confirm !== true) throw new ReviewError('confirmation_required','Confirm automatic deletion.');
+      return service.saveSettings(who,body.retentionDays);
+    case "cleanup":
+      operator(who);
+      return service.cleanupOldReviews(who);
+    case "deleteReview":
+      if (body.confirm !== true) throw new ReviewError('confirmation_required','Confirm review deletion.');
+      return service.deleteReview(who, {
+        reviewId: body.reviewId,
+        expectedVersion: body.expectedVersion,
+        requestId: body.requestId,
+      });
     case "target": {
       const selected = await resolveHostTarget(ctx, body.target ?? {});
       return service.setTarget(who, body.reviewId, selected, mutation(body));

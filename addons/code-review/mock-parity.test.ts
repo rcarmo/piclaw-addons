@@ -87,13 +87,13 @@ test("RC-1/2/3 render the approved mock source, diff and send states with real s
       dimensions.push({ width, actual, mock: expected });
       expect(await real.locator("#cr-snapshot").isVisible()).toBe(false);
       expect(await real.locator(".cr-message").first().innerText()).toContain(body);
-      expect(await real.locator(".cr-delivery").first().innerText()).toBe("Not sent");
+      expect(await real.locator(".cr-delivery").first().innerText()).toBe("Unsent");
       await shot("source", width);
       expect(await real.locator(".cr-thread [data-action=expand]").getAttribute("aria-expanded")).toBe("true");
       await real.locator(".cr-message-body").waitFor();
       expect(await real.locator(".cr-message-body").innerText()).toBe(body);
       await shot("discussion", width);
-      await real.locator(`.cr-thread [data-pick="${thread.threadId}"]`).check();
+      expect(await real.locator('[data-pick]').count()).toBe(0);
       await reference.locator('#t1 [data-pick="t1"]').check();
       await real.locator("[data-action=send]").click();
       await real.locator(".cr-drawer").waitFor();

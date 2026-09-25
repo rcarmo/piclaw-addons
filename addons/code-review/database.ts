@@ -6,6 +6,14 @@ import { ReviewError } from "./contracts.js";
 export const id = (prefix: string): string => `${prefix}_${randomUUID()}`;
 export const now = (): string => new Date().toISOString();
 const SCHEMA = 1;
+const settingsSchema = `
+CREATE TABLE IF NOT EXISTS review_settings (
+ owner_id TEXT NOT NULL,
+ workspace_id TEXT NOT NULL,
+ retention_days INTEGER CHECK(retention_days IS NULL OR (retention_days BETWEEN 1 AND 3650)),
+ updated_at TEXT NOT NULL,
+ PRIMARY KEY(owner_id,workspace_id)
+);`;
 /** Never chooses a path from env, opens the core DB or erases an existing file. */
 export class ReviewDatabase {
   readonly db: Database;
@@ -59,6 +67,7 @@ export class ReviewDatabase {
           })
           .immediate();
       }
+      this.db.exec(settingsSchema);
       this.db.exec("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL;");
     } catch (error) {
       this.db.close();

@@ -132,7 +132,7 @@ test("CR-001/012/033/111 browser drives real review persistence and one explicit
     expect(await untitled()).toEqual([]);
     expect(await unnamed()).toEqual([]);
     expect(await page.locator(".cr-toolbar [data-action=send]").isDisabled()).toBe(true);
-    expect(await page.locator(".cr-toolbar [data-action=send]").getAttribute("title")).toContain("Include at least one open thread");
+    expect(await page.locator(".cr-toolbar [data-action=send]").getAttribute("title")).toContain("No unsent discussions");
     await page.locator('[data-action=line-comment][data-line="2"]').click();
     await page.locator("#cr-body").fill("Reject an empty name first.");
     await page.waitForTimeout(650);
@@ -145,12 +145,10 @@ test("CR-001/012/033/111 browser drives real review persistence and one explicit
     const review = store.listReviews(ctx)[0]!;
     expect(store.listThreads(ctx, review.id)).toHaveLength(1);
     expect(await page.locator(".cr-thread .cr-message").innerText()).toContain("Reject an empty name first.");
-    expect(await page.locator(".cr-thread .cr-delivery").innerText()).toBe("Not sent");
-    const checkbox = page.locator(".cr-thread [data-pick]");
-    expect(await checkbox.getAttribute("title")).toContain("next review sent to the agent");
-    await checkbox.check();
+    expect(await page.locator(".cr-thread .cr-delivery").innerText()).toBe("Unsent");
+    expect(await page.locator(".cr-thread [data-pick]").count()).toBe(0);
     expect(await page.locator(".cr-toolbar [data-action=send]").isDisabled()).toBe(false);
-    expect(await page.locator(".cr-toolbar [data-action=send]").getAttribute("title")).toContain("Preview selected guidance");
+    expect(await page.locator(".cr-toolbar [data-action=send]").getAttribute("title")).toContain("Send new or updated discussions");
     expect(calls).toBe(0);
     await page.locator("[data-action=send]").click();
     await page.waitForSelector(".cr-drawer");
@@ -162,12 +160,12 @@ test("CR-001/012/033/111 browser drives real review persistence and one explicit
     expect(calls).toBe(0);
     await page.locator("[data-action=confirm-send]").click();
     await page.waitForFunction(() =>
-      document.querySelector(".cr-status")?.textContent?.includes("accepted"),
+      document.querySelector(".cr-status")?.textContent?.includes("Queued"),
     );
     expect(calls).toBe(1);
     await page.waitForFunction(() => document.querySelector(".cr-thread .cr-delivery")?.textContent === "Queued");
     expect(await page.locator(".cr-toolbar [data-action=send]").isDisabled()).toBe(true);
-    expect(await page.locator(".cr-toolbar [data-action=send]").getAttribute("title")).toContain("Include at least one open thread");
+    expect(await page.locator(".cr-toolbar [data-action=send]").getAttribute("title")).toContain("No unsent discussions");
     expect(await untitled()).toEqual([]);
     if (await page.locator(".cr-thread [data-action=expand]").getAttribute("aria-expanded") !== "true") await page.locator(".cr-thread [data-action=expand]").click();
     await page.locator(".cr-message-body").waitFor({ state: "visible" });
