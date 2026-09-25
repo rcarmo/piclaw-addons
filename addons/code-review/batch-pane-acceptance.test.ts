@@ -600,6 +600,9 @@ test(
         [],
       );
 
+      // Overall-guidance edits now refresh preview too. Wait until that read
+      // completes before introducing the deliberately stale server-side edit.
+      await page.waitForFunction(() => !(document.querySelector("[data-action=confirm-send]") as HTMLButtonElement)?.disabled);
       harness.store.reply(
         harness.operator,
         harness.utilThreadId,

@@ -115,7 +115,7 @@ test("CR-033/034/104/109/176 preview is inert and one batch is claimed once", as
       f.store.listThreads(human, f.reviewId).every((t) => t.state === "open"),
     ).toBe(true);
     expect(() => f.store.submit(human, f.reviewId, f.input, m())).toThrow(
-      "outstanding work",
+      "already sent",
     );
   } finally {
     f.cleanup();
