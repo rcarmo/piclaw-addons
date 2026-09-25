@@ -49,3 +49,40 @@ jobs:
 
       - name: Validate package can be packed
         run: bun pm pack --dry-run >/dev/null
+
+  code-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.cache/ms-playwright
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Resolve Bun version
+        id: bun-version
+        run: echo "version=$(tr -d '[:space:]' < BUN_VERSION)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: ${{ steps.bun-version.outputs.version }}
+
+      - name: Install dependencies
+        run: |
+          bun install --frozen-lockfile
+          bun install --cwd addons/code-review --frozen-lockfile
+
+      - name: Install Chromium
+        working-directory: addons/code-review
+        run: bunx playwright install --with-deps chromium
+
+      - name: Run Code Review regression and browser tests
+        run: |
+          # Preloads replace HOME for isolation; use the explicit job cache.
+          bun test addons/code-review
+          bunx tsc -p addons/code-review/tsconfig.json
+
+      - name: Validate standalone production package
+        working-directory: addons/code-review
+        run: bun pm pack --dry-run

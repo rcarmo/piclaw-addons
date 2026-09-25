@@ -29,6 +29,7 @@
       "addons/ast-grep-tool/index.ts",
       "addons/autoresearch/index.ts",
       "addons/cheapskate/index.ts",
+      "addons/code-review/index.ts",
       "addons/code-validator/index.ts",
       "addons/codex-conversion/src/index.ts",
       "addons/delegate/index.ts",
