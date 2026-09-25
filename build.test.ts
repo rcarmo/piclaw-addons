@@ -46,13 +46,13 @@ test("public tarballs honour production files and preserve legacy exclusions", (
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
-test("only the selected foundational add-ons carry the core tag", () => {
+test("only the selected core add-ons carry the core tag", () => {
   const packageFiles = Array.from(new Bun.Glob("addons/*/package.json").scanSync({ cwd: repoRoot })).sort();
   const coreSlugs = packageFiles.flatMap((path) => {
     const manifest = JSON.parse(readFileSync(join(repoRoot, path), "utf8"));
     return manifest.piclaw?.tags?.includes("core") ? [path.split("/")[1]] : [];
   });
-  expect(coreSlugs).toEqual(["delegate", "goal", "observability", "plan-sidebar", "session-dashboard"]);
+  expect(coreSlugs).toEqual(["code-review", "delegate", "goal", "observability", "plan-sidebar", "session-dashboard"]);
 
   const catalog = JSON.parse(readFileSync(join(repoRoot, "catalog.json"), "utf8"));
   const catalogCoreSlugs = catalog.addons.filter((addon: any) => addon.tags?.includes("core")).map((addon: any) => addon.slug).sort();
