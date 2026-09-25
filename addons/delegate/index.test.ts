@@ -41,8 +41,10 @@ describe("delegate addon", () => {
     );
     expect(delegateStatusModelHint({ model: "anthropic/claude-sonnet-4.6", prompt })).toBe("anthropic/claude-sonnet-4.6");
     expect(delegateStatusModelHint({ prompt }, { output_preview: buildDelegateStatusUpdate("openai/gpt-5.4-mini", prompt) })).toBe("openai/gpt-5.4-mini");
-    expect(buildDelegateStatusUpdate("openai/gpt-5.4-mini", prompt, 2)).toStartWith("Delegate (2) model:");
-    expect(delegateStatusModelHint({ prompt }, { output_preview: buildDelegateStatusUpdate("openai/gpt-5.4-mini", prompt, 2) })).toBe("openai/gpt-5.4-mini");
+    expect(buildDelegateStatusUpdate("openai/gpt-5.4-mini", prompt, 2, 3)).toStartWith("Delegate (2 of 3) model:");
+    expect(delegateStatusModelHint({ prompt }, { output_preview: buildDelegateStatusUpdate("openai/gpt-5.4-mini", prompt, 2, 3) })).toBe("openai/gpt-5.4-mini");
+    expect(delegateStatusModelHint({ prompt }, { output_preview: "Delegate (2) model: openai/gpt-5.4-mini\nArguments: legacy count" })).toBe("openai/gpt-5.4-mini");
+    expect(delegateStatusModelHint({ model: "old/model" }, { outputPreview: "Delegate (12 of 14) model: openai/gpt-5.4-mini\nArguments: fixture" })).toBe("openai/gpt-5.4-mini");
   });
 
   test("parses pi model list output", () => {
@@ -813,8 +815,8 @@ anthropic       claude-sonnet-4.6  200K     32K      yes       yes
   });
 
 
-  test("parallel Delegate calls keep per-session text counts and clear only after the last exit", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "delegate-text-count-"));
+  test("parallel Delegate calls keep stable ordinals and growing per-session totals until the last exit", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "delegate-ordinal-"));
     const previousCli = process.env.PI_DELEGATE_CLI;
     const globals = globalThis as any;
     const previousRegistrar = globals.__piclaw_registerAddonConfigApi;
@@ -836,14 +838,21 @@ anthropic       claude-sonnet-4.6  200K     32K      yes       yes
         if(key==='fallback'&&model.endsWith('sol')) {
           console.log(JSON.stringify({type:'message_end',message:{role:'assistant',content:[],stopReason:'error',errorMessage:'No API key for provider'}}));process.exit(1);
         }
-        while(!existsSync(${JSON.stringify(dir)}+'/'+key+'.finish')) await Bun.sleep(5);
+        let retried=false;
+        while(!existsSync(${JSON.stringify(dir)}+'/'+key+'.finish')) {
+          if(!retried&&existsSync(${JSON.stringify(dir)}+'/'+key+'.retry')) {
+            console.log(JSON.stringify({type:'auto_retry_start',attempt:1,maxAttempts:3}));
+            retried=true;
+          }
+          await Bun.sleep(5);
+        }
         if(key==='error'){console.error('fixture child failure');process.exit(2);}
         console.log(JSON.stringify({type:'message_end',message:{role:'assistant',provider:'github-copilot',model:model.split('/')[1],content:[{type:'text',text:'OK'}],stopReason:'stop'}}));
       `);
       process.env.PI_DELEGATE_CLI = `${process.execPath} ${cli}`;
       let api: any;
       globals.__piclaw_registerAddonConfigApi = (_id: string, action: string, handler: any) => { if (action === 'config') api = handler; };
-      const module = await import(`./delegate.ts?count-test=${encodeURIComponent(dir)}`);
+      const module = await import(`./delegate.ts?ordinal-test=${encodeURIComponent(dir)}`);
       globals.__piclaw_registerAddonConfigApi = previousRegistrar;
       await api.set({searchable_providers:['github-copilot'],excluded_providers:[],excluded_models:[]});
       const makeSession = () => {
@@ -870,30 +879,62 @@ anthropic       claude-sonnet-4.6  200K     32K      yes       yes
         while(!existsSync(join(dir,`${key}-${model}`))&&Date.now()<deadline)await Bun.sleep(5);
         expect(existsSync(join(dir,`${key}-${model}`))).toBe(true);
       };
-      const first=start(a,'first');await started('first');expect(first.updates.at(-1)).toContain('Delegate (1) model:');
+      const first=start(a,'first');await started('first');expect(first.updates.at(-1)).toContain('Delegate (1 of 1) model:');
       const second=start(a,'second');await started('second');
-      expect(first.updates.at(-1)).toContain('Delegate (2) model:');expect(second.updates.at(-1)).toContain('Delegate (2) model:');
+      expect(first.updates.at(-1)).toContain('Delegate (1 of 2) model:');expect(second.updates.at(-1)).toContain('Delegate (2 of 2) model:');
+      const third=start(a,'third');await started('third');
+      expect(first.updates.at(-1)).toContain('Delegate (1 of 3) model:');
+      expect(second.updates.at(-1)).toContain('Delegate (2 of 3) model:');
+      expect(third.updates.at(-1)).toContain('Delegate (3 of 3) model:');
       const foreign=start(other,'error');await started('error');
-      expect(foreign.updates.at(-1)).toContain('Delegate (1) model:');expect(a.working.at(-1)).toContain('Delegate (2):');
+      expect(foreign.updates.at(-1)).toContain('Delegate (1 of 1) model:');expect(a.working.at(-1)).toContain('Delegate (3 of 3):');
       const denied=start(a,'denied',{model:'unapproved/unknown'});expect((await denied.done).error).toBeTruthy();
-      expect(a.working.at(-1)).toContain('Delegate (2):');
+      expect(a.working.at(-1)).toContain('Delegate (3 of 3):');
+      // Out-of-order completion cannot shrink the group or renumber survivors.
+      writeFileSync(join(dir,'second.finish'),'');expect((await second.done).value).toBeTruthy();
+      const secondUpdateCount=second.updates.length;
+      expect(first.updates.at(-1)).toContain('Delegate (1 of 3) model:');
+      expect(third.updates.at(-1)).toContain('Delegate (3 of 3) model:');
+      // New calls join the existing group; fallback attempts keep the same ordinal.
+      const fallback=start(a,'fallback');await started('fallback','gpt-6-luna');
+      expect(fallback.updates.some(text=>text.includes('Delegate (4 of 4) model: github-copilot/gpt-6-sol'))).toBe(true);
+      expect(fallback.updates.at(-1)).toContain('Delegate (4 of 4) model: github-copilot/gpt-6-luna');
+      expect(first.updates.at(-1)).toContain('Delegate (1 of 4) model:');
+      expect(third.updates.at(-1)).toContain('Delegate (3 of 4) model:');
+      // Actual child retry progress also retains the ordinal and current total.
+      writeFileSync(join(dir,'third.retry'),'');
+      const retryDeadline=Date.now()+3000;
+      while(!third.updates.at(-1)?.includes('Progress: Provider retry')&&Date.now()<retryDeadline)await Bun.sleep(5);
+      expect(third.updates.at(-1)).toContain('Delegate (3 of 4) model:');
+      expect(third.updates.at(-1)).toContain('Progress: Provider retry 1/3');
+      writeFileSync(join(dir,'fallback.finish'),'');expect((await fallback.done).value).toBeTruthy();
       writeFileSync(join(dir,'first.finish'),'');expect((await first.done).value).toBeTruthy();
-      expect(second.updates.at(-1)).toContain('Delegate (1) model:');expect(a.working.at(-1)).toContain('Delegate (1):');
+      expect(third.updates.at(-1)).toContain('Delegate (3 of 4) model:');expect(a.working.at(-1)).toContain('Delegate (3 of 4):');
+      expect(a.statuses.at(-1)).toContain('Delegate (3 of 4):');
       expect(a.working).not.toContain(undefined);
       writeFileSync(join(dir,'error.finish'),'');expect((await foreign.done).error).toBeTruthy();
-      expect(other.working.at(-1)).toBeUndefined();expect(a.working.at(-1)).toContain('Delegate (1):');
-      second.controller.abort();expect((await second.done).error).toBeTruthy();
+      expect(other.working.at(-1)).toBeUndefined();expect(a.working.at(-1)).toContain('Delegate (3 of 4):');
+      const broken=start(a,'broken',{},true);await started('broken');
+      expect(third.updates.at(-1)).toContain('Delegate (3 of 5) model:');
+      expect(third.updates.at(-1)).toContain('Progress: Provider retry 1/3');
+      writeFileSync(join(dir,'broken.finish'),'');expect((await broken.done).value).toBeTruthy();
+      expect(a.working.at(-1)).toContain('Delegate (3 of 5):');
+      expect(second.updates).toHaveLength(secondUpdateCount);
+      third.controller.abort();expect((await third.done).error).toBeTruthy();
       expect(a.working.at(-1)).toBeUndefined();expect(a.statuses.at(-1)).toBeUndefined();
-      const fallback=start(a,'fallback');await started('fallback','gpt-6-luna');
-      expect(fallback.updates.some(text=>text.includes('Delegate (2)'))).toBe(false);
-      expect(fallback.updates.at(-1)).toContain('Delegate (1) model: github-copilot/gpt-6-luna');
-      writeFileSync(join(dir,'fallback.finish'),'');expect((await fallback.done).value).toBeTruthy();expect(a.working.at(-1)).toBeUndefined();
-      const broken=start(a,'broken',{},true);await started('broken');writeFileSync(join(dir,'broken.finish'),'');
-      expect((await broken.done).value).toBeTruthy();expect(a.working.at(-1)).toBeUndefined();
+      // Timeout cleans up its group so the next call starts from one again.
       const timeout=start(a,'timeout');await started('timeout');expect((await timeout.done).error?.message).toMatch(/timed out/i);
+      expect(timeout.updates.at(-1)).toContain('Delegate (1 of 1) model:');
       expect(a.working.at(-1)).toBeUndefined();
-      const final=start(a,'final');await started('final');expect(final.updates.at(-1)).toContain('Delegate (1) model:');
+      // Discovery is cached, but the launch command can still fail. Its slot must clear.
+      process.env.PI_DELEGATE_CLI = join(dir, 'missing-cli');
+      const spawnFailure=start(a,'spawnfailure');expect((await spawnFailure.done).error).toBeTruthy();
+      expect(spawnFailure.updates.at(-1)).toContain('Delegate (1 of 1) model:');
+      expect(a.working.at(-1)).toBeUndefined();expect(a.statuses.at(-1)).toBeUndefined();
+      process.env.PI_DELEGATE_CLI = `${process.execPath} ${cli}`;
+      const final=start(a,'final');await started('final');expect(final.updates.at(-1)).toContain('Delegate (1 of 1) model:');
       writeFileSync(join(dir,'final.finish'),'');expect((await final.done).value).toBeTruthy();
+      expect(a.working.at(-1)).toBeUndefined();expect(a.statuses.at(-1)).toBeUndefined();
     } finally {
       controllers.forEach(controller=>controller.abort());await Promise.all(jobs);
       globals.__piclaw_registerAddonConfigApi=previousRegistrar;

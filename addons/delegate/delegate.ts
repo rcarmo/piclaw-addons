@@ -1102,14 +1102,14 @@ function extractDelegateStatusArgs(args: unknown): Record<string, unknown> | nul
   return nested || record;
 }
 
-export function buildDelegateStatusUpdate(model: string, prompt: string, count = 0): string {
-  return `Delegate${count > 0 ? ` (${count})` : ""} model: ${model}\nArguments: ${delegateTaskPreview(prompt, 160)}`;
+export function buildDelegateStatusUpdate(model: string, prompt: string, ordinal = 0, total = ordinal): string {
+  return `Delegate${ordinal > 0 ? ` (${ordinal} of ${total})` : ""} model: ${model}\nArguments: ${delegateTaskPreview(prompt, 160)}`;
 }
 
 function modelFromDelegateStatusPreview(payload: Record<string, unknown> | null): string | null {
   const preview = readTrimmedString(payload?.output_preview, payload?.outputPreview);
   if (!preview) return null;
-  const match = preview.match(/^Delegate(?: \(\d+\))? model:\s*([^\n]+)/i);
+  const match = preview.match(/^Delegate(?: \(\d+(?: of \d+)?\))? model:\s*([^\n]+)/i);
   return match?.[1]?.trim() || null;
 }
 
@@ -1144,9 +1144,9 @@ registerToolStatusHintProvider({
   },
 });
 
-function setDelegateProgress(ctx: any, options: { model: string; category: TaskCategory; prompt: string }, count: number): void {
+function setDelegateProgress(ctx: any, options: { model: string; category: TaskCategory; prompt: string }, ordinal: number, total: number): void {
   const preview = delegateTaskPreview(options.prompt);
-  const message = `Delegate (${count}): ${options.category} to ${options.model}: ${preview}`;
+  const message = `Delegate (${ordinal} of ${total}): ${options.category} to ${options.model}: ${preview}`;
   try { ctx?.ui?.setStatus?.(DELEGATE_STATUS_KEY, `🤝 ${message}`); } catch { /* UI may not support status in all modes */ }
   try { ctx?.ui?.setWorkingMessage?.(message); } catch { /* UI may not support working messages in all modes */ }
 }
@@ -1279,10 +1279,12 @@ if (typeof registerAddonConfigApi === "function") {
 // ── Extension ──────────────────────────────────────────────────
 
 export default function (pi: any) {
-  // Factory-local: concurrent calls share a count, other chat sessions do not.
-  const runningDelegates = new Map<symbol, (count: number) => void>();
+  // Factory-local: a group lasts until all its calls exit. Ordinals are never reused
+  // within a group, including across fallback attempts; other sessions are independent.
+  let groupTotal = 0;
+  const runningDelegates = new Map<symbol, (total: number) => void>();
   const refreshProgress = () => {
-    for (const publish of runningDelegates.values()) publish(runningDelegates.size);
+    for (const publish of runningDelegates.values()) publish(groupTotal);
   };
   const updateRuntimeCatalog = async (ctx: any) => {
     runtimeCatalogSnapshot = await captureRuntimeCatalog(ctx, runtimeCatalogSnapshot);
@@ -1527,6 +1529,7 @@ export default function (pi: any) {
       const attemptFailures: Array<{ model: string; kind: DelegateFailureKind; message: string }> = [];
       let lastAttemptedModel = effectiveModel;
       const progressId = Symbol();
+      let ordinal = 0;
       try {
         for (let attempt = 0; attempt < modelChain.length; attempt += 1) {
           const attemptModel = modelChain[attempt];
@@ -1537,9 +1540,9 @@ export default function (pi: any) {
           const remainingMs = deadlineAt - Date.now();
           if (remainingMs <= 0) throw new Error(`timed out after ${timeout}s`);
           let progress: DelegateProcessProgress | undefined;
-          const publishProgress = (count: number) => {
-            setDelegateProgress(ctx, { model: attemptModel, category, prompt: params.prompt }, count);
-            const text = buildDelegateStatusUpdate(attemptModel, params.prompt, count);
+          const publishProgress = (total: number) => {
+            setDelegateProgress(ctx, { model: attemptModel, category, prompt: params.prompt }, ordinal, total);
+            const text = buildDelegateStatusUpdate(attemptModel, params.prompt, ordinal, total);
             try {
               onUpdate?.(result(progress ? `${text}\nProgress: ${progress.message}` : text, {
                 status: progress?.type ?? "starting", model: attemptModel, attempt: attempt + 1,
@@ -1547,6 +1550,7 @@ export default function (pi: any) {
               }));
             } catch { /* A stale progress callback must not fail another running delegate. */ }
           };
+          if (!ordinal) ordinal = ++groupTotal;
           runningDelegates.set(progressId, publishProgress);
           refreshProgress();
           const piArgs = ["--mode", "json", "--no-session", "--no-extensions", "--model", attemptModel, "--tools", toolsArg, ...staticArgs];
@@ -1555,7 +1559,7 @@ export default function (pi: any) {
             fullPrompt,
             remainingMs,
             signal,
-            (update) => { progress = update; publishProgress(runningDelegates.size); },
+            (update) => { progress = update; publishProgress(groupTotal); },
           );
 
           const processFailure = delegateProcessFailure(processResult);
@@ -1619,7 +1623,10 @@ export default function (pi: any) {
       } finally {
         if (runningDelegates.delete(progressId)) {
           if (runningDelegates.size) refreshProgress();
-          else clearDelegateProgress(ctx);
+          else {
+            groupTotal = 0;
+            clearDelegateProgress(ctx);
+          }
         }
       }
     },
