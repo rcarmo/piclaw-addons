@@ -1,5 +1,7 @@
 import { expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { packAddon } from "./scripts/lib/pack-addon.js";
 import { join } from "node:path";
 
 const repoRoot = new URL(".", import.meta.url).pathname;
@@ -23,10 +25,25 @@ test("core-tagged cards render an accessible top-right bookmark", () => {
   expect(buildSource).toContain(">CORE</text>");
 });
 
-test("public tarball builder excludes local dependency and temporary trees", () => {
-  const source = readFileSync(join(repoRoot, "build.ts"), "utf8");
-  expect(source).toContain('"--exclude=./node_modules"');
-  expect(source).toContain('"--exclude=./.tmp"');
+test("public tarballs honour production files and preserve legacy exclusions", () => {
+  expect(buildSource).toContain('packAddon(addonDir, outPath)');
+  const root = mkdtempSync(join(tmpdir(), 'addon-pack-'));
+  try {
+    const pkg = join(root, 'addon');
+    mkdirSync(join(pkg, 'node_modules'), { recursive: true });
+    mkdirSync(join(pkg, '.tmp'));
+    for (const name of ['index.ts', 'index.test.ts', 'node_modules/secret.ts', '.tmp/secret.ts']) writeFileSync(join(pkg, name), '// fixture');
+    writeFileSync(join(pkg, 'package.json'), JSON.stringify({ name: 'fixture-addon', version: '1.0.0', files: ['index.ts'] }));
+    const archive = join(root, 'addon.tgz');
+    packAddon(pkg, archive);
+    const entries = () => Bun.spawnSync(['tar', '-tzf', archive], { stdout: 'pipe' }).stdout.toString().trim().split('\n');
+    expect(entries().sort()).toEqual(['package/index.ts', 'package/package.json']);
+    writeFileSync(join(pkg, 'package.json'), JSON.stringify({ name: 'fixture-addon', version: '1.0.0' }));
+    packAddon(pkg, archive);
+    expect(entries()).toContain('./index.ts');
+    expect(entries().some((entry) => entry.includes('node_modules') || entry.includes('.tmp'))).toBe(false);
+    expect(() => packAddon(pkg, join(root, 'missing', 'no.tgz'))).toThrow('Packing fixture-addon failed');
+  } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
 test("only the selected foundational add-ons carry the core tag", () => {

@@ -7,6 +7,7 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, copyFileSync } from "fs";
 import { join, dirname, normalize } from "path";
 import { marked } from "marked";
+import { packAddon } from './scripts/lib/pack-addon.js';
 
 const ROOT    = dirname(Bun.main);
 const CATALOG = join(ROOT, "catalog.json");
@@ -761,10 +762,7 @@ for (const addon of addons) {
   const addonDir = join(ROOT, addon.path);
   const baseName = addon.name.replace(/^@[^/]+\//, '');
   const outPath  = join(OUT, "packages", `${baseName}-${addon.version}.tgz`);
-  Bun.spawnSync(["tar", "czf", outPath, "-C", addonDir, "--exclude=./node_modules", "--exclude=./.tmp", "."], {
-    stdout: "inherit",
-    stderr: "inherit",
-  });
+  packAddon(addonDir, outPath);
   console.log(`✓ packed ${addon.name}@${addon.version}`);
 }
 

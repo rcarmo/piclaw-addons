@@ -33,6 +33,9 @@ jobs:
       - name: Validate catalog and root package metadata
         run: bun run check:catalog
 
+      - name: Test public package builder
+        run: bun test build.test.ts
+
       - name: Install Iroh prebuilt test dependency
         working-directory: addons/remote-peer
         run: bun install --frozen-lockfile --omit peer --ignore-scripts
