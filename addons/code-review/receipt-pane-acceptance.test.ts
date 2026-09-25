@@ -109,7 +109,7 @@ function createHarness(name: string) {
         } catch (error) {
           return Response.json({
             ok: false,
-            error: { message: (error as Error).message },
+            error: { message: (error as Error).message, code: (error as { code?: string }).code },
           });
         }
       }
@@ -604,4 +604,46 @@ test("CR-041 browser keeps unknown delivery unchanged when reconciliation is can
     await browser?.close();
     await harness.cleanup();
   }
+}, 45_000);
+
+test("reply to a waiting agent saves without queueing until an explicit follow-up Send", async () => {
+  const h = createHarness("followup");
+  const seeded = await h.seedReview("followup", "Please check this", { kind: "accepted", rowId: 1 });
+  const agent = { ...h.who, kind: "agent" as const, actorId: "agent", chatId: h.target.chatJid, chatIncarnation: h.target.incarnation, reference: { addonId: "code-review", intentId: seeded.dispatch.id } };
+  h.store.reply(agent, seeded.threadId, "Should empty names be rejected?", { requestId: "question", expectedVersion: 1 }, 1);
+  h.store.updateWork(agent, seeded.dispatch.id, seeded.threadId, { state: "waiting_user", itemVersion: 1, threadVersion: 2, assignmentEpoch: 1 }, { requestId: "waiting" });
+  let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
+  try {
+    const launched = await h.launchPage(() => true); browser = launched.browser;
+    const { page } = launched;
+    await h.waitForShell(page); await h.openSeededReview(page);
+    expect(await page.locator(".cr-thread .cr-delivery").innerText()).toBe("Queued · waiting user");
+    await page.locator(".cr-thread [data-action=reply]").click();
+    await page.locator("#cr-body").fill("Yes, reject empty names.");
+    await page.locator("[data-action=post]").click();
+    await page.waitForFunction(() => document.querySelector(".cr-thread .cr-delivery")?.textContent?.startsWith("Unsent"));
+    expect(h.queueCalls).toHaveLength(1);
+    await page.locator(".cr-thread [data-action=send-thread]").click();
+    await page.waitForSelector(".cr-drawer");
+    expect(h.queueCalls).toHaveLength(1);
+    await page.locator("[data-action=confirm-send]").click();
+    await page.waitForFunction(() => document.querySelector(".cr-status")?.textContent?.includes("Queued"));
+    expect(h.queueCalls).toHaveLength(2);
+    expect(h.queueCalls.at(-1)!.mode).toBe("queue");
+    expect(h.store.listDispatches(h.who, seeded.reviewId)).toHaveLength(2);
+    expect(h.store.getThread(h.who, seeded.threadId).state).toBe("open");
+    expect(await page.locator(".cr-thread .cr-delivery").innerText()).toBe("Queued");
+    await page.locator(".cr-thread [data-action=send-thread]").click();
+    await page.waitForFunction(() => document.querySelector(".cr-status")?.textContent?.includes("already sent"));
+    expect(h.queueCalls).toHaveLength(2);
+    await page.waitForSelector(".cr-drawer");
+    expect(await page.locator("[data-action=confirm-send]").isDisabled()).toBe(true);
+    await page.locator("#cr-summary").fill("Also check whitespace-only names.");
+    await page.waitForFunction(() => !(document.querySelector("[data-action=confirm-send]") as HTMLButtonElement)?.disabled);
+    expect(h.queueCalls).toHaveLength(2);
+    await page.locator("[data-action=confirm-send]").click();
+    await page.waitForFunction(() => !document.querySelector(".cr-drawer"));
+    expect(h.queueCalls).toHaveLength(3);
+    expect(launched.errors).toEqual([]);
+  } finally { await browser?.close(); await h.cleanup(); }
 }, 45_000);

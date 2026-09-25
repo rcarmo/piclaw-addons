@@ -63,6 +63,7 @@ export class CodeReviewPane {
     this.render();
   };
   private draftTimer: ReturnType<typeof setTimeout> | undefined;
+  private previewTimer: ReturnType<typeof setTimeout> | undefined;
   private savedDrafts: any[] = [];
   private savingDraft = false;
   private draftPromise: Promise<void> | null = null;
@@ -84,6 +85,7 @@ export class CodeReviewPane {
   private showFiles = false;
   private drawer: "threads" | "send" | null = null;
   private sendIntent: string | null = null;
+  private sendThreadId: string | null = null;
   private summary = "";
   private activeTarget: any = null;
   private status = "";
@@ -182,6 +184,7 @@ export class CodeReviewPane {
     if (this.disposed) return;
     this.disposed = true;
     this.abort.abort();
+    clearTimeout(this.previewTimer);
     clearTimeout(this.draftTimer);
     this.observer.disconnect();
     this.element.removeEventListener("error", this.avatarError, true);
@@ -993,9 +996,11 @@ export class CodeReviewPane {
         this.drawer = "threads";
         break;
       case "close-drawer":
+        clearTimeout(this.previewTimer);
         ++this.previewEpoch;
         this.previewLoading = false;
         this.drawer = null;
+        this.sendThreadId = null;
         this.sendIntent = null;
         this.sendPreview = null;
         this.pendingPayload = null;
@@ -1233,10 +1238,11 @@ export class CodeReviewPane {
       case "send-thread":
         this.selected.clear();
         this.selected.add(t().id);
-        if (t().summary?.outstanding) throw Error('This discussion is already queued or delivery is uncertain.');
+        this.sendThreadId = t().id;
         this.activeTarget = t().target; // fall through
       case "send":
       case "refresh-send-preview": {
+        if (name === 'send') this.sendThreadId = null;
         const previewEpoch = ++this.previewEpoch;
         this.previewLoading = true;
         this.sendPreview = null;
@@ -1247,7 +1253,8 @@ export class CodeReviewPane {
           let rows: any[] = [], after = "";
           for (;;) { const page = await this.api<any[]>("threads", {after}); rows.push(...page); if (page.length < 50) break; after = page.at(-1).id; }
           this.threads = rows;
-          this.syncUnsent();
+          if (this.sendThreadId) this.selected = new Set(rows.some(t => t.id === this.sendThreadId && t.state === 'open') ? [this.sendThreadId] : []);
+          else this.syncUnsent();
         }
         if (previewEpoch !== this.previewEpoch || this.disposed) return;
         if (!this.selected.size) throw Error("No unsent discussions for this agent.");
@@ -1270,6 +1277,11 @@ export class CodeReviewPane {
         this.sendIntent = requestId();
         this.drawer = "send";
         this.status = "";
+        } catch (error) {
+          if (previewEpoch === this.previewEpoch && error instanceof ApiError && error.code === "already_queued") {
+            this.drawer = "send";
+            this.status = error.message;
+          } else throw error;
         } finally {
           if (previewEpoch === this.previewEpoch) { this.previewLoading = false; this.render(); }
         }
@@ -1558,7 +1570,17 @@ export class CodeReviewPane {
     } else if (el.id === "cr-summary") {
       this.summary = el.value;
       if (this.drawer === "send") {
-        this.sendIntent = requestId();
+        clearTimeout(this.previewTimer);
+        ++this.previewEpoch;
+        this.sendIntent = null;
+        this.sendPreview = null;
+        this.pendingPayload = null;
+        this.previewLoading = true;
+        this.render();
+        this.previewTimer = setTimeout(() => {
+          if (!this.disposed && this.drawer === "send")
+            void this.perform("refresh-send-preview", el).catch((error) => this.fail(error));
+        }, 250);
       }
     } else if (el.id === "cr-filter") {
       this.fileFilter = el.value;
@@ -1625,6 +1647,7 @@ export class CodeReviewPane {
           this.moreMenu = false;
           this.render();
         } else {
+          clearTimeout(this.previewTimer);
           ++this.previewEpoch;
           this.previewLoading = false;
           this.pendingPayload = null;

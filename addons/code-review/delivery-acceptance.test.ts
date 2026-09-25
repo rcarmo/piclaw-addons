@@ -192,7 +192,7 @@ test("CR-175/176 slice: queue delivery claims once, stays busy, and does not res
         },
         f.mutation(),
       ),
-    ).toThrow("outstanding work");
+    ).toThrow("already sent");
 
     const reopened = f.reopen();
     expect(reopened.inspectDispatch(f.operator, dispatch.dispatchId).attempts).toEqual([

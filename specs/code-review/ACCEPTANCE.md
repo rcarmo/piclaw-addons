@@ -28,7 +28,7 @@ Those behaviours pass the browser comparison below. This is layout/interaction
 acceptance, not a pixel-identical claim. Mock-only persistence and agent simulation
 are replaced by the real implementation.
 
-## 25 September UX follow-up (0.1.6 candidate)
+## 25 September UX follow-up (0.1.7 candidate)
 
 Rui's later instructions supersede the mock's manual selection and receipts UI:
 use profile names/avatars, automatically include new/updated discussions on explicit

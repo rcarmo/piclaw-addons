@@ -4,6 +4,32 @@
 source-build scope.** See [acceptance](ACCEPTANCE.md). The 184 older scenarios
 remain design reference. The approved mock is unchanged.
 
+## Follow-up interaction correction — 25 September
+
+The published duplicate-send guard also blocked ordinary discussion replies when
+work was waiting/blocked. The follow-up fix removes that incorrect restriction;
+the older release results below did not cover this conversational loop.
+
+- New operator replies/edits/deletions, reopen/reanchor and new overall instructions
+  can create an explicit queued follow-up after accepted work in any work state.
+  Agent-only replies do not make the same human guidance new. Same-request replay
+  is idempotent; unchanged sends are refused without asking for reconciliation.
+- Unknown delivery still requires a receipt decision, and prepared/attempting
+  delivery waits for its result. Rejected retry/new-send races are guarded.
+- A delivering follow-up supersedes access to its selected concerns for older
+  submissions only. Unaffected batch items remain accessible; a definitely rejected
+  follow-up does not revoke the prior accepted submission.
+- Browser feedback distinguishes waiting, blocked, working, finished and unsent
+  follow-ups. Overall-instruction edits refresh preview; final Send stays explicit.
+- Twelve domain interaction tests and a browser answer-and-send test pass. Full
+  suite: 181 pass, one opt-in skipped; strict TypeScript/catalogue checks pass.
+  Packed 19-file 0.1.6 candidate passes 196 authenticated host assertions, including
+  loopback agent work, busy queue, restart and catalogue reinstall. The full new
+  conversational loop is exercised by the service-backed browser test, not the
+  deterministic single-submission host provider.
+- No live review records, receipts or service were changed. README documents the
+  interaction rules. Independent read-only delegate timed out without findings.
+
 ## Public release verification
 
 - Core #1407 merged at `2a06652e9`; add-on #144 merged at `2f621bb6`.

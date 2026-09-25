@@ -20,9 +20,10 @@ profiles. The screenshot uses no live review data.*
   open, new or updated discussions for the chosen agent; there are no inclusion
   checkboxes. Review the preview and confirm to queue a batch of up to 50 threads.
   Additional discussions can be sent in a later batch. Private drafts are excluded.
-- **Unsent** includes changed guidance since the last send. Discussions with
-  queued/running or uncertain work wait for that work to finish or be reconciled.
-  Other targets are not silently reassigned.
+- **Unsent** includes new operator guidance since the last send; agent replies alone
+  do not create another send. A follow-up queues behind already accepted work.
+  In-flight or uncertain delivery must finish or be reconciled first. Other targets
+  are not silently reassigned.
 - Resolve your own discussion with one click, or reopen it without sending work.
   Agent resolutions still require an explanation and valid source mapping.
 - Delivery status stays beside the discussion: **Queued**, **Failed**, or
@@ -130,6 +131,37 @@ Install dependencies for this package using `bun install` in its directory. Sour
 capture uses safe Git argv and bounded UTF-8 regular-file reads. Syntax parsing
 uses packaged Lezer dependencies and returns escaped plain text on unsupported or
 large input.
+
+## Discussing and sending follow-ups
+
+- **Post comment/reply** saves it without starting the agent. Drafts stay private;
+  posted replies are public in the discussion. Use **Send** to request another turn.
+- A saved reply, edited/deleted human message, reopened concern or changed anchor
+  can be sent while earlier accepted work is queued, running, waiting, blocked or
+  finished. A new non-empty overall instruction in the send drawer also counts.
+  The follow-up queues behind current work; it never interrupts it.
+- An unchanged send is blocked as already sent. Repeated requests with the same
+  request ID reuse the original submission. A failed work item can be explicitly
+  retried with a new Send without rewriting the guidance.
+- When the host begins delivering the follow-up, it takes over only the selected
+  concerns. An older submission cannot reply to or resolve those concerns, but
+  keeps access to unaffected concerns in its batch. This cannot undo file work
+  already performed by an earlier turn.
+- **Delivery uncertain** means there is no reliable queue acknowledgement. Keep
+  discussing, but use the thread's **Check delivery** action before sending again.
+  **Failed** means a definite rejection: explicitly Send again when ready. Internal
+  delivery records remain available for recovery; there is no receipts pane.
+- Resolve does not mark agent work completed, and an agent finishing does not
+  resolve a concern. Reopen is explicit and does not send. Reassignment is explicit
+  and invalidates the previous assignment; preview rejects mixed-target batches.
+- For a batch, **Send to agent** finds unsent discussions for the current target.
+  You can also use **Send thread** for an explicit single-thread follow-up with a
+  new overall instruction. The preview fixes the submitted versions; if guidance
+  changes before confirmation, review the refreshed preview and confirm again.
+
+The pane uses **Unsent**, **Queued**, **Failed**, and **Delivery uncertain**, with
+agent work state shown separately. A persisted work state is not evidence that an
+agent process is still running.
 
 ## Use and rollback
 

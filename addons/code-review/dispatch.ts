@@ -142,17 +142,17 @@ export class ReviewService extends ReviewStore {
           "Explicitly reassign threads or send separate batches.",
           409,
         );
-      const busy = this.database.get(
-        "SELECT i.dispatch_id FROM dispatch_items i JOIN attempts a ON a.dispatch_id=i.dispatch_id WHERE i.thread_id=? AND i.assignment_epoch=? AND i.work_state IN ('not_started','in_progress','waiting_user','blocked') AND a.number=(SELECT MAX(number) FROM attempts WHERE dispatch_id=i.dispatch_id) AND a.state IN ('prepared','attempting','accepted','unknown')",
-        thread.id,
-        thread.assignment_epoch,
+      const latest = this.database.get<{ dispatch_id: string; state: DeliveryState; work_state: WorkState; summary: string }>(
+        "SELECT i.dispatch_id,i.work_state,a.state,d.summary FROM dispatch_items i JOIN dispatches d ON d.id=i.dispatch_id JOIN attempts a ON a.dispatch_id=d.id AND a.number=(SELECT MAX(number) FROM attempts WHERE dispatch_id=d.id) WHERE i.thread_id=? AND i.assignment_epoch=? ORDER BY d.rowid DESC LIMIT 1",
+        thread.id, thread.assignment_epoch,
       );
-      if (busy)
-        throw new ReviewError(
-          "already_queued",
-          "Thread already has outstanding work; reconcile it before another send.",
-          409,
-        );
+      if (latest?.state === "unknown")
+        throw new ReviewError("uncertain_delivery", "The previous send has no confirmed delivery receipt. Check Delivery receipts before sending again. Posting replies is still allowed.", 409);
+      if (latest && ["prepared", "attempting"].includes(latest.state))
+        throw new ReviewError("already_queued", "A send is still being delivered. Wait for its receipt, then send your saved follow-up.", 409);
+      const newInstruction = Boolean(input.summary?.trim() && input.summary.trim() !== latest?.summary.trim());
+      if (latest?.state === "accepted" && !this.hasNewGuidance(thread.id, latest.dispatch_id) && !newInstruction && !["failed", "superseded"].includes(latest.work_state))
+        throw new ReviewError("already_queued", "This guidance was already sent. Post a reply, edit it, reopen the concern or add a new overall instruction before sending a follow-up.", 409);
       return thread;
     });
   }
@@ -275,6 +275,7 @@ export class ReviewService extends ReviewStore {
       const currentTarget = JSON.parse(thread.target_json) as LocalTarget;
       const unavailable =
         thread.state === "deleted" ||
+        (who.kind === "agent" && this.hasNewerSubmission(dispatchId, thread.id, item.assignment_epoch)) ||
         (who.kind === "agent" &&
           (currentTarget.chatId !== who.chatId ||
             currentTarget.incarnation !== who.chatIncarnation ||
@@ -385,7 +386,7 @@ export class ReviewService extends ReviewStore {
       who.chatIncarnation ?? "",
       pageSize(options.limit, LIMITS.threadPage),
     );
-    return rows.map((thread) => {
+    return rows.filter((thread) => who.kind !== "agent" || !this.hasNewerSubmission(dispatchId, thread.id, thread.assignment_epoch)).map((thread) => {
       const anchor = JSON.parse(thread.anchor_json);
       return {
         ...thread,
@@ -426,7 +427,8 @@ export class ReviewService extends ReviewStore {
           !thread ||
           thread.state !== "open" ||
           thread.version !== item.thread_version ||
-          thread.assignment_epoch !== item.assignment_epoch
+          thread.assignment_epoch !== item.assignment_epoch ||
+          this.hasNewerSubmission(dispatchId, thread.id, item.assignment_epoch, true)
         )
           return true;
         const assigned = JSON.parse(thread.target_json) as LocalTarget;
@@ -528,7 +530,8 @@ export class ReviewService extends ReviewStore {
         if (
           thread.state !== "open" ||
           thread.version !== item.thread_version ||
-          thread.assignment_epoch !== item.assignment_epoch
+          thread.assignment_epoch !== item.assignment_epoch ||
+          this.hasNewerSubmission(dispatchId, thread.id, item.assignment_epoch, true)
         )
           throw new ReviewError(
             "conflict",
@@ -681,11 +684,12 @@ export class ReviewService extends ReviewStore {
             thread.version - 1,
           );
         const stale =
-          (thread.state !== "open" && !ownResolution) || !assignmentValid;
+          (thread.state !== "open" && !ownResolution) || !assignmentValid ||
+          this.hasNewerSubmission(dispatchId, threadId, item.assignment_epoch);
         if (stale && input.state !== "superseded")
           throw new ReviewError(
             "superseded",
-            "Concern is deleted, resolved or reassigned; report it superseded.",
+            "Concern is deleted, resolved, reassigned or continued in a newer submission; report it superseded.",
             409,
           );
         if (!stale) {

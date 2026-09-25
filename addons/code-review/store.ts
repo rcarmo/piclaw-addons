@@ -80,6 +80,7 @@ interface ThreadSummary {
   deliveryState: DeliveryState | null;
   dispatchId: string | null;
   workState: WorkState | null;
+  hasUnsentGuidance: boolean;
 }
 interface MessageResolution {
   fileId: string;
@@ -192,6 +193,24 @@ export class ReviewStore {
         items.map((item) => [item.thread_id, item.assignment_epoch] as const),
       ),
     };
+  }
+  /** Compare durable event order, not timestamps or agent reply versions. */
+  protected hasNewGuidance(threadId: string, dispatchId: string): boolean {
+    return !!this.database.get(
+      `SELECT 1 FROM events e LEFT JOIN messages m ON m.id=json_extract(e.data_json,'$.messageId')
+       WHERE e.thread_id=? AND e.cursor>(SELECT cursor FROM events WHERE dispatch_id=? AND kind='dispatch.prepared' LIMIT 1)
+       AND (e.kind IN ('thread.reopened','thread.reanchored') OR
+         (e.kind IN ('message.created','message.edited','message.deleted') AND m.author_kind='operator')) LIMIT 1`,
+      threadId, dispatchId,
+    );
+  }
+  protected hasNewerSubmission(dispatchId: string, threadId: string, epoch: number, includePrepared = false): boolean {
+    return !!this.database.get(
+      `SELECT 1 FROM dispatch_items i JOIN dispatches d ON d.id=i.dispatch_id
+       JOIN attempts a ON a.dispatch_id=d.id AND a.number=(SELECT MAX(number) FROM attempts WHERE dispatch_id=d.id)
+       WHERE i.thread_id=? AND i.assignment_epoch=? AND d.rowid>(SELECT rowid FROM dispatches WHERE id=?)
+       AND (a.state IN ('attempting','accepted','unknown') OR (? AND a.state='prepared')) LIMIT 1`, threadId, epoch, dispatchId, includePrepared ? 1 : 0,
+    );
   }
   protected missing(): never {
     throw new ReviewError("not_found", "Review record is unavailable.", 404);
@@ -360,7 +379,8 @@ export class ReviewStore {
       if (scope && (
         scope.reviewId !== thread.review_id ||
         !scope.threadIds.has(thread.id) ||
-        scope.assignmentEpochs.get(thread.id) !== thread.assignment_epoch
+        scope.assignmentEpochs.get(thread.id) !== thread.assignment_epoch ||
+        this.hasNewerSubmission(scope.dispatchId, thread.id, thread.assignment_epoch)
       ))
         this.missing();
     }
@@ -851,9 +871,8 @@ export class ReviewStore {
       dispatch_id: string;
       work_state: WorkState;
       delivery_state: DeliveryState;
-      thread_version: number;
     }>(
-      "SELECT i.dispatch_id,i.work_state,i.thread_version,a.state AS delivery_state FROM dispatch_items i JOIN dispatches d ON d.id=i.dispatch_id AND d.review_id=i.review_id JOIN attempts a ON a.dispatch_id=d.id AND a.number=(SELECT MAX(number) FROM attempts WHERE dispatch_id=d.id) WHERE i.thread_id=? AND i.assignment_epoch=? AND json_extract(d.target_json,'$.chatId')=? AND json_extract(d.target_json,'$.incarnation')=? ORDER BY d.rowid DESC LIMIT 1",
+      "SELECT i.dispatch_id,i.work_state,a.state AS delivery_state FROM dispatch_items i JOIN dispatches d ON d.id=i.dispatch_id AND d.review_id=i.review_id JOIN attempts a ON a.dispatch_id=d.id AND a.number=(SELECT MAX(number) FROM attempts WHERE dispatch_id=d.id) WHERE i.thread_id=? AND i.assignment_epoch=? AND json_extract(d.target_json,'$.chatId')=? AND json_extract(d.target_json,'$.incarnation')=? ORDER BY d.rowid DESC LIMIT 1",
       thread.id,
       thread.assignment_epoch,
       selected.chatId,
@@ -863,14 +882,17 @@ export class ReviewStore {
       body: first?.body ? this.trimSummaryBody(first.body) : null,
       authorKind: first?.author_kind ?? null,
       authorId: first?.author_id ?? null,
-      unsent: thread.state === 'open' && (!dispatch || dispatch.delivery_state === 'rejected' || thread.version > dispatch.thread_version),
+      unsent: thread.state === 'open' && (!dispatch || dispatch.delivery_state === 'rejected'
+        || this.hasNewGuidance(thread.id, dispatch.dispatch_id) || ['failed','superseded'].includes(dispatch.work_state)),
       outstanding: Boolean(dispatch && (['prepared','attempting','unknown'].includes(dispatch.delivery_state)
-        || (dispatch.delivery_state === 'accepted' && ['not_started','in_progress','waiting_user','blocked'].includes(dispatch.work_state)))),
+        || (dispatch.delivery_state === 'accepted' && !this.hasNewGuidance(thread.id, dispatch.dispatch_id)
+          && ['not_started','in_progress','waiting_user','blocked'].includes(dispatch.work_state)))),
       messageCount: counts?.message_count ?? 0,
       filePath: this.anchorFilePath(thread.review_id, anchor),
       deliveryState: dispatch?.delivery_state ?? null,
       dispatchId: dispatch?.dispatch_id ?? null,
       workState: dispatch?.work_state ?? null,
+      hasUnsentGuidance: !dispatch || this.hasNewGuidance(thread.id, dispatch.dispatch_id),
     };
   }
   private resolutionByMessage(
