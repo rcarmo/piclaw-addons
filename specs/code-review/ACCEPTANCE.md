@@ -46,8 +46,10 @@ and references to old scenario IDs do not change status automatically.
 
 ## Release result — 25 September
 
-All six checks pass for **Code Review 0.1.4 on the documented Classic source
-build**. Core [#1407](https://github.com/rcarmo/piclaw/pull/1407), add-on
+All six checks passed for **Code Review 0.1.4 on the documented Classic source
+build**. Version 0.1.5 adds HTTP-hostname request-ID compatibility and a host-rendered
+preview icon. The six-check result below is the 0.1.4 receipt; rerun the public
+tarball and merged-core disposable-host checks before signing off 0.1.5. Core [#1407](https://github.com/rcarmo/piclaw/pull/1407), add-on
 [#144](https://github.com/rcarmo/piclaw-addons/pull/144) and packaging correction
 [#145](https://github.com/rcarmo/piclaw-addons/pull/145) are merged. Hosted
 validation, build/deploy, catalogue sync and archive publication succeeded.

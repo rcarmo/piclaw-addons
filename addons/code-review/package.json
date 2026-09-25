@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-code-review",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Saved-source and Git-diff reviews with durable inline discussions and explicit queued agent work",
   "type": "module",
   "main": "index.ts",
