@@ -10,11 +10,11 @@ import { installManaged, resolveBinary } from './binary.ts';
 import type { RunOptions, RunResult } from './contracts.ts';
 export interface Snapshot { id:string; time:string; hostname:string; tags:string[]; paths:string[]; }
 type Outcome={status:'success'|'failed'|'incomplete';at:string;message?:string;snapshotId?:string;durationMs?:number;bytes?:number};
-interface State { instanceId:string; lastAttempt?:string;lastSuccess?:string;successRepository?:string;backup?:Outcome;maintenance?:Outcome;nextRun?:number;logs:string[]; operation?:{action:string;status:string;result?:unknown;message?:string;at:string}; }
+interface State { instanceId:string; lastAttempt?:string;lastSuccess?:string;successRepository?:string;backupAttempt?:string;backup?:Outcome;maintenance?:Outcome;nextRun?:number;logs:string[]; operation?:{action:string;status:string;result?:unknown;message?:string;at:string}; }
 interface Options { paths:InstancePaths; resolveSecret:(ref:string)=>Promise<string>; run?:(o:RunOptions)=>Promise<RunResult>; legacySchedulerActive?:()=>Promise<boolean>; }
 export class ResticService {
   config:JobConfig; state:State; private active?:AbortController; private timer?:ReturnType<typeof setInterval>;
-  private preview?:{token:string;ids:string[];expires:number;fingerprint:string}; private run:(o:RunOptions)=>Promise<RunResult>;
+  private preview?:{token:string;ids:string[];expires:number;fingerprint:string;backupAttempt?:string}; private run:(o:RunOptions)=>Promise<RunResult>;
   readonly paths:InstancePaths;
   constructor(private options:Options){
     this.paths=options.paths;this.run=options.run||runRestic;
@@ -23,10 +23,20 @@ export class ResticService {
     this.state=this.load('state.json',{instanceId:randomUUID(),logs:[]});
     if(!/^[a-f0-9-]{36}$/.test(this.state.instanceId))throw Error('Invalid persisted instance identity');
     if(this.state.operation?.status==='running')this.state.operation={...this.state.operation,status:'interrupted',message:'Previous operation did not finish; inspect job lock and staging before recovery'};
-    this.save('state.json',this.state);
+    // Initial creation is exclusive; constructing another service must never overwrite a live owner's state.
+    if(!existsSync(join(this.paths.stateDir,'state.json'))){
+      try{writeFileSync(join(this.paths.stateDir,'state.json'),JSON.stringify(this.state,null,2)+'\n',{mode:0o600,flag:'wx'});}
+      catch(e:any){if(e.code!=='EEXIST')throw e;this.state=this.load('state.json',this.state);}
+    }
   }
   private load<T>(name:string,fallback:T):T {const p=join(this.paths.stateDir,name);return existsSync(p)?JSON.parse(readFileSync(p,'utf8')):fallback;}
   private save(name:string,value:unknown){const p=join(this.paths.stateDir,name),t=p+'.tmp';writeFileSync(t,JSON.stringify(value,null,2)+'\n',{mode:0o600});renameSync(t,p);}
+  private reloadDurable(){
+    this.config=validateJobConfig(this.load('config.json',defaultJobConfig()));
+    this.state=this.load('state.json',this.state);
+    if(!/^[a-f0-9-]{36}$/.test(this.state.instanceId))throw Error('Invalid persisted instance identity');
+    if(this.preview&&(this.preview.backupAttempt!==this.state.backupAttempt||this.preview.fingerprint!==this.fingerprint()))this.preview=undefined;
+  }
   private persist(){this.state.logs=this.state.logs.slice(-40);this.save('state.json',this.state);}
   private repositoryIdentity(){return createHash('sha256').update(JSON.stringify({repository:this.config.repository,passwordRef:this.config.passwordRef,sources:this.paths.sources})).digest('hex');}
   private fingerprint(){return createHash('sha256').update(JSON.stringify(this.config)).digest('hex');}
@@ -36,20 +46,20 @@ export class ResticService {
     if(this.active)throw Error('Backup operation is running');const c=validateJobConfig(input);
     if(c.enabled && (await this.options.legacySchedulerActive?.()))throw Error('Previous Restic scheduler is active; disable it explicitly before enabling');
     if(this.active)throw Error('Backup operation started while validating configuration; retry after it finishes');
+    const release=this.acquire();
+    try{
+    this.reloadDurable();
     if(c.enabled && (this.state.successRepository!==this.repositoryIdentity()||!this.state.lastSuccess||this.state.backup?.status!=='success'||JSON.stringify(c.repository)!==JSON.stringify(this.config.repository)||c.passwordRef!==this.config.passwordRef))throw Error('Verify a successful manual backup with this repository before enabling');
     const oldIdentity=this.repositoryIdentity();
     this.config=c;if(oldIdentity!==this.repositoryIdentity()){this.state.lastSuccess=undefined;this.state.successRepository=undefined;this.state.backup=undefined;}this.preview=undefined;this.state.nextRun=c.enabled&&c.schedule.enabled?nextRun(c.schedule,Date.now()):undefined;
     this.save('config.json',c);this.persist();return c;
+    }finally{release();}
   }
   start(){if(this.timer)return;this.timer=setInterval(()=>{void this.tick().catch(()=>{});},30000);this.timer.unref();}
   stop(){if(this.timer)clearInterval(this.timer);this.timer=undefined;this.active?.abort();}
   async tick(now=Date.now()){
-    if(!this.config.enabled||!this.config.schedule.enabled||this.active)return;
-    if(!this.state.nextRun){this.state.nextRun=nextRun(this.config.schedule,now);this.persist();return;}
-    if(this.state.nextRun>now)return;
-    // Persist the single claimed run before launch: restart never replays a burst.
-    this.state.nextRun=nextRun(this.config.schedule,now);this.persist();
-    await this.execute('backup');
+    if(this.active)return;
+    await this.submit('backup',{},now);
   }
   private acquire(){
     const lock=join(this.paths.stateDir,'job.lock');
@@ -67,13 +77,24 @@ export class ResticService {
   cancel(){this.active?.abort();return {cancelled:Boolean(this.active)};}
   async execute(action:string,payload:Record<string,any>={}){return this.submit(action,payload);}
   /** Synchronous admission must succeed before the API acknowledges queued work. */
-  submit(action:string,payload:Record<string,any>={}):Promise<any>{
+  submit(action:string,payload:Record<string,any>={},scheduledAt?:number):Promise<any>{
     if(action==='cancel')return Promise.resolve(this.cancel());
     if(!['test','backup','snapshots','check','previewRetention','applyRetention','init','restore','installBinary'].includes(action))throw Error('Unknown Restic action');
     if(this.active)throw Error('Another backup operation is running');
-    const release=this.acquire();this.active=new AbortController();this.state.operation={action,status:'running',at:new Date().toISOString()};this.state.lastAttempt=new Date().toISOString();
-    if(action==='backup'){this.state.backup={status:'failed',at:this.state.lastAttempt,message:'Backup started but has not completed; an interruption is not a successful backup'};this.preview=undefined;}
-    this.persist();return this.perform(action,payload,release);
+    const release=this.acquire();
+    try{
+      this.reloadDurable();
+      if(scheduledAt!==undefined){
+        if(!this.config.enabled||!this.config.schedule.enabled){release();return Promise.resolve();}
+        if(!this.state.nextRun){this.state.nextRun=nextRun(this.config.schedule,scheduledAt);this.persist();release();return Promise.resolve();}
+        if(this.state.nextRun>scheduledAt){release();return Promise.resolve();}
+        // Claim exactly one missed slot while holding the same lock as the backup.
+        this.state.nextRun=nextRun(this.config.schedule,scheduledAt);
+      }
+      this.active=new AbortController();this.state.operation={action,status:'running',at:new Date().toISOString()};this.state.lastAttempt=new Date().toISOString();
+      if(action==='backup'){this.state.backupAttempt=randomUUID();this.state.backup={status:'failed',at:this.state.lastAttempt,message:'Backup started but has not completed; an interruption is not a successful backup'};this.preview=undefined;}
+      this.persist();return this.perform(action,payload,release);
+    }catch(error){this.active=undefined;release();throw error;}
   }
   private async perform(action:string,payload:Record<string,any>,release:()=>void){
     let transport:Awaited<ReturnType<typeof prepareTransport>>|undefined;
@@ -140,7 +161,7 @@ export class ResticService {
         const all=await snapshots();const ids=groups.flatMap((x:any)=>(x.remove||[]).map((s:any)=>s.id)).sort();
         if(ids.some((id:string)=>!all.some(s=>s.id===id)))throw Error('Retention scope validation failed');return ids as string[];
       };
-      if(action==='previewRetention'){const ids=await preview();this.preview={token:randomUUID(),ids,expires:Date.now()+5*60000,fingerprint:this.fingerprint()};return {...this.preview};}
+      if(action==='previewRetention'){const ids=await preview();this.preview={token:randomUUID(),ids,expires:Date.now()+5*60000,fingerprint:this.fingerprint(),backupAttempt:this.state.backupAttempt};return {...this.preview};}
       if(payload.confirmation!=='DELETE PREVIEWED SNAPSHOTS'||!this.preview||this.preview.token!==payload.token||this.preview.expires<Date.now()||this.preview.fingerprint!==this.fingerprint()||JSON.stringify(payload.ids)!==JSON.stringify(this.preview.ids))throw Error('Fresh exact retention preview and confirmation required');
       const selected=this.preview;this.preview=undefined;
       if(JSON.stringify(await preview())!==JSON.stringify(selected.ids))throw Error('Snapshot set changed; preview retention again');

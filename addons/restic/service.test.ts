@@ -42,7 +42,7 @@ test('single missed schedule slot claimed once; no burst and timezone validation
   const s={enabled:true,hours:[8,12,20],minute:0,timezone:'Europe/Lisbon'};
   expect(nextRun(s,Date.parse('2026-01-01T08:00:00Z'))).toBe(Date.parse('2026-01-01T12:00:00Z'));
   expect(()=>validateJobConfig({...defaultJobConfig(),schedule:{...s,timezone:'invalid'}})).toThrow();
-  const f=fixture();try{let calls=0;f.service.config={...f.config,enabled:true,migrationAcknowledged:true,schedule:s};f.service.state.nextRun=1;(f.service as any).execute=async()=>{calls++;};const now=Date.parse('2026-01-02T13:00:00Z');await f.service.tick(now);await f.service.tick(now);expect(calls).toBe(1);expect(f.service.status.nextRun).toBeGreaterThan(now);}finally{f.cleanup();}
+  const f=fixture();try{let calls=0;f.service.config={...f.config,enabled:true,migrationAcknowledged:true,schedule:s};f.service.state.nextRun=1;writeFileSync(join(f.paths.stateDir,'config.json'),JSON.stringify(f.service.config));writeFileSync(join(f.paths.stateDir,'state.json'),JSON.stringify(f.service.state));(f.service as any).perform=async(_a:any,_p:any,release:()=>void)=>{calls++;(f.service as any).active=undefined;release();};const now=Date.parse('2026-01-02T13:00:00Z');await f.service.tick(now);await f.service.tick(now);expect(calls).toBe(1);expect(f.service.status.nextRun).toBeGreaterThan(now);}finally{f.cleanup();}
 });
 test('overlap blocks independent service instances; cancellation releases lock',async()=>{
   let release!:()=>void;const gate=new Promise<void>(r=>release=r);
@@ -121,6 +121,7 @@ test('configuration await cannot race admitted backup; interrupted attempt revok
   // Establish valid success, then hold the next operation in flight.
   service.state.lastSuccess=new Date().toISOString();service.state.backup={status:'success',at:service.state.lastSuccess};
   (service.state as any).successRepository=(service as any).repositoryIdentity();
+  writeFileSync(join(f.paths.stateDir,'state.json'),JSON.stringify(service.state));
   guard=true;const saving=service.setConfig({...f.config,enabled:true,migrationAcknowledged:true}).then(()=>null,e=>e);
   await Bun.sleep(1);const job=service.execute('backup');validateRelease();expect((await saving)?.message).toContain('started while validating');
   const persisted=JSON.parse(readFileSync(join(f.paths.stateDir,'state.json'),'utf8'));
@@ -133,5 +134,47 @@ test('queued admission rejects stale/active lock before acknowledging work',asyn
  const f=fixture();try{
   mkdirSync(join(f.paths.stateDir,'job.lock'));writeFileSync(join(f.paths.stateDir,'job.lock/owner.json'),JSON.stringify({pid:process.pid,token:'other'}));
   expect(()=>f.service.submit('backup')).toThrow('running');expect(f.service.status.running).toBe(false);
+ }finally{f.cleanup();}
+});
+
+test('durable admission blocks stale-instance retention after failed, incomplete or successful peer backup',async()=>{
+ const id='a'.repeat(64),calls:string[][]=[];let backupCode=0;let f:ReturnType<typeof fixture>;
+ const run=async(o:RunOptions):Promise<RunResult>=>{
+  calls.push(o.args);const snapshot={id,time:new Date().toISOString(),hostname:f.service.state.instanceId,tags:[f.service.tag],paths:[f.paths.stageDir]};
+  if(o.args[0]==='version')return {code:0,stdout:'restic 0.18.1',stderr:'',durationMs:0};
+  if(o.args[0]==='options')return {code:0,stdout:'local.connections\nsftp.command\ns3.region\nazure.connections\n',stderr:'',durationMs:0};
+  if(o.args.includes('backup'))return {code:backupCode,stdout:JSON.stringify({message_type:'summary',snapshot_id:id}),stderr:backupCode===1?'fixture failed':'',durationMs:0};
+  return {code:0,stdout:JSON.stringify(o.args.includes('snapshots')?[snapshot]:[{remove:[snapshot]}]),stderr:'',durationMs:0};
+ };
+ f=fixture(run);let peer:ResticService|undefined;
+ try{
+  await f.service.setConfig({...f.config,retention:{...f.config.retention,enabled:true}});await f.service.execute('backup');
+  peer=new ResticService({paths:f.paths,resolveSecret:async()=> 'fixture',run});
+  for(const code of [1,3,0]){
+   backupCode=0;await f.service.execute('backup');const preview:any=await f.service.execute('previewRetention');
+   const beforeAttempt=f.service.state.backupAttempt;backupCode=code;
+   if(code===1)await expect(peer.execute('backup')).rejects.toThrow('backup failed (exit 1)');else await peer.execute('backup');
+   expect(peer.state.backupAttempt).not.toBe(beforeAttempt);
+   // Snapshot listing/retention IDs did not change, but the durable attempt identity did.
+   await expect(f.service.execute('applyRetention',{...preview,confirmation:'DELETE PREVIEWED SNAPSHOTS'})).rejects.toThrow(code===0?'Fresh exact':'succeeded');
+   const persisted=JSON.parse(readFileSync(join(f.paths.stateDir,'state.json'),'utf8'));
+   expect(persisted.backupAttempt).toBe(peer.state.backupAttempt);
+   expect(persisted.backup.status).toBe(code===0?'success':code===3?'incomplete':'failed');
+  }
+  expect(calls.some(x=>x.includes('prune')||(x.includes('forget')&&!x.includes('--dry-run')))).toBe(false);
+  await peer.setConfig({...peer.config,repository:{backend:'local',path:join(f.root,'changed-repo')}});
+  await f.service.execute('snapshots');expect(f.service.config.repository).toEqual(peer.config.repository);
+  expect(f.service.state.lastSuccess).toBeUndefined();
+ }finally{peer?.stop();f.cleanup();}
+});
+
+test('service construction cannot overwrite durable in-flight state and config cannot bypass peer lock',async()=>{
+ const f=fixture();try{
+  const current={...f.service.state,backupAttempt:'durable-attempt',backup:{status:'failed',at:new Date().toISOString()},operation:{action:'backup',status:'running',at:new Date().toISOString()}};
+  writeFileSync(join(f.paths.stateDir,'state.json'),JSON.stringify(current));
+  mkdirSync(join(f.paths.stateDir,'job.lock'));writeFileSync(join(f.paths.stateDir,'job.lock/owner.json'),JSON.stringify({pid:process.pid,token:'active-peer'}));
+  const peer=new ResticService({paths:f.paths,resolveSecret:async()=>''});
+  expect(JSON.parse(readFileSync(join(f.paths.stateDir,'state.json'),'utf8'))).toEqual(current);
+  await expect(peer.setConfig(f.config)).rejects.toThrow('running');peer.stop();
  }finally{f.cleanup();}
 });

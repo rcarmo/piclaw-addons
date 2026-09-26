@@ -83,7 +83,9 @@ names require operator verification. The add-on never changes systemd units itse
 Retention is a separate opt-in action, not an automatic post-backup delete. Preview
 exact snapshot IDs scoped to the stable instance host, tag and staging path, then
 confirm within five minutes. Apply rechecks the preview before forgetting IDs.
-Failed or incomplete backups block maintenance. Backup and prune outcomes remain
+Failed or incomplete backups block maintenance. Each job reloads durable state under
+the shared lock; a persisted backup-attempt ID invalidates previews across service
+instances, including when a new attempt creates no snapshot. Backup and prune outcomes remain
 separate. Changing repositories clears backup-success eligibility. Prune is
 repository-wide unreferenced-data reclamation and can be expensive in shared repos;
 it does not remove other instances' retained snapshots.
