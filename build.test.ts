@@ -52,7 +52,7 @@ test("only the selected core add-ons carry the core tag", () => {
     const manifest = JSON.parse(readFileSync(join(repoRoot, path), "utf8"));
     return manifest.piclaw?.tags?.includes("core") ? [path.split("/")[1]] : [];
   });
-  expect(coreSlugs).toEqual(["code-review", "delegate", "goal", "observability", "plan-sidebar", "session-dashboard"]);
+  expect(coreSlugs).toEqual(["code-review", "delegate", "goal", "observability", "plan-sidebar", "restic", "session-dashboard"]);
 
   const catalog = JSON.parse(readFileSync(join(repoRoot, "catalog.json"), "utf8"));
   const catalogCoreSlugs = catalog.addons.filter((addon: any) => addon.tags?.includes("core")).map((addon: any) => addon.slug).sort();
