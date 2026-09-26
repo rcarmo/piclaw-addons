@@ -6,6 +6,11 @@ This is a clean break from Remote Peer 0.2: no old clients, HTTP peer routes, da
 
 ## Pair in Settings
 
+Settings uses the host's Classic/Visual controls with full-width fields, compact
+section dividers and wrapped action rows. Long client IDs, peer names and delivery
+errors stay inside the pane on narrow screens. Incoming and outgoing permissions
+remain separate; these layout changes do not alter trust or transport behaviour.
+
 The [operator guide](docs/operator-guide.md) provides the complete Settings walkthrough, including discovery, relay choices, permissions, rotation and recovery.
 
 ### Fresh setup

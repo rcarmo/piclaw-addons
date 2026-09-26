@@ -2,7 +2,10 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 
+import { remotePeerStyles } from './web/styles.ts';
 const source = readFileSync(new URL("./web/index.ts", import.meta.url), "utf8");
+// The registration VM has no module loader; real-host browser tests cover exact imports.
+const registrationSource = source.replace('import { remotePeerStyles } from "./styles.ts";', `const remotePeerStyles = ${JSON.stringify(remotePeerStyles)};`);
 
 describe("Remote Peer Settings registration", () => {
   test("permission editor replaces policy prompts and fields use the host shell", () => {
@@ -21,7 +24,7 @@ describe("Remote Peer Settings registration", () => {
         const rendered: { markup: string }[] = [];
         const panes: any[] = [];
         let notifications = 0;
-        runInNewContext(source, {
+        runInNewContext(registrationSource, {
           [uiKey]: {
             html(strings: TemplateStringsArray) {
               const node = { markup: strings.join("") };
@@ -53,7 +56,7 @@ describe("Remote Peer Settings registration", () => {
 
   test("does not register without the UI runtime", () => {
     const panes: unknown[] = [];
-    runInNewContext(source, {
+    runInNewContext(registrationSource, {
       __piclawSettingsPaneRegistry: { registerSettingsPane: (pane: unknown) => panes.push(pane) },
     });
     expect(panes).toHaveLength(0);
