@@ -752,19 +752,20 @@
     {
       "slug": "restic",
       "name": "@rcarmo/piclaw-addon-restic",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "type": "extension",
       "description": "Settings-managed Restic backups with consistent SQLite staging and scoped retention.",
       "path": "addons/restic",
       "tags": [
         "backup",
+        "core",
         "restic",
         "settings"
       ],
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-restic-0.1.1.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-restic-0.1.2.tgz"
       },
       "updatedAt": "2026-09-26",
       "owner": {

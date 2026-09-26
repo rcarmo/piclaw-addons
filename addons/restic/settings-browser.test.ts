@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { settingsBrowserEnabled, settingsPaneFixture } from "../../scripts/lib/settings-pane-browser.js";
+import { validateJobConfig } from './job-config.ts';
 
 const browserTest = settingsBrowserEnabled ? test : test.skip;
 let fixture: Awaited<ReturnType<typeof settingsPaneFixture>>;
@@ -59,7 +60,7 @@ for (const skin of ["classic", "visual"] as const) {
           const body = route.request().postDataJSON();
           configWrites.push(body);
           if (rejectConfig) return route.fulfill({ status: 400, json: { ok: false, error: { message: "Configuration rejected" } } });
-          config = body.config;
+          config = validateJobConfig(body.config) as ReturnType<typeof initialConfig>;
           return route.fulfill({ json: { ok: true, config } });
         });
         await page.route("**/agent/addons/api/restic/status", async (route: any) => {
@@ -97,6 +98,7 @@ for (const skin of ["classic", "visual"] as const) {
           await page.getByRole("status").filter({ hasText: "Configuration saved." }).waitFor();
           expect(configWrites).toHaveLength(before + 1);
           expect(configWrites.at(-1).config.repository).toEqual(expectedRepository);
+          expect(configWrites.at(-1).config).not.toHaveProperty('migrationAcknowledged');
           await page.reload();
           await heading.waitFor();
           expect(await page.locator("#restic-repository-backend").inputValue()).toBe(expectedRepository.backend);
@@ -111,11 +113,20 @@ for (const skin of ["classic", "visual"] as const) {
           await heading.waitFor();
           expect(await page.evaluate(() => matchMedia("(prefers-color-scheme: dark)").matches)).toBe(colorScheme === "dark");
 
+          expect(await page.getByRole('checkbox', {name:/acknowledge/i}).count()).toBe(0);
+          expect(await page.locator('.restic-warning').count()).toBe(0);
+          expect(await page.locator('.restic-settings').innerText()).not.toContain('An incomplete backup is not a success.');
+          // Enable/save a legacy false-ack config without needing the removed control.
+          await page.getByRole('checkbox', {name:'Enable Restic backup',exact:true}).check();
+          await page.getByRole('checkbox', {name:'Enable Restic scheduler',exact:true}).check();
+
           // Exercise every repository editor through the registered pane and check it after a GET-backed reload.
           await page.locator("#restic-local-path").fill("/backups/restic");
           await page.locator("#restic-local-mount").fill("/backups");
           await saveAndReload({ backend: "local", path: "/backups/restic", expectedMount: "/backups" });
           expect(await page.locator("#restic-local-path").inputValue()).toBe("/backups/restic");
+          expect(await page.getByRole('checkbox', {name:'Enable Restic backup',exact:true}).isChecked()).toBe(true);
+          expect(await page.getByRole('checkbox', {name:'Enable Restic scheduler',exact:true}).isChecked()).toBe(true);
 
           await page.locator("#restic-repository-backend").selectOption("sftp");
           await page.locator("#restic-sftp-host").fill("backup.example.test");

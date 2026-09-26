@@ -41,6 +41,12 @@ export class ResticService {
   private repositoryIdentity(){return createHash('sha256').update(JSON.stringify({repository:this.config.repository,passwordRef:this.config.passwordRef,sources:this.paths.sources})).digest('hex');}
   private fingerprint(){return createHash('sha256').update(JSON.stringify(this.config)).digest('hex');}
   get status(){return {...this.state,running:Boolean(this.active)};}
+  /** Passive agent reads use current durable config without probing binaries or secrets. */
+  configurationSnapshot(){
+    if(this.active)return structuredClone({config:this.config,state:this.status});
+    const release=this.acquire();
+    try{this.reloadDurable();return structuredClone({config:this.config,state:this.status});}finally{release();}
+  }
   get tag(){return `piclaw:${this.state.instanceId}`;}
   async setConfig(input:unknown){
     if(this.active)throw Error('Backup operation is running');const c=validateJobConfig(input);
@@ -73,7 +79,7 @@ export class ResticService {
     return ()=>{if(existsSync(join(lock,'owner.json'))&&JSON.parse(readFileSync(join(lock,'owner.json'),'utf8')).token===token)rmSync(lock,{recursive:true});};
   }
   private async binary(){return resolveBinary(this.config.binary,this.paths.stateDir,this.run);}
-  async info(){let binary;try{binary=await this.binary();}catch(e){binary={error:(e as Error).message};}return {config:this.config,paths:this.paths,binary,migration:{acknowledged:this.config.migrationAcknowledged,legacySchedulerActive:await this.options.legacySchedulerActive?.()||false}};}
+  async info(){let binary;try{binary=await this.binary();}catch(e){binary={error:(e as Error).message};}return {config:this.config,paths:this.paths,binary,migration:{legacySchedulerActive:await this.options.legacySchedulerActive?.()||false}};}
   cancel(){this.active?.abort();return {cancelled:Boolean(this.active)};}
   async execute(action:string,payload:Record<string,any>={}){return this.submit(action,payload);}
   /** Synchronous admission must succeed before the API acknowledges queued work. */
@@ -107,7 +113,7 @@ export class ResticService {
       }
       mkdirSync(dirname(this.paths.stageDir),{recursive:true,mode:0o700});
       assertBackupPaths(this.paths.sources.map(x=>x.path),[this.paths.stageDir,this.paths.cacheDir]);
-      const {binary:_binary,excludes:_excludes,migrationAcknowledged:_migration,schedule:_schedule,...transportConfig}=this.config;
+      const {binary:_binary,excludes:_excludes,schedule:_schedule,...transportConfig}=this.config;
       // A prior process may have died before its credential finally block. The job lock proves no active owner.
       rmSync(join(dirname(this.paths.stageDir),'credentials'),{recursive:true,force:true});
       transport=await prepareTransport(transportConfig,join(dirname(this.paths.stageDir),'credentials'),this.options.resolveSecret);

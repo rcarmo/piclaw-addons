@@ -20,7 +20,13 @@ test('startup import registers direct APIs once, ignores ambient secrets, reject
   await expect(apis.get('action').set({action:'test',env:{SECRET:'no'}})).rejects.toThrow('payload');
   await expect(apis.get('action').set({action:'unlock'})).rejects.toThrow('Unknown');
   await expect(apis.get('config').set({config:{...defaultJobConfig(),enabled:true}})).rejects.toThrow();
+  const addon=await import('./index.ts');let tool:any;addon.default({registerTool(value:any){tool=value;}});
+  await tool.execute('agent-config',{action:'set_config',config:{...defaultJobConfig(),excludes:['**/.cache','workspace/tmp']}});
+  expect((await apis.get('config').get()).config.excludes).toEqual(['**/.cache','workspace/tmp']);
+  await apis.get('config').set({config:{...defaultJobConfig(),excludes:['profile/tmp']}});
+  expect((await tool.execute('agent-read',{action:'get_config'})).details.config.excludes).toEqual(['profile/tmp']);
   mod.default();expect(shutdown).toHaveLength(1);shutdown[0]();
+  await expect(tool.execute('after-shutdown',{action:'status'})).rejects.toThrow('startup runtime');
  }finally{g.__piclaw_runtime=oldRuntime;g.__piclaw_registerAddonConfigApi=oldRegister;g.__piclawRuntimeInterop=oldInterop;if(oldWorkspace===undefined)delete process.env.PICLAW_WORKSPACE;else process.env.PICLAW_WORKSPACE=oldWorkspace;rmSync(root,{recursive:true,force:true});}
 });
 test('paths use supplied workspace/store/data/profile without fixed host names; mount validation fails closed',()=>{

@@ -34,6 +34,26 @@ metadata**, and **Refresh status** are explicit actions. The pane never polls or
 runs repository operations on opening. Long actions run in the background;
 Refresh status displays completion and errors, and Cancel terminates child work.
 
+## Agent configuration
+
+The `restic` tool is available to agents when the add-on's startup runtime is loaded:
+
+- `get_config` returns the current instance configuration, containing keychain names only.
+- `set_config` accepts the complete configuration returned by `get_config` with edits.
+- `status` returns the current job state.
+
+Example: call `restic` with `{"action":"get_config"}`, change the schedule or retention
+fields in the returned config, then call `{"action":"set_config","config":...}`.
+Enabling the schedule permits future automatic backups. The same backend validation,
+operation lock, previous-scheduler detection and successful-backup checks apply to
+agent and Settings writes. No migration acknowledgement checkbox is needed; legacy
+saved boolean values are accepted and discarded on save.
+
+Use the keychain tool separately to manage secrets. The Restic tool does not retrieve
+secret values, install binaries, execute immediate backup/restore/prune operations or
+change external schedulers. Loading it does not start another scheduler. The add-on
+is tagged `core` in the catalogue.
+
 ## Data and execution
 
 The host workspace plus separately configured `PICLAW_STORE`, `PICLAW_DATA` and
@@ -77,8 +97,8 @@ catch-up, never a backlog burst. The process-owned 30-second scheduler makes no
 model calls. An atomic directory lock prevents concurrent manual/scheduled jobs
 and other add-on service instances; interrupted locks require operator recovery.
 
-Enable scheduling only after a successful manual backup to this configuration and
-explicitly acknowledging the old scheduler has stopped. On Linux the add-on also
+Enable scheduling after a successful manual backup to this configuration and
+after stopping the old scheduler. No acknowledgement checkbox is required. On Linux the add-on also
 detects `restic-backup.timer`, its service and the known legacy loop. Other scheduler
 names require operator verification. The add-on never changes systemd units itself.
 

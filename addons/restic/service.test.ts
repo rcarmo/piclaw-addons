@@ -33,7 +33,7 @@ function fixture(run?: (o:RunOptions)=>Promise<RunResult>){
     expect(readFileSync(join(restored.restored,'workspace/note.txt'),'utf8')).toBe('recover me');expect(restored.databases).toBe(1);
     const recovered=new Database(join(restored.restored,'workspace/live.db'),{readonly:true});expect(recovered.query('select count(*) as n from items').get()).toEqual({n:2});recovered.close();
     expect(db.query('select count(*) as n from items').get()).toEqual({n:2});
-    await f.service.setConfig({...f.config,enabled:true,migrationAcknowledged:true,schedule:{...f.config.schedule,enabled:true}});
+    await f.service.setConfig({...f.config,enabled:true,schedule:{...f.config.schedule,enabled:true}});
     expect(f.service.status.nextRun).toBeGreaterThan(Date.now());
     const reload=new ResticService({paths:f.paths,resolveSecret:async()=>''});expect(reload.state.instanceId).toBe(f.service.state.instanceId);reload.stop();
   }finally{db.close();f.cleanup();}
@@ -42,7 +42,7 @@ test('single missed schedule slot claimed once; no burst and timezone validation
   const s={enabled:true,hours:[8,12,20],minute:0,timezone:'Europe/Lisbon'};
   expect(nextRun(s,Date.parse('2026-01-01T08:00:00Z'))).toBe(Date.parse('2026-01-01T12:00:00Z'));
   expect(()=>validateJobConfig({...defaultJobConfig(),schedule:{...s,timezone:'invalid'}})).toThrow();
-  const f=fixture();try{let calls=0;f.service.config={...f.config,enabled:true,migrationAcknowledged:true,schedule:s};f.service.state.nextRun=1;writeFileSync(join(f.paths.stateDir,'config.json'),JSON.stringify(f.service.config));writeFileSync(join(f.paths.stateDir,'state.json'),JSON.stringify(f.service.state));(f.service as any).perform=async(_a:any,_p:any,release:()=>void)=>{calls++;(f.service as any).active=undefined;release();};const now=Date.parse('2026-01-02T13:00:00Z');await f.service.tick(now);await f.service.tick(now);expect(calls).toBe(1);expect(f.service.status.nextRun).toBeGreaterThan(now);}finally{f.cleanup();}
+  const f=fixture();try{let calls=0;f.service.config={...f.config,enabled:true,schedule:s};f.service.state.nextRun=1;writeFileSync(join(f.paths.stateDir,'config.json'),JSON.stringify(f.service.config));writeFileSync(join(f.paths.stateDir,'state.json'),JSON.stringify(f.service.state));(f.service as any).perform=async(_a:any,_p:any,release:()=>void)=>{calls++;(f.service as any).active=undefined;release();};const now=Date.parse('2026-01-02T13:00:00Z');await f.service.tick(now);await f.service.tick(now);expect(calls).toBe(1);expect(f.service.status.nextRun).toBeGreaterThan(now);}finally{f.cleanup();}
 });
 test('overlap blocks independent service instances; cancellation releases lock',async()=>{
   let release!:()=>void;const gate=new Promise<void>(r=>release=r);
@@ -82,7 +82,7 @@ test('retention pins exact scoped IDs, rejects stale preview and reports prune s
     const changed={...f.service.config,repository:{backend:'local' as const,path:join(f.root,'other-repo')}};
     await f.service.setConfig(changed);expect(f.service.status.lastSuccess).toBeUndefined();
     await expect(f.service.execute('previewRetention')).rejects.toThrow('succeeded');
-    await expect(f.service.setConfig({...changed,enabled:true,migrationAcknowledged:true})).rejects.toThrow('manual backup');
+    await expect(f.service.setConfig({...changed,enabled:true})).rejects.toThrow('manual backup');
   }finally{f.cleanup();}
 });
 
@@ -101,9 +101,9 @@ test('migration guard and rollback keep only one scheduler enabled',async()=>{
  let legacy=true;const guarded=new ResticService({paths:f.paths,resolveSecret:async()=> 'fixture-only',legacySchedulerActive:async()=>legacy,run:async o=>({code:0,stdout:o.args[0]==='options'?'local.connections\nsftp.command\ns3.region\nazure.connections\n':o.args[0]==='version'?'restic 0.18.1':JSON.stringify({message_type:'summary',snapshot_id:'a'.repeat(64)}),stderr:'',durationMs:0})});
  try{
   await guarded.setConfig(f.config);await expect(guarded.execute('backup')).rejects.toThrow('Previous Restic scheduler');
-  await expect(guarded.setConfig({...f.config,enabled:true,migrationAcknowledged:true})).rejects.toThrow('Previous Restic scheduler');
+  await expect(guarded.setConfig({...f.config,enabled:true})).rejects.toThrow('Previous Restic scheduler');
   legacy=false;await guarded.execute('backup');
-  await guarded.setConfig({...f.config,enabled:true,migrationAcknowledged:true,schedule:{...f.config.schedule,enabled:true}});expect(guarded.status.nextRun).toBeTruthy();
+  await guarded.setConfig({...f.config,enabled:true,schedule:{...f.config.schedule,enabled:true}});expect(guarded.status.nextRun).toBeTruthy();
   await guarded.setConfig({...guarded.config,enabled:false});expect(guarded.status.nextRun).toBeUndefined();
   // Only after disabled add-on state is persisted can operator restore the previous timer.
   legacy=true;const reopened=new ResticService({paths:f.paths,resolveSecret:async()=>''});expect(reopened.config.enabled).toBe(false);reopened.stop();
@@ -122,7 +122,7 @@ test('configuration await cannot race admitted backup; interrupted attempt revok
   service.state.lastSuccess=new Date().toISOString();service.state.backup={status:'success',at:service.state.lastSuccess};
   (service.state as any).successRepository=(service as any).repositoryIdentity();
   writeFileSync(join(f.paths.stateDir,'state.json'),JSON.stringify(service.state));
-  guard=true;const saving=service.setConfig({...f.config,enabled:true,migrationAcknowledged:true}).then(()=>null,e=>e);
+  guard=true;const saving=service.setConfig({...f.config,enabled:true}).then(()=>null,e=>e);
   await Bun.sleep(1);const job=service.execute('backup');validateRelease();expect((await saving)?.message).toContain('started while validating');
   const persisted=JSON.parse(readFileSync(join(f.paths.stateDir,'state.json'),'utf8'));
   expect(persisted.backup.status).toBe('failed');expect(persisted.operation.status).toBe('running');
