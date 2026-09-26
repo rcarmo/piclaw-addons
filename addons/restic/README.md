@@ -42,7 +42,9 @@ an explicit Pi profile, the conventional user `.pi/agent` is included if present
 Review the displayed roots and exclusions before the first backup.
 
 Staging and cache use a stable instance-specific temporary path outside source
-roots. Staging must be absent before a job; interrupted staging requires operator
+roots. If host TMPDIR lies in a source, Linux falls back to /tmp then /var/tmp.
+PICLAW_RESTIC_STAGING_ROOT can select an existing external scratch directory;
+unsafe overrides fail closed. Version 0.1.1 fixes workspace-local TMPDIR deployments. Staging must be absent before a job; interrupted staging requires operator
 inspection. The add-on's own job-state directory is excluded to avoid copying its
 active lock. Keep the instance identity, staging path and recovery materials
 separately, as described in [Recovery and migration](RECOVERY.md).

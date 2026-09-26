@@ -40,3 +40,21 @@ test('state-directory aliases preserve staging identity',async()=>{
  expect(()=>instancePaths(workspace,'relative',{})).toThrow('absolute');
  }finally{rmSync(root,{recursive:true,force:true});}
 });
+
+test('workspace TMPDIR uses external staging; explicit scratch roots are validated',async()=>{
+ const {tmpdir}=await import('node:os');const {stagingRoot}=await import('./paths.ts');
+ const tmp=tmpdir(),root=mkdtempSync(join(tmp,'restic-production-paths-'));
+ try{
+  const state=join(root,'state');mkdirSync(state);
+  // Model a host whose entire temporary directory is inside its backup workspace.
+  const sources=[{name:'workspace',path:tmp}];
+  const safe=stagingRoot(sources,'piclaw-restic-fixture',{});
+  expect(safe.startsWith(tmp+'/')).toBe(false);
+  const paths=instancePaths(tmp,state,{});expect(paths.stageDir.startsWith(tmp+'/')).toBe(false);
+  expect(()=>stagingRoot(sources,'fixture',{PICLAW_RESTIC_STAGING_ROOT:root})).toThrow('No safe');
+  expect(()=>stagingRoot(sources,'fixture',{PICLAW_RESTIC_STAGING_ROOT:'relative'})).toThrow('No safe');
+  expect(()=>stagingRoot(sources,'fixture',{PICLAW_RESTIC_STAGING_ROOT:''})).toThrow('No safe');
+  const custom=stagingRoot([{name:'workspace',path:join(root,'subsource')}],'fixture',{PICLAW_RESTIC_STAGING_ROOT:tmp});
+  expect(custom).toBe(join(tmp,'fixture'));
+ }finally{rmSync(root,{recursive:true,force:true});}
+});

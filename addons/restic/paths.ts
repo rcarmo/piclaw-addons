@@ -3,6 +3,17 @@ import { homedir, tmpdir } from 'node:os';
 import { isAbsolute, join, relative, sep } from 'node:path';
 import { createHash } from 'node:crypto';
 import type { BackupSource } from './contracts.ts';
+import { assertBackupPaths } from './repository.ts';
+/** Select scratch space outside all backup roots, including when host TMPDIR is in the workspace. */
+export function stagingRoot(sources:BackupSource[],name:string,env:NodeJS.ProcessEnv=process.env):string {
+  const candidates=env.PICLAW_RESTIC_STAGING_ROOT!==undefined?[env.PICLAW_RESTIC_STAGING_ROOT]:[tmpdir(),...(process.platform==='linux'?['/tmp','/var/tmp']:[])];
+  for(const candidate of candidates){
+    if(!isAbsolute(candidate)||!existsSync(candidate))continue;
+    const base=join(realpathSync(candidate),name);
+    try{assertBackupPaths(sources.map(s=>s.path),[base]);return base;}catch{}
+  }
+  throw Error('No safe Restic staging root outside backup sources; set PICLAW_RESTIC_STAGING_ROOT to an existing external directory');
+}
 export interface InstancePaths { sources: BackupSource[]; stateDir:string; stageDir:string; cacheDir:string; }
 export function instancePaths(workspace:string, stateDir:string, env:NodeJS.ProcessEnv=process.env):InstancePaths {
   if(!isAbsolute(workspace)||!existsSync(workspace))throw Error('Authoritative workspace is unavailable');
@@ -18,7 +29,7 @@ export function instancePaths(workspace:string, stateDir:string, env:NodeJS.Proc
     sources.push({name,path:canonical});
   }
   const key=createHash('sha256').update(workspace+'\0'+stateDir).digest('hex').slice(0,24);
-  const base=join(tmpdir(),`piclaw-restic-${key}`);
+  const base=stagingRoot(sources,`piclaw-restic-${key}`,env);
   return {sources,stateDir,stageDir:join(base,'snapshot'),cacheDir:join(base,'cache')};
 }
 export function verifyExpectedMount(path:string, expected?:string):void {
