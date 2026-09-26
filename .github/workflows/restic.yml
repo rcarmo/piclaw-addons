@@ -1,0 +1,34 @@
+name: Restic qualification
+on:
+  pull_request:
+    paths: ['addons/restic/**', '.github/workflows/restic.yml']
+  push:
+    branches: [main]
+    paths: ['addons/restic/**', '.github/workflows/restic.yml']
+jobs:
+  local-and-managed:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Resolve Bun version
+        run: echo "BUN_VERSION=$(cat BUN_VERSION)" >> "$GITHUB_ENV"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - run: bun install --frozen-lockfile
+      - name: Download verified upstream test binary
+        run: |
+          curl -fSL --retry 3 https://github.com/restic/restic/releases/download/v0.18.1/restic_0.18.1_linux_amd64.bz2 -o "$RUNNER_TEMP/restic.bz2"
+          echo "680838f19d67151adba227e1570cdd8af12c19cf1735783ed1ba928bc41f363d  $RUNNER_TEMP/restic.bz2" | sha256sum -c
+          bzip2 -dc "$RUNNER_TEMP/restic.bz2" > "$RUNNER_TEMP/restic"
+          echo "01143daba61a1dc8afb0cb3d03ba83e6b118f55b6b146b27473a09efc3df13d6  $RUNNER_TEMP/restic" | sha256sum -c
+          chmod 700 "$RUNNER_TEMP/restic"
+          echo "PICLAW_RESTIC_TEST_BINARY=$RUNNER_TEMP/restic" >> "$GITHUB_ENV"
+      - run: bunx tsc -p addons/restic/tsconfig.json
+      - name: Offline and real local/installer tests
+        env:
+          PICLAW_E2E_DISPOSABLE: '1'
+          PICLAW_RESTIC_INSTALL_E2E: '1'
+        run: bun test addons/restic
+      - run: bun test standalone-import.test.ts --test-name-pattern restic
+      - run: cd addons/restic && bun pm pack --dry-run
