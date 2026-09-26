@@ -1,19 +1,20 @@
 import { resticRuntime } from './runtime-state.ts';
 
 const string = { type: 'string' };
+const nullableString = { type: ['string', 'null'] };
 const count = { type: 'integer', minimum: 0, maximum: 10000 };
 const configSchema = {
-  type: 'object',
-  description: 'Complete configuration returned by get_config with your changes. Store keychain reference names only, never secret values. Repository-specific fields are validated by the same backend as Settings.',
+  type: ['object', 'null'],
+  description: 'Pass null for get_config/status. For set_config, provide the complete configuration returned by get_config with your changes. Store keychain reference names only, never secret values. Repository-specific fields are validated by the same backend as Settings.',
   required: ['enabled', 'repository', 'passwordRef', 'retention', 'binary', 'excludes', 'schedule'],
   additionalProperties: false,
   properties: {
     enabled: { type: 'boolean' },
-    repository: { type: ['object', 'null'], additionalProperties: false, properties: {
+    repository: { type: ['object', 'null'], additionalProperties: false, required: ['backend'], properties: {
       backend: { type: 'string', enum: ['local', 'sftp', 's3', 'azure'] },
-      path: string, expectedMount: string, host: string, port: { type: 'integer', minimum: 1, maximum: 65535 }, user: string,
-      privateKeyRef: string, knownHostsRef: string, endpoint: string, region: string, bucket: string, prefix: string,
-      accessKeyRef: string, secretKeyRef: string, sessionTokenRef: string, account: string, container: string, accountKeyRef: string,
+      path: nullableString, expectedMount: nullableString, host: nullableString, port: { type: ['integer', 'null'], minimum: 1, maximum: 65535 }, user: nullableString,
+      privateKeyRef: nullableString, knownHostsRef: nullableString, endpoint: nullableString, region: nullableString, bucket: nullableString, prefix: nullableString,
+      accessKeyRef: nullableString, secretKeyRef: nullableString, sessionTokenRef: nullableString, account: nullableString, container: nullableString, accountKeyRef: nullableString,
     } },
     passwordRef: { ...string, description: 'Keychain reference for the repository encryption password; separate from transport credentials.' },
     retention: { type: 'object', additionalProperties: false, required: ['enabled', 'hourly', 'daily', 'weekly', 'monthly'], properties: {
@@ -33,9 +34,9 @@ export default function resticAddon(pi: any) {
   pi.registerTool({
     name: 'restic',
     label: 'Restic configuration',
-    description: 'Read or configure this instance’s Restic backup add-on. Use get_config, edit the returned full config, then set_config. Keychain reference names only; use the keychain tool separately for secrets. Shares Settings validation, locks, prior-backup and legacy-scheduler checks. Enabling a schedule permits future automatic backups; retention remains explicit-preview only. No immediate backup, restore, prune, binary install, credential retrieval or external scheduler management is exposed here.',
+    description: 'Read or configure this instance’s Restic backup add-on. Pass config:null for get_config/status. Use get_config, edit the returned full config, then set_config. Keychain reference names only; use the keychain tool separately for secrets. Shares Settings validation, locks, prior-backup and legacy-scheduler checks. Enabling a schedule permits future automatic backups; retention remains explicit-preview only. No immediate backup, restore, prune, binary install, credential retrieval or external scheduler management is exposed here.',
     parameters: {
-      type: 'object', required: ['action'], additionalProperties: false,
+      type: 'object', required: ['action', 'config'], additionalProperties: false,
       properties: { action: { type: 'string', enum: ['get_config', 'set_config', 'status'] }, config: configSchema },
     },
     async execute(_id: string, params: any, signal?: AbortSignal) {
@@ -43,11 +44,21 @@ export default function resticAddon(pi: any) {
       if (!params || typeof params !== 'object' || Array.isArray(params)
         || Object.keys(params).some(key => !['action', 'config'].includes(key))
         || !['get_config', 'set_config', 'status'].includes(params.action)) throw Error('Invalid Restic configuration action');
-      if (params.action !== 'set_config' && params.config !== undefined) throw Error('Only set_config accepts configuration');
+      if (params.action !== 'set_config' && params.config != null) throw Error('Only set_config accepts configuration; use config:null for reads');
+      if (params.action === 'set_config' && (!params.config || typeof params.config !== 'object' || Array.isArray(params.config))) throw Error('set_config requires a complete configuration object');
       const service = resticRuntime().service;
       if (!service) throw Error('Restic startup runtime is unavailable; enable the add-on and reload the host');
       let details: unknown;
-      if (params.action === 'set_config') details = { config: await service.setConfig(params.config) };
+      if (params.action === 'set_config') {
+        // Strict schemas require all repository properties; null denotes an unused
+        // backend field. Strip only known null fields, then apply normal validation.
+        const repository = params.config.repository;
+        const config = repository && typeof repository === 'object' && !Array.isArray(repository)
+          ? { ...params.config, repository: Object.fromEntries(Object.entries(repository).filter(([key, value]) =>
+            value !== null || !Object.prototype.hasOwnProperty.call(configSchema.properties.repository.properties, key))) }
+          : params.config;
+        details = { config: await service.setConfig(config) };
+      }
       else {
         const snapshot = service.configurationSnapshot();
         details = params.action === 'get_config' ? { config: snapshot.config } : { state: snapshot.state };

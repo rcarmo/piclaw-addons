@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-restic",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Settings-managed Restic backups with consistent SQLite staging and scoped retention.",
   "type": "module",
   "main": "index.ts",

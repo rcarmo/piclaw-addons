@@ -38,13 +38,15 @@ Refresh status displays completion and errors, and Cancel terminates child work.
 
 The `restic` tool is available to agents when the add-on's startup runtime is loaded:
 
-- `get_config` returns the current instance configuration, containing keychain names only.
+- `get_config` with `config: null` returns the current instance configuration, containing keychain names only.
 - `set_config` accepts the complete configuration returned by `get_config` with edits.
-- `status` returns the current job state.
+- `status` with `config: null` returns the current job state.
 
-Example: call `restic` with `{"action":"get_config"}`, change the schedule or retention
+Example: call `restic` with `{"action":"get_config","config":null}`, change the schedule or retention
 fields in the returned config, then call `{"action":"set_config","config":...}`.
-Enabling the schedule permits future automatic backups. The same backend validation,
+Strict-schema providers may send unused repository fields as `null`; the tool removes
+those placeholders before backend validation. `set_config` always needs a complete
+configuration object. Enabling the schedule permits future automatic backups. The same backend validation,
 operation lock, previous-scheduler detection and successful-backup checks apply to
 agent and Settings writes. No migration acknowledgement checkbox is needed; legacy
 saved boolean values are accepted and discarded on save.
