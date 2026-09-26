@@ -27,7 +27,6 @@ export const resticStyles = `
 .restic-settings .restic-check { display:flex;align-items:flex-start;gap:8px;min-width:0;margin:8px 0;line-height:1.5; }
 .restic-settings .restic-check > input[type=checkbox] { flex:0 0 auto;width:auto;min-height:0;margin:3px 0 0;accent-color:var(--accent-color,var(--accent)); }
 .restic-settings .restic-help, .restic-settings .settings-addon-help, .restic-settings .restic-muted { color:var(--text-secondary);font-size:12px;line-height:1.5; }
-.restic-settings .restic-warning { padding:10px 12px;border:1px solid color-mix(in srgb,var(--warning-color,#f59e0b) 45%,var(--border-color,var(--border)));border-radius:6px;background:color-mix(in srgb,var(--warning-color,#f59e0b) 10%,transparent);font-size:12px; }
 .restic-settings .restic-card { min-width:0;padding:12px;border:1px solid var(--border-color,var(--border));border-radius:6px;background:var(--bg-primary);margin-top:10px; }
 .restic-settings .restic-card-header { display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 8px;min-width:0;margin-bottom:8px; }
 .restic-settings .restic-card-header strong { font-size:13px; }

@@ -33,7 +33,7 @@ instance scope or silently pruned.
    repository metadata, and restore it into a new empty directory.
 4. Validate file hashes and SQLite integrity. Inspect recovered representative
    files and database contents. An incomplete backup (Restic exit 3) does not pass.
-5. Confirm no old timer/loop remains active, acknowledge migration, then enable
+5. Confirm no old timer/loop remains active, then enable
    the add-on schedule. Only now transfer permanent scheduler ownership.
 6. Keep the original scripts, exclusion list and old snapshot history for rollback.
    Retention previews cover only the new instance's exact host/tag/path identity.

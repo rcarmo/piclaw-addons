@@ -27,7 +27,6 @@ const DEFAULT_CONFIG = {
   binary: "managed",
   excludes: [],
   schedule: { enabled: false, hours: [0], minute: 0, timezone: "UTC" },
-  migrationAcknowledged: false,
 };
 
 function defaultRepository(backend) {
@@ -90,7 +89,6 @@ function toSaveConfig(draft, hoursText) {
       minute,
       timezone: draft.schedule?.timezone || "UTC",
     },
-    migrationAcknowledged: Boolean(draft.migrationAcknowledged),
   };
 }
 
@@ -357,17 +355,12 @@ function ResticSettings() {
 
     <section class="restic-section">
       <h4>Restic backup</h4>
-      <p class="restic-warning">
-        An incomplete backup is not a success. Retention does not run automatically from this pane.
-        After a successful manual backup, the operator must disable any existing scheduler before enabling this scheduler.
-      </p>
       <div class="restic-status-line">
         <span class="restic-pill">${draft.enabled ? "enabled" : "disabled"}</span>
         <span class="restic-pill">${draft.repository?.backend || "no repository"}</span>
         <span class="restic-muted">${describeRepo(draft.repository)}</span>
       </div>
       <label class="restic-check"><input type="checkbox" checked=${draft.enabled} onChange=${e => update({ enabled: e.target.checked })} /> Enable Restic backup</label>
-      <label class="restic-check"><input type="checkbox" checked=${draft.migrationAcknowledged} onChange=${e => update({ migrationAcknowledged: e.target.checked })} /> I acknowledge scheduler migration is operator-owned and existing external timers must be disabled only after a successful manual backup.</label>
     </section>
 
     <section class="restic-section">
@@ -399,7 +392,7 @@ function ResticSettings() {
 
     <section class="restic-section">
       <h4>Schedule and excludes</h4>
-      <label class="restic-check"><input type="checkbox" checked=${draft.schedule.enabled} onChange=${e => updateSchedule({ enabled: e.target.checked })} /> Enable Restic scheduler after migration is safe</label>
+      <label class="restic-check"><input type="checkbox" checked=${draft.schedule.enabled} onChange=${e => updateSchedule({ enabled: e.target.checked })} /> Enable Restic scheduler</label>
       <div class="restic-three-grid">
         <div class="settings-addon-field"><label class="settings-addon-label" for="restic-schedule-hours">Hours UTC/local TZ</label><input id="restic-schedule-hours" class="settings-addon-control" type="text" value=${hoursText} placeholder="0,6,12,18" onInput=${e => { setHoursText(e.target.value); setMessage("Unsaved changes"); }} /><span class="settings-addon-help">Comma-separated 0–23.</span></div>
         <${NumberField} id="restic-schedule-minute" label="Minute" min=${0} max=${59} value=${draft.schedule.minute} onInput=${value => updateSchedule({ minute: value })} />

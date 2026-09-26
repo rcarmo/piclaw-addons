@@ -2,8 +2,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { ResticService } from './service.ts';
 import { instancePaths } from './paths.ts';
-
-let service:ResticService|undefined;
+import { resticRuntime } from './runtime-state.ts';
 export async function resolveKeychainSecret(name:string):Promise<string>{
   const bridge=(globalThis as any).__piclawRuntimeInterop;
   // Only the named entry; never import the entire keychain into a child process.
@@ -28,16 +27,18 @@ async function legacySchedulerActive():Promise<boolean>{
   return false;
 }
 function ensureService(req?:Request):ResticService{
-  if(service)return service;
+  const state=resticRuntime();
+  if(state.service)return state.service;
   const host=(globalThis as any).__piclaw_runtime;
   const ctx=req?host?.localContext?.getRequestContext(req):undefined;
   const workspace=ctx?.workspaceRoot||process.env.PICLAW_WORKSPACE;
   const stateDir=host?.messaging?.getAddonDataDir?.('restic');
   if(!workspace||!stateDir)throw Error('Restic requires host workspace and add-on data-directory capabilities');
-  service=new ResticService({paths:instancePaths(workspace,stateDir),resolveSecret:resolveKeychainSecret,legacySchedulerActive});
+  const service=new ResticService({paths:instancePaths(workspace,stateDir),resolveSecret:resolveKeychainSecret,legacySchedulerActive});
+  state.service=service;
   service.start();host?.lifecycle?.onShutdown?.(stopRestic);return service;
 }
-export function stopRestic(){service?.stop();service=undefined;}
+export function stopRestic(){const state=resticRuntime();state.service?.stop();state.service=undefined;}
 const register=(globalThis as any).__piclaw_registerAddonConfigApi;
 if(typeof register==='function'){
   register('restic','config',{
