@@ -4,6 +4,13 @@ Delegate runs self-contained work in a fresh, ephemeral child Pi and restricts e
 
 Requires Piclaw `>=1.8.0`.
 
+Version `0.2.14` prepares exact `gpt-6.1-sol` recognition at tier 3, with the same
+selection preference as GPT-6 Sol. Provider approval, exact child-CLI discovery,
+exclusions and confirmed image support remain required. Coverage uses synthetic
+catalogue/child fixtures; GPT-6.1 Sol is not yet in this instance's runtime registry
+and has not been live-qualified. No preview, pro, mini, routed or batch variants
+are inferred.
+
 Version `0.2.13` labels progress with each call's start-order ordinal and the
 number of calls started in its group (`Delegate (2 of 3)`). The total grows as
 calls start; completed calls do not reduce it or renumber survivors. Child
