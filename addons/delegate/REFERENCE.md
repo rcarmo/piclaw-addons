@@ -1,4 +1,4 @@
-# Delegate 0.2.11 — Reference
+# Delegate — Reference
 
 Delegate registers one Pi tool, `delegate`, that runs a self-contained task in a fresh child Pi process. Every child-model launch is restricted to the operator-approved candidate list.
 
@@ -71,6 +71,13 @@ classification; executable discovery and approval still use exact full IDs. Opus
 tier-5 Opus rule. No provider approvals, exclusions, category target tiers or
 runtime-only executability rules change. These are local routing policy choices,
 not upstream benchmark or price guarantees. See [0.87.1 evidence](EARENDIL-0871.md).
+
+Delegate 0.2.14 also recognises the direct `gpt-6.1-sol` ID at tier 3 with policy
+preference 53, matching GPT-6 Sol. Existing punctuation normalisation covers
+`gpt-6-1-sol` and `gpt_6_1_sol` for classification only; launch IDs must still match
+the child catalogue exactly. No GPT-6.1 Luna, Pro, Mini, preview, publisher-prefixed
+or batch variants are inferred. Preparation tests use synthetic catalogue and
+JSON-mode child fixtures; the historical 0.87.1 capture is unchanged.
 
 Disclosed model IDs must also satisfy the request's image gate and, for automatic
 selection, both the current-model ceiling and category target tier. Explicit

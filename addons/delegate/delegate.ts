@@ -337,6 +337,8 @@ const MODEL_CLASSIFICATION_RULES: ClassificationRule[] = [
   // OpenRouter retains the upstream publisher namespace in its model IDs.
   rule("gpt-6-astra-pro", 4, "gpt", 46, "GPT 6 Astra Pro high-capability variant", /^(?:openai\/)?gpt-6-astra-pro(?::batch)?$/),
   rule("gpt-6-astra", 3, "gpt", 52, "GPT 6 Astra general-purpose model", /^(?:openai\/)?gpt-6-astra(?::batch)?$/),
+  // Prepared exact ID; capability/executable discovery remains authoritative.
+  rule("gpt-6-1-sol", 3, "gpt", 53, "GPT 6.1 Sol general-purpose model", /^gpt-6-1-sol$/),
   // Exact normalised 0.87.1 IDs; existing punctuation aliases apply, never suffixes.
   rule("gpt-6-sol", 3, "gpt", 53, "GPT 6 Sol general-purpose model", /^gpt-6-sol$/),
   rule("gpt-6-luna", 3, "gpt", 54, "GPT 6 Luna general-purpose model", /^gpt-6-luna$/),
