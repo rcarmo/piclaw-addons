@@ -21,6 +21,8 @@ import { Database } from "bun:sqlite";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
+import { reflectionPrompt } from "../reflection-prompt.js";
+import { CronExpressionParser } from "cron-parser";
 
 const baseDir = dirname(fileURLToPath(import.meta.url));
 const addonDir = dirname(baseDir);
@@ -70,48 +72,24 @@ interface TaskRow {
 }
 
 function findExistingTask(db: Database): TaskRow | null {
-  const rows = db.query<TaskRow, []>(
+  const rows = db.query<TaskRow, [string]>(
     `SELECT id, status, schedule_value, prompt FROM tasks
      WHERE (prompt LIKE '%interaction quality%' OR prompt LIKE '%late-night-regrets%' OR prompt LIKE '%Late Night Regrets%')
-       AND task_kind IN ('agent', 'internal')
+       AND task_kind = 'agent' AND chat_jid = ?
        AND status IN ('active', 'paused')
      ORDER BY created_at DESC
      LIMIT 1`
-  ).all();
+  ).all(CHAT_JID);
   return rows[0] || null;
 }
 
 // ── Build the agent prompt ───────────────────────────────────────────
 
-function buildReflectionPrompt(): string {
-  return `Nightly interaction quality reflection (Late Night Regrets).
-
-1. Retrain the interaction quality classifier:
-   Run: bun run ${trainScript}
-
-2. Read the attention-worthy messages file:
-   /workspace/exports/interaction-quality/interaction-quality-attention-latest.jsonl
-
-3. Filter for the last 24 hours of attention-worthy messages (by timestamp).
-
-4. For each flagged message (course_correction, misinterpretation, over_engineering, under_delivery, context_failure):
-   - Read the surrounding context from the messages DB (use introspect_sql to get the 3 messages before and after the flagged rowid)
-   - Identify: what did the user actually want? What did I do wrong? Is there a recurring pattern?
-
-5. Write a concise reflection to /workspace/notes/memory/interaction-reflections.md:
-   - Date
-   - Top patterns observed (max 5)
-   - Specific behavioral adjustments to make
-   - Any recurring failure modes
-
-6. If there are new steering cues or corrections, append them to /workspace/notes/memory/feedback.md
-
-Keep the reflection concise. Focus on actionable patterns, not individual incidents. If fewer than 3 attention-worthy messages exist from the last 24h, note that and skip the detailed analysis.`;
-}
+const buildReflectionPrompt = reflectionPrompt;
 
 // ── Main ─────────────────────────────────────────────────────────────
 
-const db = new Database(DEFAULT_DB);
+const db = new Database(DEFAULT_DB, { readwrite: true, create: false });
 const existing = findExistingTask(db);
 
 if (REMOVE) {
@@ -139,12 +117,14 @@ if (RETRAIN) {
 }
 
 const prompt = buildReflectionPrompt();
+// Invalid schedules fail rather than silently falling back to another time.
+const nextRun = CronExpressionParser.parse(CRON, { tz: "UTC" }).next().toISOString();
 
 if (existing) {
   // Update the existing task
   db.run(
-    `UPDATE tasks SET schedule_value = ?, prompt = ?, status = 'active' WHERE id = ?`,
-    [CRON, prompt, existing.id]
+    `UPDATE tasks SET schedule_value = ?, prompt = ?, next_run = ?, status = 'active' WHERE id = ?`,
+    [CRON, prompt, nextRun, existing.id]
   );
   console.log(`Updated existing task ${existing.id}`);
   console.log(`  Schedule: ${CRON}`);
@@ -154,20 +134,6 @@ if (existing) {
   // Create a new task
   const id = `task-late-night-regrets-${Date.now()}`;
   const now = new Date().toISOString();
-
-  // Compute next_run from cron
-  let nextRun: string;
-  try {
-    const { parseExpression } = await import("cron-parser");
-    const interval = parseExpression(CRON, { utc: true });
-    nextRun = interval.next().toISOString();
-  } catch {
-    // Fallback: tomorrow at the cron time
-    const tomorrow = new Date();
-    tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
-    tomorrow.setUTCHours(2, 30, 0, 0);
-    nextRun = tomorrow.toISOString();
-  }
 
   db.run(
     `INSERT INTO tasks (id, chat_jid, prompt, model, task_kind, command, cwd, timeout_sec, schedule_type, schedule_value, next_run, status, created_at)
