@@ -21,6 +21,7 @@
 import { Database } from "bun:sqlite";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
+import { FEATURE_VERSION, predictMessage, isAgent, ATTENTION_LABELS } from './interaction-model';
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -31,6 +32,7 @@ interface MessageRow {
   sender_name: string;
   timestamp: string;
   content: string;
+  content_blocks?: string;
 }
 
 interface Model {
@@ -117,6 +119,10 @@ if (!existsSync(WEIGHTS_PATH)) {
 
 const weightsPayload = JSON.parse(readFileSync(WEIGHTS_PATH, "utf-8"));
 const model: Model = weightsPayload.model;
+const featureVersion = weightsPayload.metadata?.feature_version;
+if (featureVersion && featureVersion !== FEATURE_VERSION) throw Error(`Unsupported feature version: ${featureVersion}`);
+const curated = featureVersion === FEATURE_VERSION;
+const contextWindow = curated ? 5 : LOOKBACK_WINDOW;
 
 if (!model || !model.classes || !model.logPriors) {
   console.error("Invalid weights file — missing model structure.");
@@ -209,7 +215,7 @@ function predict(tokens: string[]): { label: string; confidence: number } {
     const denom = model.classTokenTotals[c] + model.alpha * V;
     const classTok = model.tokenCounts[c];
     for (const [tok, cnt] of Object.entries(counts)) {
-      const n = ((classTok[tok] as number) || 0) + model.alpha;
+      const n = (Object.hasOwn(classTok, tok) ? classTok[tok] : 0) + model.alpha;
       score += cnt * Math.log(n / denom);
     }
     logScores[c] = score;
@@ -238,11 +244,11 @@ const bufferHours = RECENT_HOURS + 2; // extra 2h for context on earliest messag
 const rows = db.query<MessageRow, []>(
   `SELECT m.rowid, m.chat_jid, COALESCE(m.sender, '') AS sender,
           COALESCE(m.sender_name, '') AS sender_name,
-          m.timestamp, COALESCE(m.content, '') AS content
+          m.timestamp, COALESCE(m.content, '') AS content, m.content_blocks
    FROM messages m
-   WHERE TRIM(COALESCE(m.content, '')) != ''
+   WHERE ${curated ? '1=1' : "TRIM(COALESCE(m.content, '')) != ''"}
      AND m.timestamp >= datetime('now', '-${bufferHours} hours')
-   ORDER BY m.chat_jid, m.timestamp ASC`
+   ORDER BY m.chat_jid, m.timestamp ASC, m.rowid ASC`
 ).all();
 db.close();
 
@@ -269,19 +275,19 @@ for (const [, chatMessages] of chatGroups) {
 
     // Only classify user messages after agent turns
     const isUser = msg.sender !== "agent" && msg.sender !== "web-agent" && msg.sender_name !== "Smith";
-    if (!isUser) continue;
+    if (!isUser || !msg.content.trim()) continue;
 
-    const prevStart = Math.max(0, i - LOOKBACK_WINDOW);
+    const prevStart = Math.max(0, i - contextWindow);
     const prevMessages = chatMessages.slice(prevStart, i);
 
     const hasPrecedingAgent = prevMessages.length > 0 &&
       (prevMessages[prevMessages.length - 1].sender === "agent" ||
        prevMessages[prevMessages.length - 1].sender === "web-agent" ||
        prevMessages[prevMessages.length - 1].sender_name === "Smith");
-    if (!hasPrecedingAgent) continue;
+    if (curated ? !prevMessages.some(isAgent) : !hasPrecedingAgent) continue;
 
     const tokens = buildFeatureTokens(msg, prevMessages);
-    const pred = predict(tokens);
+    const pred = curated ? predictMessage(model, msg, prevMessages) : predict(tokens);
 
     const precedingAgent = [...prevMessages].reverse().find(m =>
       m.sender === "agent" || m.sender === "web-agent" || m.sender_name === "Smith"
@@ -302,7 +308,7 @@ for (const [, chatMessages] of chatGroups) {
 
 // Filter attention-worthy
 const attentionWorthy = predictions
-  .filter(p => !["neutral", "successful_execution"].includes(p.predicted_label) && p.confidence >= CONFIDENCE_THRESHOLD)
+  .filter(p => (curated ? ATTENTION_LABELS.has(p.predicted_label) : !["neutral", "successful_execution"].includes(p.predicted_label)) && p.confidence >= CONFIDENCE_THRESHOLD)
   .sort((a, b) => b.confidence - a.confidence);
 
 // Stats
@@ -337,5 +343,5 @@ console.log(`  Attention: ${attentionLatest}`);
 console.log(`  Recent predictions: ${predsLatest}`);
 
 if (attentionWorthy.length === 0) {
-  console.log("\nNo attention-worthy messages in the last ${RECENT_HOURS}h. Clean run.");
+  console.log(`\nNo attention-worthy messages in the last ${RECENT_HOURS}h. Clean run.`);
 }
