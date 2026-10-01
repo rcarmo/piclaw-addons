@@ -10,7 +10,9 @@
     "resolveJsonModule": true,
     "allowImportingTsExtensions": true,
     "moduleDetection": "force",
-    "types": ["bun-types"]
+    "types": [
+      "bun-types"
+    ]
   },
   "include": [
     "addons/autoresearch/supervisor.ts",
@@ -19,7 +21,11 @@
     "addons/codex-conversion/**/*.ts",
     "addons/delegate/**/*.ts",
     "addons/skill-model-effort/**/*.ts",
-    "addons/smart-compaction/**/*.ts"
+    "addons/smart-compaction/**/*.ts",
+    "addons/late-night-regrets/*.ts",
+    "addons/late-night-regrets/web/**/*.ts",
+    "addons/late-night-regrets/scripts/build-review.ts",
+    "addons/late-night-regrets/scripts/setup-nightly-task.ts"
   ],
   "exclude": [
     "node_modules",
