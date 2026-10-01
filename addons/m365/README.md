@@ -17,9 +17,9 @@ The add-on exposes tools for:
 - OneDrive browse, upload, and sharing flows
 - SharePoint browse, search, download, upload, sync, and move flows
 - Calendar queries and calendar SVG rendering
-- Microsoft To Do tasks and flagged emails through `m365_todo`
+- Microsoft To Do list/task/checklist management and read-only flagged email tasks
 
-Eleven bundled skills document the main Graph, Outlook, Teams, OneDrive, and SharePoint workflows.
+Twelve bundled skills document the main Graph, Outlook, Teams, OneDrive, SharePoint and To Do workflows.
 
 ## Account support
 
@@ -100,7 +100,27 @@ m365_todo({ search: "contract", dueBefore: "2026-05-01" })
 m365_todo({ includeCompleted: true, top: 100 })
 ```
 
-Partial list failures are tolerated and returned in `details.errors`.
+The reader follows pagination within a total `maxPages` request budget (default 20, maximum 50), avoids `$select` on To Do endpoints, and retains full notes and Graph date/time-zone objects. `complete=false` marks partial coverage or result truncation. Partial list failures appear in `errors`; if every selected list fails, the tool throws instead of reporting zero tasks. Due filters use inclusive `YYYY-MM-DD` calendar dates and exclude undated tasks.
+
+### Task, list and checklist writes
+
+| Tool | Actions |
+|---|---|
+| `m365_todo_lists` | list, get, create, rename, delete |
+| `m365_todo_task` | get, create, update, complete, reopen, delete |
+| `m365_todo_step` | list, create, update, delete |
+
+These tools reuse the existing Graph transport. Reads need appropriate task-read permission; writes need delegated `Tasks.ReadWrite`. They do not change sign-in configuration or request additional permissions.
+
+Writes require `confirmed=true` for an explicit user-approved target and payload. Deletion also requires `confirmDelete=true`. These flags are agent-policy checks, not cryptographic proof of human approval. Unattended reviews should remain read-only unless their writes are explicitly authorised.
+
+Before an edit, read the item and supply its `@odata.etag` as `expectedEtag`. The tool checks freshness, sends `If-Match` for task/list updates and deletions, and reads the item back. Checklist writes check parent task freshness but do not provide an atomic compare-and-swap guarantee. List deletion checks that a custom list is empty; another writer could still add a task between that check and deletion.
+
+Creates require a stable `requestKey`. Local account-scoped receipts prevent duplicate creates on retry; ambiguous outcomes stay blocked for reconciliation. Receipts contain hashes, resource IDs/paths and timestamps, never tokens or task notes. They live under `<workspace>/.piclaw/data/m365-todo-requests/`, using `PICLAW_WORKSPACE` or the current working directory. Do not remove a pending receipt and retry blindly.
+
+Only owned, unshared lists allow writes. Built-in lists cannot be renamed/deleted. Flagged email tasks are read-only through these tools. Omitted update fields remain unchanged; `notes` replaces the notes body and `null` clears dates. Supply dates as `{ dateTime: "2026-10-03T00:00:00", timeZone: "UTC" }`; reminders require an explicit opt-in and date.
+
+Recurrence, My Day, moves, sharing and linked-resource writes are outside this version. Existing source links are returned when Graph supplies them.
 
 ## Validation
 

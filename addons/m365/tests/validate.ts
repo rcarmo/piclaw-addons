@@ -22,6 +22,7 @@ import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { auth, truncate } from "../shared.ts";
+import registerM365 from "../index.ts";
 
 interface TestResult {
 	name: string;
@@ -50,7 +51,7 @@ function assert(condition: boolean, message: string) {
 }
 
 function readText(file: string): string {
-	return fs.readFileSync(file, "utf-8");
+	return fs.readFileSync(file, "utf-8").replaceAll("\r\n", "\n");
 }
 
 const testFile = fileURLToPath(import.meta.url);
@@ -87,11 +88,10 @@ const expectedTools = [
 	"m365_spo_move",
 	"m365_spo_move_many",
 	"m365_todo",
+	"m365_todo_lists",
+	"m365_todo_task",
+	"m365_todo_step",
 ];
-
-function extractToolNames(source: string): string[] {
-	return [...source.matchAll(/name:\s*"([^"]+)"/g)].map((m) => m[1]);
-}
 
 async function main() {
 	console.log("═══════════════════════════════════════════════════════");
@@ -112,7 +112,8 @@ async function main() {
 	});
 
 	await test("public tool inventory matches expected set", async () => {
-		const actual = extractToolNames(indexSource);
+		const actual: string[] = [];
+		registerM365({ on() {}, registerCommand() {}, registerTool(tool: { name: string }) { actual.push(tool.name); } } as any);
 		assert(actual.length === expectedTools.length, `Expected ${expectedTools.length} tools, found ${actual.length}`);
 		for (const name of expectedTools) {
 			assert(actual.includes(name), `Missing tool: ${name}`);
