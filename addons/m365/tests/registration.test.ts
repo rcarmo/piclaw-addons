@@ -22,12 +22,16 @@ test("registers the complete standalone tool, command, and skill surface", async
 
   registerM365(fake);
 
-  expect(tools).toHaveLength(25);
+  expect(tools).toHaveLength(28);
   expect(tools).toContain("m365_teams_messages");
   expect(tools).toContain("m365_todo");
+  expect(tools).toContain("m365_todo_lists");
+  expect(tools).toContain("m365_todo_task");
+  expect(tools).toContain("m365_todo_step");
+  expect(new Set(tools).size).toBe(tools.length);
   expect(commands.sort()).toEqual(["m365-clear", "m365-status"]);
 
   const discovered = await handlers.get("resources_discover")?.();
-  expect(discovered?.skillPaths).toHaveLength(11);
+  expect(discovered?.skillPaths).toHaveLength(12);
   expect(discovered.skillPaths.every((skillPath: string) => existsSync(skillPath))).toBe(true);
 });

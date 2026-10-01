@@ -183,6 +183,10 @@
         "path": "./addons/m365/skills/m365-teams-send"
       },
       {
+        "name": "m365-todo",
+        "path": "./addons/m365/skills/m365-todo"
+      },
+      {
         "name": "remote-peer",
         "path": "./addons/remote-peer/skills/remote-peer"
       },
