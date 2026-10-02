@@ -4,6 +4,11 @@ Delegate runs self-contained work in a fresh, ephemeral child Pi and restricts e
 
 Requires Piclaw `>=1.8.0`.
 
+Version `0.2.15` follows the installed Pi package's public `bin.pi` entry instead
+of guessing `dist/cli.js`. Pi 1.0.0 publishes `dist/bundle/cli.js`; valid older
+manifests still work. This resolver change does not qualify child authentication,
+selected-engine MCP or the full Pi 1.0.0 migration. See [CLI resolver evidence](CLI-100.md).
+
 Version `0.2.14` prepares exact `gpt-6.1-sol` recognition at tier 3, with the same
 selection preference as GPT-6 Sol. Provider approval, exact child-CLI discovery,
 exclusions and confirmed image support remain required. Coverage uses synthetic
