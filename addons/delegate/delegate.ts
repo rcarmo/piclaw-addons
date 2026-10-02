@@ -8,8 +8,7 @@
  */
 import { spawn as nodeSpawn } from "node:child_process";
 import { closeSync, existsSync, openSync, readFileSync, readSync, realpathSync, statSync } from "node:fs";
-import { createRequire } from "node:module";
-import { delimiter, dirname, resolve, join } from "node:path";
+import { delimiter, dirname, isAbsolute, relative, resolve, join, sep, win32 } from "node:path";
 import { StringDecoder } from "node:string_decoder";
 import { fileURLToPath } from "node:url";
 
@@ -132,7 +131,6 @@ type DelegateCliResolveOptions = {
   resolvePackageCli?: () => string | null;
 };
 
-const requireFromHere = createRequire(import.meta.url);
 const PI_CODING_AGENT_PACKAGE = `@earendil-works/${"pi-coding-agent"}`;
 
 function isExecutableFile(path: string, platform: string = process.platform): boolean {
@@ -179,25 +177,52 @@ function findExecutableOnPath(
   return null;
 }
 
-function resolvePackagePiCliPath(): string | null {
+/** Resolve the package's published CLI without executing any package code. */
+export function resolvePiPackageCli(manifestPath: string): string | null {
   try {
-    const direct = requireFromHere.resolve(`${PI_CODING_AGENT_PACKAGE}/dist/cli.js`);
-    if (direct) return direct;
-  } catch { /* package exports may hide dist/cli.js */ }
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    const bin = manifest?.bin?.pi;
+    if (manifest?.name !== PI_CODING_AGENT_PACKAGE || typeof bin !== "string" || !bin.trim()
+      || isAbsolute(bin) || win32.isAbsolute(bin) || bin.includes("\\") || bin.includes("\0")) return null;
+    const root = realpathSync(dirname(manifestPath));
+    const candidate = resolve(root, bin);
+    const within = (path: string) => {
+      const fromRoot = relative(root, path);
+      return fromRoot !== "" && fromRoot !== ".." && !fromRoot.startsWith(`..${sep}`) && !isAbsolute(fromRoot);
+    };
+    if (!within(candidate)) return null;
+    const canonical = realpathSync(candidate);
+    return within(canonical) && statSync(canonical).isFile() ? canonical : null;
+  } catch {
+    return null; // Missing/invalid installations are skipped; never guess an internal entrypoint.
+  }
+}
+
+export function resolvePackagePiCliPath(resolvePackage: (specifier: string) => string = specifier => fileURLToPath(import.meta.resolve(specifier))): string | null {
   try {
-    const packageJson = requireFromHere.resolve(`${PI_CODING_AGENT_PACKAGE}/package.json`);
-    return join(dirname(packageJson), "dist/cli.js");
+    return resolvePiPackageCli(resolvePackage(`${PI_CODING_AGENT_PACKAGE}/package.json`));
+  } catch { /* Some package export maps hide package.json. Resolve the public root without importing it. */ }
+  try {
+    let directory = dirname(resolvePackage(PI_CODING_AGENT_PACKAGE));
+    while (true) {
+      const manifestPath = join(directory, "package.json");
+      if (existsSync(manifestPath)) return resolvePiPackageCli(manifestPath);
+      const parent = dirname(directory);
+      if (parent === directory) return null;
+      directory = parent;
+    }
   } catch {
     return null;
   }
 }
 
 function candidatePiCliPaths(env: Record<string, string | undefined>, resolvePackageCli: () => string | null): string[] {
-  return [
-    resolvePackageCli(),
-    join(env.BUN_INSTALL || "/usr/local/lib/bun", "install/global/node_modules", PI_CODING_AGENT_PACKAGE, "dist/cli.js"),
-    join("/usr/local/lib/bun", "install/global/node_modules", PI_CODING_AGENT_PACKAGE, "dist/cli.js"),
-  ].filter((path): path is string => Boolean(path));
+  const manifests = new Set([
+    join(env.BUN_INSTALL || "/usr/local/lib/bun", "install/global/node_modules", PI_CODING_AGENT_PACKAGE, "package.json"),
+    join("/usr/local/lib/bun", "install/global/node_modules", PI_CODING_AGENT_PACKAGE, "package.json"),
+  ]);
+  return [resolvePackageCli(), ...[...manifests].map(resolvePiPackageCli)]
+    .filter((path): path is string => Boolean(path));
 }
 
 export function resolveDelegateCliCommand(options: DelegateCliResolveOptions = {}): DelegateCliCommand {

@@ -163,7 +163,9 @@ The resolved file is passed as a Pi `@/absolute/path` argument.
 
 ## 8. Child execution
 
-The executable is resolved from `PI_DELEGATE_CLI`, the current Bun runtime plus the installed Pi CLI script, or finally a `pi` executable on `PATH`.
+The executable is resolved from `PI_DELEGATE_CLI`, the current runtime plus the installed Pi package's `bin.pi`, or finally a `pi` executable on `PATH`. Package lookup prefers the adjacent package, then `$BUN_INSTALL` and the canonical global Bun root. Export-hidden manifests are found from the public ESM root without executing package code. Invalid manifests, missing/non-regular bins and paths escaping the package (including symlinks) are rejected as package candidates. Valid older `bin.pi: dist/cli.js` declarations still work; the path is never guessed.
+
+The explicit override and PATH fallback retain their existing behaviour and are not version/provenance guarantees. The operator-installed package is trusted code; path containment does not sandbox execution or prevent same-UID replacement after validation. Full child auth/environment and selected-engine qualification are separate from CLI resolution.
 
 Representative arguments:
 
