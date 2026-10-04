@@ -31,7 +31,7 @@ export async function authenticatedContext(browser: Browser, baseURL: string): P
     },
     body: JSON.stringify({ secret }),
   });
-  if (!resp.ok) throw new Error(`E2E auth failed: HTTP ${resp.status} ${await resp.text()}`);
+  if (!resp.ok) throw new Error(`E2E auth failed: HTTP ${resp.status}`);
 
   const setCookie = resp.headers.get('set-cookie');
   if (!setCookie) throw new Error('No Set-Cookie from E2E auth');
