@@ -672,11 +672,14 @@ export function selectModel(
   return null;
 }
 
-/** Detect provider authentication/credential errors so delegate can fall back to another model. */
+/** Detect authentication failures that must stop the attempt without account/provider fallback. */
 export function isProviderAuthError(text: unknown): boolean {
   const value = String(text || "").toLowerCase();
   if (!value) return false;
-  return value.includes("no api key for provider")
+  return /\b(?:no|missing|invalid)\s+api[ -]?key\b/.test(value)
+    || /\b(?:invalid|expired|revoked)\s+(?:access[ -]?|refresh[ -]?|bearer[ -]?)?token\b/.test(value)
+    || /\b(?:token|credentials?|authentication)\s+(?:has\s+|have\s+)?(?:expired|revoked)\b/.test(value)
+    || /\blogged[ -]?out\b/.test(value)
     || value.includes("missing api key")
     || value.includes("no credentials")
     || value.includes("not authenticated")
@@ -698,7 +701,7 @@ export function classifyDelegateFailure(text: unknown): DelegateFailureKind {
 }
 
 export function isRetryableDelegateFailure(kind: DelegateFailureKind): boolean {
-  return kind === "auth" || kind === "model-unavailable" || kind === "provider-setup";
+  return kind === "model-unavailable" || kind === "provider-setup";
 }
 
 export function buildDelegateModelChain(
@@ -1543,15 +1546,15 @@ export default function (pi: any) {
       for (const att of attachmentArgs) staticArgs.push(att);
 
       // Ordered models to attempt. An explicit selection is used verbatim (no fallback);
-      // auto-selection falls back across providers if a model has no usable credentials,
-      // so a single keyless provider (e.g. openai-codex) cannot keep breaking delegation.
+      // automatic fallback covers catalogue/setup incompatibility only. Credential
+      // failure must not change the account/provider after logout or expiry.
       const modelChain = requestedModel
         ? [effectiveModel]
         : buildDelegateModelChain(effectiveCategory, maxTier!, currentModelId, eligibleCandidates);
       if (!modelChain.includes(effectiveModel)) modelChain.unshift(effectiveModel);
 
-      // One total deadline covers discovery, setup, and all attempts. Setup/auth/model-unavailable
-      // failures may fall back, while execution/protocol failures stop immediately.
+      // One total deadline covers discovery, setup, and all attempts. Setup/model-unavailable
+      // failures may fall back, while auth/execution/protocol failures stop immediately.
       remainingBudget("delegate setup");
       const attemptFailures: Array<{ model: string; kind: DelegateFailureKind; message: string }> = [];
       let lastAttemptedModel = effectiveModel;

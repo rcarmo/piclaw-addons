@@ -19,7 +19,7 @@ export const steps: StepDefinition[] = [
           },
         },
       );
-      expect(response.ok(), await response.text()).toBeTruthy();
+      expect(response.ok(), `Remote Peer config request: HTTP ${response.status()}`).toBeTruthy();
     },
   },
   {

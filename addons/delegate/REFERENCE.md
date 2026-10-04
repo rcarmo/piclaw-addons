@@ -233,7 +233,7 @@ Failures are classified as:
 - `protocol`
 - `execution`
 
-Automatic fallback is permitted only for `auth`, `model-unavailable`, and `provider-setup`. Each fallback ID comes from the approved candidate list and is checked against that list again immediately before spawn.
+Automatic fallback is permitted only for `model-unavailable` and `provider-setup`. Authentication/expiry/logout failures stop without trying another approved account/provider. Each fallback ID comes from the approved candidate list and is checked against that list again immediately before spawn.
 
 The following do not trigger retry: malformed/no JSON events, non-zero exit without a classified setup cause, timeout, cancellation, rate limit, tool error, and ordinary execution failure. Partial assistant text with a non-zero exit remains a failure.
 

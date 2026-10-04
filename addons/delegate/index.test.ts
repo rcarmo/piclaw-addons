@@ -698,15 +698,18 @@ anthropic       claude-sonnet-4.6  200K     32K      yes       yes
   test("isProviderAuthError matches credential failures", () => {
     expect(isProviderAuthError("No API key for provider: openai-codex")).toBe(true);
     expect(isProviderAuthError("Provider not authenticated")).toBe(true);
+    for (const text of ['No API key found for "github-copilot"', 'No API key for provider/model', 'Invalid bearer token', 'access token expired', 'revoked refresh token', 'provider logged out']) expect(isProviderAuthError(text)).toBe(true);
     expect(isProviderAuthError("unauthorized")).toBe(true);
     expect(isProviderAuthError("Process exited with code 1")).toBe(false);
     expect(isProviderAuthError("")).toBe(false);
   });
 
-  test("fallback taxonomy retries only setup, auth, and unavailable-model failures", () => {
+  test("fallback taxonomy stops on auth and retries only setup or unavailable models", () => {
     const expected = [
-      ["No API key for provider openai", "auth", true],
+      ["No API key for provider openai", "auth", false],
       ["unknown model gpt-x", "model-unavailable", true],
+      ['unknown model gpt-x; No API key found for "github-copilot"', "auth", false],
+      ['provider foo not found; invalid access token', "auth", false],
       ["provider foo not found", "provider-setup", true],
       ["rate limit exceeded", "execution", false],
       ["No valid JSON events were emitted", "protocol", false],
@@ -836,7 +839,7 @@ anthropic       claude-sonnet-4.6  200K     32K      yes       yes
         const model=process.argv[process.argv.indexOf('--model')+1];
         writeFileSync(${JSON.stringify(dir)}+'/'+key+'-'+model.split('/')[1], 'started');
         if(key==='fallback'&&model.endsWith('sol')) {
-          console.log(JSON.stringify({type:'message_end',message:{role:'assistant',content:[],stopReason:'error',errorMessage:'No API key for provider'}}));process.exit(1);
+          console.log(JSON.stringify({type:'message_end',message:{role:'assistant',content:[],stopReason:'error',errorMessage:'unknown model: synthetic catalogue unavailable'}}));process.exit(1);
         }
         let retried=false;
         while(!existsSync(${JSON.stringify(dir)}+'/'+key+'.finish')) {

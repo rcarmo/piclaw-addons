@@ -83,8 +83,10 @@ jobs:
         if: steps.addon_tests.outputs.present == 'true'
         run: |
           export PICLAW_INTERNAL_SECRET=$(openssl rand -hex 16)
+          echo "::add-mask::$PICLAW_INTERNAL_SECRET"
           echo "PICLAW_INTERNAL_SECRET=$PICLAW_INTERNAL_SECRET" >> "$GITHUB_ENV"
           export PICLAW_KEYCHAIN_KEY=$(openssl rand -hex 32)
+          echo "::add-mask::$PICLAW_KEYCHAIN_KEY"
           echo "PICLAW_KEYCHAIN_KEY=$PICLAW_KEYCHAIN_KEY" >> "$GITHUB_ENV"
           export PICLAW_WEB_PORT=3000
           export PICLAW_WEB_HOST=127.0.0.1
@@ -106,8 +108,15 @@ jobs:
           # an add-on-local lockfile, using the test server's sanitised environment.
           remote_peer_dir="$PICLAW_WORKSPACE/.pi/extensions/node_modules/@rcarmo/piclaw-addon-remote-peer"
           test ! -e "$remote_peer_dir/bun.lock" && test ! -e "$remote_peer_dir/bun.lockb"
+          test ! -L "$remote_peer_dir/node_modules"
+          peer_json="$PICLAW_PREP_ROOT/node_modules/@earendil-works/pi-ai/package.json"
+          partial_json="$PICLAW_PREP_ROOT/node_modules/partial-json/package.json"
+          peer_before=$(sha256sum "$peer_json" "$partial_json")
           bun run scripts/run-test-instance.ts -- \
             bun install --cwd "$remote_peer_dir" --omit peer --ignore-scripts
+          test "$peer_before" = "$(sha256sum "$peer_json" "$partial_json")"
+          bun run scripts/run-test-instance.ts -- \
+            bun --no-env-file tests/addon-e2e/scripts/check-prepared-dependencies.ts
 
           PICLAW_E2E_INTERNAL_SECRET="$PICLAW_INTERNAL_SECRET" PICLAW_E2E_KEYCHAIN_KEY="$PICLAW_KEYCHAIN_KEY" \
             bun run scripts/run-test-instance.ts -- bun run .piclaw-runtime/runtime/src/index.ts > /tmp/piclaw-addon-e2e.log 2>&1 &
