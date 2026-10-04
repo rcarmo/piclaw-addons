@@ -50,7 +50,7 @@ The Settings pane lists the resulting **Approved delegate models**. That list is
 - **Capability filtering** — image input requires catalog-confirmed image support. Reasoning, context-window, and output-limit metadata are retained for diagnostics.
 - **Ephemeral structured execution** — the child runs with `--mode json --no-session --no-extensions`; Delegate parses structured messages, tool progress, usage, model, stop reason, and errors.
 - **Bounded lifecycle** — one total deadline covers all fallback attempts; cancellation terminates the process tree, output buffers are bounded, and no child session is persisted.
-- **Restricted fallback** — automatic retry occurs only for classified provider setup, authentication, or model-unavailable failures. A non-zero exit never succeeds merely because partial text was emitted.
+- **Restricted fallback** — automatic retry occurs only for classified provider setup or model-unavailable failures. Authentication, expiry and logout stop without account/provider fallback. A non-zero exit never succeeds merely because partial text was emitted.
 - **Narrow tool loading** — Delegate loads Pi's requested core tool profile plus the explicitly discovered MCP adapter; it does not inherit or scan arbitrary workspace/add-on extensions.
 - **Catalog diagnostics** — Settings shows runtime/CLI counts, eligible and runtime-only models, unclassified/rejected models and reasons, cache age, refresh failures, capabilities, and effective exclusions.
 
@@ -157,7 +157,7 @@ Executable discovery is cached for 60 seconds. A manual Settings refresh invalid
 - Default timeout: **120 seconds**; allowed range: **10–300 seconds**.
 - The timeout is one total deadline across the initial attempt and every fallback.
 - Cancellation and timeout terminate the child process group, escalating from `SIGTERM` to `SIGKILL` if necessary.
-- Automatic fallback is limited to provider setup, authentication, and unavailable-model errors.
+- Automatic fallback is limited to provider setup and unavailable-model errors. Authentication failures stop the chain without switching account/provider.
 - Protocol failures, malformed JSON, timeouts, aborts, rate limits, tool failures, and ordinary execution errors are not retried.
 - Final response text is capped at **50,000 characters**; structured output and stderr buffers are bounded separately.
 

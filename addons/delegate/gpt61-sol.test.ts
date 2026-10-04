@@ -86,6 +86,7 @@ test('synthetic GPT 6.1 Sol child executes, falls back safely and rejects unappr
       const full=process.argv[process.argv.indexOf('--model')+1], mode=readFileSync(${JSON.stringify(mode)},'utf8');
       appendFileSync(${JSON.stringify(marker)},full+'\\n');
       if(mode==='auth'&&full.endsWith('gpt-6.1-sol')) {console.error('No API key for provider');process.exit(1);}
+      if(mode==='unavailable'&&full.endsWith('gpt-6.1-sol')) {console.error('unknown model: synthetic unavailable');process.exit(1);}
       const id=full.split('/').slice(1).join('/');
       const [field,...rest]=mode.split(':');
       console.log(JSON.stringify({type:'message_end',message:{role:'assistant',provider:'github-copilot',model:field==='model'?rest.join(':'):id,responseModel:field==='response'?rest.join(':'):undefined,content:[{type:'text',text:'GPT61_FIXTURE_OK'}],stopReason:'stop'}}));
@@ -115,6 +116,10 @@ test('synthetic GPT 6.1 Sol child executes, falls back safely and rejects unappr
     expect(attempts()).toHaveLength(before);
     await configApi.set(config);
     writeFileSync(mode, 'auth');
+    const authCount = attempts().length;
+    await expect(execute()).rejects.toThrow('[auth]');
+    expect(attempts().slice(authCount)).toEqual([fullId]);
+    writeFileSync(mode, 'unavailable');
     expect((await execute()).details.fallback_count).toBe(1);
     expect(attempts().slice(-2)).toEqual([fullId, 'github-copilot/gpt-6-luna']);
     const count = attempts().length;
