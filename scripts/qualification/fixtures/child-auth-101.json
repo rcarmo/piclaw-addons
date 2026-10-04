@@ -1,0 +1,107 @@
+{
+  "schemaVersion": 1,
+  "referenceGitHead": "a7229ddc21810d6245105978033b7df645ecc2f7",
+  "date": "2026-10-04",
+  "filesCompared": 561,
+  "receipt": {
+    "version": "1.0.1",
+    "runtime": "1.4.2",
+    "rows": [
+      {
+        "mode": "rotate",
+        "authRequests": 2,
+        "observations": 2,
+        "advanced": 1,
+        "refreshes": 1,
+        "exit": 0,
+        "signal": null,
+        "secrecy": "pass",
+        "childFetchAttempts": 0
+      },
+      {
+        "mode": "api-key-env",
+        "authRequests": 2,
+        "observations": 2,
+        "advanced": 1,
+        "refreshes": 0,
+        "exit": 0,
+        "signal": null,
+        "secrecy": "pass",
+        "childFetchAttempts": 0
+      },
+      {
+        "mode": "logout",
+        "authRequests": 2,
+        "observations": 1,
+        "advanced": 1,
+        "refreshes": 0,
+        "exit": 0,
+        "signal": null,
+        "secrecy": "pass",
+        "childFetchAttempts": 0
+      },
+      {
+        "mode": "denied",
+        "authRequests": 1,
+        "observations": 0,
+        "advanced": 0,
+        "refreshes": 0,
+        "exit": 0,
+        "signal": null,
+        "secrecy": "pass",
+        "childFetchAttempts": 0
+      },
+      {
+        "mode": "disconnect",
+        "authRequests": 2,
+        "observations": 1,
+        "advanced": 1,
+        "refreshes": 0,
+        "exit": 0,
+        "signal": null,
+        "secrecy": "pass",
+        "childFetchAttempts": 0
+      },
+      {
+        "mode": "terminate",
+        "authRequests": 2,
+        "observations": 1,
+        "advanced": 1,
+        "refreshes": 0,
+        "exit": null,
+        "signal": "SIGKILL",
+        "secrecy": "pass",
+        "childFetchAttempts": 0
+      }
+    ],
+    "networkAttempts": 0,
+    "scope": "synthetic public extension/provider IPC seam only; not production Delegate or real-provider parity"
+  },
+  "sandbox": {
+    "capabilities": {
+      "CapEff": "0000000000000000",
+      "CapPrm": "0000000000000000",
+      "CapBnd": "0000000000000000",
+      "CapAmb": "0000000000000000"
+    },
+    "noNewPrivs": 1,
+    "nonRoot": true,
+    "devices": [
+      "lo"
+    ]
+  },
+  "fingerprints": {
+    "scripts/qualification/delegate-auth-101-parent.ts": "057d3831b731ab42896020930d0322ad8d7daaea2ab88d355a45ff6b55ba4e03",
+    "scripts/qualification/delegate-auth-101-child.ts": "f0df77a94d7871e20065b8f7590e96ac3b49133469e3759bc4b0e2c609831eb9"
+  },
+  "limits": [
+    "synthetic provider only",
+    "production Delegate unchanged",
+    "no cooperative request cancellation proof",
+    "no atomic logout-to-dispatch guarantee",
+    "ambient/custom-provider parity unqualified",
+    "no live credentials or network/inference",
+    "no filesystem sandbox"
+  ],
+  "rawLogSha256": "6c297d12e022a393fb665bf4646fca45e580d4c8df327f3c5c28c5da332200a0"
+}
