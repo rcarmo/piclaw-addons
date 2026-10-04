@@ -4,6 +4,15 @@ Delegate runs self-contained work in a fresh, ephemeral child Pi and restricts e
 
 Requires Piclaw `>=1.8.0`.
 
+Version `0.2.17` resolves the child Pi CLI from the running Piclaw release before
+add-on-local dependencies, including portable releases and symlinked launchers.
+`PI_DELEGATE_CLI` remains the highest-priority explicit override. A recognised
+Piclaw release with a missing/invalid Pi manifest fails rather than silently
+launching another version; standalone fallback remains available outside Piclaw.
+Discovery and execution share one selected CLI, and cache entries cannot cross
+CLI path/package-version/file-identity changes. Settings reports the selected
+path and manifest version. Authentication and MCP qualification remain separate.
+
 Version `0.2.15` follows the installed Pi package's public `bin.pi` entry instead
 of guessing `dist/cli.js`. Pi 1.0.0 publishes `dist/bundle/cli.js`; valid older
 manifests still work. This resolver change does not qualify child authentication,
@@ -150,7 +159,7 @@ Delegate keeps these roles separate:
 2. **Executable catalog** — child `pi --list-models`; the only source of subprocess candidates.
 3. **Current model** — classified independently to establish the automatic tier ceiling.
 
-Executable discovery is cached for 60 seconds. A manual Settings refresh invalidates it. Failed refreshes preserve the last known-good snapshot, expose the error, and remain stale so the next request retries automatically.
+Executable discovery is cached for 60 seconds. A manual Settings refresh invalidates it. Failed refreshes preserve the last known-good snapshot only for the same CLI identity, expose the error, and remain stale so the next request retries automatically. A different CLI starts with an empty catalogue; it cannot inherit another runtime's executable models.
 
 ## Failure and timeout behavior
 

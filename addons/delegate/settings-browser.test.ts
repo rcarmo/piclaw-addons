@@ -15,7 +15,7 @@ for (const skin of ["classic", "visual", "legacy"]) {
     await page.route("**/agent/addons/api/delegate/models", async (route: any) => {
       if (route.request().method() === "POST") refreshes.push(route.request().postDataJSON());
       if (rejectRefresh) return route.fulfill({ status: 503, json: { error: "Models unavailable" } });
-      return route.fulfill({ json: { config, providers: ["alpha", "beta"].map(provider => ({ provider, modelCount: 20 })), candidates: Array.from({ length: 35 }, (_, i) => ({ id: `alpha/model-${i}`, tier: 1, family: "fixture", classificationRule: "test" })), rejected_models: [{ fullId: "beta/model", rejection_reason: "unapproved" }] } });
+      return route.fulfill({ json: { config, cli: '/runtime/bun /release/pi/dist/bundle/cli.js', cli_package_version: '1.0.1', providers: ["alpha", "beta"].map(provider => ({ provider, modelCount: 20 })), candidates: Array.from({ length: 35 }, (_, i) => ({ id: `alpha/model-${i}`, tier: 1, family: "fixture", classificationRule: "test" })), rejected_models: [{ fullId: "beta/model", rejection_reason: "unapproved" }] } });
     });
     await page.route("**/agent/addons/api/delegate/config", async (route: any) => {
       const patch = route.request().postDataJSON(); writes.push(patch);
@@ -27,6 +27,7 @@ for (const skin of ["classic", "visual", "legacy"]) {
       await page.goto(url);
       const alpha = page.getByRole("radiogroup", { name: "alpha mode" });
       await alpha.waitFor();
+      expect(await page.locator('.delegate-settings').innerText()).toContain('CLI: /runtime/bun /release/pi/dist/bundle/cli.js · Pi package: 1.0.1');
       expect(await alpha.getByLabel("Exclude", { exact: true }).isChecked()).toBe(true);
       expect(await page.locator(".delegate-settings").evaluate((el: HTMLElement) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
       expect(await page.locator(".delegate-scroll").first().evaluate((el: HTMLElement) => getComputedStyle(el).maxHeight)).toBe("180px");
