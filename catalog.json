@@ -768,7 +768,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-restic-0.1.4.tgz"
       },
-      "updatedAt": "2026-09-26",
+      "updatedAt": "2026-10-04",
       "owner": {
         "login": "rcarmo",
         "url": "https://github.com/rcarmo"
