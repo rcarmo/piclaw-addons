@@ -1,0 +1,12 @@
+bun test v1.4.2 (744846f84)
+
+scripts/qualification/delegate-auth-101.test.ts:
+Test preload coverage: 50 directories
+{"filesCompared":561,"receipt":{"version":"1.0.1","runtime":"1.4.2","rows":[{"mode":"rotate","authRequests":2,"observations":2,"advanced":1,"refreshes":1,"exit":0,"signal":null,"secrecy":"pass","childFetchAttempts":0},{"mode":"api-key-env","authRequests":2,"observations":2,"advanced":1,"refreshes":0,"exit":0,"signal":null,"secrecy":"pass","childFetchAttempts":0},{"mode":"logout","authRequests":2,"observations":1,"advanced":1,"refreshes":0,"exit":0,"signal":null,"secrecy":"pass","childFetchAttempts":0},{"mode":"denied","authRequests":1,"observations":0,"advanced":0,"refreshes":0,"exit":0,"signal":null,"secrecy":"pass","childFetchAttempts":0},{"mode":"disconnect","authRequests":2,"observations":1,"advanced":1,"refreshes":0,"exit":0,"signal":null,"secrecy":"pass","childFetchAttempts":0},{"mode":"terminate","authRequests":2,"observations":1,"advanced":1,"refreshes":0,"exit":null,"signal":"SIGKILL","secrecy":"pass","childFetchAttempts":0}],"networkAttempts":0,"scope":"synthetic public extension/provider IPC seam only; not production Delegate or real-provider parity"},"sandbox":{"capabilities":{"CapEff":"0000000000000000","CapPrm":"0000000000000000","CapBnd":"0000000000000000","CapAmb":"0000000000000000"},"noNewPrivs":1,"nonRoot":true,"devices":["lo"]}}
+(pass) public Pi 1.0.1 child auth pipe resolves per request and fails closed [6776.52ms]
+
+ 1 pass
+ 1 filtered out
+ 0 fail
+ 580 expect() calls
+Ran 1 test across 1 file. [6.80s]
