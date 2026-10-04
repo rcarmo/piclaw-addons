@@ -68,6 +68,7 @@ function DelegateSettings() {
   const [filter, setFilter] = useState("");
   const [excludedModelsText, setExcludedModelsText] = useState("");
   const [cli, setCli] = useState("");
+  const [cliVersion, setCliVersion] = useState("");
   const [discoveryError, setDiscoveryError] = useState("");
   const [cache, setCache] = useState({});
   const [runtimeCatalog, setRuntimeCatalog] = useState({});
@@ -92,6 +93,7 @@ function DelegateSettings() {
       setProviders(payload.providers || []);
       setCandidates(payload.candidates || []);
       setCli(payload.cli || "");
+      setCliVersion(payload.cli_package_version || "");
       setDiscoveryError(payload.discovery_error || "");
       setCache(payload.cache || {});
       setRuntimeCatalog(payload.runtime_catalog || {});
@@ -182,8 +184,8 @@ function DelegateSettings() {
       <div class="settings-addon-help">
         <div>Current: <code>${runtimeCatalog.current_model || "not captured"}</code>${runtimeCatalog.current_classification?.tier ? ` · T${runtimeCatalog.current_classification.tier} · ${runtimeCatalog.current_classification.rule}` : " · unclassified"}</div>
         <div>Executable cache: ${formatAge(cache.refreshed_at)} · refreshed ${formatTimestamp(cache.refreshed_at)} · ${cache.stale ? "stale/retrying" : "fresh"}</div>
-        ${cli && html`<div>CLI: <code>${cli}</code></div>`}
-        ${discoveryError && html`<div class="settings-addon-error" role="alert">Last refresh error: ${discoveryError} (last known-good catalog retained)</div>`}
+        ${cli && html`<div>CLI: <code>${cli}</code> · Pi package: ${cliVersion || "unknown (override or PATH command)"}</div>`}
+        ${discoveryError && html`<div class="settings-addon-error" role="alert">Last refresh error: ${discoveryError} (${executableCatalog.model_count ? "last known-good catalog retained for this CLI" : "no executable catalog for this CLI"})</div>`}
       </div>
       </section>
 

@@ -163,7 +163,14 @@ The resolved file is passed as a Pi `@/absolute/path` argument.
 
 ## 8. Child execution
 
-The executable is resolved from `PI_DELEGATE_CLI`, the current runtime plus the installed Pi package's `bin.pi`, or finally a `pi` executable on `PATH`. Package lookup prefers the adjacent package, then `$BUN_INSTALL` and the canonical global Bun root. Export-hidden manifests are found from the public ESM root without executing package code. Invalid manifests, missing/non-regular bins and paths escaping the package (including symlinks) are rejected as package candidates. Valid older `bin.pi: dist/cli.js` declarations still work; the path is never guessed.
+The executable is resolved from `PI_DELEGATE_CLI`, then from the running Piclaw entrypoint's package dependency and its `bin.pi`. The entrypoint is canonicalised when Delegate loads so a portable `current` symlink change cannot silently switch its active release. A recognised Piclaw package with no valid Pi CLI fails closed. Outside Piclaw, package lookup uses the adjacent package, then `$BUN_INSTALL` and the canonical global Bun root, and finally a `pi` executable on `PATH`. Export-hidden manifests are found from the public ESM root without executing package code. Invalid manifests, missing/non-regular bins and paths escaping the package (including symlinks) are rejected as package candidates. Valid older `bin.pi: dist/cli.js` declarations still work; the path is never guessed.
+
+Discovery and every child attempt within a call share the same resolved command.
+Cached executable models are keyed by command/entrypoint canonical paths, file
+identity and Pi manifest version; stale models are retained only for that identity.
+Settings exposes `cli_path` and nullable `cli_package_version` diagnostics without
+executing package code or running a version probe. Unknown override/PATH metadata
+is reported as unknown. Files changed during discovery or before launch fail.
 
 The explicit override and PATH fallback retain their existing behaviour and are not version/provenance guarantees. The operator-installed package is trusted code; path containment does not sandbox execution or prevent same-UID replacement after validation. Full child auth/environment and selected-engine qualification are separate from CLI resolution.
 

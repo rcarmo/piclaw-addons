@@ -929,10 +929,10 @@ anthropic       claude-sonnet-4.6  200K     32K      yes       yes
       const timeout=start(a,'timeout');await started('timeout');expect((await timeout.done).error?.message).toMatch(/timed out/i);
       expect(timeout.updates.at(-1)).toContain('Delegate (1 of 1) model:');
       expect(a.working.at(-1)).toBeUndefined();
-      // Discovery is cached, but the launch command can still fail. Its slot must clear.
+      // Changing the CLI invalidates its catalog; failed discovery cannot start a stale candidate.
       process.env.PI_DELEGATE_CLI = join(dir, 'missing-cli');
       const spawnFailure=start(a,'spawnfailure');expect((await spawnFailure.done).error).toBeTruthy();
-      expect(spawnFailure.updates.at(-1)).toContain('Delegate (1 of 1) model:');
+      expect(spawnFailure.updates).toEqual([]);
       expect(a.working.at(-1)).toBeUndefined();expect(a.statuses.at(-1)).toBeUndefined();
       process.env.PI_DELEGATE_CLI = `${process.execPath} ${cli}`;
       const final=start(a,'final');await started('final');expect(final.updates.at(-1)).toContain('Delegate (1 of 1) model:');
