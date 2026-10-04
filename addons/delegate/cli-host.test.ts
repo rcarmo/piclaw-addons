@@ -105,6 +105,12 @@ test('model discovery and child attempts share a pinned CLI even if configuratio
     const ctx={model:{provider:'github-copilot',id:'gpt-6-sol'},modelRegistry:{getAvailable(){return [];}}};
     const result=await tool.execute('pinned',{prompt:'fixture',model:'github-copilot/gpt-6-sol',tools:'read'},undefined,()=>{process.env.PI_DELEGATE_CLI=`${process.execPath} ${bad}`;},ctx);
     expect(result.content[0].text).toContain('PINNED_OK');expect(existsSync(marker)).toBe(true);expect(existsSync(foreign)).toBe(false);
+    // Environment pinning alone is insufficient: reject a file rewrite by the progress callback.
+    process.env.PI_DELEGATE_CLI=`${process.execPath} ${cli}`;rmSync(marker);
+    await expect(tool.execute('replaced',{prompt:'fixture',model:'github-copilot/gpt-6-sol',tools:'read'},undefined,()=>{
+      writeFileSync(cli,`import{writeFileSync}from'node:fs';writeFileSync(${JSON.stringify(foreign)},'replacement executed');`);
+    },ctx)).rejects.toThrow('CLI changed after discovery');
+    expect(existsSync(marker)).toBe(false);expect(existsSync(foreign)).toBe(false);
   } finally {globals.__piclaw_registerAddonConfigApi=oldRegistrar;if(oldCli===undefined)delete process.env.PI_DELEGATE_CLI;else process.env.PI_DELEGATE_CLI=oldCli;rmSync(root,{recursive:true,force:true});}
 });
 
