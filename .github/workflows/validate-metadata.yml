@@ -53,6 +53,39 @@ jobs:
       - name: Validate package can be packed
         run: bun pm pack --dry-run >/dev/null
 
+  delegate-proxy-103:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: Resolve Bun version
+        id: bun-version
+        run: echo "version=$(tr -d '[:space:]' < BUN_VERSION)" >> "$GITHUB_OUTPUT"
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: ${{ steps.bun-version.outputs.version }}
+      - run: bun install --frozen-lockfile
+      - name: Prepare isolated public Pi 1.0.3 packages
+        run: |
+          mkdir -p .tmp/proxy103-sdk .tmp/proxy103-archives
+          bun -e 'await Bun.write(".tmp/proxy103-sdk/package.json", JSON.stringify({private:true,type:"module",dependencies:{"@earendil-works/pi-ai":"1.0.3","@earendil-works/pi-coding-agent":"1.0.3"}}))'
+          bun install --cwd .tmp/proxy103-sdk --ignore-scripts
+          for name in pi-ai pi-coding-agent; do
+            curl --fail --silent --show-error --location "https://registry.npmjs.org/@earendil-works/$name/-/$name-1.0.3.tgz" -o ".tmp/proxy103-archives/$name-1.0.3.tgz"
+          done
+      - name: Qualify private pipes and public agent loop without network
+        run: |
+          sudo unshare --net --fork setpriv --reuid="$(id -u)" --regid="$(id -g)" --init-groups --bounding-set=-all --inh-caps=-all --ambient-caps=-all --no-new-privs \
+            /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp "$(command -v bun)" --no-env-file \
+            "$PWD/scripts/qualification/delegate-proxy-103-check.ts" "$PWD/.tmp/proxy103-sdk" "$PWD/.tmp/proxy103-archives" "$PWD/.tmp/proxy103-evidence"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: delegate-proxy-103
+          path: |
+            .tmp/proxy103-evidence/*.log
+            .tmp/proxy103-evidence/receipt.json
+
   late-night-regrets:
     runs-on: ubuntu-latest
     timeout-minutes: 10
