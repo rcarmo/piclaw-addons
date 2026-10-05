@@ -56,7 +56,7 @@ test('abort closes child delivery but parent close stays pending until raw host 
 test('provider rejects authority, unsupported retry semantics, foreign model, pre-abort and secret metadata before dispatch', async () => {
   const f = fixture();
   try {
-    for (const options of [{ apiKey: 'SECRET' }, { headers: { Authorization: 'SECRET' } }, { env: { SECRET: 'SECRET' } }, { fetch: () => {} }, { deferred: true }, { samplingParams: {} }, { maxRetries: 1 }, { toolChoice: 'required' }]) {
+    for (const options of [{ apiKey: 'SECRET' }, { headers: { Authorization: 'SECRET' } }, { env: { SECRET: 'SECRET' } }, { fetch: () => {} }, { deferred: true }, { samplingParams: {} }, { maxRetries: 1 }, { toolChoice: 'required' }, { cacheRetention: 'long' }, { sessionId: 'ignored' }, { timeoutMs: 0 }]) {
       expect(() => f.proxy.provider.streamSimple(model, f.context, options as any)).toThrow('UNSUPPORTED_PLAN');
     }
     expect(() => f.proxy.provider.streamSimple({ ...model, id: 'foreign' }, f.context)).toThrow('UNSUPPORTED_PLAN');
@@ -64,6 +64,13 @@ test('provider rejects authority, unsupported retry semantics, foreign model, pr
     expect(() => createProxyProvider({ session: f.child, plan, model: { ...model, headers: { Authorization: 'SECRET' } }, createStream: createAssistantMessageEventStream })).toThrow('UNSUPPORTED_PLAN');
     expect(f.counts().calls).toBe(0);
   } finally { f.tail.resolve(); await f.proxy.close(); await f.parent.close(); }
+});
+
+test('provider timeout stops delivery without releasing held host settlement', async () => {
+  const f = fixture(); const stream = f.proxy.provider.streamSimple(model, f.context, { maxTokens: 8, timeoutMs: 10 });
+  expect((await stream.result()).stopReason).toBe('aborted');
+  let closed = false; const closing = f.parent.close().then(() => { closed = true; });
+  await tick(); expect(closed).toBe(false); f.tail.resolve(); await closing; await f.proxy.close();
 });
 
 test('trusted child agent option projection never transmits injected authority or callbacks', () => {

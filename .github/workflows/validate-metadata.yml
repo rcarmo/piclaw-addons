@@ -37,8 +37,13 @@ jobs:
         run: bun test build.test.ts
 
       - name: Install Iroh prebuilt test dependency
-        working-directory: addons/remote-peer
-        run: bun install --frozen-lockfile --omit peer --ignore-scripts
+        run: |
+          # Avoid resolving remote-peer's wildcard Pi peer from a transient latest
+          # registry release. Only Iroh/Bonjour are needed; root pins supply Pi.
+          mkdir -p .tmp/iroh-test
+          bun -e 'const p=await Bun.file("addons/remote-peer/package.json").json(); await Bun.write(".tmp/iroh-test/package.json",JSON.stringify({private:true,dependencies:p.dependencies}))'
+          bun install --cwd .tmp/iroh-test --ignore-scripts
+          ln -s "$PWD/.tmp/iroh-test/node_modules" addons/remote-peer/node_modules
       - name: Type-check Earendil compatibility surface
         run: bun run typecheck:earendil-compat
 

@@ -177,7 +177,7 @@ The checker pins archive integrity, compares runtime/declaration inventories,
 checks exact public types and runs the real-pipe/agent-loop suite in a non-root,
 zero-capability, loopback-only namespace. It retains logs and source fingerprints.
 CI has a dedicated `delegate-proxy-103` job; production packages are unchanged.
-Local final gates: 40 tests / 283 assertions; strict public types; 1,002 matching
+Local reviewed gates: 43 tests / 302 assertions; strict public types; 1,002 matching
 package/declaration/runtime files; compatibility 281 pass / 15 opt-in skips /
 1,681 assertions; build + standalone 35 pass / 58 assertions. Five compatibility
 type commands, catalog and pack checks passed. The first broad import run exceeded
@@ -204,3 +204,16 @@ Historical failures are retained in local implementation evidence: fixture liter
 SDK-type corrections, a referenced grandchild preventing leader exit, the actual
 agent loop exposing unsupported local option fields/constrained sampling, and a
 TypeScript package export-path correction. Passing retries did not erase them.
+
+Independent review found that an error outcome could suppress child termination,
+and synchronous post-spawn setup lacked an OS-close owner. Separate stop state and
+an encompassing finally now cover both; fault-injection tests retain held host
+settlement until both acknowledgements arrive. Provider timeouts now cancel local
+delivery without abandoning raw settlement; requested cache retention and session
+metadata are unsupported rather than silently ignored by the direct provider.
+
+The first hosted proxy job passed. The unrelated validation job failed while a
+wildcard peer resolved to an unavailable Pi 1.0.4 tarball. CI now installs only
+Iroh/Bonjour in a disposable dependency directory; root-pinned Pi supplies tests.
+That install path passed locally: 33 Remote Peer tests / 250 assertions, 28 opt-in
+browser skips. No add-on manifests or production dependencies changed.

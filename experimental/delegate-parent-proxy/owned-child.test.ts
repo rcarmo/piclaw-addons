@@ -1,4 +1,7 @@
 import { expect, test } from 'bun:test';
+import { EventEmitter } from 'node:events';
+import { PassThrough } from 'node:stream';
+import type { spawn } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { AssistantMessage } from '@earendil-works/pi-ai';
@@ -73,6 +76,23 @@ test.each(['grandchild', 'inherited-grandchild'])('successful leader exit kills 
     if (!alive) break; await Bun.sleep(10);
   }
   expect(alive).toBe(false); expect(f.counts().closes).toBe(1);
+});
+
+test.each(['child-error', 'setup-throw'])('post-spawn %s still kills and awaits both OS and host', async mode => {
+  const f = fixture(true), fake = new EventEmitter() as any;
+  const input = new PassThrough(), output = new PassThrough();
+  fake.stdout = new PassThrough(); fake.stderr = new PassThrough(); fake.stdio = [null, fake.stdout, fake.stderr, output, input];
+  const signals: string[] = [];
+  fake.kill = (signal: string) => { signals.push(signal); return true; };
+  if (mode === 'setup-throw') input.on = (() => { throw Error('synthetic setup failure'); }) as any;
+  else setTimeout(() => fake.emit('error', Error('synthetic child failure')), 0);
+  let finished = false;
+  const task = runOwnedProxyChild({ scope: f.scope, executable: process.execPath, entrypoint: join(import.meta.dir, 'fixture-child.ts'), cwd: import.meta.dir,
+    signal: new AbortController().signal, timeoutMs: 1000 }, { spawn: (() => fake) as unknown as typeof spawn }).finally(() => { finished = true; });
+  void task.catch(() => {}); await Bun.sleep(150);
+  expect(signals).toContain('SIGTERM'); expect(signals).toContain('SIGKILL'); expect(finished).toBe(false);
+  fake.emit('close', 1); await Bun.sleep(0); expect(finished).toBe(false);
+  f.tail.resolve(); await expect(task).rejects.toThrow(); expect(f.counts().closes).toBe(1);
 });
 
 test('pre-abort, unsupported plan, missing executable and truncated EOF all close the host once', async () => {
