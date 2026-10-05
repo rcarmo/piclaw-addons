@@ -1,0 +1,12 @@
+bun test v1.4.2 (744846f84)
+
+addons/delegate/cli-103.test.ts:
+Test preload coverage: 50 directories
+{"version":"1.0.3","filesCompared":76,"publishedManifestCli":true,"offlineVersionExecution":true,"emptyDisposableProfile":true,"scope":"PublishedCLIartifact/version only; no provider execution orcredential source proof"}
+(pass) released1.0.3 CLI uses published manifest and isolated offline profile [508.18ms]
+
+ 1 pass
+ 1 filtered out
+ 0 fail
+ 94 expect() calls
+Ran 1 test across 1 file. [532.00ms]

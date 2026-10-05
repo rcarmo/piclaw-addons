@@ -16,7 +16,7 @@ path and manifest version. Authentication and MCP qualification remain separate.
 Version `0.2.15` follows the installed Pi package's public `bin.pi` entry instead
 of guessing `dist/cli.js`. Pi 1.0.0 publishes `dist/bundle/cli.js`; valid older
 manifests still work. This resolver change does not qualify child authentication,
-selected-engine MCP or the full Pi 1.0.0 migration. See [CLI resolver evidence](CLI-100.md).
+selected-engine MCP or the full Pi 1.0.0 migration. See historical [CLI resolver evidence](CLI-100.md) and [current Pi 1.0.3 synthetic qualification](../../scripts/qualification/DELEGATE-AUTH-103.md). The current CLI/auth receipts do not qualify production credential/environment inheritance, raw cleanup settlement or account-generation authority.
 
 Version `0.2.14` prepares exact `gpt-6.1-sol` recognition at tier 3, with the same
 selection preference as GPT-6 Sol. Provider approval, exact child-CLI discovery,

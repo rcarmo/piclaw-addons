@@ -1,0 +1,42 @@
+[
+  {
+    "path": "addons/delegate/cli-100.test.ts",
+    "sha256": "d036334e7342f2b7afbdd73da65813f17e83c30b1053b0fbb3efa1e7521229ec"
+  },
+  {
+    "path": "scripts/qualification/fixtures/child-auth-100.json",
+    "sha256": "10a094efa32681a03d5248d54ff94fcce10d0084de304b63736f7a3b1aa088d5"
+  },
+  {
+    "path": "scripts/qualification/delegate-auth-101.test.ts",
+    "sha256": "137100ba94c635922cb8210e285267a9aa84a5ce0ce7f945b4dbdcccff476845"
+  },
+  {
+    "path": "scripts/qualification/delegate-auth-101-parent.ts",
+    "sha256": "057d3831b731ab42896020930d0322ad8d7daaea2ab88d355a45ff6b55ba4e03"
+  },
+  {
+    "path": "scripts/qualification/delegate-auth-101-child.ts",
+    "sha256": "f0df77a94d7871e20065b8f7590e96ac3b49133469e3759bc4b0e2c609831eb9"
+  },
+  {
+    "path": "scripts/qualification/fixtures/child-auth-101.json",
+    "sha256": "0c0c0e7a2610ea4ab8c50b6123413b3c510321b91b206fa276e7b35e46c6371b"
+  },
+  {
+    "path": "scripts/qualification/fixtures/child-auth-101.log",
+    "sha256": "6c297d12e022a393fb665bf4646fca45e580d4c8df327f3c5c28c5da332200a0"
+  },
+  {
+    "path": "scripts/qualification/delegate-auth-100.test.ts",
+    "sha256": "e32b4b1dcdf16b4e8626afe673f9def1617a0690e24ca7a8be3895220a9d8a03"
+  },
+  {
+    "path": "scripts/qualification/delegate-auth-100-parent.ts",
+    "sha256": "f25c709a174327ff3ffbd7c4b1d1641c2df049c8f593e29defd5ac266cab6b3b"
+  },
+  {
+    "path": "scripts/qualification/delegate-auth-100-child.ts",
+    "sha256": "f0df77a94d7871e20065b8f7590e96ac3b49133469e3759bc4b0e2c609831eb9"
+  }
+]
