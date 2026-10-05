@@ -1,0 +1,26 @@
+{
+  "recordedAt": "2026-10-05T19:52:53.000Z",
+  "referenceGitHead": "d78dc83d633229d12f8b79631384c4c2717c399f",
+  "packageIntegrity": "sha512-t2lb0dw4y/jr5a2PRo6eTHGTZOPB3/YAMVyhhYFC1W3Hl5xE+462I/gMWjF4gCLuhGipNEfuNqONFmdqLFz4SQ==",
+  "archiveSha256": "106eadb1f823f72f012c08f23bd36e435f9e62f6c81e98a5d8f70c8a9543dd05",
+  "result": {
+    "version": "1.0.3",
+    "filesCompared": 76,
+    "publishedManifestCli": true,
+    "offlineVersionExecution": true,
+    "emptyDisposableProfile": true,
+    "scope": "PublishedCLIartifact/version only; no provider execution orcredential source proof"
+  },
+  "rawLogSha256": "e25c219b9b523e288c9ae12eff60461ee6c5290e4f94db4d36637bf940215d0a",
+  "run": {
+    "pass": 1,
+    "fail": 0,
+    "assertions": 94
+  },
+  "limits": [
+    "offlineversion/payload/manifest only",
+    "no childproviderexecution",
+    "parent/child real credentialsource unqualified",
+    "productionDelegateunchanged"
+  ]
+}
