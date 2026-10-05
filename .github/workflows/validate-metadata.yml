@@ -81,7 +81,7 @@ jobs:
       - name: Qualify private pipes and public agent loop without network
         run: |
           sudo unshare --net --fork setpriv --reuid="$(id -u)" --regid="$(id -g)" --init-groups --bounding-set=-all --inh-caps=-all --ambient-caps=-all --no-new-privs \
-            /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp "$(command -v bun)" --no-env-file \
+            /usr/bin/env -i PATH=/usr/bin:/bin HOME=/tmp PICLAW_DELEGATE_CONFINEMENT_TEST=1 "$(command -v bun)" --no-env-file \
             "$PWD/scripts/qualification/delegate-proxy-103-check.ts" "$PWD/.tmp/proxy103-sdk" "$PWD/.tmp/proxy103-archives" "$PWD/.tmp/proxy103-evidence"
       - uses: actions/upload-artifact@v7
         if: always()

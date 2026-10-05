@@ -25,7 +25,7 @@ export async function runOwnedProxyChild(input: {
   args?: string[];
   signal: AbortSignal;
   timeoutMs: number;
-}, dependencies: { spawn: typeof spawn } = { spawn }): Promise<{ exitCode: number | null; output: string }> {
+}, dependencies: { spawn: typeof spawn; confinedLaunch?: { command: string; args: string[]; env: Record<string, string> } } = { spawn }): Promise<{ exitCode: number | null; output: string }> {
   if (process.platform !== 'linux' || !isAbsolute(input.executable) || !isAbsolute(input.entrypoint)
     || !isAbsolute(input.cwd) || !Number.isSafeInteger(input.timeoutMs) || input.timeoutMs <= 0 || input.timeoutMs > 300000) {
     await input.scope.close(); throw new ProxyError('UNSUPPORTED_PLAN');
@@ -41,8 +41,9 @@ export async function runOwnedProxyChild(input: {
       if (!channel) return Promise.reject(new ProxyError('REQUEST_FAILED'));
       return channel.send(bytes, signal);
     } });
-    const child = dependencies.spawn(input.executable, ['--no-env-file', input.entrypoint, ...(input.args ?? [])], {
-      cwd: input.cwd, env: childEnvironment(root), detached: true,
+    const launch = dependencies.confinedLaunch;
+    const child = dependencies.spawn(launch?.command ?? input.executable, launch?.args ?? ['--no-env-file', input.entrypoint, ...(input.args ?? [])], {
+      cwd: launch ? '/' : input.cwd, env: launch?.env ?? childEnvironment(root), detached: true,
       stdio: ['ignore', 'pipe', 'pipe', 'pipe', 'pipe'],
     });
     let failed = false, stopStarted = false, osClosed = false, output = '', outputBytes = 0;

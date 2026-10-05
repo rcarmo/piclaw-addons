@@ -60,6 +60,7 @@ const source = join(root, 'experimental/delegate-parent-proxy');
 const fingerprints = Object.fromEntries(walk(source).sort().map(p => [p, hash(readFileSync(join(source, p)))]));
 writeFileSync(join(out, 'receipt.json'), JSON.stringify({ date: new Date().toISOString(), pi: '1.0.3', upstream: 'd78dc83d633229d12f8b79631384c4c2717c399f', bun: Bun.version, compared, fingerprints, results,
   sandbox: { devices, nonRoot: true, capabilities: 'all zero', noNewPrivs: true },
-  limits: ['synthetic host; no real accounts/provider/network', 'parent raw-tail promise is injected, not a released Pi capability', 'no production registration, account/budget policy or activation', 'Linux process group cleanup only; no detached-group/process escape confinement', 'minimal environment is not filesystem isolation; trusted fixture tools only'] }, null, 2) + '\n');
+  confinement: process.env.PICLAW_DELEGATE_CONFINEMENT_TEST === '1' ? 'Linux x64 namespace+seccomp read/bash snapshot and detached-descendant tests enabled' : 'opt-in confinement tests skipped',
+  limits: ['synthetic host; no real accounts/provider/network', 'parent raw-tail promise is injected, not a released Pi capability', 'no production registration, account/budget policy or activation', 'confinement requires explicit host-approved file/runtime snapshots; no whole-workspace grant or automatic writeback', 'Linux x64 only; host-export admission and resource quotas require qualification'] }, null, 2) + '\n');
 rmSync(target, { recursive: true });
 console.log(out);

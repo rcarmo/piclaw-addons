@@ -131,6 +131,14 @@ Local evidence: `/workspace/exports/delegate160-pi103-assessment-20261005/`
 The old Pi 1.0.2 integration worktree was absent; comparison used the preserved,
 hash-verified 1.0.2 archive. #160 stays incomplete and the consumer stays inactive.
 
+## Linux confinement continuation
+
+The isolated continuation adds real Linux x86_64 read/bash snapshot confinement,
+without changing the frozen PR175/8096c00 checkpoint. See
+[CONFINEMENT.md](CONFINEMENT.md) for the implemented namespace/seccomp boundary,
+exact host export/runtime interface, tests and remaining resource-policy gates.
+Production Delegate remains unchanged.
+
 ## Public provider and process implementation — 2026-10-05 continuation
 
 The consumer now includes a credential-free public `Provider` adapter, bounded

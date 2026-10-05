@@ -8,6 +8,7 @@ import { createPipeChannel } from './pipe.ts';
 import type { ChildRequestPlanV1 } from './contracts.ts';
 
 const mode = process.argv[2];
+const agentMode = mode === 'agent' || mode === 'agent-bash';
 if (mode === 'truncated') { writeSync(4, Buffer.from([0, 0, 0])); process.exit(0); }
 if (mode === 'stubborn') process.on('SIGTERM', () => {});
 const deny = () => { throw Error('network forbidden'); };
@@ -27,14 +28,14 @@ if (mode === 'grandchild' || mode === 'inherited-grandchild') {
 }
 try {
   const responses: string[] = [];
-  if (mode === 'agent') {
+  if (agentMode) {
     const { createAgentSession, createExtensionRuntime, ModelRuntime, SessionManager, SettingsManager } = await import('@earendil-works/pi-coding-agent');
     const runtime = await ModelRuntime.create({ refreshOnCreate: false, allowModelNetwork: false, modelsPath: null,
       credentials: { async read() { return undefined; }, async list() { return []; }, async modify() { return undefined; }, async delete() {} },
       modelsStore: { async read() { return undefined; }, async write() {}, async delete() {} } });
     runtime.registerNativeProvider({ ...proxy.provider, streamSimple(m, c, o) { return proxy.provider.streamSimple(m, c, childAgentOptions(o)); } });
     const { session } = await createAgentSession({ cwd: process.cwd(), agentDir: process.env.PI_CODING_AGENT_DIR, model, modelRuntime: runtime,
-      thinkingLevel: 'off', tools: ['read'], sessionManager: SessionManager.inMemory(),
+      thinkingLevel: 'off', tools: mode === 'agent-bash' ? ['read', 'bash'] : ['read'], sessionManager: SessionManager.inMemory(),
       settingsManager: SettingsManager.inMemory({ compaction: { enabled: false }, retry: { enabled: false, maxRetries: 0 } }),
       resourceLoader: { getExtensions: () => ({ extensions: [], errors: [], runtime: createExtensionRuntime() }), getSkills: () => ({ skills: [], diagnostics: [] }),
         getPrompts: () => ({ prompts: [], diagnostics: [] }), getThemes: () => ({ themes: [], diagnostics: [] }), getAgentsFiles: () => ({ agentsFiles: [] }),
@@ -44,7 +45,7 @@ try {
     try { await session.prompt('fixture'); responses.push(session.getLastAssistantText() ?? ''); }
     finally { session.dispose(); runtime.unregisterProvider(model.provider); }
   }
-  for (let i = 0; i < (mode === 'agent' ? 0 : mode === 'twice' ? 2 : 1); i++) {
+  for (let i = 0; i < (agentMode ? 0 : mode === 'twice' ? 2 : 1); i++) {
     const stream = models.streamSimple(model, { messages: [{ role: 'user', content: 'fixture', timestamp: 1 }] }, { maxTokens: 10, maxRetries: 0 });
     if (mode === 'crash') { await Bun.sleep(30); process.exit(7); }
     for await (const _event of stream) { /* consume concurrently with parent pipe */ }
