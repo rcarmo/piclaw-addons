@@ -138,7 +138,7 @@ private-pipe writes and a Linux child-process owner. It is still not wired into
 `addons/delegate/delegate.ts`, exported by its package or registered at startup.
 
 - `provider.ts` projects supported transcript data, strips local tool-result
-  details/charges and assistant diagnostics, rejects credential/authority options,
+  details/charges, errorMessage and legacy `providerDiagnostics`, rejects credential/authority options,
   and waits for the parent's `settled` frame before emitting a successful SDK
   terminal event. Error delivery may precede raw settlement; the parent retains it.
 - `childAgentOptions` keeps public AgentSession's local callbacks/bookkeeping out
@@ -159,7 +159,9 @@ Current Context admission also supports system text blocks and exact public
 `constrainedSampling` variants (`false`, JSON-schema strict prefer/require, grammar
 variants). `true`, callbacks, unknown fields and malformed variants fail closed.
 This supersedes the earlier string-only/boolean tool restriction; V1 types and
-framing are unchanged. Core is expanding its validator to match.
+framing are unchanged. Core is expanding its validator to match. Public
+`diagnostics` and `deferred` assistant fields are explicitly unsupported and fail
+validation; the adapter does not silently scrub or reinterpret those structures.
 
 Qualification is separate from this repository's older compatibility dependencies:
 
@@ -177,7 +179,7 @@ The checker pins archive integrity, compares runtime/declaration inventories,
 checks exact public types and runs the real-pipe/agent-loop suite in a non-root,
 zero-capability, loopback-only namespace. It retains logs and source fingerprints.
 CI has a dedicated `delegate-proxy-103` job; production packages are unchanged.
-Local reviewed gates: 43 tests / 302 assertions; strict public types; 1,002 matching
+Local reviewed gates: 43 tests / 304 assertions; strict public types; 1,002 matching
 package/declaration/runtime files; compatibility 281 pass / 15 opt-in skips /
 1,681 assertions; build + standalone 35 pass / 58 assertions. Five compatibility
 type commands, catalog and pack checks passed. The first broad import run exceeded

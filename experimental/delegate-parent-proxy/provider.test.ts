@@ -88,4 +88,8 @@ test('context projection removes local tool-result details/charges and assistant
   const projected = projectProviderContext(context);
   expect(JSON.stringify(projected)).not.toContain('SECRET'); expect(projected.messages).toHaveLength(2);
   expect(JSON.stringify(context)).toContain('SECRET');
+  for (const extra of [{ diagnostics: [{ message: 'PRIVATE' }] }, { deferred: { id: 'unsupported' } }]) {
+    const unsupported = normalizeContext({ messages: [{ ...message(), ...extra }] });
+    expect(() => projectProviderContext(unsupported)).toThrow('INVALID_FRAME');
+  }
 });
