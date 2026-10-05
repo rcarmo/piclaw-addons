@@ -108,7 +108,10 @@ smokes and namespace receipts are preserved in
 ## Unqualified / not activated
 
 Only Linux x86_64 with working unprivileged namespaces, seccomp and close_range is
-implemented. Other architectures/platforms fail explicitly. This is not a VM or
+implemented. Other architectures/platforms fail explicitly. The initial hosted
+Ubuntu runner denied user-namespace ID mapping (`map open: Permission denied`);
+no child ran there. CI uses Ubuntu 22.04 for the rootless namespace qualification,
+without disabling host security settings or adding a weaker runtime fallback. This is not a VM or
 kernel-exploit boundary. CPU/memory/process-count/disk exhaustion limits need a
 host-owned cgroup/resource policy; process lifetime containment is qualified, but
 denial-of-service resource containment is not.

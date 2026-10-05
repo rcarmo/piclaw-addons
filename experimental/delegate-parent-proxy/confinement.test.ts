@@ -109,8 +109,11 @@ integration('confined cancellation waits the host raw tail after killing namespa
     stream(){entered();return{settled:tail,cancel(){cancels++},async *[Symbol.asyncIterator](){await tail}}},async close(){closes++;await tail}};
   const signal=new AbortController();let finished=false;
   const task=runConfinedProxyChild({...fixture,scope,files:files(),profile:'read_only',entrypoint:'/app/agent.js',args:['twice'],signal:signal.signal,timeoutMs:5000}).finally(()=>{finished=true});void task.catch(()=>{});
-  await admission;signal.abort();await Bun.sleep(150);expect(finished).toBe(false);expect(cancels).toBeGreaterThan(0);
-  resolveTail();await expect(task).rejects.toThrow('CANCELLED');expect(closes).toBe(1);
+  try {
+    await Promise.race([admission,task.then(()=>{throw Error('child ended before admission')})]);
+    signal.abort();await Bun.sleep(150);expect(finished).toBe(false);expect(cancels).toBeGreaterThan(0);
+  } finally { resolveTail(); }
+  await expect(task).rejects.toThrow('CANCELLED');expect(closes).toBe(1);
 });
 
 test('invalid approved export/helper fails before launch and closes scope without fallback',async()=>{

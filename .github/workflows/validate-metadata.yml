@@ -59,7 +59,9 @@ jobs:
         run: bun pm pack --dry-run >/dev/null
 
   delegate-proxy-103:
-    runs-on: ubuntu-latest
+    # Ubuntu 24+ runner AppArmor restricts unprivileged uid_map writes. The
+    # production launcher fails closed there; qualify rootless namespaces on 22.
+    runs-on: ubuntu-22.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
