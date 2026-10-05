@@ -20,6 +20,7 @@
 #include <sys/resource.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/statvfs.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -33,9 +34,22 @@ static void textfile(const char *p, const char *s) {
 static void join(char *dst, size_t n, const char *root, const char *suffix) {
   if (snprintf(dst, n, "%s%s", root, suffix) >= (int)n) die("path length");
 }
+static unsigned long existing_flags(const char *path) {
+  struct statvfs st; if (statvfs(path, &st)) die("mount flags");
+  unsigned long flags = 0;
+  if (st.f_flag & ST_RDONLY) flags |= MS_RDONLY;
+  if (st.f_flag & ST_NOSUID) flags |= MS_NOSUID;
+  if (st.f_flag & ST_NODEV) flags |= MS_NODEV;
+  if (st.f_flag & ST_NOEXEC) flags |= MS_NOEXEC;
+  if (st.f_flag & ST_NOATIME) flags |= MS_NOATIME;
+  if (st.f_flag & ST_NODIRATIME) flags |= MS_NODIRATIME;
+  if (st.f_flag & ST_RELATIME) flags |= MS_RELATIME;
+  return flags;
+}
 static void bind_mount(const char *src, const char *dst, int writable) {
   if (mount(src, dst, NULL, MS_BIND, NULL)) die("bind");
-  if (mount(NULL, dst, NULL, MS_BIND | MS_REMOUNT | MS_NOSUID | (writable ? 0 : MS_RDONLY), NULL)) die("bind flags");
+  // User namespaces may add restrictions, never clear inherited locked flags.
+  if (mount(NULL, dst, NULL, MS_BIND | MS_REMOUNT | existing_flags(dst) | MS_NOSUID | (writable ? 0 : MS_RDONLY), NULL)) die("bind flags");
 }
 #define DENY(n) BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_##n, 0, 1), BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM)
 static void restrict_syscalls(void) {
@@ -97,7 +111,7 @@ int main(int argc, char **argv) {
   join(path, sizeof(path), root, "/home");
   if (mount("tmpfs", path, "tmpfs", MS_NOSUID | MS_NODEV, "size=32m,mode=700")) die("home");
   join(path, sizeof(path), root, "/work"); bind_mount(path, path, !strcmp(argv[2], "workspace_write"));
-  if (mount(NULL, root, NULL, MS_BIND | MS_REMOUNT | MS_RDONLY | MS_NOSUID | MS_NODEV, NULL)) die("readonly root");
+  if (mount(NULL, root, NULL, MS_BIND | MS_REMOUNT | existing_flags(root) | MS_RDONLY | MS_NOSUID | MS_NODEV, NULL)) die("readonly root");
   int life[2]; if (pipe2(life, O_CLOEXEC)) die("lifetime pipe");
   pid_t pid = fork(); if (pid < 0) die("fork");
   if (!pid) {
