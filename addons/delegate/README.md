@@ -4,6 +4,10 @@ Delegate runs self-contained work in a fresh, ephemeral child Pi and restricts e
 
 Requires Piclaw `>=1.8.0`.
 
+Version `0.2.18` passes the parent's current thinking level to each plain child
+subprocess, including fallback attempts. Pi applies the selected model's supported
+levels. Model approval, tools, timeouts and process cleanup are unchanged.
+
 Version `0.2.17` resolves the child Pi CLI from the running Piclaw release before
 add-on-local dependencies, including portable releases and symlinked launchers.
 `PI_DELEGATE_CLI` remains the highest-priority explicit override. A recognised

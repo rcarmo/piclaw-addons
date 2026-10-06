@@ -295,7 +295,8 @@ anthropic       claude-sonnet-4.6  200K     32K      yes       yes
         }
         await Bun.stdin.text();
         const model = process.argv[process.argv.indexOf("--model") + 1];
-        appendFileSync(${JSON.stringify(marker)}, model + "\\n");
+        const thinking = process.argv[process.argv.indexOf("--thinking") + 1];
+        appendFileSync(${JSON.stringify(marker)}, model + " " + thinking + "\\n");
         console.log(JSON.stringify({type:"message_end", message:{role:"assistant", provider:"github-copilot", model:"gpt-5.4-mini", content:[{type:"text",text:"ASTRA_AUTO_OK"}], stopReason:"stop"}}));
       `);
       process.env.PI_DELEGATE_CLI = `${process.execPath} ${script}`;
@@ -304,16 +305,23 @@ anthropic       claude-sonnet-4.6  200K     32K      yes       yes
       const module = await import(`./delegate.ts?astra-execute=${encodeURIComponent(dir)}`);
       globals.__piclaw_registerAddonConfigApi = previousRegistrar;
       let tool: any;
-      module.default({ on() {}, registerTool(value: any) { tool = value; } });
+      let thinkingLevel = "medium";
+      module.default({ on() {}, getThinkingLevel() { return thinkingLevel; }, registerTool(value: any) { tool = value; } });
       await configApi.set({ searchable_providers: ["github-copilot"] });
       const ctx = { model: { provider: "github-copilot", id: "gpt-6-astra" }, modelRegistry: { getAvailable() { return []; } } };
       const result = await tool.execute("astra-auto", { prompt: "fixture only", task_category: "quick", tools: "read" }, undefined, undefined, ctx);
       expect(result.content).toEqual([{ type: "text", text: expect.stringContaining("ASTRA_AUTO_OK") }]);
-      expect(readFileSync(marker, "utf8")).toBe("github-copilot/gpt-5.4-mini\n");
+      expect(readFileSync(marker, "utf8")).toBe("github-copilot/gpt-5.4-mini medium\n");
+      for (const level of ["off", "minimal", "low", "high", "xhigh", "max"]) {
+        thinkingLevel = level;
+        await tool.execute(`thinking-${level}`, { prompt: "fixture only", task_category: "quick", tools: "read" }, undefined, undefined, ctx);
+        expect(readFileSync(marker, "utf8").trim().split("\n").at(-1)).toBe(`github-copilot/gpt-5.4-mini ${level}`);
+      }
+      const launched = readFileSync(marker, "utf8");
       await expect(tool.execute("unknown", { prompt: "must not launch" }, undefined, undefined, { ...ctx, model: { provider: "github-copilot", id: "gpt-6-unknown" } })).rejects.toThrow("unclassified current model");
       await configApi.set({ searchable_providers: [] });
       await expect(tool.execute("denied", { prompt: "must not launch" }, undefined, undefined, ctx)).rejects.toThrow("No approved executable");
-      expect(readFileSync(marker, "utf8")).toBe("github-copilot/gpt-5.4-mini\n");
+      expect(readFileSync(marker, "utf8")).toBe(launched);
     } finally {
       if (previousRegistrar === undefined) delete globals.__piclaw_registerAddonConfigApi;
       else globals.__piclaw_registerAddonConfigApi = previousRegistrar;
@@ -837,7 +845,7 @@ anthropic       claude-sonnet-4.6  200K     32K      yes       yes
         const prompt=await Bun.stdin.text();
         const key=prompt.match(/fixture-key:([a-z]+)/)[1];
         const model=process.argv[process.argv.indexOf('--model')+1];
-        writeFileSync(${JSON.stringify(dir)}+'/'+key+'-'+model.split('/')[1], 'started');
+        writeFileSync(${JSON.stringify(dir)}+'/'+key+'-'+model.split('/')[1], process.argv[process.argv.indexOf('--thinking')+1]);
         if(key==='fallback'&&model.endsWith('sol')) {
           console.log(JSON.stringify({type:'message_end',message:{role:'assistant',content:[],stopReason:'error',errorMessage:'unknown model: synthetic catalogue unavailable'}}));process.exit(1);
         }
@@ -860,7 +868,7 @@ anthropic       claude-sonnet-4.6  200K     32K      yes       yes
       await api.set({searchable_providers:['github-copilot'],excluded_providers:[],excluded_models:[]});
       const makeSession = () => {
         let tool: any;
-        module.default({on(){},registerTool(value: any){tool=value;}});
+        module.default({on(){},getThinkingLevel(){return 'medium';},registerTool(value: any){tool=value;}});
         const working: Array<string|undefined> = [], statuses: Array<string|undefined> = [];
         const ctx = { model:{provider:'github-copilot',id:'gpt-6-sol'},modelRegistry:{getAvailable(){return [];}},ui:{
           setWorkingMessage(text: string|undefined){working.push(text);},
@@ -900,6 +908,8 @@ anthropic       claude-sonnet-4.6  200K     32K      yes       yes
       expect(third.updates.at(-1)).toContain('Delegate (3 of 3) model:');
       // New calls join the existing group; fallback attempts keep the same ordinal.
       const fallback=start(a,'fallback');await started('fallback','gpt-6-luna');
+      expect(readFileSync(join(dir,'fallback-gpt-6-sol'),'utf8')).toBe('medium');
+      expect(readFileSync(join(dir,'fallback-gpt-6-luna'),'utf8')).toBe('medium');
       expect(fallback.updates.some(text=>text.includes('Delegate (4 of 4) model: github-copilot/gpt-6-sol'))).toBe(true);
       expect(fallback.updates.at(-1)).toContain('Delegate (4 of 4) model: github-copilot/gpt-6-luna');
       expect(first.updates.at(-1)).toContain('Delegate (1 of 4) model:');
