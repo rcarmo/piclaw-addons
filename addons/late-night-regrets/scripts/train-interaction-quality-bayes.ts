@@ -33,7 +33,7 @@
  */
 
 import { Database } from "bun:sqlite";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 
 // ── Types ────────────────────────────────────────────────────────────
@@ -365,7 +365,7 @@ function trainModel(data: AnnotatedMessage[]): Model {
   const classes = [...new Set(data.map(d => d.weakLabel!).filter(Boolean))];
   const classDocCounts: Record<string, number> = Object.fromEntries(classes.map(c => [c, 0]));
   const classTokenTotals: Record<string, number> = Object.fromEntries(classes.map(c => [c, 0]));
-  const tokenCounts: Record<string, Record<string, number>> = Object.fromEntries(classes.map(c => [c, {}]));
+  const tokenCounts: Record<string, Record<string, number>> = Object.fromEntries(classes.map(c => [c, Object.create(null)]));
   const vocabSet = new Set<string>();
 
   for (const row of data) {
@@ -398,7 +398,7 @@ function predict(model: Model, tokens: string[]): { label: string; confidence: n
     const denom = model.classTokenTotals[c] + model.alpha * V;
     const classTok = model.tokenCounts[c];
     for (const [tok, cnt] of Object.entries(counts)) {
-      const n = (classTok[tok] || 0) + model.alpha;
+      const n = (Object.hasOwn(classTok, tok) ? classTok[tok] : 0) + model.alpha;
       score += cnt * Math.log(n / denom);
     }
     logScores[c] = score;
@@ -431,6 +431,13 @@ function categoryDescription(id: string): string {
 }
 
 // ── Main ─────────────────────────────────────────────────────────────
+
+// Periodic weak-label training must not silently replace a reviewed curated model.
+const existingWeights = `${OUT_DIR}/interaction-quality-weights-latest.json`;
+if (existsSync(existingWeights) && JSON.parse(readFileSync(existingWeights, 'utf8')).metadata?.feature_version) {
+  console.log('Curated weights active; weak-label retraining skipped. Use train-curated.ts with a new output path.');
+  process.exit(0);
+}
 
 const db = new Database(DB_PATH, { readonly: true });
 
@@ -600,6 +607,11 @@ const weightsPayload = {
 const weightsPath = `${OUT_DIR}/interaction-quality-weights-${stamp}.json`;
 const weightsLatest = `${OUT_DIR}/interaction-quality-weights-latest.json`;
 writeFileSync(weightsPath, JSON.stringify(weightsPayload));
+// Recheck after training too. Operators must quiesce weak-training jobs before activation.
+if (existsSync(weightsLatest) && JSON.parse(readFileSync(weightsLatest, 'utf8')).metadata?.feature_version) {
+  console.log('Curated weights appeared during training; leaving latest weights and reports unchanged.');
+  process.exit(0);
+}
 writeFileSync(weightsLatest, JSON.stringify(weightsPayload));
 
 // Predictions
