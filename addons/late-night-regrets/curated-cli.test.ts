@@ -17,7 +17,7 @@ test('curated train + recent CLI share schema; rules and real complaint',()=>{
  const add=db.prepare('INSERT INTO messages VALUES(?,?,?,?,?,?)');
  for(const text of ['continue, according to plan','proceed','You forgot the required tests']){const t=new Date().toISOString();add.run('test','web-agent','Smith',t,'Done',null);add.run('test','web-user','User',t,text,null);}db.close();
  p=Bun.spawnSync(['bun',classifyPath,'--db',dbPath,'--weights',weights,'--out-dir',out]);expect(p.exitCode).toBe(0);
- const predictions=readFileSync(join(out,'interaction-quality-recent-latest.jsonl'),'utf8').trim().split('\n').map(JSON.parse);expect(predictions).toHaveLength(3);expect(predictions[0].predicted_label).toBe('neutral');expect(predictions[1].predicted_label).toBe('neutral');expect(predictions[2].predicted_label).toBe('under_delivery');
+ const predictions=readFileSync(join(out,'interaction-quality-recent-latest.jsonl'),'utf8').trim().split('\n').map(line=>JSON.parse(line));expect(predictions).toHaveLength(3);expect(predictions[0].predicted_label).toBe('neutral');expect(predictions[1].predicted_label).toBe('neutral');expect(predictions[2].predicted_label).toBe('under_delivery');
  const payload=JSON.parse(content);payload.metadata.feature_version='future-v99';writeFileSync(weights,JSON.stringify(payload));p=Bun.spawnSync(['bun',classifyPath,'--db',dbPath,'--weights',weights,'--out-dir',out]);expect(p.exitCode).not.toBe(0);
  }finally{rmSync(root,{recursive:true,force:true});}
 });
