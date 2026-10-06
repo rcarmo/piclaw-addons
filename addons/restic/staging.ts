@@ -5,6 +5,7 @@ import { dirname, isAbsolute, join, normalize, relative, resolve, sep } from "no
 import { posix } from "node:path";
 import { Database } from "bun:sqlite";
 import { assertBackupPaths } from "./repository.ts";
+import { runRestic } from "./runner.ts";
 import type { BackupSource, StageManifest, StageResult } from "./contracts.ts";
 
 const SQLITE_HEADER = Buffer.from("SQLite format 3\0", "utf8");
@@ -44,9 +45,6 @@ function normalizeRelativePath(path: string): string {
   if (parts.some(part => !part || part === "." || part === "..")) throw new Error("Restic manifest path is invalid");
   return path;
 }
-function hashBytes(bytes: Uint8Array): string {
-  return createHash("sha256").update(bytes).digest("hex");
-}
 function hashSymlinkTarget(target: string): string {
   return createHash("sha256").update("symlink\0").update(target).digest("hex");
 }
@@ -67,7 +65,7 @@ function runQuickCheck(path: string): void {
   const db = new Database(path, { readonly: true });
   try {
     const rows = db.query("PRAGMA quick_check").all() as Array<Record<string, string>>;
-    if (!rows.length || rows.some(row => Object.values(row)[0] !== "ok")) throw new Error("Restic SQLite quick_check failed");
+    if (!rows.length || rows.some(row => Object.values(row)[0] !== "ok")) throw new Error(`Restic SQLite quick_check failed for ${path}: ${rows.map(row => Object.values(row)[0]).join('; ').slice(0, 1000)}`);
   } finally {
     db.close();
     removeSqliteSidecars(path);
@@ -113,24 +111,21 @@ async function copyRegularFile(source: string, destination: string, mode: number
     await sourceHandle.close();
   }
 }
-async function snapshotSqlite(source: string, destination: string, mode: number): Promise<string> {
-  // SQLITE_OPEN_READONLY | SQLITE_OPEN_NOFOLLOW rejects final symlink substitution.
-  const expected=await lstat(source);
-  if(expected.isSymbolicLink())throw Error("SQLite source is a symlink");
-  const db = new Database(source, 0x1 | 0x01000000);
-  try {
-    const bytes = db.serialize();
-    const after=await lstat(source);
-    if(after.isSymbolicLink()||expected.dev!==after.dev||expected.ino!==after.ino)throw Error("SQLite source changed during snapshot");
-    // Standalone snapshots must not require WAL/SHM files when reopened.
-    bytes[18] = 1; bytes[19] = 1;
-    await writeFile(destination, bytes, { mode });
-    await chmod(destination, mode);
-    runQuickCheck(destination);
-    return hashBytes(bytes);
-  } finally {
-    db.close();
-  }
+async function snapshotSqlite(source: string, destination: string, mode: number, signal?: AbortSignal): Promise<string> {
+  // Keep SQLite page-copy/check work out of the Piclaw process. The helper writes
+  // a standalone disk snapshot; hashing uses the same fixed buffer as file copies.
+  const result = await runRestic({
+    binary: process.execPath,
+    args: ['--no-env-file', join(import.meta.dir, 'sqlite-snapshot.ts'), source, destination],
+    env: { PATH: process.env.PATH || '', TMPDIR: dirname(destination) },
+    signal,
+    timeoutMs: 30 * 60 * 1000,
+    maxOutputBytes: 64 * 1024,
+  });
+  if (result.code !== 0) throw new Error(`Restic SQLite snapshot failed for ${source}: ${result.stderr.slice(-2000)}`);
+  const sha256 = await hashRegularFile(destination, signal);
+  await chmod(destination, mode);
+  return sha256;
 }
 async function isSqliteSidecar(path: string): Promise<boolean> {
   const suffix = SQLITE_SIDECAR_SUFFIXES.find(candidate => path.endsWith(candidate));
@@ -288,7 +283,7 @@ export async function stageSources(sources: BackupSource[], directory: string, e
           const manifestPath = posix.join(source.name, childRelativePath);
           const mode = childStat.mode & 0o777;
           if (await hasSqliteHeader(childSourcePath)) {
-            const sha256 = await snapshotSqlite(childSourcePath, childStagePath, mode);
+            const sha256 = await snapshotSqlite(childSourcePath, childStagePath, mode, signal);
             manifest.files.push({ path: manifestPath, sha256, sqlite: true });
           } else {
             const sha256 = await copyRegularFile(childSourcePath, childStagePath, mode, signal);

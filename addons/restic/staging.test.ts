@@ -145,3 +145,36 @@ test('restore rejects symlinked ancestors and manifests; staging rejects source 
   }finally{staged.cleanup();}
  }finally{rmSync(root,{recursive:true,force:true});}
 });
+
+test('SQLite snapshot never serializes a whole database in the parent and identifies corrupt sources', async () => {
+  const root = fixtureRoot('restic-sqlite-worker');
+  const source = join(root, 'source'), stage = join(root, 'stage');
+  mkdirSync(source);
+  const original = Database.prototype.serialize;
+  Database.prototype.serialize = () => { throw new Error('whole-database serialization forbidden'); };
+  try {
+    const db = new Database(join(source, 'valid.db'));
+    db.exec('CREATE TABLE t(value TEXT); INSERT INTO t(rowid,value) VALUES (7,\'first\'),(90,\'second\');'); db.close();
+    const result = await stageSources([{ name: 'workspace', path: source }], stage, []);
+    expect((await verifyRestore(stage)).databases).toBe(1);
+    const staged = new Database(join(stage, 'workspace', 'valid.db'), { readonly: true });
+    expect(staged.query('SELECT rowid,value FROM t').all()).toEqual([{ rowid: 7, value: 'first' }, { rowid: 90, value: 'second' }]); staged.close(); result.cleanup();
+    writeFileSync(join(source, 'broken.db'), Buffer.concat([Buffer.from('SQLite format 3\0'), Buffer.alloc(100)]));
+    await expect(stageSources([{ name: 'workspace', path: source }], stage, [])).rejects.toThrow('broken.db');
+    expect(existsSync(stage)).toBe(false);
+  } finally { Database.prototype.serialize = original; rmSync(root, { recursive: true, force: true }); }
+});
+
+test('SQLite snapshot restores read-only source permissions after normalising output', async () => {
+  const root = fixtureRoot('restic-readonly-mode');
+  const source = join(root, 'source'); mkdirSync(source);
+  const path = join(source, 'read-only.db');
+  const db = new Database(path); db.exec('CREATE TABLE t(v); INSERT INTO t(rowid,v) VALUES(500,1)'); db.close();
+  const { chmodSync, statSync } = await import('node:fs'); chmodSync(path, 0o444);
+  try {
+    const stage = join(root, 'stage'); const result = await stageSources([{ name: 'workspace', path: source }], stage, []);
+    expect(statSync(join(stage, 'workspace/read-only.db')).mode & 0o777).toBe(0o444);
+    const copy = new Database(join(stage, 'workspace/read-only.db'), { readonly: true });
+    expect(copy.query('SELECT rowid FROM t').get()).toEqual({ rowid: 500 }); copy.close(); result.cleanup();
+  } finally { chmodSync(path, 0o600); rmSync(root, { recursive: true, force: true }); }
+});

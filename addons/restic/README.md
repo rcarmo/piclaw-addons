@@ -1,7 +1,7 @@
 # Restic
 
 One Settings-managed backup job for one repository: local/mounted NAS, SFTP,
-S3-compatible storage or Azure Blob. Requires Piclaw `>=3.2.3`, Bun `>=1.4.1`,
+S3-compatible storage or Azure Blob. Requires Piclaw `>=3.2.3`, Bun `>=1.4.2`,
 and `bzip2` for the explicit managed-binary installation. Backup and retention are **disabled by default**.
 
 ## Configure
@@ -72,11 +72,16 @@ active lock. Keep the instance identity, staging path and recovery materials
 separately, as described in [Recovery and migration](RECOVERY.md).
 
 Every regular file with a SQLite header is read through SQLite, including committed
-WAL data. `Database.serialize()` produces a standalone snapshot which passes
-`quick_check`; the standalone header selects rollback-journal mode. Live files and
-WALs are never deleted. SQLite serialization uses memory proportional to the DB.
-Snapshots are consistent **per database**, not a simultaneous transaction across
-all databases/files. Stop application writes for a globally quiescent backup.
+WAL data. A separate Bun worker uses `node:sqlite.backup` to copy pages into a
+standalone disk snapshot, preserving implicit row IDs. SQLite page caches are
+bounded and mmap is disabled; streaming hashing avoids a whole-database JavaScript
+buffer in Piclaw. The helper has a 30-minute timeout and inherits cancellation and
+process-group cleanup. It normalises journal mode, runs `quick_check`, then restores
+file permissions. Source-path diagnostics identify failing databases. This path is
+qualified on Bun 1.4.2; a missing builtin fails the job rather than falling back to
+unsafe copying. Live files and WALs are never deleted. Snapshots are consistent
+**per database**, not a simultaneous transaction across all databases/files. Stop
+application writes for a globally quiescent backup.
 
 Relative symlinks are preserved only within a source root; absolute/escaping links,
 special files, missing roots, empty output and unreadable files fail explicitly.
