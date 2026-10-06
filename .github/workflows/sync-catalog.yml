@@ -8,14 +8,18 @@ on:
     paths:
       - 'addons/**'
       - 'scripts/sync-catalog.ts'
+      - 'catalog.json'
+      - 'package.json'
       - '.github/workflows/sync-catalog.yml'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   sync:
     runs-on: ubuntu-latest
+    permissions:
+      contents: ${{ github.event_name == 'workflow_dispatch' && 'write' || 'read' }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -34,13 +38,16 @@ jobs:
         with:
           bun-version: ${{ steps.bun-version.outputs.version }}
 
-      - name: Regenerate catalog and root package metadata
-        run: bun run sync:catalog
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
+      - name: Verify checked-in catalog and root package metadata
+        if: github.event_name != 'workflow_dispatch'
+        run: bun run check:catalog
 
-      - name: Commit changes
+      - name: Regenerate catalog and root package metadata (manual repair)
+        if: github.event_name == 'workflow_dispatch'
+        run: bun run sync:catalog
+
+      - name: Commit changes (manual repair)
+        if: github.event_name == 'workflow_dispatch'
         run: |
           if git diff --quiet -- package.json catalog.json; then
             echo "No metadata changes"

@@ -118,10 +118,12 @@ See:
 
 A merged pull request can trigger separate workflows on `main`:
 
-1. **validate-metadata** — checks catalog metadata and the Earendil compatibility surface on pull requests and `main`
-2. **sync-catalog** — regenerates `catalog.json` and root `package.json` metadata after add-on or catalog-script changes
+1. **validate-metadata** — called by the build workflow to check catalog metadata, generation tests and the Earendil compatibility surface on pull requests and `main`
+2. **sync-catalog** — checks metadata on `main` without writing or pushing; stale metadata fails the job. `workflow_dispatch` explicitly regenerates and commits repairs
 3. **build + deploy** — rebuilds the site and public `.tgz` files after add-on, catalog, asset, or build changes
 4. **publish** — mirrors version-bumped add-ons to GitHub Packages for archival or alternate consumption
+
+Include generated metadata in each PR: run `bun run sync:catalog`, then `bun run check:catalog`. Generation preserves owner/contributor fields. `updatedAt` records the first generated date for an add-on version and stays stable across later commits and merges. A manual repair commit follows the ordinary validation and publication workflow.
 
 The supported first-party runtime install path is the **GitHub Pages tarball URL**, not npm registry resolution.
 

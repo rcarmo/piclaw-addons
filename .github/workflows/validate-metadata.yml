@@ -30,6 +30,9 @@ jobs:
       - name: Validate catalog and root package metadata
         run: bun run check:catalog
 
+      - name: Test catalog generation and sync workflow
+        run: bun test sync-catalog.test.ts
+
       - name: Test public package builder
         run: bun test build.test.ts
 
