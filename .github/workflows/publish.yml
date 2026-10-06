@@ -1,11 +1,10 @@
 name: Publish archive packages to GitHub Packages
 
 on:
-  push:
+  workflow_run:
+    workflows: ["Build & deploy docs + tarballs"]
+    types: [completed]
     branches: [main]
-    paths:
-      - 'addons/**/package.json'
-  workflow_dispatch:
 
 concurrency:
   group: publish
@@ -21,11 +20,18 @@ permissions:
 # alternate-consumption only.
 jobs:
   publish:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.event != 'pull_request' && github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 2
+
+      - name: Verify validated source
+        env:
+          VALIDATED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: test "$(git rev-parse HEAD)" = "$VALIDATED_SHA"
 
       - name: Resolve Bun version
         id: bun-version
@@ -45,6 +51,7 @@ jobs:
 
       - name: Publish version-bumped addons
         run: |
+          set -euo pipefail
           for dir in addons/*/; do
             [ -f "$dir/package.json" ] || continue
             slug=$(basename "$dir")

@@ -91,4 +91,4 @@ The child has no conversation history. Include all necessary facts, paths, const
 - Bad: `"Fix the bug we discussed."`
 - Good: `"Read src/cache.ts and tests/cache.test.ts. Diagnose why stale entries survive invalidate(), propose the smallest fix, and return a patch outline."`
 
-Use the final result normally. While it runs, Delegate may emit bounded structured status/tool progress. It retries automatically only for provider setup, authentication, or unavailable-model failures; ordinary execution, protocol, timeout, cancellation, and rate-limit failures are returned without retry.
+Use the final result normally. While it runs, Delegate may emit bounded structured status/tool progress. It retries automatically only for provider setup or unavailable-model failures; authentication, ordinary execution, protocol, timeout, cancellation, and rate-limit failures stop. Expiry/logout must not switch account/provider.

@@ -6,18 +6,7 @@ name: Build & deploy docs + tarballs
 on:
   push:
     branches: [main]
-    paths:
-      - 'catalog.json'
-      - 'build.ts'
-      - '.github/workflows/build.yml'
-      - 'assets/**'
-      - 'addons/**'
-      - 'addons/**/package.json'
   pull_request:
-    paths:
-      - '.github/workflows/build.yml'
-      - 'addons/**'
-      - 'tests/addon-e2e/**'
   workflow_dispatch:
 
 concurrency:
@@ -30,10 +19,16 @@ permissions:
   id-token: write
 
 jobs:
+  validation:
+    uses: ./.github/workflows/validate-metadata.yml
+
   build:
+    needs: validation
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - name: Pin browser cache before isolating HOME
         # GITHUB_ENV keeps install and lookup aligned after HOME/XDG_CACHE_HOME change.
         run: echo "PLAYWRIGHT_BROWSERS_PATH=$RUNNER_TEMP/piclaw-addon-playwright" >> "$GITHUB_ENV"
@@ -48,6 +43,15 @@ jobs:
           bun-version: ${{ steps.bun-version.outputs.version }}
       - name: Install add-on repository dependencies
         run: bun install --frozen-lockfile
+      - name: Validate catalog and publication contracts
+        id: catalog
+        run: |
+          bun run check:catalog
+          bun test publication.test.ts
+      - name: Record validated source
+        run: |
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          printf '%s\n' "$GITHUB_SHA" > publication-source.txt
       - name: Detect add-on UX tests
         id: addon_tests
         run: |
@@ -61,7 +65,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: rcarmo/piclaw
-          ref: main
+          ref: e4c2b9a3536eb64361da86237a4dfc970d772682 # Piclaw v3.3.0
           path: .piclaw-runtime
       - name: Install Piclaw runtime dependencies
         if: steps.addon_tests.outputs.present == 'true'
@@ -83,8 +87,10 @@ jobs:
         if: steps.addon_tests.outputs.present == 'true'
         run: |
           export PICLAW_INTERNAL_SECRET=$(openssl rand -hex 16)
+          echo "::add-mask::$PICLAW_INTERNAL_SECRET"
           echo "PICLAW_INTERNAL_SECRET=$PICLAW_INTERNAL_SECRET" >> "$GITHUB_ENV"
           export PICLAW_KEYCHAIN_KEY=$(openssl rand -hex 32)
+          echo "::add-mask::$PICLAW_KEYCHAIN_KEY"
           echo "PICLAW_KEYCHAIN_KEY=$PICLAW_KEYCHAIN_KEY" >> "$GITHUB_ENV"
           export PICLAW_WEB_PORT=3000
           export PICLAW_WEB_HOST=127.0.0.1
@@ -106,8 +112,15 @@ jobs:
           # an add-on-local lockfile, using the test server's sanitised environment.
           remote_peer_dir="$PICLAW_WORKSPACE/.pi/extensions/node_modules/@rcarmo/piclaw-addon-remote-peer"
           test ! -e "$remote_peer_dir/bun.lock" && test ! -e "$remote_peer_dir/bun.lockb"
+          test ! -L "$remote_peer_dir/node_modules"
+          peer_json="$PICLAW_PREP_ROOT/node_modules/@earendil-works/pi-ai/package.json"
+          partial_json="$PICLAW_PREP_ROOT/node_modules/partial-json/package.json"
+          peer_before=$(sha256sum "$peer_json" "$partial_json")
           bun run scripts/run-test-instance.ts -- \
             bun install --cwd "$remote_peer_dir" --omit peer --ignore-scripts
+          test "$peer_before" = "$(sha256sum "$peer_json" "$partial_json")"
+          bun run scripts/run-test-instance.ts -- \
+            bun --no-env-file tests/addon-e2e/scripts/check-prepared-dependencies.ts
 
           PICLAW_E2E_INTERNAL_SECRET="$PICLAW_INTERNAL_SECRET" PICLAW_E2E_KEYCHAIN_KEY="$PICLAW_KEYCHAIN_KEY" \
             bun run scripts/run-test-instance.ts -- bun run .piclaw-runtime/runtime/src/index.ts > /tmp/piclaw-addon-e2e.log 2>&1 &
@@ -125,6 +138,7 @@ jobs:
           cat /tmp/piclaw-addon-e2e.log >&2 || true
           exit 1
       - name: Run add-on UX tests
+        id: ux
         if: steps.addon_tests.outputs.present == 'true'
         run: PICLAW_ADDON=all bun run test -- --project=desktop-chrome
         working-directory: tests/addon-e2e
@@ -149,17 +163,43 @@ jobs:
       - name: Stop Piclaw add-on UX test instance
         if: always() && steps.addon_tests.outputs.present == 'true'
         run: kill $SERVER_PID 2>/dev/null || true
+      - name: Upload failure diagnostics
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@v7
+        with:
+          name: publication-failure-diagnostics
+          path: |
+            publication-source.txt
+            /tmp/piclaw-addon-e2e.log
+            tests/addon-e2e/reports/
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Require completed publication gates
+        if: success() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        env:
+          CATALOG_OUTCOME: ${{ steps.catalog.outcome }}
+          UX_REQUIRED: ${{ steps.addon_tests.outputs.present }}
+          UX_OUTCOME: ${{ steps.ux.outcome }}
+        run: |
+          test "$CATALOG_OUTCOME" = success
+          case "$UX_REQUIRED:$UX_OUTCOME" in
+            true:success|false:skipped) ;;
+            *) echo "Missing or unsuccessful required publication gate" >&2; exit 1 ;;
+          esac
       - name: Build site and package tarballs
-        if: always() && github.event_name != 'pull_request'
+        if: success() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         run: bun run build.ts
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
       - name: Copy assets into docs
-        if: always() && github.event_name != 'pull_request'
-        run: mkdir -p docs/assets && cp -r assets/* docs/assets/
+        if: success() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        run: |
+          mkdir -p docs/assets
+          cp -r assets/* docs/assets/
+          cp publication-source.txt docs/publication-source.txt
       - name: Deploy to GitHub Pages
-        if: always() && github.event_name != 'pull_request'
+        if: success() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}

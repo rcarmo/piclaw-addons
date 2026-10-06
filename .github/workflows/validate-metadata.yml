@@ -1,10 +1,7 @@
 name: validate-metadata
 
 on:
-  pull_request:
-  push:
-    branches:
-      - main
+  workflow_call:
 
 jobs:
   validate:

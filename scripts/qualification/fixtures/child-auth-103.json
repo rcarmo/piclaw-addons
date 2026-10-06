@@ -1,0 +1,129 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-05T19:52:52.977Z",
+  "referenceGitHead": "d78dc83d633229d12f8b79631384c4c2717c399f",
+  "runtime": "1.4.2",
+  "filesCompared": 564,
+  "receipt": {
+    "version": "1.0.3",
+    "runtime": "1.4.2",
+    "rows": [
+      {
+        "mode": "rotate",
+        "authRequests": 2,
+        "observations": 2,
+        "advanced": 1,
+        "refreshes": 1,
+        "exit": 0,
+        "signal": null,
+        "secrecy": "pass",
+        "childFetchAttempts": 0
+      },
+      {
+        "mode": "api-key-env",
+        "authRequests": 2,
+        "observations": 2,
+        "advanced": 1,
+        "refreshes": 0,
+        "exit": 0,
+        "signal": null,
+        "secrecy": "pass",
+        "childFetchAttempts": 0
+      },
+      {
+        "mode": "logout",
+        "authRequests": 2,
+        "observations": 1,
+        "advanced": 1,
+        "refreshes": 0,
+        "exit": 0,
+        "signal": null,
+        "secrecy": "pass",
+        "childFetchAttempts": 0
+      },
+      {
+        "mode": "denied",
+        "authRequests": 1,
+        "observations": 0,
+        "advanced": 0,
+        "refreshes": 0,
+        "exit": 0,
+        "signal": null,
+        "secrecy": "pass",
+        "childFetchAttempts": 0
+      },
+      {
+        "mode": "disconnect",
+        "authRequests": 2,
+        "observations": 1,
+        "advanced": 1,
+        "refreshes": 0,
+        "exit": 0,
+        "signal": null,
+        "secrecy": "pass",
+        "childFetchAttempts": 0
+      },
+      {
+        "mode": "terminate",
+        "authRequests": 2,
+        "observations": 1,
+        "advanced": 1,
+        "refreshes": 0,
+        "exit": null,
+        "signal": "SIGKILL",
+        "secrecy": "pass",
+        "childFetchAttempts": 0
+      }
+    ],
+    "networkAttempts": 0,
+    "scope": "synthetic public extension/provider IPC seam only; not production Delegate or real-provider parity"
+  },
+  "sandbox": {
+    "capabilities": {
+      "CapEff": "0000000000000000",
+      "CapPrm": "0000000000000000",
+      "CapBnd": "0000000000000000",
+      "CapAmb": "0000000000000000"
+    },
+    "noNewPrivs": 1,
+    "nonRoot": true,
+    "devices": [
+      "lo"
+    ]
+  },
+  "packageIntegrity": {
+    "pi-ai": "sha512-p+/EUrbmfT0xWOtL/NJRtWOsyzcKKFSyiivHLDBMG0DUVpHdaIykd5jFibq0YZDFGBN/nv61zdOelMb+ylPfSg==",
+    "pi-coding-agent": "sha512-t2lb0dw4y/jr5a2PRo6eTHGTZOPB3/YAMVyhhYFC1W3Hl5xE+462I/gMWjF4gCLuhGipNEfuNqONFmdqLFz4SQ=="
+  },
+  "archiveSha256": {
+    "pi-ai": "dd8995fb1df3ca3e2bd033053bd2c28b40c44bb7f53c253578ca68082611e0ee",
+    "pi-coding-agent": "106eadb1f823f72f012c08f23bd36e435f9e62f6c81e98a5d8f70c8a9543dd05"
+  },
+  "fingerprints": {
+    "scripts/qualification/delegate-auth-103-parent.ts": "9ce32c4dcd6e8402d10a11b4d9a9fdd48f35d1fdf9e1cf7812949d25835c30f2",
+    "scripts/qualification/delegate-auth-103-child.ts": "f0df77a94d7871e20065b8f7590e96ac3b49133469e3759bc4b0e2c609831eb9"
+  },
+  "rawLogSha256": "a23ea87fecb508368ea0c83257f412e293083a7e100161b1eb061988de63b95c",
+  "run": {
+    "pass": 1,
+    "fail": 0,
+    "assertions": 587
+  },
+  "failures": [
+    {
+      "qualifying": false,
+      "reason": "Initial manually copiedcoding-agentSHA512valuewaswrong; integritycheckrejectedbeforechildexecution",
+      "logSha256": "71aea5c793443a9ebd1dd8920d7bce542b45857c653521a7a9ec4dc0ac892610"
+    }
+  ],
+  "limits": [
+    "synthetic provider only",
+    "production Delegate unchanged",
+    "no cooperative request cancellation proof",
+    "no atomic logout-to-dispatch guarantee",
+    "ambient/custom-provider parity unqualified",
+    "no live credentials or network/inference",
+    "no filesystem sandbox",
+    "currentauthpipe qualification doesnot establishpublic rawauth/provider settlement oraccountgeneration"
+  ]
+}

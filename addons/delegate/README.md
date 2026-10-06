@@ -4,10 +4,23 @@ Delegate runs self-contained work in a fresh, ephemeral child Pi and restricts e
 
 Requires Piclaw `>=1.8.0`.
 
+Version `0.2.18` passes the parent's current thinking level to each plain child
+subprocess, including fallback attempts. Pi applies the selected model's supported
+levels. Model approval, tools, timeouts and process cleanup are unchanged.
+
+Version `0.2.17` resolves the child Pi CLI from the running Piclaw release before
+add-on-local dependencies, including portable releases and symlinked launchers.
+`PI_DELEGATE_CLI` remains the highest-priority explicit override. A recognised
+Piclaw release with a missing/invalid Pi manifest fails rather than silently
+launching another version; standalone fallback remains available outside Piclaw.
+Discovery and execution share one selected CLI, and cache entries cannot cross
+CLI path/package-version/file-identity changes. Settings reports the selected
+path and manifest version. Authentication and MCP qualification remain separate.
+
 Version `0.2.15` follows the installed Pi package's public `bin.pi` entry instead
 of guessing `dist/cli.js`. Pi 1.0.0 publishes `dist/bundle/cli.js`; valid older
 manifests still work. This resolver change does not qualify child authentication,
-selected-engine MCP or the full Pi 1.0.0 migration. See [CLI resolver evidence](CLI-100.md).
+selected-engine MCP or the full Pi 1.0.0 migration. See historical [CLI resolver evidence](CLI-100.md) and [current Pi 1.0.3 synthetic qualification](../../scripts/qualification/DELEGATE-AUTH-103.md). The current CLI/auth receipts do not qualify production credential/environment inheritance, raw cleanup settlement or account-generation authority.
 
 Version `0.2.14` prepares exact `gpt-6.1-sol` recognition at tier 3, with the same
 selection preference as GPT-6 Sol. Provider approval, exact child-CLI discovery,
@@ -50,7 +63,7 @@ The Settings pane lists the resulting **Approved delegate models**. That list is
 - **Capability filtering** — image input requires catalog-confirmed image support. Reasoning, context-window, and output-limit metadata are retained for diagnostics.
 - **Ephemeral structured execution** — the child runs with `--mode json --no-session --no-extensions`; Delegate parses structured messages, tool progress, usage, model, stop reason, and errors.
 - **Bounded lifecycle** — one total deadline covers all fallback attempts; cancellation terminates the process tree, output buffers are bounded, and no child session is persisted.
-- **Restricted fallback** — automatic retry occurs only for classified provider setup, authentication, or model-unavailable failures. A non-zero exit never succeeds merely because partial text was emitted.
+- **Restricted fallback** — automatic retry occurs only for classified provider setup or model-unavailable failures. Authentication, expiry and logout stop without account/provider fallback. A non-zero exit never succeeds merely because partial text was emitted.
 - **Narrow tool loading** — Delegate loads Pi's requested core tool profile plus the explicitly discovered MCP adapter; it does not inherit or scan arbitrary workspace/add-on extensions.
 - **Catalog diagnostics** — Settings shows runtime/CLI counts, eligible and runtime-only models, unclassified/rejected models and reasons, cache age, refresh failures, capabilities, and effective exclusions.
 
@@ -150,14 +163,14 @@ Delegate keeps these roles separate:
 2. **Executable catalog** — child `pi --list-models`; the only source of subprocess candidates.
 3. **Current model** — classified independently to establish the automatic tier ceiling.
 
-Executable discovery is cached for 60 seconds. A manual Settings refresh invalidates it. Failed refreshes preserve the last known-good snapshot, expose the error, and remain stale so the next request retries automatically.
+Executable discovery is cached for 60 seconds. A manual Settings refresh invalidates it. Failed refreshes preserve the last known-good snapshot only for the same CLI identity, expose the error, and remain stale so the next request retries automatically. A different CLI starts with an empty catalogue; it cannot inherit another runtime's executable models.
 
 ## Failure and timeout behavior
 
 - Default timeout: **120 seconds**; allowed range: **10–300 seconds**.
 - The timeout is one total deadline across the initial attempt and every fallback.
 - Cancellation and timeout terminate the child process group, escalating from `SIGTERM` to `SIGKILL` if necessary.
-- Automatic fallback is limited to provider setup, authentication, and unavailable-model errors.
+- Automatic fallback is limited to provider setup and unavailable-model errors. Authentication failures stop the chain without switching account/provider.
 - Protocol failures, malformed JSON, timeouts, aborts, rate limits, tool failures, and ordinary execution errors are not retried.
 - Final response text is capped at **50,000 characters**; structured output and stderr buffers are bounded separately.
 

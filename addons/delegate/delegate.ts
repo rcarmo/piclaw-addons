@@ -9,6 +9,7 @@
 import { spawn as nodeSpawn } from "node:child_process";
 import { closeSync, existsSync, openSync, readFileSync, readSync, realpathSync, statSync } from "node:fs";
 import { delimiter, dirname, isAbsolute, relative, resolve, join, sep, win32 } from "node:path";
+import { createRequire } from "node:module";
 import { StringDecoder } from "node:string_decoder";
 import { fileURLToPath } from "node:url";
 
@@ -129,6 +130,7 @@ type DelegateCliResolveOptions = {
   exists?: (path: string) => boolean;
   isExecutable?: (path: string, platform: string) => boolean;
   resolvePackageCli?: () => string | null;
+  hostEntryPoint?: string | null;
 };
 
 const PI_CODING_AGENT_PACKAGE = `@earendil-works/${"pi-coding-agent"}`;
@@ -216,6 +218,70 @@ export function resolvePackagePiCliPath(resolvePackage: (specifier: string) => s
   }
 }
 
+// Resolve once before a portable "current" symlink can be switched by an upgrade.
+const RUNNING_ENTRYPOINT = (() => { try { return realpathSync(process.argv[1] || ""); } catch { return null; } })();
+
+/** Resolve Pi relative to the running Piclaw package, never relative to this add-on. */
+export function resolveRunningPiclawCli(entryPoint: string | null): string | null {
+  if (!entryPoint) return null;
+  let entry: string;
+  try { entry = realpathSync(entryPoint); } catch { return null; }
+  let directory = dirname(entry);
+  while (true) {
+    const manifestPath = join(directory, "package.json");
+    let manifest: any;
+    try { manifest = JSON.parse(readFileSync(manifestPath, "utf8")); } catch { /* not a package boundary */ }
+    if (manifest?.name === "piclaw") {
+      const hostRequire = createRequire(entry);
+      const cli = resolvePackagePiCliPath((specifier) => hostRequire.resolve(specifier));
+      if (!cli) throw new Error("Running Piclaw release has no valid Pi CLI manifest; repair the release or set PI_DELEGATE_CLI explicitly.");
+      return cli;
+    }
+    // Another package owns this entrypoint: standalone Pi/test processes must keep normal fallback.
+    if (manifest?.name) return null;
+    const parent = dirname(directory);
+    if (parent === directory) return null;
+    directory = parent;
+  }
+}
+
+/** Freeze PATH/shim resolution for both catalog discovery and child execution. */
+export function pinDelegateCliCommand(cli: DelegateCliCommand, env: Record<string,string|undefined> = process.env): DelegateCliCommand {
+  const command = isAbsolute(cli.command) || cli.command.includes("/") || cli.command.includes("\\")
+    ? cli.command : findExecutableOnPath(cli.command, env, process.platform);
+  if (!command) throw new Error("Delegate CLI executable is unavailable; check the running release or PI_DELEGATE_CLI.");
+  let resolved: string;
+  try { resolved = realpathSync(command); } catch { throw new Error("Delegate CLI executable is unavailable; check the running release or PI_DELEGATE_CLI."); }
+  const argsPrefix = cli.argsPrefix.map(arg => {
+    // Keep flags/literals unchanged; pin a file argument if it resolves locally.
+    try { return !arg.startsWith("-") && statSync(arg).isFile() ? realpathSync(arg) : arg; } catch { return arg; }
+  });
+  return { command: resolved, argsPrefix, label: [resolved, ...argsPrefix].join(" ") };
+}
+
+export function delegateCliDiagnostics(cli: DelegateCliCommand) {
+  const canonical = (path: string) => { try { return realpathSync(path); } catch { return path; } };
+  const entry = cli.argsPrefix[0];
+  let packageVersion: string | null = null;
+  if (entry && isAbsolute(entry)) {
+    let directory = dirname(canonical(entry));
+    while (true) {
+      const manifestPath = join(directory, "package.json");
+      try {
+        const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+        if (manifest.name === PI_CODING_AGENT_PACKAGE && resolvePiPackageCli(manifestPath) === canonical(entry)) {
+          packageVersion = typeof manifest.version === "string" ? manifest.version : null;
+          break;
+        }
+      } catch { /* diagnostics cannot make an explicit command invalid */ }
+      const parent = dirname(directory); if (parent === directory) break; directory = parent;
+    }
+  }
+  const stamp = (path: string) => { try { const st = statSync(path); return [canonical(path), st.dev, st.ino, st.size, st.mtimeMs]; } catch { return [path]; } };
+  return { command: cli.command, path: entry || cli.command, package_version: packageVersion,
+    identity: JSON.stringify([stamp(cli.command), cli.argsPrefix.map(stamp), packageVersion]) };
+}
+
 function candidatePiCliPaths(env: Record<string, string | undefined>, resolvePackageCli: () => string | null): string[] {
   const manifests = new Set([
     join(env.BUN_INSTALL || "/usr/local/lib/bun", "install/global/node_modules", PI_CODING_AGENT_PACKAGE, "package.json"),
@@ -236,6 +302,9 @@ export function resolveDelegateCliCommand(options: DelegateCliResolveOptions = {
     const [command, ...argsPrefix] = override.split(/\s+/).filter(Boolean);
     if (command) return { command, argsPrefix, label: override };
   }
+
+  const hostCli = resolveRunningPiclawCli(options.hostEntryPoint === undefined ? RUNNING_ENTRYPOINT : options.hostEntryPoint);
+  if (hostCli && execPath) return { command: execPath, argsPrefix: [hostCli], label: `${execPath} ${hostCli}` };
 
   // Prefer invoking the Pi CLI JS entrypoint through the current runtime. This
   // avoids shebangs like `#!/usr/bin/env node`, so delegate works when Node is
@@ -313,6 +382,9 @@ export interface RuntimeCatalogSnapshot {
 
 export interface ExecutableCatalogSnapshot {
   source: "cli";
+  cli: DelegateCliCommand;
+  cliIdentity: string;
+  cliPackageVersion: string | null;
   models: AvailableModel[];
   refreshedAt: number | null;
   lastAttemptAt: number | null;
@@ -672,11 +744,14 @@ export function selectModel(
   return null;
 }
 
-/** Detect provider authentication/credential errors so delegate can fall back to another model. */
+/** Detect authentication failures that must stop the attempt without account/provider fallback. */
 export function isProviderAuthError(text: unknown): boolean {
   const value = String(text || "").toLowerCase();
   if (!value) return false;
-  return value.includes("no api key for provider")
+  return /\b(?:no|missing|invalid)\s+api[ -]?key\b/.test(value)
+    || /\b(?:invalid|expired|revoked)\s+(?:access[ -]?|refresh[ -]?|bearer[ -]?)?token\b/.test(value)
+    || /\b(?:token|credentials?|authentication)\s+(?:has\s+|have\s+)?(?:expired|revoked)\b/.test(value)
+    || /\blogged[ -]?out\b/.test(value)
     || value.includes("missing api key")
     || value.includes("no credentials")
     || value.includes("not authenticated")
@@ -698,7 +773,7 @@ export function classifyDelegateFailure(text: unknown): DelegateFailureKind {
 }
 
 export function isRetryableDelegateFailure(kind: DelegateFailureKind): boolean {
-  return kind === "auth" || kind === "model-unavailable" || kind === "provider-setup";
+  return kind === "model-unavailable" || kind === "provider-setup";
 }
 
 export function buildDelegateModelChain(
@@ -843,13 +918,12 @@ export function parsePiListModelsOutput(output: string): AvailableModel[] {
   return models;
 }
 
-function runPiListModels(timeoutMs = 20_000, signal?: AbortSignal): Promise<string> {
+function runPiListModels(cli: DelegateCliCommand, timeoutMs = 20_000, signal?: AbortSignal): Promise<string> {
   return new Promise((resolvePromise, reject) => {
     if (signal?.aborted) {
       reject(new Error("Aborted during Delegate model discovery"));
       return;
     }
-    const cli = resolveDelegateCliCommand();
     const child = nodeSpawn(cli.command, [...cli.argsPrefix, "--list-models"], {
       cwd: getDelegateWorkspaceRoot(),
       stdio: ["ignore", "pipe", "pipe"],
@@ -917,6 +991,7 @@ function runPiListModels(timeoutMs = 20_000, signal?: AbortSignal): Promise<stri
 const MODEL_CATALOG_TTL_MS = Math.max(5_000, Number(process.env.PI_DELEGATE_MODEL_CACHE_TTL_MS || "60000"));
 let runtimeCatalogSnapshot: RuntimeCatalogSnapshot | null = null;
 let executableCatalogSnapshot: ExecutableCatalogSnapshot | null = null;
+let executableCatalogGeneration = 0;
 
 export function invalidateExecutableCatalog(): void {
   if (executableCatalogSnapshot) executableCatalogSnapshot.stale = true;
@@ -933,36 +1008,53 @@ export async function getExecutableCatalog(
   refresh = false,
   timeoutMs = 20_000,
   signal?: AbortSignal,
+  selectedCli: DelegateCliCommand = pinDelegateCliCommand(resolveDelegateCliCommand()),
 ): Promise<ExecutableCatalogSnapshot> {
+  const generation = ++executableCatalogGeneration;
   const now = Date.now();
-  if (!refresh && executableCatalogSnapshot && executableCatalogIsFresh(executableCatalogSnapshot, now)) {
+  selectedCli = pinDelegateCliCommand(selectedCli);
+  const diagnostics = delegateCliDiagnostics(selectedCli);
+  const previous = executableCatalogSnapshot;
+  const sameCli = previous?.cliIdentity === diagnostics.identity;
+  if (!refresh && sameCli && executableCatalogSnapshot && executableCatalogIsFresh(executableCatalogSnapshot, now)) {
     return executableCatalogSnapshot;
   }
   try {
-    const output = await runPiListModels(timeoutMs, signal);
+    const output = await runPiListModels(selectedCli, timeoutMs, signal);
+    if (delegateCliDiagnostics(selectedCli).identity !== diagnostics.identity) throw new Error("Delegate CLI changed during discovery; retry with the current release.");
     const models = parsePiListModelsOutput(output);
     if (models.length === 0) throw new Error("pi --list-models returned no executable models");
-    executableCatalogSnapshot = {
+    const snapshot: ExecutableCatalogSnapshot = {
       source: "cli",
+      cli: selectedCli,
+      cliIdentity: diagnostics.identity,
+      cliPackageVersion: diagnostics.package_version,
       models,
       refreshedAt: Date.now(),
       lastAttemptAt: now,
       lastError: null,
       stale: false,
     };
+    if (generation === executableCatalogGeneration) executableCatalogSnapshot = snapshot;
+    return snapshot;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    executableCatalogSnapshot = {
+    const retainPrevious = sameCli && delegateCliDiagnostics(selectedCli).identity === diagnostics.identity;
+    const snapshot: ExecutableCatalogSnapshot = {
       source: "cli",
-      models: executableCatalogSnapshot?.models ?? [],
-      refreshedAt: executableCatalogSnapshot?.refreshedAt ?? null,
+      cli: selectedCli,
+      cliIdentity: diagnostics.identity,
+      cliPackageVersion: diagnostics.package_version,
+      models: retainPrevious ? previous?.models ?? [] : [],
+      refreshedAt: retainPrevious ? previous?.refreshedAt ?? null : null,
       lastAttemptAt: now,
       lastError: message,
       stale: true,
     };
+    if (generation === executableCatalogGeneration) executableCatalogSnapshot = snapshot;
     if (signal?.aborted || (timeoutMs < 20_000 && /timed out/i.test(message))) throw error;
+    return snapshot;
   }
-  return executableCatalogSnapshot;
 }
 
 async function getDiscoveredModels(refresh = false): Promise<AvailableModel[]> {
@@ -1252,7 +1344,9 @@ async function handleGetModels(refresh = false) {
   return {
     ok: true,
     config,
-    cli: resolveDelegateCliCommand().label,
+    cli: executable.cli.label,
+    cli_path: executable.cli.argsPrefix[0] || executable.cli.command,
+    cli_package_version: executable.cliPackageVersion,
     discovery_error: executable.lastError,
     cache: {
       ttl_ms: MODEL_CATALOG_TTL_MS,
@@ -1407,7 +1501,8 @@ export default function (pi: any) {
       const config = loadConfig();
       runtimeCatalogSnapshot = await captureRuntimeCatalog(ctx, runtimeCatalogSnapshot);
       remainingBudget("runtime model refresh");
-      const executableCatalog = await getExecutableCatalog(false, Math.min(20_000, remainingBudget("model discovery")), signal);
+      const selectedCli = pinDelegateCliCommand(resolveDelegateCliCommand());
+      const executableCatalog = await getExecutableCatalog(false, Math.min(20_000, remainingBudget("model discovery")), signal, selectedCli);
       remainingBudget("model discovery");
       const discoveredModels = mergeExecutableRuntimeMetadata(executableCatalog.models, runtimeCatalogSnapshot.models);
       const discoveredCandidates = buildModelCandidates(discoveredModels, config);
@@ -1543,15 +1638,15 @@ export default function (pi: any) {
       for (const att of attachmentArgs) staticArgs.push(att);
 
       // Ordered models to attempt. An explicit selection is used verbatim (no fallback);
-      // auto-selection falls back across providers if a model has no usable credentials,
-      // so a single keyless provider (e.g. openai-codex) cannot keep breaking delegation.
+      // automatic fallback covers catalogue/setup incompatibility only. Credential
+      // failure must not change the account/provider after logout or expiry.
       const modelChain = requestedModel
         ? [effectiveModel]
         : buildDelegateModelChain(effectiveCategory, maxTier!, currentModelId, eligibleCandidates);
       if (!modelChain.includes(effectiveModel)) modelChain.unshift(effectiveModel);
 
-      // One total deadline covers discovery, setup, and all attempts. Setup/auth/model-unavailable
-      // failures may fall back, while execution/protocol failures stop immediately.
+      // One total deadline covers discovery, setup, and all attempts. Setup/model-unavailable
+      // failures may fall back, while auth/execution/protocol failures stop immediately.
       remainingBudget("delegate setup");
       const attemptFailures: Array<{ model: string; kind: DelegateFailureKind; message: string }> = [];
       let lastAttemptedModel = effectiveModel;
@@ -1563,6 +1658,7 @@ export default function (pi: any) {
           // Keep a final fail-closed gate next to process creation so future
           // selection/fallback changes cannot launch a model outside policy.
           assertApprovedDelegateModelAttempt(attemptModel, eligibleCandidates);
+          if (delegateCliDiagnostics(selectedCli).identity !== executableCatalog.cliIdentity) throw new Error("Delegate CLI changed after discovery; retry with the current release.");
           lastAttemptedModel = attemptModel;
           const remainingMs = deadlineAt - Date.now();
           if (remainingMs <= 0) throw new Error(`timed out after ${timeout}s`);
@@ -1581,12 +1677,18 @@ export default function (pi: any) {
           runningDelegates.set(progressId, publishProgress);
           refreshProgress();
           const piArgs = ["--mode", "json", "--no-session", "--no-extensions", "--model", attemptModel, "--tools", toolsArg, ...staticArgs];
+          // Read at launch so later calls and fallback attempts follow session changes.
+          const thinkingLevel = pi.getThinkingLevel?.();
+          if (thinkingLevel !== undefined) piArgs.push("--thinking", thinkingLevel);
+          // Progress callbacks are synchronous and may change files; fence again after publishing.
+          if (delegateCliDiagnostics(selectedCli).identity !== executableCatalog.cliIdentity) throw new Error("Delegate CLI changed after discovery; retry with the current release.");
           const processResult = await runDelegateProcess(
             piArgs,
             fullPrompt,
             remainingMs,
             signal,
             (update) => { progress = update; publishProgress(groupTotal); },
+            selectedCli,
           );
 
           const processFailure = delegateProcessFailure(processResult);
