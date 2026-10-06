@@ -455,7 +455,7 @@
     {
       "slug": "late-night-regrets",
       "name": "@rcarmo/piclaw-addon-late-night-regrets",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "type": "extension",
       "description": "Budgeted nightly contextual feedback review with optional decision-model triage",
       "path": "addons/late-night-regrets",
@@ -471,9 +471,9 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-late-night-regrets-0.2.0.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-late-night-regrets-0.2.1.tgz"
       },
-      "updatedAt": "2026-10-01"
+      "updatedAt": "2026-10-06"
     },
     {
       "slug": "linkr",
