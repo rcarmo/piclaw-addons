@@ -1677,6 +1677,9 @@ export default function (pi: any) {
           runningDelegates.set(progressId, publishProgress);
           refreshProgress();
           const piArgs = ["--mode", "json", "--no-session", "--no-extensions", "--model", attemptModel, "--tools", toolsArg, ...staticArgs];
+          // Read at launch so later calls and fallback attempts follow session changes.
+          const thinkingLevel = pi.getThinkingLevel?.();
+          if (thinkingLevel !== undefined) piArgs.push("--thinking", thinkingLevel);
           // Progress callbacks are synchronous and may change files; fence again after publishing.
           if (delegateCliDiagnostics(selectedCli).identity !== executableCatalog.cliIdentity) throw new Error("Delegate CLI changed after discovery; retry with the current release.");
           const processResult = await runDelegateProcess(
