@@ -27,6 +27,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - name: Pin browser cache before isolating HOME
         # GITHUB_ENV keeps install and lookup aligned after HOME/XDG_CACHE_HOME change.
         run: echo "PLAYWRIGHT_BROWSERS_PATH=$RUNNER_TEMP/piclaw-addon-playwright" >> "$GITHUB_ENV"

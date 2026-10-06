@@ -66,6 +66,7 @@ test('source identity is checked and published; UX uses an immutable released co
   expect(step('Copy assets into docs').run).toContain('cp publication-source.txt docs/publication-source.txt');
   expect(step('Checkout Piclaw runtime for add-on UX tests').with.ref).toBe('e4c2b9a3536eb64361da86237a4dfc970d772682');
   expect(steps[0].with?.ref).toBeUndefined(); // Default checkout is the triggering source, not moving main.
+  expect(steps[0].with['fetch-depth']).toBe(0); // Catalog dates require full add-on history.
   expect(step('Validate catalog and publication contracts').run).toContain('bun run check:catalog');
   expect(step('Validate catalog and publication contracts').run).toContain('bun test publication.test.ts');
 });
