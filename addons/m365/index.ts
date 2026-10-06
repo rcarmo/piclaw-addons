@@ -23,6 +23,7 @@
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
+import { registerTodoTools, fileJournal } from "./todo.ts";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -134,6 +135,7 @@ export default function (pi: ExtensionAPI) {
 	pi.on("resources_discover", () => ({
 		skillPaths: [
 			path.join(__m365ExtDir, "skills", "m365-graph-query", "SKILL.md"),
+			path.join(__m365ExtDir, "skills", "m365-todo", "SKILL.md"),
 			path.join(__m365ExtDir, "skills", "m365-profile", "SKILL.md"),
 			path.join(__m365ExtDir, "skills", "m365-mail", "SKILL.md"),
 			path.join(__m365ExtDir, "skills", "m365-teams-chats", "SKILL.md"),
@@ -2396,206 +2398,6 @@ export default function (pi: ExtensionAPI) {
 		},
 	});
 
-	// ── M365 TODO ──────────────────────────────────────────────────────────────
-
-	pi.registerTool({
-		name: "m365_todo",
-		label: "M365 To Do",
-		description:
-			"Read Microsoft To Do tasks and flagged emails surfaced as tasks. " +
-			"action=list (default): returns open tasks from Tasks and Flagged Emails by default. " +
-			"Read-only in v1.",
-		promptSnippet: "To Do: list tasks and flagged emails from Microsoft To Do",
-		promptGuidelines: [
-			"action=list: returns normalized tasks from Microsoft To Do lists.",
-			"sources=['tasks','flaggedEmails'] by default. Use 'allLists' to include all lists.",
-			"includeCompleted=false by default. Set true to include completed items.",
-			"search filters across title + body + linked resource display name.",
-			"dueBefore / dueAfter accept ISO date strings.",
-			"Flagged email tasks include linkedWebUrl pointing to the Outlook item.",
-			"Partial list failures are recorded in details.errors and do not abort the tool.",
-		],
-		parameters: Type.Object({
-			action: Type.Optional(Type.String({ description: "'list' (default and only v1 action)" })),
-			sources: Type.Optional(Type.Array(Type.String(), { description: "Sources to query: 'tasks', 'flaggedEmails', 'allLists'. Default: ['tasks','flaggedEmails']" })),
-			includeCompleted: Type.Optional(Type.Boolean({ description: "Include completed items (default false)" })),
-			status: Type.Optional(Type.Array(Type.String(), { description: "Filter by status: notStarted, inProgress, completed, waitingOnOthers, deferred" })),
-			top: Type.Optional(Type.Number({ description: "Max items to return (default 50, max 200)" })),
-			search: Type.Optional(Type.String({ description: "Search term across title, body, linked resource name" })),
-			dueBefore: Type.Optional(Type.String({ description: "Return only tasks due before this ISO date" })),
-			dueAfter: Type.Optional(Type.String({ description: "Return only tasks due after this ISO date" })),
-			listIds: Type.Optional(Type.Array(Type.String(), { description: "Explicit list IDs to query (overrides sources)" })),
-		}),
-		async execute(_id, params): Promise<any> {
-			const top = Math.min(params.top ?? 50, 200);
-			const includeCompleted = params.includeCompleted ?? false;
-			const sources: string[] = params.sources ?? ["tasks", "flaggedEmails"];
-			const searchTerm = (params.search ?? "").toLowerCase().trim();
-			const statusFilter = params.status ? new Set(params.status.map((s: string) => s.toLowerCase())) : null;
-			const dueBefore = params.dueBefore ? new Date(params.dueBefore) : null;
-			const dueAfter = params.dueAfter ? new Date(params.dueAfter) : null;
-
-			type NormalizedTask = {
-				id: string;
-				title: string;
-				status: string;
-				importance: string;
-				source: "tasks" | "flaggedEmails" | "list";
-				listId: string;
-				listName: string;
-				wellknownListName: string | null;
-				createdDateTime: string | null;
-				lastModifiedDateTime: string | null;
-				dueDateTime: string | null;
-				completedDateTime: string | null;
-				hasAttachments: boolean;
-				bodyText: string | null;
-				linkedResourceCount: number;
-				linkedWebUrl: string | null;
-				linkedDisplayName: string | null;
-			};
-
-			// 1. Fetch all To Do lists
-			const listsResult: any = await graphFetch("me/todo/lists?$top=100");
-			const allLists: any[] = listsResult?.value ?? [];
-
-			// 2. Determine which lists to query
-			let targetLists: any[];
-			if (params.listIds && params.listIds.length > 0) {
-				const idSet = new Set(params.listIds);
-				targetLists = allLists.filter((l: any) => idSet.has(l.id));
-			} else if (sources.includes("allLists")) {
-				targetLists = allLists;
-			} else {
-				const wantWellknown = new Set<string>();
-				if (sources.includes("tasks")) wantWellknown.add("defaultList");
-				if (sources.includes("flaggedEmails")) wantWellknown.add("flaggedEmails");
-				targetLists = allLists.filter((l: any) => wantWellknown.has(l.wellknownListName ?? ""));
-			}
-
-			// 3. Fetch tasks list-by-list with partial failure tolerance
-			const errors: { listId: string; listName: string; error: string }[] = [];
-			const items: NormalizedTask[] = [];
-			const listsQueried: { id: string; name: string; wellknown: string | null }[] = [];
-
-			for (const list of targetLists) {
-				const listId: string = list.id;
-				const listName: string = list.displayName ?? listId;
-				const wellknown: string | null = list.wellknownListName ?? null;
-				const source: NormalizedTask["source"] =
-					wellknown === "defaultList" ? "tasks"
-					: wellknown === "flaggedEmails" ? "flaggedEmails"
-					: "list";
-
-				try {
-					const select = "id,title,status,importance,body,createdDateTime,lastModifiedDateTime,dueDateTime,completedDateTime,hasAttachments,linkedResources";
-					const encodedId = encodeURIComponent(listId);
-					const tasksResult: any = await graphFetch(
-						`me/todo/lists/${encodedId}/tasks?$select=${select}&$top=${top}`
-					);
-					const rawTasks: any[] = tasksResult?.value ?? [];
-
-					for (const t of rawTasks) {
-						const linkedResources: any[] = t.linkedResources ?? [];
-						const firstLink = linkedResources[0] ?? null;
-						const dueStr: string | null = t.dueDateTime?.dateTime ?? null;
-
-						items.push({
-							id: t.id,
-							title: t.title ?? "",
-							status: t.status ?? "notStarted",
-							importance: t.importance ?? "normal",
-							source,
-							listId,
-							listName,
-							wellknownListName: wellknown,
-							createdDateTime: t.createdDateTime ?? null,
-							lastModifiedDateTime: t.lastModifiedDateTime ?? null,
-							dueDateTime: dueStr,
-							completedDateTime: t.completedDateTime?.dateTime ?? null,
-							hasAttachments: t.hasAttachments ?? false,
-							bodyText: t.body?.content ? t.body.content.replace(/<[^>]+>/g, "").trim().substring(0, 300) || null : null,
-							linkedResourceCount: linkedResources.length,
-							linkedWebUrl: firstLink?.webUrl ?? null,
-							linkedDisplayName: firstLink?.displayName ?? null,
-						});
-					}
-					listsQueried.push({ id: listId, name: listName, wellknown });
-				} catch (error: unknown) {
-					errors.push({
-						listId,
-						listName,
-						error: String((error as any)?.message ?? error ?? "Unknown error"),
-					});
-				}
-			}
-
-			// 4. Filter
-			let filtered = items.filter((t) => {
-				if (!includeCompleted && t.status === "completed") return false;
-				if (statusFilter && !statusFilter.has(t.status.toLowerCase())) return false;
-				if (dueBefore && t.dueDateTime && new Date(t.dueDateTime) > dueBefore) return false;
-				if (dueAfter && t.dueDateTime && new Date(t.dueDateTime) < dueAfter) return false;
-				if (searchTerm) {
-					const haystack = [
-						t.title, t.bodyText ?? "", t.linkedDisplayName ?? "",
-					].join(" ").toLowerCase();
-					if (!haystack.includes(searchTerm)) return false;
-				}
-				return true;
-			});
-
-			// 5. Sort: incomplete first, then due ASC (undated last), importance high>normal>low, lastModified DESC
-			const importanceOrder: Record<string, number> = { high: 0, normal: 1, low: 2 };
-			filtered.sort((a, b) => {
-				const aComplete = a.status === "completed" ? 1 : 0;
-				const bComplete = b.status === "completed" ? 1 : 0;
-				if (aComplete !== bComplete) return aComplete - bComplete;
-				const aDue = a.dueDateTime ? new Date(a.dueDateTime).getTime() : Infinity;
-				const bDue = b.dueDateTime ? new Date(b.dueDateTime).getTime() : Infinity;
-				if (aDue !== bDue) return aDue - bDue;
-				const aImp = importanceOrder[a.importance] ?? 1;
-				const bImp = importanceOrder[b.importance] ?? 1;
-				if (aImp !== bImp) return aImp - bImp;
-				const aModified = a.lastModifiedDateTime ? new Date(a.lastModifiedDateTime).getTime() : 0;
-				const bModified = b.lastModifiedDateTime ? new Date(b.lastModifiedDateTime).getTime() : 0;
-				return bModified - aModified;
-			});
-
-			// 6. Build human-readable summary
-			const openCount = filtered.filter(t => t.status !== "completed").length;
-			const fromTasks = filtered.filter(t => t.source === "tasks").length;
-			const fromFlagged = filtered.filter(t => t.source === "flaggedEmails").length;
-			const fromOther = filtered.length - fromTasks - fromFlagged;
-
-			const lines: string[] = [
-				`To Do: ${openCount} open item${openCount !== 1 ? "s" : ""} ` +
-				`(${fromTasks} task${fromTasks !== 1 ? "s" : ""}, ${fromFlagged} flagged email${fromFlagged !== 1 ? "s" : ""}` +
-				(fromOther > 0 ? `, ${fromOther} from other lists` : "") + ")",
-			];
-
-			if (errors.length > 0) {
-				lines.push(`Partial errors: ${errors.map(e => e.listName).join(", ")}`);
-			}
-
-			lines.push("");
-			const preview = filtered.slice(0, Math.min(top, filtered.length));
-			for (const t of preview) {
-				const due = t.dueDateTime ? ` due:${t.dueDateTime.substring(0, 10)}` : "";
-				const flag = t.importance === "high" ? " [!]" : "";
-				const src = t.source === "flaggedEmails" ? " [email]" : t.source === "tasks" ? " [task]" : ` [${t.listName}]`;
-				lines.push(`• ${t.title}${flag}${src}${due} (${t.status})`);
-			}
-
-			return {
-				content: [{ type: "text", text: truncate(lines.join("\n")) }],
-				details: {
-					count: filtered.length,
-					listsQueried,
-					items: filtered.slice(0, top),
-					...(errors.length > 0 ? { errors } : {}),
-				},
-			};
-		},
-	});
+	// To Do uses the existing Graph transport; credential acquisition is unchanged.
+	registerTodoTools(pi, Type, graphFetch, fileJournal(path.join(process.env.PICLAW_WORKSPACE ?? process.cwd(), ".piclaw", "data", "m365-todo-requests")));
 }

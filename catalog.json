@@ -157,7 +157,7 @@
     {
       "slug": "delegate",
       "name": "@rcarmo/piclaw-addon-delegate",
-      "version": "0.2.14",
+      "version": "0.2.18",
       "type": "extension",
       "description": "Delegate tasks to operator-approved child-Pi models with fail-closed enforcement",
       "path": "addons/delegate",
@@ -173,9 +173,9 @@
       ],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-delegate-0.2.14.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-delegate-0.2.18.tgz"
       },
-      "updatedAt": "2026-09-29"
+      "updatedAt": "2026-10-06"
     },
     {
       "slug": "dev-tools",
@@ -455,9 +455,9 @@
     {
       "slug": "late-night-regrets",
       "name": "@rcarmo/piclaw-addon-late-night-regrets",
-      "version": "0.1.5",
+      "version": "0.2.0",
       "type": "extension",
-      "description": "Nightly Bayesian interaction-quality classifier — trains on chat history, flags behavioral patterns, and writes self-improvement reflections",
+      "description": "Budgeted nightly contextual feedback review with optional decision-model triage",
       "path": "addons/late-night-regrets",
       "homepage": "https://rcarmo.github.io/piclaw-addons/addons/late-night-regrets/",
       "tags": [
@@ -471,7 +471,7 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-late-night-regrets-0.1.5.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-late-night-regrets-0.2.0.tgz"
       },
       "updatedAt": "2026-10-01"
     },
@@ -528,7 +528,7 @@
     {
       "slug": "m365",
       "name": "@rcarmo/piclaw-addon-m365",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "type": "extension",
       "description": "Experimental Microsoft 365 tools for Teams, Graph, Outlook, OneDrive, SharePoint, Calendar, and To Do",
       "path": "addons/m365",
@@ -554,13 +554,14 @@
         "m365-spo-search",
         "m365-teams-chats",
         "m365-teams-messages",
-        "m365-teams-send"
+        "m365-teams-send",
+        "m365-todo"
       ],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-m365-0.1.2.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-m365-0.1.3.tgz"
       },
-      "updatedAt": "2026-09-11"
+      "updatedAt": "2026-10-01"
     },
     {
       "slug": "mindmap",
@@ -742,7 +743,7 @@
         "kind": "tarball",
         "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-remote-peer-0.3.5.tgz"
       },
-      "updatedAt": "2026-09-25",
+      "updatedAt": "2026-10-04",
       "owner": {
         "login": "rcarmo",
         "url": "https://github.com/rcarmo"

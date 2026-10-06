@@ -1,10 +1,7 @@
 name: validate-metadata
 
 on:
-  pull_request:
-  push:
-    branches:
-      - main
+  workflow_call:
 
 jobs:
   validate:
@@ -52,6 +49,23 @@ jobs:
 
       - name: Validate package can be packed
         run: bun pm pack --dry-run >/dev/null
+
+  late-night-regrets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.cache/ms-playwright
+    steps:
+      - uses: actions/checkout@v7
+      - name: Resolve Bun version
+        id: bun-version
+        run: echo "version=$(tr -d '[:space:]' < BUN_VERSION)" >> "$GITHUB_OUTPUT"
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: ${{ steps.bun-version.outputs.version }}
+      - run: bun install --frozen-lockfile
+      - run: bunx playwright install --with-deps chromium webkit
+      - run: bun test addons/late-night-regrets
 
   code-review:
     runs-on: ubuntu-latest

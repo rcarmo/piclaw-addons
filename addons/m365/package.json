@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-m365",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Experimental Microsoft 365 tools for Teams, Graph, Outlook, OneDrive, SharePoint, Calendar, and To Do",
   "type": "module",
   "main": "index.ts",
@@ -28,7 +28,8 @@
       "skills/m365-spo-search",
       "skills/m365-teams-chats",
       "skills/m365-teams-messages",
-      "skills/m365-teams-send"
+      "skills/m365-teams-send",
+      "skills/m365-todo"
     ]
   },
   "pi": {
@@ -84,6 +85,10 @@
       {
         "name": "m365-teams-send",
         "path": "./skills/m365-teams-send"
+      },
+      {
+        "name": "m365-todo",
+        "path": "./skills/m365-todo"
       }
     ]
   },

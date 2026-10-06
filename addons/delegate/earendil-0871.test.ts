@@ -74,6 +74,7 @@ test('new current models reach approved children; fallback and explicit attempts
    if(process.argv.includes('--list-models')){console.log('provider model context max-out thinking images');console.log('github-copilot gpt-6-sol 1M 128K yes no');console.log('github-copilot gpt-6-luna 1M 128K yes yes');console.log('github-copilot grok-4.7 500K 128K yes yes');console.log('github-copilot claude-opus-5.5 1M 128K yes yes');process.exit(0);}
    await Bun.stdin.text();const full=process.argv[process.argv.indexOf('--model')+1];appendFileSync(${JSON.stringify(marker)},full+'\\n');const mode=readFileSync(${JSON.stringify(mode)},'utf8');
    if(mode==='auth'&&full.endsWith('gpt-6-sol')){console.log(JSON.stringify({type:'message_end',message:{role:'assistant',content:[],stopReason:'error',errorMessage:'No API key for provider'}}));process.exit(1);}
+   if(mode==='unavailable'&&full.endsWith('gpt-6-sol')){console.error('unknown model: synthetic unavailable');process.exit(1);}
    const disclosed=mode.split(':').slice(1).join(':');
    console.log(JSON.stringify({type:'message_end',message:{role:'assistant',provider:'github-copilot',model:mode.startsWith('model:')?disclosed:full.split('/').slice(1).join('/'),responseModel:mode.startsWith('response:')?disclosed:undefined,content:[{type:'text',text:'NEW_POLICY_OK'}],stopReason:'stop'}}));
   `);
@@ -97,6 +98,10 @@ test('new current models reach approved children; fallback and explicit attempts
    expect(attempted().slice(before)).toEqual([`github-copilot/${expected}`]);
   }
   writeFileSync(mode,'auth');
+  const authStart=attempted().length;
+  await expect(tool.execute('auth-stop',request,undefined,undefined,ctx)).rejects.toThrow('[auth]');
+  expect(attempted().slice(authStart)).toEqual(['github-copilot/gpt-6-sol']);
+  writeFileSync(mode,'unavailable');
   const fallback=await tool.execute('fallback',request,undefined,undefined,ctx);
   expect(fallback.content[0].text).toContain('NEW_POLICY_OK');
   let attempts=readFileSync(marker,'utf8').trim().split('\n');

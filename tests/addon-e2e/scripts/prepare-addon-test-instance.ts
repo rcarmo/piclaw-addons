@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 export const CANONICAL_TMP = '/tmp';
@@ -186,7 +186,7 @@ export function prepareAddonTestInstance(options: PrepareOptions = {}): PrepareR
   const workspace = paths.workspace;
 
   mkdirSync(join(workspace, '.piclaw'), { recursive: true });
-  writeFileSync(join(workspace, '.piclaw', 'config.json'), JSON.stringify({ sessionAutoRotate: true }, null, 2));
+  writeFileSync(join(workspace, '.piclaw', 'config.json'), JSON.stringify({ sessionAutoRotate: true }, null, 2), { mode: 0o600 });
 
   const extensionsDir = join(workspace, '.pi', 'extensions');
   const nodeModulesDir = join(extensionsDir, 'node_modules');
@@ -199,7 +199,7 @@ export function prepareAddonTestInstance(options: PrepareOptions = {}): PrepareR
   localPkg.dependencies ||= {};
 
   const peerNodeModules = findPeerNodeModules(runtimeRoot, repoRoot);
-  const copiedPeers = peerNodeModules ? join(paths.root, 'dependencies') : null;
+  const copiedPeers = peerNodeModules ? join(paths.root, 'node_modules') : null;
   if (peerNodeModules && copiedPeers) {
     // Never symlink test tooling to the host's writable dependency tree.
     cpSync(peerNodeModules, copiedPeers, { recursive: true, dereference: false, filter: (src) => !lstatSync(src).isSymbolicLink() });
@@ -219,12 +219,9 @@ export function prepareAddonTestInstance(options: PrepareOptions = {}): PrepareR
       verbatimSymlinks: true,
       filter: (src) => shouldCopyAddonPath(addonRoot, src),
     });
-    if (copiedPeers) {
-      const link = join(dest, 'node_modules');
-      assertNoSymlinkAncestors(link, dest, true);
-      rmSync(link, { recursive: true, force: true });
-      symlinkSync(copiedPeers, link, 'dir');
-    }
+    // Peers resolve through the owned root/node_modules ancestor. An add-on
+    // install may create its own private node_modules without pruning peers.
+    if (existsSync(join(dest, 'node_modules'))) throw new Error('Unexpected copied add-on dependency tree');
     localPkg.dependencies[addonPkg.name] = `file:${dest}`;
     installed.push({ slug, packageName: addonPkg.name, version: addonPkg.version || '0.0.0', destination: dest });
   }

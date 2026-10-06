@@ -24,7 +24,7 @@ describe("late-night-regrets", () => {
     const content = await Bun.file(skillPath).text();
     expect(content).toContain("name: late-night-regrets");
     expect(content).toContain("description:");
-    expect(content).toContain("## Categories");
+    expect(content).toContain("## Review budget");
     expect(content).toContain("## Nightly flow");
   });
 
@@ -46,11 +46,14 @@ describe("late-night-regrets", () => {
     expect(typeof mod.getAttentionFilePath).toBe("function");
   });
 
-  test("/regrets uses the supported working-message UI API", async () => {
+  test("/regrets starts the budgeted reflection through the agent", async () => {
     const mod = await import("./index.ts");
     let handler: ((args: string, ctx: unknown) => Promise<void>) | undefined;
+    const prompts: string[] = [];
     mod.default({
       on: () => {},
+      registerTool: () => {},
+      sendUserMessage: (text: string) => prompts.push(text),
       registerCommand: (name: string, definition: { handler: typeof handler }) => {
         if (name === "regrets") handler = definition.handler;
       },
@@ -66,7 +69,9 @@ describe("late-night-regrets", () => {
       },
     });
 
-    expect(workingMessages).toEqual(["Running interaction quality classifier…"]);
-    expect(notifications).toEqual(["Running Late Night Regrets classifier and reflection…"]);
+    expect(workingMessages).toEqual([]);
+    expect(notifications).toEqual([]);
+    expect(prompts).toHaveLength(1);
+    expect(prompts[0]).toContain("Call regrets_review");
   });
 });

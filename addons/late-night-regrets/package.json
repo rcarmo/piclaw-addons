@@ -1,12 +1,12 @@
 {
   "name": "@rcarmo/piclaw-addon-late-night-regrets",
-  "version": "0.1.5",
-  "description": "Nightly Bayesian interaction-quality classifier — trains on chat history, flags behavioral patterns, and writes self-improvement reflections",
+  "version": "0.2.1",
+  "description": "Budgeted nightly contextual feedback review with optional decision-model triage",
   "type": "module",
   "main": "index.ts",
   "piclaw": {
     "type": "extension",
-    "compatibleVersions": ">=2.1.0",
+    "compatibleVersions": ">=3.2.3",
     "tags": [
       "self-improvement",
       "classifier",
@@ -17,16 +17,27 @@
     ],
     "skills": [
       "skills/late-night-regrets"
-    ]
+    ],
+    "web": {
+      "entries": [
+        "web/index.ts"
+      ]
+    }
   },
   "pi": {
     "extensions": [
       "index.ts"
-    ]
+    ],
+    "web": {
+      "entries": [
+        "web/index.ts"
+      ]
+    }
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",
-    "typebox": "*"
+    "typebox": "*",
+    "@earendil-works/pi-ai": "*"
   },
   "keywords": [
     "pi-package",
@@ -38,5 +49,8 @@
     "reflection"
   ],
   "license": "MIT",
-  "homepage": "https://rcarmo.github.io/piclaw-addons/addons/late-night-regrets/"
+  "homepage": "https://rcarmo.github.io/piclaw-addons/addons/late-night-regrets/",
+  "dependencies": {
+    "cron-parser": "5.10.0"
+  }
 }
