@@ -100,10 +100,18 @@ test('later commits keep the generated version date; a new version refreshes it'
 test('automatic sync is read-only; only explicit dispatch can regenerate or push', () => {
   const source = readFileSync(join(root, '.github/workflows/sync-catalog.yml'), 'utf8');
   expect(source).toContain('permissions:\n  contents: read');
-  expect(source).toContain("contents: ${{ github.event_name == 'workflow_dispatch' && 'write' || 'read' }}");
-  expect(source).toContain("if: github.event_name != 'workflow_dispatch'\n        run: bun run check:catalog");
-  expect(source).toContain("if: github.event_name == 'workflow_dispatch'\n        run: bun run sync:catalog");
-  expect(source).toContain("- name: Commit changes (manual repair)\n        if: github.event_name == 'workflow_dispatch'");
+  const check = source.slice(source.indexOf('  check:'), source.indexOf('  repair:'));
+  const repair = source.slice(source.indexOf('  repair:'));
+  expect(check).toContain("if: github.event_name != 'workflow_dispatch'");
+  expect(check).toContain('contents: read');
+  expect(check).toContain('run: bun run check:catalog');
+  expect(check).not.toContain('git push');
+  expect(check).not.toContain('run: bun run sync:catalog');
+  expect(repair).toContain("if: github.event_name == 'workflow_dispatch'");
+  expect(repair).toContain('contents: write');
+  expect(repair).toContain('run: bun run sync:catalog');
+  expect(repair).toContain('git push');
+  expect(source).not.toContain('contents: ${{');
   const validation = readFileSync(join(root, '.github/workflows/validate-metadata.yml'), 'utf8');
   expect(validation).toContain('run: bun run check:catalog');
   expect(validation).toContain('run: bun test sync-catalog.test.ts');
