@@ -11,6 +11,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { StringEnum } from "@earendil-works/pi-ai";
 import { Type } from "typebox";
+import { reserveViewerPort, registerStealthViewer, beginStealthToolControl } from './cdp-view.js';
 
 // ---------------------------------------------------------------------------
 // Lazy-loaded mochi module
@@ -35,6 +36,8 @@ interface ManagedSession {
 }
 
 let activeSession: ManagedSession | null = null;
+let unregisterViewer: (() => void) | undefined;
+let activeToolCalls = 0;
 const SESSION_IDLE_TIMEOUT_MS = 5 * 60 * 1000; // close after 5 min idle
 
 function getSessionSeed(): string {
@@ -79,7 +82,20 @@ async function ensureSession(): Promise<any> {
   if (profile) opts.profile = profile;
   if (proxy) opts.proxy = proxy;
 
+  const reservation = await reserveViewerPort();
+  const markerUrl = `data:text/html,<title>piclaw-viewer-${crypto.randomUUID()}</title>`;
+  opts.args = [`--remote-debugging-port=${reservation.port}`, '--remote-debugging-address=127.0.0.1'];
+  await reservation.release();
   const session = await mochi.launch(opts as any);
+  try {
+    const markerPage = await session.newPage();
+    await markerPage.goto(markerUrl, { waitUntil: 'domcontentloaded', timeout: 3000 });
+    const response = await fetch(`http://127.0.0.1:${reservation.port}/json/list`, { signal: AbortSignal.timeout(2000) });
+    const targets = await response.json() as Array<{ url: string }>;
+    if (!targets.some(target => target.url === markerUrl)) throw Error('Stealth viewer endpoint ownership verification failed');
+    await markerPage.close();
+    unregisterViewer = registerStealthViewer(reservation.port);
+  } catch (error) { await session.close(); throw error; }
   activeSession = { session, seed, profile, lastUsed: Date.now() };
 
   // Auto-close on idle
@@ -92,13 +108,14 @@ let idleTimer: ReturnType<typeof setTimeout> | null = null;
 function scheduleIdleClose(): void {
   if (idleTimer) clearTimeout(idleTimer);
   idleTimer = setTimeout(async () => {
-    if (activeSession && Date.now() - activeSession.lastUsed >= SESSION_IDLE_TIMEOUT_MS) {
-      await closeSession();
-    }
+    const viewed = activeToolCalls > 0 || (globalThis as any).__piclaw_hasCdpViewer?.('stealth');
+    if (activeSession && !viewed && Date.now() - activeSession.lastUsed >= SESSION_IDLE_TIMEOUT_MS) await closeSession();
+    else if (activeSession) scheduleIdleClose();
   }, SESSION_IDLE_TIMEOUT_MS + 1000);
 }
 
 async function closeSession(): Promise<void> {
+  unregisterViewer?.(); unregisterViewer = undefined;
   if (!activeSession) return;
   try {
     await activeSession.session.close();
@@ -279,7 +296,9 @@ export default function register(pi: ExtensionAPI) {
       waitUntil: Type.Optional(Type.String({ description: "Navigation wait strategy: load, domcontentloaded" })),
     }),
     async execute(_id, params) {
-      switch (params.action) {
+      const release = params.action !== 'status' ? beginStealthToolControl() : undefined;
+      ++activeToolCalls;
+      try { switch (params.action) {
         case "goto": return textResult(await actionGoto(params));
         case "click": return textResult(await actionClick(params));
         case "type": return textResult(await actionType(params));
@@ -292,7 +311,7 @@ export default function register(pi: ExtensionAPI) {
         case "status": return textResult(await actionStatus());
         case "close": return textResult(await actionClose());
         default: throw new Error(`Unknown action: ${params.action}. Use: ${ACTIONS.join(", ")}`);
-      }
+      } } finally { --activeToolCalls; if (activeSession) { activeSession.lastUsed = Date.now(); scheduleIdleClose(); } release?.(); }
     },
   });
 
