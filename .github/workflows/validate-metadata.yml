@@ -2,8 +2,36 @@ name: validate-metadata
 
 on:
   workflow_call:
+    outputs:
+      ux:
+        description: Comma-separated add-ons requiring shared UX tests
+        value: ${{ jobs.routes.outputs.ux }}
 
 jobs:
+  routes:
+    runs-on: ubuntu-latest
+    outputs:
+      code_review: ${{ steps.route.outputs.code_review }}
+      regrets: ${{ steps.route.outputs.regrets }}
+      ux: ${{ steps.route.outputs.ux }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Resolve Bun version
+        id: bun-version
+        run: echo "version=$(tr -d '[:space:]' < BUN_VERSION)" >> "$GITHUB_OUTPUT"
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: ${{ steps.bun-version.outputs.version }}
+      - name: Route checks from verified PR commits
+        id: route
+        run: bun scripts/route-addon-checks.ts
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+
   validate:
     runs-on: ubuntu-latest
     steps:
@@ -30,8 +58,8 @@ jobs:
       - name: Validate catalog and root package metadata
         run: bun run check:catalog
 
-      - name: Test catalog generation and sync workflow
-        run: bun test sync-catalog.test.ts
+      - name: Test catalog generation and check routing
+        run: bun test sync-catalog.test.ts route-addon-checks.test.ts
 
       - name: Test public package builder
         run: bun test build.test.ts
@@ -54,6 +82,8 @@ jobs:
         run: bun pm pack --dry-run >/dev/null
 
   late-night-regrets:
+    needs: routes
+    if: needs.routes.outputs.regrets == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -71,6 +101,8 @@ jobs:
       - run: bun test addons/late-night-regrets
 
   code-review:
+    needs: routes
+    if: needs.routes.outputs.code_review == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:

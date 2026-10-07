@@ -114,5 +114,5 @@ test('automatic sync is read-only; only explicit dispatch can regenerate or push
   expect(source).not.toContain('contents: ${{');
   const validation = readFileSync(join(root, '.github/workflows/validate-metadata.yml'), 'utf8');
   expect(validation).toContain('run: bun run check:catalog');
-  expect(validation).toContain('run: bun test sync-catalog.test.ts');
+  expect(validation).toContain('run: bun test sync-catalog.test.ts route-addon-checks.test.ts');
 });

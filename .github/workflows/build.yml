@@ -57,11 +57,13 @@ jobs:
       - name: Detect add-on UX tests
         id: addon_tests
         run: |
-          if find addons -path '*/tests/features/*.feature' -print -quit | grep -q .; then
+          if [ -n "$SELECTED_ADDONS" ]; then
             echo "present=true" >> "$GITHUB_OUTPUT"
           else
             echo "present=false" >> "$GITHUB_OUTPUT"
           fi
+        env:
+          SELECTED_ADDONS: ${{ needs.validation.outputs.ux }}
       - name: Checkout Piclaw runtime for add-on UX tests
         if: steps.addon_tests.outputs.present == 'true'
         uses: actions/checkout@v7
@@ -142,9 +144,10 @@ jobs:
       - name: Run add-on UX tests
         id: ux
         if: steps.addon_tests.outputs.present == 'true'
-        run: PICLAW_ADDON=all bun run test -- --project=desktop-chrome
+        run: bun run test -- --project=desktop-chrome
         working-directory: tests/addon-e2e
         env:
+          PICLAW_ADDON: ${{ needs.validation.outputs.ux }}
           PICLAW_E2E_URL: http://localhost:3000
           PICLAW_E2E_DISPOSABLE: '1'
           PICLAW_E2E_INTERNAL_SECRET: ${{ env.PICLAW_INTERNAL_SECRET }}
