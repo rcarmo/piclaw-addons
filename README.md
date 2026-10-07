@@ -123,6 +123,8 @@ A merged pull request can trigger separate workflows on `main`:
 3. **build + deploy** — rebuilds the site and public `.tgz` files after add-on, catalog, asset, or build changes
 4. **publish** — mirrors version-bumped add-ons to GitHub Packages for archival or alternate consumption
 
+A newer commit cancels obsolete validation for the same PR; unrelated PRs use separate lanes. Main and manual build runs share a non-cancelling publication lane, so a newer run cannot interrupt active Pages writes. GitHub may replace an older pending run with a newer one; cancelled runs cannot satisfy publication gates. Archival package publication keeps its separate non-cancelling lane.
+
 Include generated metadata in each PR: run `bun run sync:catalog`, then `bun run check:catalog`. Generation preserves owner/contributor fields. `updatedAt` records the first generated date for an add-on version and stays stable across later commits and merges. A manual repair commit follows the ordinary validation and publication workflow.
 
 The supported first-party runtime install path is the **GitHub Pages tarball URL**, not npm registry resolution.

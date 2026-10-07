@@ -14,6 +14,30 @@ function evaluate(expression: string, context: Record<string, unknown>) {
   return Boolean(Function(`return (${replaced})`)());
 }
 
+test('only superseded checks for the same PR can cancel an active run', () => {
+  expect(build.concurrency).toEqual({
+    group: "addons-${{ github.event.pull_request.number || 'publication' }}",
+    'cancel-in-progress': "${{ github.event_name == 'pull_request' }}",
+  });
+  // These cases model the exact expressions asserted above, not an Actions scheduler.
+  const lane = (event: string, pr?: number) => ({
+    group: `addons-${pr || 'publication'}`,
+    cancel: event === 'pull_request',
+  });
+  expect(lane('pull_request', 10)).toEqual(lane('pull_request', 10));
+  expect(lane('pull_request', 10).group).not.toBe(lane('pull_request', 11).group);
+  expect(lane('pull_request', 10).group).not.toBe(lane('push').group);
+  expect(lane('pull_request', 10).cancel).toBe(true);
+  expect(lane('push').cancel).toBe(false);
+  expect(lane('workflow_dispatch').cancel).toBe(false);
+  expect(lane('push').group).toBe(lane('workflow_dispatch').group);
+  // The caller owns the lane. Reusing it inside a called workflow can cancel itself.
+  expect(workflow('validate-metadata').concurrency).toBeUndefined();
+  const publish = workflow('publish');
+  expect(publish.concurrency).toEqual({ group: 'publish', 'cancel-in-progress': false });
+  expect(publish.concurrency.group).not.toBe(lane('push').group);
+});
+
 test('same-source reusable validation is required and includes every existing validation job', () => {
   expect(build.jobs.validation.uses).toBe('./.github/workflows/validate-metadata.yml');
   expect(build.jobs.build.needs).toBe('validation');
