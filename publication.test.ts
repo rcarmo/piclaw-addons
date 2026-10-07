@@ -19,11 +19,13 @@ test('same-source reusable validation is required and includes every existing va
   expect(build.jobs.build.needs).toBe('validation');
   const validation = workflow('validate-metadata');
   expect(Object.keys(validation.on)).toEqual(['workflow_call']);
-  expect(Object.keys(validation.jobs)).toEqual(['validate', 'late-night-regrets', 'code-review']);
+  expect(Object.keys(validation.jobs)).toEqual(['routes', 'validate', 'late-night-regrets', 'code-review']);
   for (const job of Object.values(validation.jobs) as any[]) {
     expect(job['continue-on-error']).toBeUndefined();
-    expect(job.if).toBeUndefined();
   }
+  expect(validation.jobs.validate.if).toBeUndefined();
+  expect(validation.jobs['late-night-regrets'].if).toBe("needs.routes.outputs.regrets == 'true'");
+  expect(validation.jobs['code-review'].if).toBe("needs.routes.outputs.code_review == 'true'");
   expect(Object.keys(build.on)).toEqual(['push', 'pull_request', 'workflow_dispatch']);
   expect(build.on.push.branches).toEqual(['main']);
   expect(build.on.push.paths).toBeUndefined();
