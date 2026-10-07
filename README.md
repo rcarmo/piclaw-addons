@@ -123,6 +123,8 @@ A merged pull request can trigger separate workflows on `main`:
 3. **build + deploy** — rebuilds the site and public `.tgz` files after add-on, catalog, asset, or build changes
 4. **publish** — mirrors version-bumped add-ons to GitHub Packages for archival or alternate consumption
 
+PR browser checks use the verified base/head Git diff. Add-on-only changes select that add-on's browser suite; catalog changes alongside add-on changes follow the same selection. Shared, unknown or unverifiable changes select all browser suites, as do main and manual builds. Metadata, compatibility and import checks always run. Shared add-on UX uses the pinned v3.3.0 core runtime; fixture preparation still includes all add-ons to preserve cross-add-on dependencies.
+
 A newer commit cancels obsolete validation for the same PR; unrelated PRs use separate lanes. Main and manual build runs share a non-cancelling publication lane, so a newer run cannot interrupt active Pages writes. GitHub may replace an older pending run with a newer one; cancelled runs cannot satisfy publication gates. Archival package publication keeps its separate non-cancelling lane.
 
 Include generated metadata in each PR: run `bun run sync:catalog`, then `bun run check:catalog`. Generation preserves owner/contributor fields. `updatedAt` records the first generated date for an add-on version and stays stable across later commits and merges. A manual repair commit follows the ordinary validation and publication workflow.
