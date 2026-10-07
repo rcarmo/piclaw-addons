@@ -206,8 +206,12 @@ async function buildMetadata() {
       }
     }
 
-    const updatedAt  = await gitLastCommitDate(`addons/${slug}`);
     const prev = existingEntries.get(slug) ?? {};
+    // A merge or an unrelated source commit must not invalidate checked-in metadata.
+    // Functional changes bump the add-on version; retain its first generated date.
+    const updatedAt = prev.version === pkg.version && prev.updatedAt
+      ? prev.updatedAt
+      : await gitLastCommitDate(`addons/${slug}`);
 
     catalogEntries.push({
       slug,
