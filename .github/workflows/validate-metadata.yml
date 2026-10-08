@@ -58,6 +58,11 @@ jobs:
       - name: Validate catalog and root package metadata
         run: bun run check:catalog
 
+      - name: Validate tracked vendor inventory
+        run: |
+          bun run check:vendor-inventory
+          bun test vendor-inventory.test.ts
+
       - name: Test catalog generation and check routing
         run: bun test sync-catalog.test.ts route-addon-checks.test.ts
 
