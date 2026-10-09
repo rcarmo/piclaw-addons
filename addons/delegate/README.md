@@ -184,3 +184,21 @@ Executable discovery is cached for 60 seconds. A manual Settings refresh invalid
 - Core tool profiles are child allowlists, not an operating-system sandbox. A child granted `bash` or external MCP services can execute capabilities outside Delegate's child-model launcher; use `read_only` and a restricted environment when that distinction matters.
 
 See [REFERENCE.md](REFERENCE.md) for the full selection, execution, and diagnostics contract.
+
+### OpenCode Go region restrictions
+
+Some OpenCode Go models require the workspace Privacy region setting to be
+**Global**. Delegate recognises the provider's specific rejection, stops the
+attempt chain and points to the [OpenCode console](https://opencode.ai/) and
+[Go privacy information](https://opencode.ai/docs/go/#privacy).
+
+Choosing Global broadens permitted processing regions and may relax
+data-residency restrictions. Delegate does not change that policy, add a region
+header, retry the blocked request or switch billing routes. Choose another
+approved compatible model if you need to preserve the restriction.
+
+The installed Go provider accepts an API key; no documented client-side Global
+parameter was found. OpenCode's workspace update is an administrator operation.
+The public documentation does not establish an exact Privacy navigation path or
+a supported API for third-party management, so this integration links to the
+console without inventing one.

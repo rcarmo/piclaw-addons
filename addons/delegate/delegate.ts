@@ -759,10 +759,24 @@ export function isProviderAuthError(text: unknown): boolean {
     || value.includes("unauthorized");
 }
 
-export type DelegateFailureKind = "auth" | "model-unavailable" | "provider-setup" | "timeout" | "aborted" | "execution" | "protocol";
+export type DelegateFailureKind = "privacy-policy" | "auth" | "model-unavailable" | "provider-setup" | "timeout" | "aborted" | "execution" | "protocol";
+
+export function isOpenCodeGlobalRegionRestriction(text: unknown): boolean {
+  const value = String(text || '').replace(/\\u0027/gi, "'");
+  return /This Go model requires Global regions\./i.test(value)
+    && /Select Global in your workspace.*Privacy settings to use it\./i.test(value);
+}
+
+export function formatDelegateFailure(text: string, provider: string): string {
+  if (provider === 'opencode-go' && isOpenCodeGlobalRegionRestriction(text)) {
+    return '[privacy-policy] This OpenCode Go model requires the workspace Privacy region setting to be Global. Review that setting in the OpenCode console (https://opencode.ai/). Choosing Global broadens permitted processing regions and may relax data-residency restrictions. Piclaw has not changed the setting. Choose another approved compatible model if you need to keep the current restriction. Provider privacy information: https://opencode.ai/docs/go/#privacy. Upstream detail: ' + text;
+  }
+  return text;
+}
 
 export function classifyDelegateFailure(text: unknown): DelegateFailureKind {
   const value = String(text || "").toLowerCase();
+  if (value.startsWith('[privacy-policy]')) return 'privacy-policy';
   if (isProviderAuthError(value)) return "auth";
   if (/timed out|timeout/.test(value)) return "timeout";
   if (/\babort(?:ed)?\b|cancelled|canceled/.test(value)) return "aborted";
@@ -1704,7 +1718,8 @@ export default function (pi: any) {
             processResult.responseModel,
             eligibleCandidates,
           );
-          const failureMessage = processFailure || reportedModelFailure || responseModelFailure;
+          const rawFailureMessage = processFailure || reportedModelFailure || responseModelFailure;
+          const failureMessage = rawFailureMessage ? formatDelegateFailure(rawFailureMessage, attemptModel.split('/')[0]) : rawFailureMessage;
           if (failureMessage) {
             const kind = classifyDelegateFailure(failureMessage);
             attemptFailures.push({ model: attemptModel, kind, message: failureMessage });
