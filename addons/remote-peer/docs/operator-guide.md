@@ -90,9 +90,9 @@ Receiver-owned policy is enforced on every request:
 | Scope | Access |
 |---|---|
 | `none` | No inbox, named-agent or work delivery |
-| `inbox-only` | Default inbox only |
+| `inbox-only` | Default inbox; sessions require separate explicit grants |
 | `named-agents` | Inbox plus explicitly selected advertised aliases |
-| `all-advertised` | Inbox plus every enabled advertised alias |
+| `all-advertised` | Inbox plus every enabled advertised agent alias; sessions require separate explicit grants |
 
 Modes are `queue`, `auto` and `steer`. New pairings allow only `queue`. Files are off initially. Any broader scope, additional mode or file permission requires typing `ALLOW REMOTE ACCESS`.
 
@@ -120,6 +120,19 @@ full-ID confirmations remain separate from the editor.
 The editor sends its original policy and pairing epoch with Apply. The server
 compares them atomically with the write, rejecting changes that race the next
 dashboard poll. A stale draft cannot restore permissions restricted elsewhere.
+
+## Opt in to session targets
+
+Session delivery requires Piclaw's request-scoped local context and authenticated incarnation-bound messaging APIs. Older hosts report session targets as unavailable; named-agent and inbox delivery keep their existing behaviour.
+
+1. Advertise the local agent under **Advertised agents**.
+2. Under **Advertised sessions**, select **Refresh local session targets**. Choose an exact local target, its advertised agent alias, a public session alias and delivery modes, then select **Advertise session**. Idle targets are valid: `active` describes streaming activity.
+3. Edit the intended peer's incoming permissions. Under **Sessions**, allow that session and select its modes. Type `ALLOW REMOTE ACCESS` and select **Apply**. Cancel and Revert discard drafts without writing. File-only changes retain session grants.
+4. Refresh the sender's directory and use the returned `peer!@agent/session` address and modes. Outgoing Settings shows read-only session grants and `ready`, `stale` or `unreachable` status.
+
+Neither named-agent selection nor `all-advertised` grants session access. Effective modes are the intersection of peer modes, advertised session modes and the explicit session grant. `none` scope denies session delivery.
+
+An advertisement binds the target's chat JID and incarnation. A deleted or recreated lifetime is stale and rejects delivery, even if the chat JID is reused. No named-agent fallback runs. **Hide** removes the advertisement and its peer grants. Every advertisement or re-advertisement under the same alias clears old grants and creates a new advertisement revision, even for the same target and modes; each peer needs fresh consent. If the advertisement changes or is hidden while editing, Settings clears typed consent and blocks Apply, including when there were no saved grants. Use **Revert**, select the current session again, and type `ALLOW REMOTE ACCESS` afresh. Retyping or toggling the stale draft cannot clear the conflict. Remove one peer's session selection and Apply to revoke only that peer's grant.
 
 ## Sending and retrying
 
@@ -165,6 +178,6 @@ Back up the entire `iroh-v1` directory with Piclaw stopped or through a consiste
 
 ## Diagnostics
 
-Use Settings health, delivery and work sections first. The `remote_peer` management tool also provides `status`, `identity`, `ticket`, `pair`, `accept`, `deny`, `revoke`, `forget`, `alias`, `policy`, `remote_permissions`, `advertise`, `unadvertise`, `ping`, `retry`, `work_send` and `work_review`.
+Use Settings health, delivery and work sections first. The `remote_peer` management tool also provides `status`, `identity`, `ticket`, `pair`, `accept`, `deny`, `revoke`, `forget`, `alias`, `policy`, `remote_permissions`, `advertise`, `unadvertise`, `session_targets`, `session_advertise`, `session_unadvertise`, `ping`, `retry`, `work_send` and `work_review`.
 
 See [troubleshooting](troubleshooting.md), [protocol](protocol.md), [security boundaries](security.md), [mediated work](mediated-work.md) and [implementation evidence](e2e-matrix.md).

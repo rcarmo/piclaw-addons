@@ -21,20 +21,22 @@ async function api(action, body) {
 }
 
 function peerPolicy(peer) {
-  return { scope: peer.scope, modes: [...peer.modes], agents: [...peer.agents], files: peer.files === true };
+  return { scope: peer.scope, modes: [...peer.modes], agents: [...peer.agents], files: peer.files === true,
+    ...(peer.sessions === undefined ? {} : { sessions: peer.sessions.map(s => ({ ...s, modes: [...s.modes] })) }) };
 }
 function policyKey(policy) {
-  return JSON.stringify([policy.scope, policy.modes, policy.agents, policy.files]);
+  return JSON.stringify([policy.scope, policy.modes, policy.agents, policy.files, policy.sessions ?? []]);
 }
 function needsConfirmation(policy) {
-  return !["none", "inbox-only"].includes(policy.scope) || policy.modes.some(m => m !== "queue") || policy.files;
+  return !["none", "inbox-only"].includes(policy.scope) || policy.modes.some(m => m !== "queue") || policy.files || (policy.sessions ?? []).length > 0;
 }
-function PeerPermissions({ peer, advertised, busy, enabled, onApply }) {
+function PeerPermissions({ peer, advertised, advertisedSessions, busy, enabled, onApply }) {
   const [draft, setDraft] = useState(() => peerPolicy(peer)),
     [savedPolicy, setSavedPolicy] = useState(() => peerPolicy(peer)),
     [savedEpoch, setSavedEpoch] = useState(peer.epoch),
     [editing, setEditing] = useState(false),
     [confirmation, setConfirmation] = useState(""),
+    [sessionConflict, setSessionConflict] = useState(false),
     [saving, setSaving] = useState(false),
     [status, setStatus] = useState(""),
     [error, setError] = useState(""),
@@ -45,12 +47,22 @@ function PeerPermissions({ peer, advertised, busy, enabled, onApply }) {
   const saved = peerPolicy(peer);
   const baseline = policyKey(savedPolicy);
   const dirty = policyKey(draft) !== baseline;
-  const conflict = editing && policyKey(saved) !== baseline;
+  const staleSelection = editing && (draft.sessions ?? []).some(s => !s.revision || !advertisedSessions.some(a => a.agent === s.agent && a.session_alias === s.session_alias && a.revision === s.revision));
+  const conflict = editing && (policyKey(saved) !== baseline || staleSelection || sessionConflict);
+  useEffect(() => {
+    if (staleSelection) { setSessionConflict(true); setConfirmation(""); }
+  }, [staleSelection]);
   const locked = busy || saving || !enabled;
   const selectable = [...new Set([...draft.agents, ...advertised.map(a => a.alias)])];
+  const sessionChoices = [...advertisedSessions, ...(draft.sessions ?? []).filter(s => !advertisedSessions.some(a => a.agent === s.agent && a.session_alias === s.session_alias))];
+  const invalidSessions = (draft.sessions ?? []).some(s => !s.modes.length);
+  function sessionChange(session, selectedModes) {
+    const grants = (draft.sessions ?? []).filter(s => s.agent !== session.agent || s.session_alias !== session.session_alias);
+    change({ sessions: selectedModes === null ? grants : [...grants, { agent: session.agent, session_alias: session.session_alias, revision: (draft.sessions ?? []).find(s => s.agent === session.agent && s.session_alias === session.session_alias)?.revision ?? session.revision, modes: selectedModes }] });
+  }
   function reset(keepEditing) {
     setDraft(peerPolicy(peer)); setSavedPolicy(peerPolicy(peer)); setSavedEpoch(peer.epoch);
-    setEditing(keepEditing); setConfirmation(""); setError(""); setStatus("");
+    setEditing(keepEditing); setConfirmation(""); setSessionConflict(false); setError(""); setStatus("");
   }
   function change(patch) { setDraft(current => ({ ...current, ...patch })); setConfirmation(""); setError(""); setStatus(""); }
   function toggle(key, value, checked) {
@@ -64,7 +76,10 @@ function PeerPermissions({ peer, advertised, busy, enabled, onApply }) {
       setDraft(peerPolicy(reloaded)); setSavedPolicy(peerPolicy(reloaded)); setSavedEpoch(reloaded.epoch);
       setEditing(false); setConfirmation("");
       setStatus("Incoming permissions saved and reloaded. The peer must refresh its directory to see these changes.");
-    } catch (e) { setError(e.message || "Could not apply permissions. Your edits are retained."); }
+    } catch (e) {
+      if (/Session advertisement changed|requires selection/.test(e.message || "")) { setSessionConflict(true); setConfirmation(""); }
+      setError(e.message || "Could not apply permissions. Your edits are retained.");
+    }
     finally { setSaving(false); }
   }
   async function refreshRemote() {
@@ -80,7 +95,7 @@ function PeerPermissions({ peer, advertised, busy, enabled, onApply }) {
     <section class="settings-addon-section" aria-label="Incoming permissions">
       <h5>Incoming — what this peer may send to this instance</h5>
       <p class="settings-addon-help">You control these permissions for ${peer.alias} only. They do not grant remote tool execution.</p>
-      <p class="remote-peer-saved">Saved: ${saved.scope} · ${saved.modes.join(", ")} · incoming files ${saved.files ? "enabled" : "disabled"}${saved.agents.length ? " · named agents: " + saved.agents.join(", ") : ""}</p>
+      <p class="remote-peer-saved">Saved: ${saved.scope} · ${saved.modes.join(", ")} · incoming files ${saved.files ? "enabled" : "disabled"}${saved.agents.length ? " · named agents: " + saved.agents.join(", ") : ""}${saved.sessions?.length ? " · sessions: " + saved.sessions.map(s => "@" + s.agent + "/" + s.session_alias + " (" + s.modes.join(", ") + ")").join("; ") : ""}</p>
       <p class="settings-addon-help" id=${prefix + "-limits"}>Protocol limits: up to 4 files, 16 MiB each, 32 MiB total. Enabling incoming files here lets this peer send files here; sending files to the peer depends on its own permissions.</p>
       ${!editing ? html`<button disabled=${locked} onClick=${() => reset(true)}>Edit incoming permissions</button>` : html`
         <fieldset disabled=${locked}>
@@ -100,6 +115,18 @@ function PeerPermissions({ peer, advertised, busy, enabled, onApply }) {
             <div class="remote-peer-checks">${selectable.map(name => html`<label><input type="checkbox" disabled=${draft.scope !== "named-agents"} checked=${draft.agents.includes(name)} onChange=${e => toggle("agents", name, e.target.checked)} />@${name}${advertised.some(a => a.alias === name) ? "" : " (not currently advertised)"}</label>`)}</div>
             ${!selectable.length && html`<p class="settings-addon-help">No locally advertised agents.</p>`}
           </fieldset>
+          <fieldset><legend>Sessions</legend>
+            <p class="settings-addon-help">Each session needs an explicit grant, including under all-advertised scope. Delivery uses the intersection of peer, advertisement and session modes. None scope denies delivery.</p>
+            ${sessionChoices.map(s => {
+              const grant = draft.sessions?.find(g => g.agent === s.agent && g.session_alias === s.session_alias);
+              return html`<fieldset><legend>@${s.agent}/${s.session_alias} — ${s.status || "not currently advertised"}</legend>
+                <label><input type="checkbox" aria-label=${"Allow session @" + s.agent + "/" + s.session_alias} checked=${!!grant} onChange=${e => sessionChange(s, e.target.checked ? ["queue"] : null)} />Allow this session</label>
+                <div class="remote-peer-checks">${["queue", "auto", "steer"].map(mode => html`<label><input type="checkbox" aria-label=${"Session @" + s.agent + "/" + s.session_alias + " " + mode} disabled=${!grant} checked=${grant?.modes.includes(mode) || false} onChange=${e => sessionChange(s, e.target.checked ? [...grant.modes, mode] : grant.modes.filter(m => m !== mode))} />${mode}</label>`)}</div>
+              </fieldset>`;
+            })}
+            ${!sessionChoices.length && html`<p class="settings-addon-help">No locally advertised sessions.</p>`}
+            ${invalidSessions && html`<p class="settings-addon-error" role="alert">Select at least one mode for each granted session.</p>`}
+          </fieldset>
           <label class="remote-peer-check"><input type="checkbox" aria-describedby=${prefix + "-limits"} checked=${draft.files} onChange=${e => change({ files: e.target.checked })} /> Allow this peer to send files here</label>
           ${dirty && needsConfirmation(draft) && html`<div class="settings-addon-field">
             <label class="settings-addon-label" for=${prefix + "-confirmation"}>Confirm wider incoming access</label>
@@ -107,10 +134,10 @@ function PeerPermissions({ peer, advertised, busy, enabled, onApply }) {
             <span id=${prefix + "-confirm-help"} class="settings-addon-help">Type ALLOW REMOTE ACCESS to apply this broader policy.</span>
           </div>`}
         </fieldset>
-        ${conflict && html`<p class="settings-addon-error" role="alert">Saved permissions changed while you were editing. Revert to reload them before applying.</p>`}
+        ${conflict && html`<p class="settings-addon-error" role="alert">${staleSelection || sessionConflict ? "Session advertisement changed while you were editing. Revert, select the current session and confirm again before applying." : "Saved permissions changed while you were editing. Revert to reload them before applying."}</p>`}
         <p class="settings-addon-status" role="status">${saving ? "Applying incoming permissions…" : dirty ? "Unsaved changes" : "No unsaved changes"}</p>
         <div class="settings-addon-actions">
-          <button data-settings-button="primary" disabled=${locked || !dirty || conflict || !draft.modes.length || (needsConfirmation(draft) && confirmation !== "ALLOW REMOTE ACCESS")} onClick=${apply}>Apply</button>
+          <button data-settings-button="primary" disabled=${locked || !dirty || conflict || !draft.modes.length || invalidSessions || (needsConfirmation(draft) && confirmation !== "ALLOW REMOTE ACCESS")} onClick=${apply}>Apply</button>
           <button disabled=${saving} onClick=${() => reset(true)}>Revert</button>
           <button disabled=${saving} onClick=${() => reset(false)}>Cancel</button>
         </div>`}
@@ -125,9 +152,55 @@ function PeerPermissions({ peer, advertised, busy, enabled, onApply }) {
       ${remoteError && html`<p class="settings-addon-error" role="alert">Remote permissions unavailable: ${remoteError}${remote ? " Last fetched snapshot is stale." : ""}</p>`}
       ${remote && html`<div class="remote-peer-saved"><p>Remote inbox: ${remote.inbox ? "allowed" : "not advertised"} · modes: ${remote.modes.join(", ")} · outgoing files ${remote.files ? "enabled" : "disabled"}</p>
         <p>Advertised remote agents: ${remote.agents.length ? remote.agents.map(a => "@" + a.name + " (" + a.modes.join(", ") + ")").join("; ") : "none"}</p>
+        <p>Advertised remote sessions: ${remote.sessions?.length ? remote.sessions.map(s => "@" + s.agent + "/" + s.session_alias + " (" + s.modes.join(", ") + ") — " + s.status).join("; ") : "none"}</p>
         <p class="settings-addon-help">Local protocol sending limits: ${remote.limits.maxFiles} files, ${remote.limits.maxFileBytes / 1048576} MiB each, ${remote.limits.maxTotalBytes / 1048576} MiB total.</p></div>`}
     </section>
   </div>`;
+}
+function SessionAdvertisements({ advertised, sessions, busy, enabled, run }) {
+  const [targets, setTargets] = useState([]), [target, setTarget] = useState(""),
+    [agent, setAgent] = useState(""), [alias, setAlias] = useState(""),
+    [modes, setModes] = useState(["queue"]), [loading, setLoading] = useState(false),
+    [error, setError] = useState(""), [loaded, setLoaded] = useState(false);
+  const selected = targets.find(t => JSON.stringify([t.chatJid, t.incarnation]) === target);
+  const agents = advertised.filter(a => a.local_agent === selected?.agentName);
+  async function load() {
+    setLoading(true); setError("");
+    try {
+      const data = await api("dashboard", { action: "session_targets" });
+      setTargets(data.result); setLoaded(true); setTarget(""); setAgent("");
+    } catch (e) { setTargets([]); setTarget(""); setAgent(""); setLoaded(false); setError(e.message || "Local session targets unavailable."); }
+    finally { setLoading(false); }
+  }
+  return html`<section class="settings-addon-section" aria-label="Session advertisements">
+    <h5>Advertised sessions</h5>
+    <p class="settings-addon-help">Opt in to an exact local session lifetime. Idle sessions are valid. Advertising does not grant any peer access.</p>
+    ${sessions.map(s => html`<div class="remote-peer-row">@${s.agent}/${s.session_alias} → ${s.chat_jid} · ${s.status} · ${JSON.parse(s.modes).join(", ")}
+      <button disabled=${busy || !enabled} aria-label=${"Hide session @" + s.agent + "/" + s.session_alias} onClick=${() => run({ action: "session_unadvertise", agent: s.agent, session_alias: s.session_alias })}>Hide</button></div>`)}
+    ${!sessions.length && html`<p class="settings-addon-help">No local sessions advertised.</p>`}
+    <button disabled=${busy || loading || !enabled} onClick=${load}>${loading ? "Loading local session targets…" : "Refresh local session targets"}</button>
+    ${error && html`<p class="settings-addon-error" role="alert">Local session targets unavailable: ${error} Named-agent advertising is unchanged.</p>`}
+    ${loaded && !targets.length && html`<p class="settings-addon-help" role="status">No local session targets available.</p>`}
+    <fieldset disabled=${busy || loading || !enabled || !loaded}>
+      <legend>Advertise a local session</legend>
+      <div class="settings-addon-field"><label class="settings-addon-label" for="remote-peer-session-target">Local session target</label>
+        <select id="remote-peer-session-target" class="settings-addon-control" value=${target} onChange=${e => { setTarget(e.target.value); setAgent(""); }}>
+          <option value="">Select an exact local session…</option>
+          ${targets.map(t => html`<option value=${JSON.stringify([t.chatJid, t.incarnation])}>${t.agentName} · ${t.chatJid} · ${t.active ? "active" : "idle"}</option>`)}
+        </select></div>
+      <div class="settings-addon-field"><label class="settings-addon-label" for="remote-peer-session-agent">Advertised agent alias</label>
+        <select id="remote-peer-session-agent" class="settings-addon-control" value=${agent} onChange=${e => setAgent(e.target.value)}>
+          <option value="">Select an advertised alias…</option>${agents.map(a => html`<option value=${a.alias}>@${a.alias}</option>`)}
+        </select></div>
+      ${selected && !agents.length && html`<p class="settings-addon-help">Advertise this local agent above first.</p>`}
+      <div class="settings-addon-field"><label class="settings-addon-label" for="remote-peer-session-alias">Public session alias</label>
+        <input id="remote-peer-session-alias" class="settings-addon-control" value=${alias} onInput=${e => setAlias(e.target.value)} /></div>
+      <fieldset><legend>Advertised session modes</legend><div class="remote-peer-checks">
+        ${["queue", "auto", "steer"].map(m => html`<label><input type="checkbox" aria-label=${"Advertised session " + m} checked=${modes.includes(m)} onChange=${e => setModes(e.target.checked ? [...modes, m] : modes.filter(v => v !== m))} />${m}</label>`)}
+      </div></fieldset>
+      <button disabled=${!selected || !agent || !alias.trim() || !modes.length} onClick=${() => run({ action: "session_advertise", agent, session_alias: alias.trim(), chat_jid: selected.chatJid, incarnation: selected.incarnation, modes })}>Advertise session</button>
+    </fieldset>
+  </section>`;
 }
 function RemotePeerSettings() {
   const dashboardGeneration = useRef(0);
@@ -468,7 +541,7 @@ function RemotePeerSettings() {
               </button>
             </div>
             ${peer.status === "paired" &&
-            html`<${PeerPermissions} peer=${peer} advertised=${state.advertised} busy=${busy} enabled=${c.enabled} onApply=${applyPolicy} />`}
+            html`<${PeerPermissions} peer=${peer} advertised=${state.advertised} advertisedSessions=${state.advertised_sessions ?? []} busy=${busy} enabled=${c.enabled} onApply=${applyPolicy} />`}
           </div>`,
       )}
     </section>
@@ -509,6 +582,7 @@ function RemotePeerSettings() {
         )}
       </select>
       </div>
+      <${SessionAdvertisements} advertised=${state.advertised} sessions=${state.advertised_sessions ?? []} busy=${busy} enabled=${c.enabled} run=${run} />
     </section>
     <section class="remote-peer-section">
       <h4>Relays</h4>

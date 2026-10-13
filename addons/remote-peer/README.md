@@ -56,12 +56,18 @@ If the receiver crashes between calling Piclaw delivery and recording the receip
 
 Work requests remain operator-mediated. Neither a pairing nor an `execute` request grants tool execution. Reviewed results may be returned from Settings or the management tool.
 
+### Exact session targets
+
+Under **Advertised agents**, **Advertised sessions** lets an operator refresh and choose an exact local target, advertised agent alias, public session alias and modes. Idle sessions are valid. Each peer then needs an explicit session grant in its incoming draft and `ALLOW REMOTE ACCESS` consent. Named-agent selection and `all-advertised` never grant sessions implicitly.
+
+Use only directory-returned `peer!@agent/session` addresses. Delivery rechecks the stored incarnation; stale lifetimes reject without named-agent fallback. Older hosts without the required APIs report session targets as unavailable. Hiding an advertisement removes its grants. Every advertisement/re-advertisement creates a fresh revision and requires fresh grants, even for the same lifetime. If it changes during editing, typed consent is cleared and Apply stays blocked until Revert, current-session reselection and fresh confirmation. Outgoing permissions show read-only session grants and readiness status. See the [operator steps](docs/operator-guide.md#opt-in-to-session-targets).
+
 ### Per-peer permission editor
 
 Each paired peer shows two separate directions:
 
 - **Incoming — what this peer may send to this instance:** saved local scope,
-  delivery modes, named agents and file permission. Select **Edit incoming
+  delivery modes, named agents, explicit session grants and file permission. Select **Edit incoming
   permissions** to change a draft, then **Apply** to save. **Revert** reloads the
   currently displayed saved policy; **Cancel** discards the draft and closes the
   editor. Neither writes permissions. File-only edits preserve other fields,
@@ -74,7 +80,7 @@ Each paired peer shows two separate directions:
 
 Broader incoming policies still require typing `ALLOW REMOTE ACCESS`. Apply is
 disabled while saving, with no delivery modes selected, or when polling detects
-that the saved policy changed during editing. Success appears only after a
+that the saved policy or a selected session advertisement changed during editing. Success appears only after a
 separate dashboard read verifies the saved policy. Failures retain the draft and
 show an error. A failed readback can follow a successful write; Revert or retry
 to reconcile rather than assuming the write failed.
@@ -108,7 +114,7 @@ Custom relays require HTTPS URLs. Authentication is an optional keychain entry n
 
 ## Management API
 
-`remote_peer` actions: `status`, `identity`, `ticket`, `pair`, `accept`, `deny`, `revoke`, `forget`, `alias`, `policy`, `remote_permissions`, `advertise`, `unadvertise`, `ping`, `retry`, `work_send`, `work_review`.
+`remote_peer` actions: `status`, `identity`, `ticket`, `pair`, `accept`, `deny`, `revoke`, `forget`, `alias`, `policy`, `remote_permissions`, `advertise`, `unadvertise`, `session_targets`, `session_advertise`, `session_unadvertise`, `ping`, `retry`, `work_send`, `work_review`.
 
 Settings uses `/agent/addons/api/remote-peer/config` and `/dashboard`. The old `/pair` command and HTTP pairing protocol are removed. Removing a revoked record requires full-ID confirmation and only permits a new explicit pairing attempt.
 
