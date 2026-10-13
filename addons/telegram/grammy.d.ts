@@ -1,21 +1,22 @@
 declare module "grammy" {
   export class Api {
     constructor(token: string);
-    getMe(): Promise<{ id: number; username?: string }>;
-    getUpdates(params: {
-      offset?: number;
-      timeout?: number;
-      allowed_updates?: string[];
-    }): Promise<Array<Record<string, unknown>>>;
+    getMe(signal?: AbortSignal): Promise<{ id: number; username?: string }>;
+    getUpdates(
+      other?: { offset?: number; timeout?: number; allowed_updates?: string[] },
+      signal?: AbortSignal,
+    ): Promise<Array<Record<string, unknown>>>;
     sendMessage(
       chatId: string | number,
       text: string,
-      params?: { message_thread_id?: number },
+      other?: Record<string, unknown>,
+      signal?: AbortSignal,
     ): Promise<unknown>;
     sendChatAction(
       chatId: string | number,
       action: "typing",
-      params?: { message_thread_id?: number },
+      other?: Record<string, unknown>,
+      signal?: AbortSignal,
     ): Promise<unknown>;
   }
 }

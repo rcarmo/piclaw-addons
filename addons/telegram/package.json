@@ -1,13 +1,13 @@
 {
   "name": "@rcarmo/piclaw-addon-telegram",
-  "version": "0.1.3",
-  "description": "Telegram Bot channel for PiClaw. Connects via Bot API long polling, receives/sends messages, and routes them through the agent.",
+  "version": "0.3.1",
+  "description": "Telegram Bot channel for PiClaw. Long-polls the Bot API at startup for local notices. Inbound agent access is currently unavailable.",
   "type": "module",
   "main": "index.ts",
   "license": "MIT",
   "piclaw": {
     "type": "extension",
-    "compatibleVersions": ">=2.0.0",
+    "compatibleVersions": ">=3.3.2",
     "tags": [
       "channel",
       "messaging",
@@ -18,6 +18,12 @@
     "extensions": [
       "index.ts"
     ],
+    "runtime": {
+      "entries": [
+        "runtime.ts"
+      ],
+      "load": "startup"
+    },
     "web": {
       "entries": [
         "web/index.ts"

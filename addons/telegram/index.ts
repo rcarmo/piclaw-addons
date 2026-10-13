@@ -1,122 +1,80 @@
 /**
  * @rcarmo/piclaw-addon-telegram — Telegram Bot channel addon for PiClaw.
  *
- * Connects via Telegram Bot API long polling, receives inbound messages,
- * and sends agent responses back through Telegram.
- *
- * Configuration:
- *   - PICLAW_TELEGRAM_BOT_TOKEN: Bot token from @BotFather
- *   - PICLAW_TELEGRAM_ENABLED: Set to "1" to enable
- *   - PICLAW_TELEGRAM_POLLING_TIMEOUT: Long poll timeout in seconds (default 30)
+ * Polling, settings and delivery live in the startup runtime entry
+ * (runtime.ts → service.ts). This pi extension only links agent runs in the
+ * dedicated target chat back to the in-flight Telegram message, so the final
+ * reply of that run (after retries and recovery continuations) is sent to
+ * Telegram. Session start or shutdown never connects or disconnects the channel.
  */
 import type { ExtensionAPI, ExtensionFactory } from "@earendil-works/pi-coding-agent";
-import type { NewMessage } from "./channel-types.js";
+import { peekTelegramService, type ToolContext } from "./service.js";
 
-const ADDON_ID = "telegram";
-const BOT_TOKEN_KEYCHAIN = "telegram/bot-token";
+type AgentMessageLike = { role?: string; content?: unknown; stopReason?: string };
 
-function getConfig(): { botToken: string; enabled: boolean; pollingTimeout: number } {
-  const interop = (globalThis as any).__piclawRuntimeInterop;
-  const kv = interop?.getExtensionKvStore?.();
-  const legacyKvToken = typeof kv?.get(ADDON_ID, "botToken") === "string" ? String(kv.get(ADDON_ID, "botToken")).trim() : "";
-  const botToken = process.env.TELEGRAM_BOT_TOKEN?.trim() || process.env.PICLAW_TELEGRAM_BOT_TOKEN?.trim() || legacyKvToken;
-  const enabled = process.env.PICLAW_TELEGRAM_ENABLED === "1" || kv?.get(ADDON_ID, "enabled") === true;
-  const storedTimeout = Number(kv?.get(ADDON_ID, "pollingTimeout"));
-  const pollingTimeout = Number(process.env.PICLAW_TELEGRAM_POLLING_TIMEOUT) || (Number.isFinite(storedTimeout) && storedTimeout > 0 ? storedTimeout : 30);
-  return { botToken, enabled, pollingTimeout };
-}
-
-export function handleGetConfig() {
-  const { botToken, enabled, pollingTimeout } = getConfig();
-  return {
-    enabled,
-    pollingTimeout,
-    connected: Boolean((globalThis as any).__telegramConnected),
-    botTokenConfigured: Boolean(botToken),
-    botTokenKeychain: BOT_TOKEN_KEYCHAIN,
-  };
-}
-
-export function handleSetConfig(payload: unknown) {
-  const body = payload && typeof payload === "object" ? payload as Record<string, unknown> : {};
-  const kv = (globalThis as any).__piclawRuntimeInterop?.getExtensionKvStore?.();
-  if (typeof body.enabled === "boolean") kv?.set(ADDON_ID, "enabled", body.enabled);
-  if (typeof body.pollingTimeout === "number" && Number.isFinite(body.pollingTimeout)) {
-    kv?.set(ADDON_ID, "pollingTimeout", Math.max(5, Math.min(120, Math.round(body.pollingTimeout))));
+/** Text of the last assistant message, or null when the run ended in an error or abort. */
+export function finalAssistantText(messages: unknown): string | null {
+  if (!Array.isArray(messages)) return null;
+  for (let index = messages.length - 1; index >= 0; index--) {
+    const message = messages[index] as AgentMessageLike | null;
+    if (message?.role !== "assistant") continue;
+    if (message.stopReason === "error" || message.stopReason === "aborted") return null;
+    const parts = Array.isArray(message.content) ? message.content : [];
+    return parts
+      .filter((part): part is { type: "text"; text: string } => part?.type === "text" && typeof part.text === "string")
+      .map((part) => part.text)
+      .join("");
   }
-  return { ok: true, ...handleGetConfig() };
+  return null;
 }
 
-type AddonConfigApiRegistrar = (
-  addonId: string,
-  action: string,
-  handlers: { get?: (payload: unknown, req: Request) => unknown | Promise<unknown>; set?: (payload: unknown, req: Request) => unknown | Promise<unknown> },
-  extensionPath?: string,
-) => "created" | "updated";
+function currentChatJid(): string {
+  const interop = (globalThis as { __piclawRuntimeInterop?: { getChatJid?: (defaultValue?: string) => string } }).__piclawRuntimeInterop;
+  try { return interop?.getChatJid?.("") || ""; } catch { return ""; }
+}
 
-const registerAddonConfigApi = (globalThis as Record<string, unknown>).__piclaw_registerAddonConfigApi as AddonConfigApiRegistrar | undefined;
-if (typeof registerAddonConfigApi === "function") {
-  registerAddonConfigApi(ADDON_ID, "config", {
-    get: async () => handleGetConfig(),
-    set: async (payload) => handleSetConfig(payload),
-  }, import.meta.dir);
+function toolContext(): ToolContext | null {
+  const local = (globalThis as { __piclaw_runtime?: { localContext?: { version?: number; getToolContext?: () => ToolContext | null } } }).__piclaw_runtime?.localContext;
+  try { return local?.version === 1 ? local.getToolContext?.() ?? null : null; } catch { return null; }
 }
 
 const register: ExtensionFactory = (pi: ExtensionAPI) => {
-  const interop = (globalThis as any).__piclawRuntimeInterop;
+  // Per-session state: side sessions get their own factory instance and never see this claim.
+  let claimed: number | null = null;
+  let lastText: string | null = null;
 
-  // Register channel detector for Telegram JIDs
-  if (interop?.registerChannelDetector) {
-    interop.registerChannelDetector((jid: string) => {
-      if (jid.startsWith("telegram:") || jid.startsWith("tg:")) return "telegram";
-      return null;
-    });
-  }
+  const settle = (aborted: boolean) => {
+    const runId = claimed;
+    if (runId === null) return;
+    // Without a successful reply the claim stays open for Piclaw's recovery continuation.
+    if (lastText !== null || aborted) claimed = null;
+    void peekTelegramService()?.completeRun(runId, lastText, aborted).catch(() => {});
+  };
 
-  const { botToken, enabled, pollingTimeout } = getConfig();
-  if (!enabled || !botToken) return;
-
-  // Lazy-load Telegram channel
-  let channelPromise: Promise<any> | null = null;
-
-  async function getChannel() {
-    if (!channelPromise) {
-      channelPromise = import("./telegram.js").then((mod) => {
-        const channel = new mod.TelegramChannel({
-          botToken,
-          pollingTimeoutSeconds: pollingTimeout,
-          chatJids: () => new Set<string>(),
-          onMessage: (chatJid: string, message: NewMessage) => {
-            if (interop?.postMessage) {
-              interop.postMessage(chatJid, message.content, { source: "telegram", message });
-            }
-          },
-          onChatMetadata: () => {},
-        });
-        return channel;
-      });
+  pi.on("before_agent_start", () => {
+    const context = toolContext();
+    const service = peekTelegramService();
+    if (claimed !== null) {
+      // Recovery without host provenance cannot inherit the claim.
+      if (service?.continueRun(claimed, context)) return;
+      claimed = null;
     }
-    return channelPromise;
-  }
-
-  pi.on("session_start", async () => {
-    try {
-      const channel = await getChannel();
-      await channel.connect();
-      (globalThis as any).__telegramConnected = true;
-      console.log("[telegram] Connected");
-    } catch (err) {
-      console.error("[telegram] Failed to connect:", err);
+    const runId = service?.claimRun(currentChatJid(), context) ?? null;
+    if (runId !== null) {
+      claimed = runId;
+      lastText = null;
     }
   });
 
-  pi.on("session_shutdown", async () => {
-    try {
-      const channel = await getChannel();
-      await channel.disconnect();
-      (globalThis as any).__telegramConnected = false;
-    } catch { /* ignore */ }
+  // Retries emit agent_end more than once; keep the latest successful reply.
+  pi.on("agent_end", (event) => {
+    if (claimed === null) return;
+    const text = finalAssistantText(event.messages);
+    if (text !== null) lastText = text;
   });
+
+  // `aborted` was added to agent_settled in later Pi releases; older ones omit it.
+  pi.on("agent_settled", (event) => settle((event as { aborted?: unknown }).aborted === true));
 };
 
 export default register;
