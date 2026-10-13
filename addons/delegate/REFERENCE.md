@@ -187,14 +187,14 @@ Representative arguments:
 [@/workspace/image.png ...]
 ```
 
-The prompt is written to stdin. There is no shell wrapper and no prompt temp file.
+The prompt is written to stdin; no prompt temp file is created. On POSIX a parent-owned `/bin/sh` session leader anchors the CLI process group through cleanup. The command and arguments are passed positionally, not interpolated into shell source.
 
 ### Extension trust boundary
 
 `--no-extensions` is always used. Delegate may explicitly load:
 
-1. The known MCP adapter entrypoint when installed.
-It does not recursively load Delegate, inherit Piclaw add-on tools, or scan/load arbitrary top-level workspace `.ts` extensions.
+1. The known MCP adapter entrypoint when installed **and requested**. Named profiles retain the existing adapter default; an explicit built-in list such as `tools: "read,grep"` is MCP-none, even when the adapter is installed. Explicit `mcp` without an adapter fails closed.
+It does not recursively load Delegate, inherit Piclaw add-on tools, or scan/load arbitrary top-level workspace `.ts` extensions. Model discovery also passes `--no-extensions`.
 
 ### Structured JSON protocol
 
@@ -224,7 +224,9 @@ Tool and message progress is surfaced through bounded `onUpdate` calls. A real p
 
 One absolute deadline covers discovery completion, the selected attempt, and every fallback attempt. Each subsequent child receives only the remaining time.
 
-On timeout or cancellation Delegate sends `SIGTERM` to the detached child process group, waits briefly, then escalates to `SIGKILL`. It removes listeners/timers and rejects only after close, preventing descendants and session files from surviving the call.
+On POSIX timeout or cancellation the parent signals its still-owned anchor with `SIGTERM`; the anchor broadcasts TERM to its group and escalates to KILL after two seconds. The caller rejects promptly, **before cleanup necessarily finishes**. Natural CLI exit reports its status on a private pipe; the live anchor then kills its group, including remaining descendants. The parent never schedules a negative-PID kill against a saved group identity. Windows retains direct-child termination; equivalent descendant cleanup is not qualified here.
+
+Descendants escaping the owned POSIX group are not covered. This is process lifecycle management, not filesystem/network confinement or proof of provider/auth settlement. Synchronous launch progress/setup counts against the same deadline, including before fallback.
 
 `--no-session` ensures the child does not create a persistent Pi session.
 
@@ -270,7 +272,7 @@ Tool profiles:
 | `standard` | `read,grep,find,ls,bash` |
 | `full` | `read,grep,find,ls,bash,edit,write` |
 
-If the known MCP adapter is installed, Delegate adds the `mcp` tool and loads that adapter explicitly.
+Named profiles add `mcp` and explicitly load the known adapter when installed. Explicit comma-separated lists load it only if `mcp` is included; built-in-only lists load no bridge.
 
 ## 12. Result details
 

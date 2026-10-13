@@ -751,6 +751,10 @@ export function isProviderAuthError(text: unknown): boolean {
   return /\b(?:no|missing|invalid)\s+api[ -]?key\b/.test(value)
     || /\b(?:invalid|expired|revoked)\s+(?:access[ -]?|refresh[ -]?|bearer[ -]?)?token\b/.test(value)
     || /\b(?:token|credentials?|authentication)\s+(?:has\s+|have\s+)?(?:expired|revoked)\b/.test(value)
+    || /\b(?:invalid|expired|revoked)\s+credentials?\b/.test(value)
+    || /\binvalid_grant\b/.test(value)
+    || /\b(?:failed to refresh|refresh failed).*\b(?:oauth|token|credentials?)\b/.test(value)
+    || /\b(?:oauth|token|credentials?)\s+refresh\s+(?:failed|error)\b/.test(value)
     || /\blogged[ -]?out\b/.test(value)
     || value.includes("missing api key")
     || value.includes("no credentials")
@@ -985,7 +989,7 @@ function runPiListModels(cli: DelegateCliCommand, timeoutMs = 20_000, signal?: A
       reject(new Error("Aborted during Delegate model discovery"));
       return;
     }
-    const owned = spawnDelegateChild(cli.command, [...cli.argsPrefix, "--list-models"], "ignore", () => { cleanup(); forceTimer = setTimeout(() => { if(settled)return; settled=true; child.stdout?.destroy();child.stderr?.destroy();reject(new Error("Delegate model discovery retained pipes after CLI exit.")); }, 1000); });
+    const owned = spawnDelegateChild(cli.command, [...cli.argsPrefix, "--no-extensions", "--list-models"], "ignore", () => { cleanup(); forceTimer = setTimeout(() => { if(settled)return; settled=true; child.stdout?.destroy();child.stderr?.destroy();reject(new Error("Delegate model discovery retained pipes after CLI exit.")); }, 1000); });
     const { child } = owned;
     let stdout = "";
     let stderr = "";
@@ -1134,6 +1138,21 @@ const TOOL_PROFILES: Record<string, string> = {
   full:       "read,grep,find,ls,bash,edit,write",
 };
 const BUILTIN_CHILD_TOOLS = new Set(["read", "grep", "find", "ls", "bash", "edit", "write"]);
+
+/** Explicit built-in lists are MCP-none unless they request mcp. */
+export function buildDelegateChildTools(tools: string | undefined, adapterPath: string | null) {
+  const profile = tools ? TOOL_PROFILES[tools] : TOOL_PROFILES.standard;
+  const requested = (profile || String(tools || "")).split(",").map(name => name.trim()).filter(Boolean);
+  if (profile && adapterPath) requested.push("mcp");
+  const allowed = new Set(BUILTIN_CHILD_TOOLS);
+  if (adapterPath) allowed.add("mcp");
+  const unsupported = requested.filter(name => !allowed.has(name));
+  if (unsupported.length) {
+    delegateFailure(`Delegate child cannot load requested tool(s): ${unsupported.join(", ")}. Use Pi built-ins${adapterPath ? " or mcp" : ""}; workspace add-on tools are intentionally not inherited.`);
+  }
+  const unique = [...new Set(requested)];
+  return { toolsArg: unique.join(","), mcpPath: unique.includes("mcp") ? adapterPath : null };
+}
 
 const NATIVE_IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"]);
 const UNSUPPORTED_BINARY_EXTENSIONS = new Set([
@@ -1592,20 +1611,7 @@ export default function (pi: any) {
 
       // Child capabilities are intentionally narrow: built-ins plus the one
       // explicitly discovered MCP adapter. Workspace add-on extensions are not inherited.
-      const mcpPath = findMcpAdapter();
-      const requestedProfile = params.tools ? TOOL_PROFILES[params.tools] : TOOL_PROFILES.standard;
-      const requestedTools = (requestedProfile || String(params.tools || ""))
-        .split(",")
-        .map((name: string) => name.trim())
-        .filter(Boolean);
-      if (requestedProfile && mcpPath) requestedTools.push("mcp");
-      const allowedChildTools = new Set(BUILTIN_CHILD_TOOLS);
-      if (mcpPath) allowedChildTools.add("mcp");
-      const unsupportedTools = requestedTools.filter((name: string) => !allowedChildTools.has(name));
-      if (unsupportedTools.length > 0) {
-        delegateFailure(`Delegate child cannot load requested tool(s): ${unsupportedTools.join(", ")}. Use Pi built-ins${mcpPath ? " or mcp" : ""}; workspace add-on tools are intentionally not inherited.`);
-      }
-      const toolsArg = [...new Set(requestedTools)].join(",");
+      const { toolsArg, mcpPath } = buildDelegateChildTools(params.tools, findMcpAdapter());
 
       // Separate files into text (inline in prompt) and binary (pass as @file args)
       let fullPrompt = params.prompt;
@@ -1720,8 +1726,7 @@ export default function (pi: any) {
           assertApprovedDelegateModelAttempt(attemptModel, eligibleCandidates);
           if (delegateCliDiagnostics(selectedCli).identity !== executableCatalog.cliIdentity) throw new Error("Delegate CLI changed after discovery; retry with the current release.");
           lastAttemptedModel = attemptModel;
-          const remainingMs = deadlineAt - Date.now();
-          if (remainingMs <= 0) throw new Error(`timed out after ${timeout}s`);
+          remainingBudget("attempt setup");
           let progress: DelegateProcessProgress | undefined;
           const publishProgress = (total: number) => {
             setDelegateProgress(ctx, { model: attemptModel, category, prompt: params.prompt }, ordinal, total);
@@ -1745,7 +1750,7 @@ export default function (pi: any) {
           const processResult = await runDelegateProcess(
             piArgs,
             fullPrompt,
-            remainingMs,
+            remainingBudget("child launch"),
             signal,
             (update) => { progress = update; publishProgress(groupTotal); },
             selectedCli,
