@@ -4,9 +4,10 @@ import type {
   PiclawRuntimeApi,
   ChatTransportAttachment,
   ChatTransportDirectoryEntry,
+  AddonLocalContext,
 } from "./compat/runtime.js";
 import { clientId, endpointId } from "./client-id.js";
-import { PeerState, type Peer, type Mode } from "./state.js";
+import { PeerState, type Peer, type Mode, type SessionGrant, type AdvertisedSession } from "./state.js";
 import {
   IrohTransport,
   MAX_BYTES,
@@ -60,8 +61,19 @@ export class PeerService {
   private closePromise: Promise<void> | null = null;
   private transitions: Promise<void> = Promise.resolve();
   private rate = new Map<string, { count: number; until: number }>();
+  private generation = 0;
+  private admissions = new Map<string, Set<AbortController>>();
+  private cancelAdmissions(peerId?: string) {
+    for (const [key, controllers] of this.admissions)
+      if (!peerId || key === peerId)
+        for (const controller of controllers) controller.abort(new Error("Peer authorization changed before admission."));
+  }
+  private invalidateGeneration() {
+    this.generation++;
+    this.cancelAdmissions();
+  }
   constructor(private options: PeerServiceOptions) {
-    this.state = new PeerState(options.dataDir);
+    this.state = new PeerState(options.dataDir, (peerId) => this.cancelAdmissions(peerId));
     try {
       this.transport = this.createTransport();
     } catch (error) {
@@ -118,6 +130,7 @@ export class PeerService {
     return this.transition(async () => {
       const previous = this.state.config();
       const next = normalizeRemotePeerConfig({ ...previous, ...patch });
+      this.invalidateGeneration();
       await this.discovery?.stop();
       this.discovery = null;
       await this.transport.close();
@@ -160,6 +173,7 @@ export class PeerService {
     if (this.closed) return;
     if (this.closePromise) return this.closePromise;
     this.closing = true;
+    this.invalidateGeneration();
     this.closePromise = this.transitions.then(async () => {
       const errors: unknown[] = [];
       try {
@@ -398,6 +412,7 @@ export class PeerService {
       // Preflight before stopping networking. A rejected rotation must leave the
       // current endpoint and discovery service running.
       this.state.assertIdentityRotationAllowed();
+      this.invalidateGeneration();
       await this.discovery?.stop();
       this.discovery = null;
       await this.transport.close();
@@ -419,7 +434,7 @@ export class PeerService {
       // Optional for legacy operator callers; the Settings editor always sends both.
       if (input.expected_policy !== undefined || input.expected_epoch !== undefined) {
         const expected = input.expected_policy;
-        const fields = (p: any) => JSON.stringify([p.scope, p.modes, p.agents, p.files]);
+        const fields = (p: any) => JSON.stringify([p.scope, p.modes, p.agents, p.files, p.sessions ?? []]);
         if (!expected || typeof expected !== "object" || input.expected_epoch !== peer.epoch || fields(expected) !== fields(peer))
           throw new Error("Saved permissions or pairing changed. Revert to reload before applying.");
       }
@@ -429,9 +444,26 @@ export class PeerService {
       const selectedModes = modes(input.modes);
       const agents = (input.agents ?? []).map((v: string) => alias(v));
       if (agents.length > 64) throw new Error("Too many agent aliases.");
+      // Legacy editors preserve grants, but cannot overwrite a concurrent session edit.
+      const sessions: SessionGrant[] = input.sessions === undefined ? (peer.sessions ?? []) : input.sessions;
+      if (!Array.isArray(sessions) || sessions.length > 64)
+        throw new Error("Invalid session grants.");
+      const validatedSessions = input.sessions === undefined ? sessions : sessions.map((grant) => {
+        if (typeof grant.revision !== "string" || !grant.revision)
+          throw new Error("Session access requires selection of the current advertisement before granting.");
+        return { agent: alias(grant.agent), session_alias: alias(grant.session_alias), modes: modes(grant.modes), revision: grant.revision };
+      });
+      if (new Set(validatedSessions.map((g) => g.agent + "/" + g.session_alias)).size !== validatedSessions.length)
+        throw new Error("Duplicate session grants.");
+      if (input.sessions !== undefined) for (const grant of validatedSessions) {
+        const advertisement = this.state.db.query("SELECT revision FROM advertised_sessions WHERE agent=? AND session_alias=?").get(grant.agent, grant.session_alias) as { revision: string } | null;
+        if (!advertisement) throw new Error("Session is not advertised.");
+        if (grant.revision !== advertisement.revision)
+          throw new Error("Session advertisement changed. Revert and select the current session before applying.");
+      }
       if (
         ((input.scope !== "none" && input.scope !== "inbox-only") ||
-          selectedModes.some((m) => m !== "queue") || input.files === true) &&
+          selectedModes.some((m) => m !== "queue") || input.files === true || validatedSessions.length > 0) &&
         input.confirmation !== "ALLOW REMOTE ACCESS"
       ) throw new Error("Type ALLOW REMOTE ACCESS to grant wider permissions.");
       this.state.put({
@@ -439,6 +471,7 @@ export class PeerService {
         scope: input.scope,
         modes: selectedModes,
         agents,
+        ...(input.sessions !== undefined || peer.sessions !== undefined ? { sessions: validatedSessions } : {}),
         files: input.files === true,
       });
     }).immediate();
@@ -452,14 +485,78 @@ export class PeerService {
     const list = await this.options.runtime.messaging!.listAdvertisableAgents();
     if (!list.some((a) => a.agent_name === local))
       throw new Error("Local agent is not advertisable.");
+    this.invalidateGeneration();
     this.state.db
       .query("INSERT OR REPLACE INTO advertised VALUES (?,?,?)")
       .run(alias(name), local, JSON.stringify(modes(allowed)));
   }
   unadvertise(name: string) {
-    this.state.db.query("DELETE FROM advertised WHERE alias=?").run(name);
+    this.invalidateGeneration();
+    this.state.db.transaction(() => {
+      this.state.db.query("DELETE FROM advertised WHERE alias=?").run(name);
+      const rows = this.state.db.query("SELECT session_alias FROM advertised_sessions WHERE agent=?").all(name) as { session_alias: string }[];
+      for (const row of rows) this.removeSession(name, row.session_alias);
+    }).immediate();
   }
-  private roster(peer: Peer) {
+  private requireSessionContext(context?: AddonLocalContext | null) {
+    if (context?.version !== 1 || context.accessMode !== "single-user" || context.kind !== "operator")
+      throw new Error("Session management requires current operator local context.");
+    return context;
+  }
+  async sessionAdvertise(input: { agent: string; session_alias: string; chat_jid: string; incarnation: string; modes: Mode[] }, context?: AddonLocalContext | null) {
+    const ctx = this.requireSessionContext(context);
+    const agent = alias(input.agent), session = alias(input.session_alias), allowed = modes(input.modes);
+    if (!input.incarnation) throw new Error("Session incarnation is required.");
+    // Request authority is checked, never retained for later peer admission.
+    const target = (await this.sessionTargets()).find((t) => t.chatJid === input.chat_jid && t.incarnation === input.incarnation);
+    const authorized = await ctx.resolveTarget({ chatJid: input.chat_jid, incarnation: input.incarnation });
+    if (!target || !authorized || authorized.agentName !== target.agentName) throw new Error("Session lifetime is stale or unavailable.");
+    this.invalidateGeneration();
+    // active means streaming, not targetability: idle branches remain valid.
+    this.state.db.transaction(() => {
+      const advertised = this.state.db.query("SELECT local_agent FROM advertised WHERE alias=?").get(agent) as { local_agent: string } | null;
+      if (!advertised || advertised.local_agent !== target.agentName)
+        throw new Error("Session agent is not advertised.");
+      const previous = this.state.db.query("SELECT * FROM advertised_sessions WHERE agent=? AND session_alias=?").get(agent, session) as AdvertisedSession | null;
+      if (previous) this.removeSession(agent, session); // Every advertisement requires fresh selection and consent.
+      this.state.db.query("INSERT OR REPLACE INTO advertised_sessions (agent,session_alias,local_agent,chat_jid,incarnation,modes,revision) VALUES (?,?,?,?,?,?,?)")
+        .run(agent, session, target.agentName, target.chatJid, target.incarnation, JSON.stringify(allowed), id());
+    }).immediate();
+  }
+  private removeSession(agent: string, session: string) {
+    this.state.db.query("DELETE FROM advertised_sessions WHERE agent=? AND session_alias=?").run(agent, session);
+    for (const peer of this.state.peers())
+      if (peer.sessions?.some((g) => g.agent === agent && g.session_alias === session))
+        this.state.put({ ...peer, sessions: peer.sessions.filter((g) => g.agent !== agent || g.session_alias !== session) });
+  }
+  sessionUnadvertise(agent: string, session: string, context?: AddonLocalContext | null) {
+    this.requireSessionContext(context);
+    this.invalidateGeneration();
+    this.state.db.transaction(() => this.removeSession(alias(agent), alias(session))).immediate();
+  }
+  private async sessionTargets() {
+    const messaging = this.options.runtime.messaging;
+    if (!messaging?.listAdvertisableSessions || !messaging.resolveLocalTarget || !messaging.deliverPeerMessage)
+      throw new Error("Authenticated peer incarnation-bound admission API unavailable.");
+    return messaging.listAdvertisableSessions();
+  }
+  async localSessions(context?: AddonLocalContext | null) {
+    this.requireSessionContext(context);
+    return this.sessionTargets();
+  }
+  private async sessionStatus(s: AdvertisedSession): Promise<"ready" | "stale" | "unreachable"> {
+    try {
+      const targets = await this.sessionTargets();
+      return targets.some((t) => t.chatJid === s.chat_jid && t.incarnation === s.incarnation && t.agentName === s.local_agent) ? "ready" : "stale";
+    } catch { return "unreachable"; }
+  }
+  private async roster(peer: Peer) {
+    const grantEpoch = this.state.authorizationEpoch(peer.id);
+    const sessions = (this.state.db.query("SELECT s.* FROM advertised_sessions s JOIN advertised a ON a.alias=s.agent AND a.local_agent=s.local_agent").all() as AdvertisedSession[]);
+    const statuses = new Map(await Promise.all(sessions.map(async (s) => [s, await this.sessionStatus(s)] as const)));
+    this.enabled();
+    const current = this.paired(peer.id);
+    if (current.epoch !== peer.epoch || this.state.authorizationEpoch(peer.id) !== grantEpoch) throw new Error("Peer authorization changed.");
     return {
       agents:
         peer.scope === "none" || peer.scope === "inbox-only"
@@ -476,6 +573,13 @@ export class PeerService {
                   peer.modes.includes(m),
                 ),
               })),
+      sessions: peer.scope === "none" ? [] : sessions
+        .flatMap((s) => {
+          const grant = peer.sessions?.find((g) => g.agent === s.agent && g.session_alias === s.session_alias && g.revision === s.revision);
+          const allowed = grant ? JSON.parse(s.modes).filter((m: Mode) => peer.modes.includes(m) && grant.modes.includes(m)) : [];
+          return allowed.length ? [{ agent: s.agent, session_alias: s.session_alias, target_kind: "session", modes: allowed,
+            status: statuses.get(s) }] : [];
+        }),
       inbox: peer.scope !== "none",
       modes: peer.modes,
       files: peer.files,
@@ -491,7 +595,8 @@ export class PeerService {
       throw new Error("Peer changed while refreshing permissions.");
     if (
       !body || typeof body.inbox !== "boolean" || typeof body.files !== "boolean" ||
-      !Array.isArray(body.agents) || body.agents.length > 64
+      !Array.isArray(body.agents) || body.agents.length > 64 ||
+      (body.sessions !== undefined && (!Array.isArray(body.sessions) || body.sessions.length > 64))
     ) throw new Error("Invalid remote permission advertisement.");
     return {
       peerId: peer.id,
@@ -502,6 +607,13 @@ export class PeerService {
         if (!agent || typeof agent.name !== "string")
           throw new Error("Invalid remote agent advertisement.");
         return { name: alias(agent.name), modes: Array.isArray(agent.modes) && agent.modes.length === 0 ? [] : modes(agent.modes) };
+      }),
+      sessions: (body.sessions ?? []).map((session: any) => {
+        if (!session || typeof session.agent !== "string" || typeof session.session_alias !== "string")
+          throw new Error("Invalid remote session advertisement.");
+        return { agent: alias(session.agent), session_alias: alias(session.session_alias), target_kind: "session",
+          modes: Array.isArray(session.modes) && session.modes.length === 0 ? [] : modes(session.modes),
+          status: session.status === "ready" ? "ready" : session.status === "stale" ? "stale" : "unreachable" };
       }),
       files: body.files,
       // These are this protocol's enforced limits, not remote-configurable grants.
@@ -546,6 +658,13 @@ export class PeerService {
               status: "ready",
               attachments,
             });
+          for (const session of Array.isArray(roster.sessions) ? roster.sessions.slice(0, 64) : [])
+            entries.push({
+              address: peer.alias + "!@" + alias(session.agent) + "/" + alias(session.session_alias),
+              label: peer.alias + " @" + session.agent + "/" + session.session_alias,
+              peer_alias: peer.alias, peer_fingerprint: clientId(peer.id), target_kind: "session",
+              modes: modes(session.modes), status: session.status === "ready" ? "ready" : session.status === "stale" ? "stale" : "unreachable", attachments,
+            });
         } catch {
           /* Unreachable peers are not directly usable addresses. */
         }
@@ -567,7 +686,7 @@ export class PeerService {
       ? peer.alias + "!inbox"
       : request.address.raw;
     const entry = directory.entries.find((e) => e.address === address);
-    if (!entry || !entry.modes.includes(request.mode))
+    if (!entry || entry.status !== "ready" || !entry.modes.includes(request.mode))
       throw new Error("Address/mode not available. Refresh chat directory.");
     if (request.attachments?.length && !entry.attachments?.enabled)
       throw new Error("Receiver has disabled files.");
@@ -865,7 +984,7 @@ export class PeerService {
     this.state.put(peer);
     if (packet.op === "ping")
       return { body: { ok: true, clientId: this.transport.clientId } };
-    if (packet.op === "roster") return { body: this.roster(peer) };
+    if (packet.op === "roster") return { body: await this.roster(peer) };
     if (packet.op === "revoke") {
       peer.status = "revoked";
       peer.epoch = id();
@@ -891,9 +1010,26 @@ export class PeerService {
       mode = s.mode as Mode;
     if (!peer.modes.includes(mode) || peer.scope === "none")
       throw new Error("Message mode/scope denied.");
+    const generation = this.generation;
+    const admissionGrantEpoch = this.state.authorizationEpoch(peer.id);
     let local = "default",
-      targetChat: string | undefined;
-    if (target.startsWith("@")) {
+      targetChat: string | undefined,
+      targetIncarnation: string | undefined;
+    if (target.startsWith("@") && target.includes("/")) {
+      const match = /^@([a-z0-9][a-z0-9_.-]{0,47})\/([a-z0-9][a-z0-9_.-]{0,47})$/.exec(target);
+      if (!match) throw new Error("Invalid target.");
+      const [, agent, session] = match;
+      const entry = this.state.db.query("SELECT s.* FROM advertised_sessions s JOIN advertised a ON a.alias=s.agent AND a.local_agent=s.local_agent WHERE s.agent=? AND s.session_alias=?").get(agent, session) as AdvertisedSession | null;
+      const grant = peer.sessions?.find((g) => g.agent === agent && g.session_alias === session);
+      if (!entry || !grant || grant.revision !== entry.revision || !grant.modes.includes(mode) || !JSON.parse(entry.modes).includes(mode))
+        throw new Error("Session access denied.");
+      await this.sessionTargets(); // Older hosts must never get an unbound fallback.
+      const resolved = await this.options.runtime.messaging!.resolveLocalTarget({ target_chat_jid: entry.chat_jid, target_incarnation: entry.incarnation });
+      if (resolved.status !== "resolved" || resolved.incarnation !== entry.incarnation || resolved.target_agent_name !== entry.local_agent)
+        throw new Error("Session lifetime is stale or unavailable.");
+      targetChat = entry.chat_jid;
+      targetIncarnation = entry.incarnation;
+    } else if (target.startsWith("@")) {
       const name = alias(target.slice(1));
       const a = this.state.db
         .query("SELECT * FROM advertised WHERE alias=?")
@@ -950,6 +1086,10 @@ export class PeerService {
         "Delivery outcome unknown; inspect receiver before retrying.",
       );
     }
+    this.enabled();
+    const current = this.paired(peer.id);
+    if (generation !== this.generation || current.epoch !== peer.epoch || this.state.authorizationEpoch(peer.id) !== admissionGrantEpoch)
+      throw new Error("Peer authorization changed before admission.");
     this.state.db
       .query("INSERT INTO inbound VALUES (?,?,?,'delivering',NULL)")
       .run(peer.id, messageId, digest);
@@ -958,10 +1098,18 @@ export class PeerService {
       /^reply\.[A-Za-z0-9_-]{32}$/.test(body.reply)
         ? peer.alias + "!" + body.reply
         : undefined;
-    const result = await this.options.runtime.messaging!.deliverPeerMessage({
+    const controller = new AbortController();
+    const controllers = this.admissions.get(peer.id) ?? new Set<AbortController>();
+    controllers.add(controller);
+    this.admissions.set(peer.id, controllers);
+    let result;
+    try {
+      result = await this.options.runtime.messaging!.deliverPeerMessage({
       ...(targetChat
         ? { target_chat_jid: targetChat }
         : { target_agent_name: local }),
+      ...(targetIncarnation ? { target_incarnation: targetIncarnation } : {}),
+      signal: controller.signal,
       content,
       mode,
       attachments,
@@ -976,7 +1124,11 @@ export class PeerService {
           ? { agent_display_name: text(s.sourceDisplay, 256) }
           : {}),
       },
-    });
+      });
+    } finally {
+      controllers.delete(controller);
+      if (!controllers.size) this.admissions.delete(peer.id);
+    }
     const receipt = {
       messageId,
       status: "queued",
@@ -1183,7 +1335,11 @@ export class PeerService {
   async ping(reference: string) {
     return (await this.call(this.paired(reference), "ping")).body;
   }
-  async dashboard() {
+  async dashboard(context?: AddonLocalContext | null) {
+    const sessions = this.state.db.query("SELECT * FROM advertised_sessions").all() as AdvertisedSession[];
+    const advertisedSessions = await Promise.all(sessions.map(async (s) => ({ ...s,
+      status: await this.sessionStatus(s),
+    })));
     return {
       identity: this.identity(),
       config: this.state.config(),
@@ -1197,6 +1353,7 @@ export class PeerService {
         .peers()
         .map((p) => ({ ...p, clientId: clientId(p.id), ticket: undefined })),
       advertised: this.state.db.query("SELECT * FROM advertised").all(),
+      advertised_sessions: advertisedSessions,
       messages: this.state.db
         .query(
           "SELECT id,peer,status,error,created FROM outbound ORDER BY created DESC LIMIT 50",

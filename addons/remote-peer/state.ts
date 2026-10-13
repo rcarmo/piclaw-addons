@@ -14,9 +14,24 @@ import {
   rmSync,
 } from "node:fs";
 import { join } from "node:path";
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { normalizeRemotePeerConfig, type RemotePeerConfig } from "./config.js";
 export type Mode = "queue" | "auto" | "steer";
+export interface SessionGrant {
+  agent: string;
+  session_alias: string;
+  revision?: string; // Legacy saved grants have no revision and are not usable.
+  modes: Mode[];
+}
+export interface AdvertisedSession {
+  revision: string;
+  agent: string;
+  session_alias: string;
+  local_agent: string;
+  chat_jid: string;
+  incarnation: string;
+  modes: string;
+}
 export interface Peer {
   id: string;
   alias: string;
@@ -29,6 +44,7 @@ export interface Peer {
   scope: "none" | "inbox-only" | "named-agents" | "all-advertised";
   modes: Mode[];
   agents: string[];
+  sessions?: SessionGrant[];
   files: boolean;
   lastSeen: number | null;
 }
@@ -36,7 +52,7 @@ export class PeerState {
   readonly db: Database;
   readonly dir: string;
   keyBytes: number[];
-  constructor(base: string) {
+  constructor(base: string, private onAuthorizationChange?: (peerId: string) => void) {
     // Intentionally never reads the old identity.json, state.db or migration ledger.
     this.dir = join(base, "iroh-v1");
     mkdirSync(this.dir, { recursive: true, mode: 0o700 });
@@ -63,11 +79,21 @@ export class PeerState {
       .exec(`CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY,value TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS peers(id TEXT PRIMARY KEY,alias TEXT NOT NULL UNIQUE,data TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS advertised(alias TEXT PRIMARY KEY,local_agent TEXT NOT NULL,modes TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS advertised_sessions(agent TEXT NOT NULL,session_alias TEXT NOT NULL,local_agent TEXT NOT NULL,chat_jid TEXT NOT NULL,incarnation TEXT NOT NULL,modes TEXT NOT NULL,PRIMARY KEY(agent,session_alias));
       CREATE TABLE IF NOT EXISTS outbound(id TEXT PRIMARY KEY,peer TEXT NOT NULL,idem TEXT,payload TEXT NOT NULL,bytes BLOB,status TEXT NOT NULL,receipt TEXT,error TEXT,created INTEGER NOT NULL,UNIQUE(peer,idem));
       CREATE TABLE IF NOT EXISTS inbound(peer TEXT NOT NULL,id TEXT NOT NULL,hash TEXT NOT NULL,status TEXT NOT NULL,receipt TEXT,PRIMARY KEY(peer,id));
       CREATE TABLE IF NOT EXISTS replies(token TEXT PRIMARY KEY,peer TEXT NOT NULL,epoch TEXT NOT NULL,target TEXT NOT NULL,expires INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY AUTOINCREMENT,at INTEGER NOT NULL,kind TEXT NOT NULL,peer TEXT,detail TEXT);
       CREATE TABLE IF NOT EXISTS work(id TEXT PRIMARY KEY,peer TEXT NOT NULL,direction TEXT NOT NULL,status TEXT NOT NULL,data TEXT NOT NULL);`);
+    // Upgrade the unpublished session registry without binding legacy grants
+    // to an advertisement they never explicitly selected.
+    if (!(this.db.query("PRAGMA table_info(advertised_sessions)").all() as { name: string }[]).some((column) => column.name === "revision")) {
+      this.db.transaction(() => {
+        this.db.exec("ALTER TABLE advertised_sessions ADD COLUMN revision TEXT NOT NULL DEFAULT ''");
+        for (const row of this.db.query("SELECT agent,session_alias FROM advertised_sessions").all() as { agent: string; session_alias: string }[])
+          this.db.query("UPDATE advertised_sessions SET revision=? WHERE agent=? AND session_alias=?").run(randomUUID(), row.agent, row.session_alias);
+      }).immediate();
+    }
     const version = this.db
       .query("SELECT value FROM settings WHERE key='version'")
       .get() as any;
@@ -120,11 +146,22 @@ export class PeerState {
     ).map((r) => JSON.parse(r.data));
   }
   put(peer: Peer) {
+    const previous = this.peer(peer.id);
+    const authorization = (p: Peer) => JSON.stringify([p.status, p.epoch, p.scope, p.modes, p.agents, p.sessions ?? [], p.files]);
+    const changed = !previous || authorization(previous) !== authorization(peer);
+    if (changed) {
+      this.db.query("INSERT OR REPLACE INTO settings VALUES (?,?)").run("grant-epoch:" + peer.id, randomUUID());
+      this.onAuthorizationChange?.(peer.id);
+    }
     this.db
       .query(
         "INSERT INTO peers VALUES (?,?,?) ON CONFLICT(id) DO UPDATE SET alias=excluded.alias,data=excluded.data",
       )
       .run(peer.id, peer.alias, JSON.stringify(peer));
+  }
+  authorizationEpoch(peerId: string): string | null {
+    const row = this.db.query("SELECT value FROM settings WHERE key=?").get("grant-epoch:" + peerId) as { value: string } | null;
+    return row?.value ?? null;
   }
   assertIdentityRotationAllowed(): void {
     if (this.peers().some((peer) => peer.status !== "revoked"))
@@ -148,6 +185,7 @@ export class PeerState {
         for (const table of [
           "peers",
           "advertised",
+          "advertised_sessions",
           "outbound",
           "inbound",
           "replies",

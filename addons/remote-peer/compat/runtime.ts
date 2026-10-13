@@ -40,7 +40,7 @@ export type ChatTransportDirectoryEntry = {
   label: string;
   peer_alias?: string;
   peer_fingerprint?: string;
-  target_kind: "inbox" | "agent" | "reply";
+  target_kind: "inbox" | "agent" | "reply" | "session";
   modes: Array<"auto" | "queue" | "steer">;
   status: "ready" | "stale" | "unreachable";
   last_seen_at?: string | null;
@@ -78,7 +78,27 @@ export type ExternalRouteRegistration = {
   ): Response | Promise<Response>;
 };
 
+// Request-scoped authority only. Never cache this object in the peer service.
+export interface AddonLocalTarget {
+  readonly chatJid: string;
+  readonly incarnation: string;
+  readonly agentName: string;
+  readonly label: string;
+  readonly active: boolean;
+}
+export interface AddonLocalContext {
+  readonly version: 1;
+  readonly accessMode: "single-user";
+  readonly kind: "operator" | "agent";
+  listTargets(): Promise<AddonLocalTarget[]>;
+  resolveTarget(selector: { chatJid?: string; agentName?: string; incarnation?: string }): Promise<AddonLocalTarget | null>;
+}
 export type PiclawRuntimeApi = {
+  localContext?: {
+    version: number;
+    getRequestContext(req: Request): AddonLocalContext | null;
+    getToolContext(): AddonLocalContext | null;
+  };
   lifecycle?: {
     version: number;
     onShutdown(handler: () => void | Promise<void>): () => void;
@@ -110,13 +130,17 @@ export type PiclawRuntimeApi = {
     listAdvertisableAgents(): Promise<
       Array<{ agent_name: string; active: boolean }>
     >;
+    listAdvertisableSessions?(): Promise<Array<{ chatJid: string; agentName: string; incarnation: string; active: boolean }>>;
     resolveLocalTarget(input: {
       target_agent_name?: string;
       target_chat_jid?: string;
-    }): Promise<Record<string, unknown>>;
+      target_incarnation?: string;
+    }): Promise<{ status: "resolved"; target_agent_name: string; active: boolean; incarnation?: string } | { status: "not_found" } | { status: "ambiguous"; candidates: Array<{ target_agent_name: string }> }>;
     deliverPeerMessage(input: {
       target_agent_name?: string;
       target_chat_jid?: string;
+      target_incarnation?: string;
+      signal?: AbortSignal;
       content: string;
       attachments?: ChatTransportAttachment[];
       mode?: "auto" | "queue" | "steer";
