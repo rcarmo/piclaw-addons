@@ -4,6 +4,8 @@ Delegate runs self-contained work in a fresh, ephemeral child Pi and restricts e
 
 Requires Piclaw `>=1.8.0`.
 
+Version `0.2.20` makes explicit built-in tool lists MCP-none (no adapter load or MCP hint), disables default extensions during model discovery, recognises additional credential/refresh failures before fallback, and fences the total deadline immediately before each launch. Named profiles keep the existing wrapper default. See [issue #160 offline qualification](docs/QUALIFICATION-160.md) for Pi 1.1.0 evidence and unproved real-provider/auth limits. Version `0.2.19` supplied the parent-owned POSIX group anchor; descendants escaping its group remain outside that cleanup guarantee.
+
 Version `0.2.18` passes the parent's current thinking level to each plain child
 subprocess, including fallback attempts. Pi applies the selected model's supported
 levels. Model approval, tools, timeouts and process cleanup are unchanged.
@@ -112,7 +114,7 @@ The requested tier is capped at the current model's verified tier. If that tier 
 | `standard` (default) | `read,grep,find,ls,bash` |
 | `full` | `read,grep,find,ls,bash,edit,write` |
 
-A discovered MCP adapter is appended only when explicitly available. A custom comma-separated list of child Pi built-ins is also accepted. A named tool must exist in the child; installed Piclaw add-on tools are not inherited automatically.
+Named profiles append the discovered MCP adapter when available. A custom comma-separated list of child Pi built-ins is also accepted and loads no MCP bridge unless it explicitly includes `mcp`. A named tool must exist in the child; installed Piclaw add-on tools are not inherited automatically.
 
 ### Explicit model selection
 
@@ -181,6 +183,7 @@ Executable discovery is cached for 60 seconds. A manual Settings refresh invalid
 - Runtime-only Piclaw models cannot be used until the child CLI also lists them.
 - Unclassified current models disable automatic delegation until policy is updated. Explicit selection still requires an approved, classified candidate.
 - Model policy is intentionally explicit and must be updated for genuinely new model families or variants.
+- Children inherit the parent's process environment and Pi profile/config resolution. Delegate does not supply scoped credentials or prevent unrelated secret inheritance; offline fixtures are not evidence of real-provider credential safety.
 - Core tool profiles are child allowlists, not an operating-system sandbox. A child granted `bash` or external MCP services can execute capabilities outside Delegate's child-model launcher; use `read_only` and a restricted environment when that distinction matters.
 
 See [REFERENCE.md](REFERENCE.md) for the full selection, execution, and diagnostics contract.
