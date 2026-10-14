@@ -191,9 +191,19 @@ test("disable and restart of real service do not leave dispatcher/network resour
     expect(service.status().push.running).toBe(false);
     await service.setConfig(f.cfg);
     expect(service.status().push.running).toBe(true);
-    const deadline = Date.now() + 5000;
-    while (posts === 0 && Date.now() < deadline)
-      await new Promise((r) => setTimeout(r, 50));
+    // A received HTTP request is not a dispatcher completion receipt. Wait for
+    // durable settlement before testing idle disable; the test above covers
+    // shutdown during an in-flight callback and recovery of uncertain delivery.
+    const deadline = Date.now() + 10000;
+    const settled = () => {
+      const push = service.status().push;
+      return posts > 0 && "active" in push && !push.active &&
+        push.outbox.some((row) => row.state === "delivered") &&
+        push.outbox.every((row) => row.state === "delivered");
+    };
+    while (!settled() && Date.now() < deadline)
+      await Bun.sleep(10);
+    expect(settled()).toBe(true);
     expect(posts).toBeGreaterThan(0);
     await service.setConfig({
       ...f.cfg,

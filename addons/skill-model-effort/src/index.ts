@@ -206,6 +206,8 @@ export default function skillModelEffort(pi: ExtensionAPI) {
 
   pi.on("before_agent_start", async (event, ctx) => {
     refreshSkillMaps(event.systemPromptOptions.skills, ctx.cwd);
+    // Older supported Pi releases have a prompt but no messageType discriminator.
+    if (!("prompt" in event) || typeof event.prompt !== "string") return;
 
     const explicitSkillMatch = event.prompt.match(/<skill\s+name="([^"]+)"/);
     if (!explicitSkillMatch) return;

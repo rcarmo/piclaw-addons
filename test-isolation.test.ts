@@ -33,8 +33,8 @@ test('CI browser cache survives isolated HOME and workflow PRs cannot deploy', (
   const workflow = readFileSync(new URL('./.github/workflows/build.yml', import.meta.url), 'utf8');
   expect(workflow).toContain('echo "PLAYWRIGHT_BROWSERS_PATH=$RUNNER_TEMP/piclaw-addon-playwright" >> "$GITHUB_ENV"');
   expect(workflow.indexOf('PLAYWRIGHT_BROWSERS_PATH=')).toBeLessThan(workflow.indexOf('- name: Install Playwright browser'));
-  expect(workflow).toContain("  pull_request:\n    paths:\n      - '.github/workflows/build.yml'");
+  expect(workflow).toContain('  pull_request:\n  workflow_dispatch:');
   for (const step of ['Build site and package tarballs', 'Copy assets into docs', 'Deploy to GitHub Pages']) {
-    expect(workflow).toContain(`- name: ${step}\n        if: always() && github.event_name != 'pull_request'`);
+    expect(workflow).toContain(`- name: ${step}\n        if: success() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'`);
   }
 });

@@ -121,13 +121,14 @@ test("abort from launch progress cannot spawn or fall back", async () => {
 
 // Real local packaged CLI, not a provider fixture. A deliberately nonexistent
 // provider/model prevents a provider dispatch. This proves startup/flags only.
-test("local Pi 1.1.0 packaged CLI admits MCP-none flags without default extension loading", async () => {
+test("current pinned packaged Pi CLI admits MCP-none flags without default extension loading", async () => {
+  const expectedVersion = JSON.parse(readFileSync(join(import.meta.dir, "../../package.json"), "utf8")).devDependencies["@earendil-works/pi-coding-agent"];
   const pkg = join(import.meta.dir, "../../node_modules/@earendil-works/pi-coding-agent");
   const manifest = JSON.parse(readFileSync(join(pkg, "package.json"), "utf8"));
-  expect(manifest.version).toBe("1.1.0");
+  expect(manifest.version).toBe(expectedVersion);
   const cli = resolvePiPackageCli(join(pkg, "package.json"));
   expect(cli).not.toBeNull();
-  const root = mkdtempSync(join(tmpdir(), "delegate-160-pi11-"));
+  const root = mkdtempSync(join(tmpdir(), "delegate-160-current-pi-"));
   const old = Object.fromEntries(["HOME", "PI_CODING_AGENT_DIR", "PICLAW_WORKSPACE", "PI_OFFLINE", "PI_TELEMETRY", "OTEL_SDK_DISABLED"].map(key => [key, process.env[key]]));
   try {
     const profile = join(root, "profile"), workspace = join(root, "workspace"), marker = join(root, "unwanted-extension");
@@ -140,7 +141,7 @@ test("local Pi 1.1.0 packaged CLI admits MCP-none flags without default extensio
     const override = { command: process.execPath, argsPrefix: ["--no-env-file", cli!] };
     const version = await runDelegateProcess(["--offline", "--version"], "", 10_000, undefined, undefined, override);
     expect(version.exitCode).toBe(0); // version stdout is intentionally not JSON
-    const catalog = await getExecutableCatalog(true, 10_000, undefined, { ...override, label: "isolated Pi 1.1.0" });
+    const catalog = await getExecutableCatalog(true, 10_000, undefined, { ...override, label: `isolated Pi ${expectedVersion}` });
     expect(catalog.cliPackageVersion).toBeNull(); // --no-env-file prefix is not a manifest provenance claim
     const result = await runDelegateProcess(["--offline", "--mode", "json", "--no-session", "--no-extensions", "--model", "__delegate_missing__/__missing__", "--tools", "read", "--thinking", "medium"], "offline startup only", 10_000, undefined, undefined, override);
     expect(result.exitCode).not.toBe(0);
