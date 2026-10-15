@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { resolveRefreshedSkillModel } from "./src/index.ts";
-import { readFileSync } from "node:fs";
+import skillModelEffort, { resolveRefreshedSkillModel } from "./src/index.ts";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const addonDir = import.meta.dir;
@@ -28,6 +29,43 @@ test("skill-model-effort source imports the Piclaw package scope", () => {
   expect(source).toContain('pi.on("input"');
   expect(source).toContain('pi.on("tool_call"');
   expect(source).toContain('pi.on("agent_end"');
+});
+
+test("custom starts have no prompt and still refresh the skill map for reads", async () => {
+  const handlers = new Map<string, Function>();
+  skillModelEffort({ on(event: string, handler: Function) { handlers.set(event, handler); } } as any);
+  const ctx = { cwd: addonDir };
+  await handlers.get("before_agent_start")!({
+    messageType: "custom",
+    message: { customType: "fixture", content: "continue", display: false },
+    systemPromptOptions: { skills: [{ name: "fixture", filePath: join(addonDir, "README.md") }] },
+  }, ctx);
+  // The known README has no runtime frontmatter, so reading it needs no model/UI API.
+  await handlers.get("tool_call")!({ toolName: "read", input: { path: join(addonDir, "README.md") } }, ctx);
+  await handlers.get("before_agent_start")!({
+    messageType: "user", prompt: '<skill name="fixture">',
+    systemPromptOptions: { skills: [{ name: "fixture", filePath: join(addonDir, "README.md") }] },
+  }, ctx);
+});
+
+test("legacy and discriminated user starts apply effort; custom starts refresh maps for reads", async () => {
+  const root = mkdtempSync(join(tmpdir(), "skill-effort-compat-"));
+  try {
+    const filePath = join(root, "SKILL.md");
+    writeFileSync(filePath, "---\nname: fixture\neffort: high\n---\nFixture");
+    for (const shape of [{ prompt: '<skill name="fixture">' }, { messageType: "user", prompt: '<skill name="fixture">' }, { messageType: "custom", message: { customType: "fixture", content: "continue", display: false } }]) {
+      const handlers = new Map<string, Function>();
+      const levels: string[] = [];
+      skillModelEffort({ on(event: string, handler: Function) { handlers.set(event, handler); }, getThinkingLevel() { return "medium"; }, setThinkingLevel(level: string) { levels.push(level); } } as any);
+      const ctx = { cwd: root, hasUI: false };
+      await handlers.get("before_agent_start")!({ ...shape, systemPromptOptions: { skills: [{ name: "fixture", filePath }] } }, ctx);
+      expect(levels).toEqual(shape.messageType === "custom" ? [] : ["high"]);
+      if (shape.messageType === "custom") {
+        await handlers.get("tool_call")!({ toolName: "read", input: { path: filePath } }, ctx);
+        expect(levels).toEqual(["high"]);
+      }
+    }
+  } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
 describe("skill model resolution", () => {
