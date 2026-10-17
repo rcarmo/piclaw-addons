@@ -1,5 +1,5 @@
 import { getRuntime, requireContext } from "./host.js";
-import { reviewAction, runCodeReviewRead } from "./runtime.js";
+import { reviewAction, runCodeReviewRead, runCodeReviewMutation } from "./runtime.js";
 import type { ReviewService } from "./dispatch.js";
 import type { ReviewIdentity } from "./contracts.js";
 
@@ -29,6 +29,7 @@ export interface CodeReviewReadAuthority {
   identity: ReviewIdentity;
   workspaceRoot: string;
   assertCurrent(): void;
+  write?<T>(body: () => T): T;
 }
 export interface CodeReviewReadPolicy {
   resolve(): Promise<CodeReviewReadAuthority>;
@@ -39,21 +40,34 @@ export function createCodeReviewTool(policy?: CodeReviewReadPolicy) {
   return {
     ...codeReviewToolDeclaration,
     async execute(_id: string, params: any) {
+      if (!params || typeof params !== "object" || (Object.getPrototypeOf(params) !== Object.prototype && Object.getPrototypeOf(params) !== null))
+        throw Error("Plain Code Review arguments required.");
+      params = structuredClone(params);
       if (!codeReviewToolDeclaration.parameters.properties.action.enum.includes(params.action))
         throw Error("Unsupported Code Review tool action.");
       let result: unknown;
       if (policy) {
-        if (!["dispatches", "dispatch", "threads", "thread"].includes(params.action) ||
-          Object.keys(params).some(key => !["action", "reviewId", "dispatchId", "threadId", "limit", "after"].includes(key)))
-          throw Error("Code Review writes unavailable while durable worker unqualified.");
-        if (["reviewId", "dispatchId", "threadId", "after"].some(key => params[key] !== undefined && typeof params[key] !== "string") ||
+        const writing = ["reply", "edit", "deleteMessage", "resolve"].includes(params.action);
+        const keys = writing ? Object.keys(codeReviewToolDeclaration.parameters.properties) : ["action", "reviewId", "dispatchId", "threadId", "limit", "after"];
+        if ((!writing && !["dispatches", "dispatch", "threads", "thread"].includes(params.action)) ||
+          Object.keys(params).some(key => !keys.includes(key)))
+          throw Error("Code Review action unavailable while durable worker unqualified.");
+        if (!writing && (["reviewId", "dispatchId", "threadId", "after"].some(key => params[key] !== undefined && typeof params[key] !== "string") ||
           (params.limit !== undefined && (!Number.isSafeInteger(params.limit) || params.limit < 1 || params.limit > 100)) ||
-          (params.action === "thread" && (typeof params.threadId !== "string" || (params.after !== undefined && (!/^\d+$/.test(params.after) || !Number.isSafeInteger(Number(params.after)))))))
+          (params.action === "thread" && (typeof params.threadId !== "string" || (params.after !== undefined && (!/^\d+$/.test(params.after) || !Number.isSafeInteger(Number(params.after))))))))
           throw Error("Invalid Code Review read arguments.");
         const authority = await policy.resolve();
         authority.assertCurrent();
         if (authority.identity.kind !== "agent") throw Error("Code Review requires assigned agent authority.");
-        result = await runCodeReviewRead(authority.service, authority.identity, params.action, params, authority.workspaceRoot, authority.assertCurrent);
+        if (writing) {
+          if (!authority.write) throw Error("Code Review mutation authority unavailable.");
+          result = authority.write(() => {
+            authority.assertCurrent();
+            const value = runCodeReviewMutation(authority.service, authority.identity, params.action, params);
+            authority.assertCurrent();
+            return value;
+          });
+        } else result = await runCodeReviewRead(authority.service, authority.identity, params.action, params, authority.workspaceRoot, authority.assertCurrent);
         authority.assertCurrent();
       } else {
         const runtime = getRuntime();

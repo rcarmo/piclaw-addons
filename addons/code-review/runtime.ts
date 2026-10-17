@@ -302,6 +302,32 @@ export async function runCodeReviewRead(
     default: throw new ReviewError("unknown_action", "Unsupported Code Review read action.");
   }
 }
+/** Shared synchronous mutations; the host wraps this whole operation in its write authority. */
+export function runCodeReviewMutation(service: ReviewService, who: ReviewIdentity, action: string, input: unknown): unknown {
+  const body = record(input);
+  freshBody(body);
+  const scope = scopeForAction(who, service);
+  assertScopedReview(scope, body.reviewId);
+  assertScopedDispatch(scope, body.dispatchId);
+  assertScopedThread(scope, body.threadId);
+  assertScopedFile(scope, body.fileId);
+  switch (action) {
+    case "reply":
+      return service.reply(who, body.threadId, body.body, mutation(body), body.assignmentEpoch, body.reopen === true);
+    case "edit":
+      assertScopedMessage(scope, service, body.messageId);
+      return service.editMessage(who, body.messageId, body.body, mutation(body), body.assignmentEpoch);
+    case "deleteMessage":
+      assertScopedMessage(scope, service, body.messageId);
+      if (body.confirm !== true) throw new ReviewError("confirmation_required", "Confirm deleting this message.");
+      return service.editMessage(who, body.messageId, null, mutation(body), body.assignmentEpoch);
+    case "resolve":
+      return service.resolveThread(who, body.threadId, {
+        explanation: body.explanation, evidence: body.evidence, fileId: body.fileId, assignmentEpoch: body.assignmentEpoch,
+      }, mutation(body));
+    default: throw new ReviewError("unknown_action", "Unsupported Code Review mutation.");
+  }
+}
 /** Browser/API and tool callers use exactly the same scoped domain operations. */
 export async function reviewAction(
   ctxValue: LocalContext | null,
@@ -483,38 +509,10 @@ export async function reviewAction(
         mutation(body),
       );
     case "reply":
-      assertScopedThread(agentScope, body.threadId);
-      return service.reply(
-        who,
-        body.threadId,
-        body.body,
-        mutation(body),
-        body.assignmentEpoch,
-        body.reopen === true,
-      );
     case "edit":
-      assertScopedMessage(agentScope, service, body.messageId);
-      return service.editMessage(
-        who,
-        body.messageId,
-        body.body,
-        mutation(body),
-        body.assignmentEpoch,
-      );
     case "deleteMessage":
-      assertScopedMessage(agentScope, service, body.messageId);
-      if (body.confirm !== true)
-        throw new ReviewError(
-          "confirmation_required",
-          "Confirm deleting this message.",
-        );
-      return service.editMessage(
-        who,
-        body.messageId,
-        null,
-        mutation(body),
-        body.assignmentEpoch,
-      );
+    case "resolve":
+      return runCodeReviewMutation(service, who, action, body);
     case "deleteThread":
       if (body.confirm !== true)
         throw new ReviewError(
@@ -522,20 +520,6 @@ export async function reviewAction(
           "Confirm deleting this discussion.",
         );
       return service.deleteThread(who, body.threadId, mutation(body));
-    case "resolve":
-      assertScopedThread(agentScope, body.threadId);
-      assertScopedFile(agentScope, body.fileId);
-      return service.resolveThread(
-        who,
-        body.threadId,
-        {
-          explanation: body.explanation,
-          evidence: body.evidence,
-          fileId: body.fileId,
-          assignmentEpoch: body.assignmentEpoch,
-        },
-        mutation(body),
-      );
     case "reopen":
       return service.reopen(who, body.threadId, mutation(body));
     case "reassign": {
