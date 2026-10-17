@@ -7,7 +7,7 @@ import type { ReviewIdentity, SourceCapture } from "./contracts.js";
 
 /** Isolated native adapter qualification: no ambient runtime setter, session,
  * mocked service writes, scheduler or actual host enqueue. */
-async function fixture() {
+async function fixture(action: "reply" | "work") {
   const root = new Database(":memory:");
   root.exec("PRAGMA foreign_keys=ON; CREATE TABLE host_marker(value TEXT); INSERT INTO host_marker VALUES('preserve')");
   let current = true;
@@ -55,7 +55,9 @@ async function fixture() {
     const names = root.query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all() as { name: string }[];
     return names.map(({ name }) => [name, root.query(`SELECT * FROM "${name}"`).all()]);
   };
-  const params = { action: "reply", threadId: thread.threadId, body: "Native reply", expectedVersion: 1, assignmentEpoch: 1, requestId: "native-reply" };
+  const params = action === "reply"
+    ? { action, threadId: thread.threadId, body: "Native reply", expectedVersion: 1, assignmentEpoch: 1, requestId: "native-reply" }
+    : { action, dispatchId: dispatch.dispatchId, threadId: thread.threadId, state: "in_progress", itemVersion: service.inspectDispatch(operator, dispatch.dispatchId).items[0]!.version, threadVersion: 1, assignmentEpoch: 1, requestId: "native-work" };
   return {
     root, service, operator, identity, authority, params, snapshot,
     get writes() { return writes; },
@@ -65,8 +67,9 @@ async function fixture() {
   };
 }
 
-test("native write: revocation across awaited resolve prevents every backend mutation", async () => {
-  const f = await fixture();
+for (const action of ["reply", "work"] as const) {
+test(`native ${action}: revocation across awaited resolve prevents every backend mutation`, async () => {
+  const f = await fixture(action);
   try {
     const before = f.snapshot();
     let release!: () => void;
@@ -89,14 +92,15 @@ test("native write: revocation across awaited resolve prevents every backend mut
   } finally { f.close(); }
 });
 
-test("native write: revocation after real mutation callback rolls back all nested stores at root commit", async () => {
-  const f = await fixture();
+test(`native ${action}: revocation after real mutation callback rolls back all nested stores at root commit`, async () => {
+  const f = await fixture(action);
   try {
     const before = f.snapshot();
     let callbackCompleted = false;
     f.afterCallback(() => {
       // The actual service reply and its nested transaction have finished.
-      expect(f.service.getThread(f.identity, f.params.threadId).version).toBe(2);
+      if (action === "reply") expect(f.service.getThread(f.identity, f.params.threadId).version).toBe(2);
+      else expect(f.service.inspectDispatch(f.identity, f.params.dispatchId!).items[0]!.work_state).toBe("in_progress");
       expect(f.snapshot()).not.toEqual(before);
       expect(f.root.query("SELECT COUNT(*) AS n FROM addon_code_review_request_receipts WHERE request_id=?").get(f.params.requestId)).toEqual({ n: 1 });
       callbackCompleted = true;
@@ -113,8 +117,8 @@ test("native write: revocation after real mutation callback rolls back all neste
   } finally { f.close(); }
 });
 
-test("native write: revoked owner cannot replay an existing committed request receipt", async () => {
-  const f = await fixture();
+test(`native ${action}: revoked owner cannot replay an existing committed request receipt`, async () => {
+  const f = await fixture(action);
   try {
     const tool = createCodeReviewTool({ async resolve() { return f.authority; } });
     const first = await tool.execute("native", f.params);
@@ -130,8 +134,8 @@ test("native write: revoked owner cannot replay an existing committed request re
   } finally { f.close(); }
 });
 
-test("native write: caller authority fields cannot replace dispatch-bound identity; shared freshBody also rejects them", async () => {
-  const f = await fixture();
+test(`native ${action}: caller authority fields cannot replace dispatch-bound identity; shared freshBody also rejects them`, async () => {
+  const f = await fixture(action);
   try {
     const before = f.snapshot();
     let resolutions = 0;
@@ -139,11 +143,16 @@ test("native write: caller authority fields cannot replace dispatch-bound identi
     for (const key of ["ownerId", "actorId", "kind", "workspaceId", "workspaceRoot"]) {
       const forged = { ...f.params, [key]: "attacker" };
       await expect(tool.execute("forged", forged)).rejects.toThrow("unavailable");
-      expect(() => runCodeReviewMutation(f.service, f.identity, "reply", forged)).toThrow("Authority fields");
+      expect(() => runCodeReviewMutation(f.service, f.identity, action, forged)).toThrow("Authority fields");
     }
     expect(resolutions).toBe(0);
     expect(f.snapshot()).toEqual(before);
     await tool.execute("trusted", f.params);
-    expect(f.service.getThread(f.identity, f.params.threadId).messages.at(-1)).toMatchObject({ author_id: "trusted-agent", author_kind: "agent", body: "Native reply" });
+    if (action === "reply") expect(f.service.getThread(f.identity, f.params.threadId).messages.at(-1)).toMatchObject({ author_id: "trusted-agent", author_kind: "agent", body: "Native reply" });
+    else {
+      expect(f.service.inspectDispatch(f.identity, f.params.dispatchId!).items[0]!.work_state).toBe("in_progress");
+      await expect(createCodeReviewTool({ async resolve() { return { ...f.authority, identity: f.operator }; } }).execute("operator", { ...f.params, requestId: "operator-work" })).rejects.toThrow("assigned agent");
+    }
   } finally { f.close(); }
 });
+}

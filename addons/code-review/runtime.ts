@@ -325,6 +325,11 @@ export function runCodeReviewMutation(service: ReviewService, who: ReviewIdentit
       return service.resolveThread(who, body.threadId, {
         explanation: body.explanation, evidence: body.evidence, fileId: body.fileId, assignmentEpoch: body.assignmentEpoch,
       }, mutation(body));
+    case "work":
+      return service.updateWork(who, body.dispatchId, body.threadId, {
+        state: body.state, itemVersion: body.itemVersion,
+        threadVersion: body.threadVersion, assignmentEpoch: body.assignmentEpoch,
+      }, mutation(body));
     default: throw new ReviewError("unknown_action", "Unsupported Code Review mutation.");
   }
 }
@@ -512,6 +517,7 @@ export async function reviewAction(
     case "edit":
     case "deleteMessage":
     case "resolve":
+    case "work":
       return runCodeReviewMutation(service, who, action, body);
     case "deleteThread":
       if (body.confirm !== true)
@@ -618,21 +624,6 @@ export async function reviewAction(
           }),
       });
     }
-    case "work":
-      assertScopedDispatch(agentScope, body.dispatchId);
-      assertScopedThread(agentScope, body.threadId);
-      return service.updateWork(
-        who,
-        body.dispatchId,
-        body.threadId,
-        {
-          state: body.state,
-          itemVersion: body.itemVersion,
-          threadVersion: body.threadVersion,
-          assignmentEpoch: body.assignmentEpoch,
-        },
-        mutation(body),
-      );
     case "retry": {
       operator(who);
       const current = service.inspectDispatch(who, body.dispatchId);

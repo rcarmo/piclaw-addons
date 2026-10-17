@@ -47,11 +47,11 @@ export function createCodeReviewTool(policy?: CodeReviewReadPolicy) {
         throw Error("Unsupported Code Review tool action.");
       let result: unknown;
       if (policy) {
-        const writing = ["reply", "edit", "deleteMessage", "resolve"].includes(params.action);
+        const writing = ["reply", "edit", "deleteMessage", "resolve", "work"].includes(params.action);
         const keys = writing ? Object.keys(codeReviewToolDeclaration.parameters.properties) : ["action", "reviewId", "dispatchId", "threadId", "limit", "after"];
         if ((!writing && !["dispatches", "dispatch", "threads", "thread"].includes(params.action)) ||
           Object.keys(params).some(key => !keys.includes(key)))
-          throw Error("Code Review action unavailable while durable worker unqualified.");
+          throw Error("Unsupported Code Review arguments; caller authority unavailable.");
         if (!writing && (["reviewId", "dispatchId", "threadId", "after"].some(key => params[key] !== undefined && typeof params[key] !== "string") ||
           (params.limit !== undefined && (!Number.isSafeInteger(params.limit) || params.limit < 1 || params.limit > 100)) ||
           (params.action === "thread" && (typeof params.threadId !== "string" || (params.after !== undefined && (!/^\d+$/.test(params.after) || !Number.isSafeInteger(Number(params.after))))))))
