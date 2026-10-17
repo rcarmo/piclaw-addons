@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import type { BorrowedReviewDatabase } from "./database.js";
 import {
   ReviewService,
   type AgentDispatchScope,
@@ -22,6 +23,29 @@ interface ServiceState {
   workspaceId: string | null;
 }
 const states = new Map<string, ServiceState>();
+let borrowedSource: BorrowedReviewDatabase | undefined;
+/** Startup-only: bind tools AND the direct config API to the root-owned store.
+ * Refuse late replacement, including after a legacy store has been closed. */
+let legacyServiceOpened = false;
+export function setReviewDatabaseSource(source: BorrowedReviewDatabase): () => void {
+  if (legacyServiceOpened || borrowedSource) throw Error("Code Review database source already bound or opened.");
+  const owner = source.assertOwner.bind(source);
+  owner();
+  let revoked = false;
+  const binding = Object.freeze({ database: source.database, assertOwner() {
+    if (revoked) throw new ReviewError("store_closed", "Review database binding is closed.");
+    owner();
+  } });
+  borrowedSource = binding;
+  // Explicit backend-incarnation release, not the UI's close/reset operation.
+  // Pending enqueue continuations retain their old closed service and grant.
+  return () => {
+    if (revoked) return;
+    revoked = true;
+    closeReviewServices();
+    if (borrowedSource === binding) borrowedSource = undefined;
+  };
+}
 // Cache only small immutable diff rows; the large permitted files still use
 // the computation budget on each request rather than holding many expanded rows.
 // Scope by service (owned SQLite store), review and snapshot file.
@@ -71,8 +95,8 @@ function openThreadCountsForReview(service: ReviewService, reviewId: string) {
         ELSE COALESCE(sf.new_path,sf.old_path)
       END AS file_path,
       COUNT(*) AS open_threads
-     FROM threads t
-     JOIN snapshot_files sf
+     FROM ${service.database.table("threads")} t
+     JOIN ${service.database.table("snapshot_files")} sf
        ON sf.review_id=t.review_id
       AND sf.id=json_extract(t.anchor_json,'$.snapshotFileId')
      WHERE t.review_id=? AND t.state='open'
@@ -117,16 +141,18 @@ function fileStatsForRow(
 }
 export function reviewService(): ReviewService {
   const runtime = getRuntime();
-  if (runtime?.localContext?.version !== 1 || runtime.messaging?.version !== 1)
+  if (!borrowedSource && (runtime?.localContext?.version !== 1 || runtime.messaging?.version !== 1))
     throw new ReviewError(
       "host_unavailable",
       "Code Review needs Piclaw localContext v1 and scoped add-on data support.",
       503,
     );
-  const dir = runtime.messaging.getAddonDataDir("code-review");
+  borrowedSource?.assertOwner();
+  const dir = borrowedSource ? "root-owned" : runtime!.messaging!.getAddonDataDir("code-review");
   const existing = states.get(dir);
   if (existing) return existing.service;
-  const service = new ReviewService(join(dir, "reviews.db"));
+  if (!borrowedSource) legacyServiceOpened = true;
+  const service = new ReviewService(borrowedSource ?? join(dir, "reviews.db"));
   service.recoverInterrupted();
   const cleanup = () => {
     try { const workspaceId = states.get(dir)?.workspaceId; if (workspaceId) service.cleanupConfiguredReviews(workspaceId); }
@@ -143,7 +169,7 @@ export function reviewService(): ReviewService {
     states.delete(dir);
   };
   states.set(dir, { service, close, workspaceId: null });
-  runtime.lifecycle?.onShutdown(close);
+  runtime?.lifecycle?.onShutdown(close);
   return service;
 }
 export function closeReviewServices() {
@@ -240,6 +266,41 @@ function assertScopedMessage(
   if (typeof messageId !== "string") scopedNotFound();
   const threadId = service.messageThreadId(messageId);
   if (!threadId || !scope.threadIds.has(threadId)) scopedNotFound();
+}
+/** Shared browser/legacy/native read operations. Only host data, never session emulation. */
+export async function runCodeReviewRead(
+  service: ReviewService, who: ReviewIdentity, action: string, input: unknown,
+  workspaceRoot: string, recheck: () => void | Promise<void>,
+): Promise<unknown> {
+  const body = record(input);
+  freshBody(body);
+  await recheck();
+  const scope = scopeForAction(who, service);
+  assertScopedReview(scope, body.reviewId);
+  assertScopedDispatch(scope, body.dispatchId);
+  assertScopedThread(scope, body.threadId);
+  switch (action) {
+    case "threads":
+      return scope ? service.listScopedThreads(who, scope.dispatchId, body) : service.listThreads(who, body.reviewId, body);
+    case "dispatches":
+      if (!scope) return service.listDispatches(who, body.reviewId, body.after, body.limit);
+      pageSize(body.limit, LIMITS.threadPage);
+      return (body.after ?? "") >= scope.dispatchId ? [] : [service.directoryDispatch(who, scope.dispatchId)];
+    case "dispatch":
+      return service.inspectDispatch(who, body.dispatchId ?? scope?.dispatchId);
+    case "thread": {
+      const result = service.getThread(who, body.threadId, body.after === undefined ? 0 : Number(body.after), body.limit);
+      const sourcePath = result.anchor.side === "old" ? result.source.oldPath : result.source.newPath ?? result.source.oldPath;
+      const currentSource = who.kind === "agent" && sourcePath
+        ? new SourceReader(workspaceRoot, who.workspaceId!).currentStatus(sourcePath, result.source.blobSha256,
+            result.anchor.side === "old" ? null : result.source.fileIdentity)
+        : undefined;
+      return { ...result, currentSource, messages: result.messages.map(message => ({
+        ...message, html: message.body === null ? null : renderComment(message.body),
+      })) };
+    }
+    default: throw new ReviewError("unknown_action", "Unsupported Code Review read action.");
+  }
 }
 /** Browser/API and tool callers use exactly the same scoped domain operations. */
 export async function reviewAction(
@@ -381,41 +442,10 @@ export async function reviewAction(
       operator(who);
       return reader().history(body.path, body.limit, body.skip);
     case "threads":
-      assertScopedReview(agentScope, body.reviewId);
-      return agentScope
-        ? service.listScopedThreads(who, agentScope.dispatchId, body)
-        : service.listThreads(who, body.reviewId, body);
-    case "thread": {
-      assertScopedThread(agentScope, body.threadId);
-      // All asynchronous host checks precede the discussion read. No stale
-      // discussion row can survive a same-thread mutation during those checks.
-      await recheck();
-      const result = service.getThread(
-        who,
-        body.threadId,
-        body.after === undefined ? 0 : Number(body.after),
-        body.limit,
-      );
-      const sourcePath = result.anchor.side === "old"
-        ? result.source.oldPath
-        : result.source.newPath ?? result.source.oldPath;
-      const currentSource = ctx.kind === "agent" && sourcePath
-        ? reader().currentStatus(
-            sourcePath,
-            result.source.blobSha256,
-            result.anchor.side === "old" ? null : result.source.fileIdentity,
-          )
-        : undefined;
-      // Source inspection is observational, never a refresh/re-anchor or permission grant.
-      return {
-        ...result,
-        currentSource,
-        messages: result.messages.map((message) => ({
-          ...message,
-          html: message.body === null ? null : renderComment(message.body),
-        })),
-      };
-    }
+    case "thread":
+    case "dispatches":
+    case "dispatch":
+      return runCodeReviewRead(service, who, action, body, ctx.workspaceRoot, recheck);
     case "replyReceipt":
       operator(who);
       return service.replyReceipt(who, body.reviewId, body.requestId, body.threadId);
@@ -604,15 +634,6 @@ export async function reviewAction(
           }),
       });
     }
-    case "dispatches":
-      assertScopedReview(agentScope, body.reviewId);
-      if (!agentScope) return service.listDispatches(who, body.reviewId, body.after, body.limit);
-      pageSize(body.limit, LIMITS.threadPage);
-      if ((body.after ?? "") >= agentScope.dispatchId) return [];
-      return [service.directoryDispatch(who, agentScope.dispatchId)];
-    case "dispatch":
-      assertScopedDispatch(agentScope, body.dispatchId);
-      return service.inspectDispatch(who, body.dispatchId);
     case "work":
       assertScopedDispatch(agentScope, body.dispatchId);
       assertScopedThread(agentScope, body.threadId);

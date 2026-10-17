@@ -1,4 +1,4 @@
-import { ReviewDatabase, id, now } from "./database.js";
+import { ReviewDatabase, id, now, type ReviewDatabaseSource } from "./database.js";
 import { createAnchor, projectAnchor } from "./anchors.js";
 import {
   LIMITS,
@@ -104,8 +104,8 @@ export interface ReviewCleanupResult extends ReviewSettings {
 const RETENTION_REVIEW_LIMIT = 100;
 export class ReviewStore {
   readonly database: ReviewDatabase;
-  constructor(path: string) {
-    this.database = new ReviewDatabase(path);
+  constructor(source: ReviewDatabaseSource) {
+    this.database = new ReviewDatabase(source);
   }
   close() {
     this.database.close();
@@ -134,7 +134,7 @@ export class ReviewStore {
     return {
       retentionDays:
         this.database.get<{ retention_days: number | null }>(
-          "SELECT retention_days FROM review_settings WHERE owner_id=? AND workspace_id=?",
+          `SELECT retention_days FROM ${this.database.table("review_settings")} WHERE owner_id=? AND workspace_id=?`,
           ownerId,
           workspaceId,
         )?.retention_days ?? null,
@@ -163,7 +163,7 @@ export class ReviewStore {
       review_id: string;
       target_json: string;
     }>(
-      "SELECT d.review_id,d.target_json FROM dispatches d JOIN reviews r ON r.id=d.review_id WHERE d.id=? AND r.owner_id=? AND (? IS NULL OR r.workspace_id=?) AND EXISTS(SELECT 1 FROM attempts a WHERE a.dispatch_id=d.id AND a.state IN ('attempting','accepted','unknown'))",
+      `SELECT d.review_id,d.target_json FROM ${this.database.table("dispatches")} d JOIN ${this.database.table("reviews")} r ON r.id=d.review_id WHERE d.id=? AND r.owner_id=? AND (? IS NULL OR r.workspace_id=?) AND EXISTS(SELECT 1 FROM ${this.database.table("attempts")} a WHERE a.dispatch_id=d.id AND a.state IN ('attempting','accepted','unknown'))`,
       reference.intentId,
       who.ownerId,
       who.workspaceId ?? null,
@@ -181,7 +181,7 @@ export class ReviewStore {
       snapshot_file_id: string;
       assignment_epoch: number;
     }>(
-      "SELECT thread_id,snapshot_file_id,assignment_epoch FROM dispatch_items WHERE dispatch_id=? ORDER BY ordinal",
+      `SELECT thread_id,snapshot_file_id,assignment_epoch FROM ${this.database.table("dispatch_items")} WHERE dispatch_id=? ORDER BY ordinal`,
       reference.intentId,
     );
     return {
@@ -197,8 +197,8 @@ export class ReviewStore {
   /** Compare durable event order, not timestamps or agent reply versions. */
   protected hasNewGuidance(threadId: string, dispatchId: string): boolean {
     return !!this.database.get(
-      `SELECT 1 FROM events e LEFT JOIN messages m ON m.id=json_extract(e.data_json,'$.messageId')
-       WHERE e.thread_id=? AND e.cursor>(SELECT cursor FROM events WHERE dispatch_id=? AND kind='dispatch.prepared' LIMIT 1)
+      `SELECT 1 FROM ${this.database.table("events")} e LEFT JOIN ${this.database.table("messages")} m ON m.id=json_extract(e.data_json,'$.messageId')
+       WHERE e.thread_id=? AND e.cursor>(SELECT cursor FROM ${this.database.table("events")} WHERE dispatch_id=? AND kind='dispatch.prepared' LIMIT 1)
        AND (e.kind IN ('thread.reopened','thread.reanchored') OR
          (e.kind IN ('message.created','message.edited','message.deleted') AND m.author_kind='operator')) LIMIT 1`,
       threadId, dispatchId,
@@ -206,9 +206,9 @@ export class ReviewStore {
   }
   protected hasNewerSubmission(dispatchId: string, threadId: string, epoch: number, includePrepared = false): boolean {
     return !!this.database.get(
-      `SELECT 1 FROM dispatch_items i JOIN dispatches d ON d.id=i.dispatch_id
-       JOIN attempts a ON a.dispatch_id=d.id AND a.number=(SELECT MAX(number) FROM attempts WHERE dispatch_id=d.id)
-       WHERE i.thread_id=? AND i.assignment_epoch=? AND d.rowid>(SELECT rowid FROM dispatches WHERE id=?)
+      `SELECT 1 FROM ${this.database.table("dispatch_items")} i JOIN ${this.database.table("dispatches")} d ON d.id=i.dispatch_id
+       JOIN ${this.database.table("attempts")} a ON a.dispatch_id=d.id AND a.number=(SELECT MAX(number) FROM ${this.database.table("attempts")} WHERE dispatch_id=d.id)
+       WHERE i.thread_id=? AND i.assignment_epoch=? AND d.rowid>(SELECT rowid FROM ${this.database.table("dispatches")} WHERE id=?)
        AND (a.state IN ('attempting','accepted','unknown') OR (? AND a.state='prepared')) LIMIT 1`, threadId, epoch, dispatchId, includePrepared ? 1 : 0,
     );
   }
@@ -230,7 +230,7 @@ export class ReviewStore {
         payload_hash: string;
         result_json: string;
       }>(
-        "SELECT * FROM request_receipts WHERE owner_id=? AND actor_id=? AND request_id=?",
+        `SELECT * FROM ${this.database.table("request_receipts")} WHERE owner_id=? AND actor_id=? AND request_id=?`,
         who.ownerId,
         who.actorId,
         m.requestId,
@@ -248,7 +248,7 @@ export class ReviewStore {
       }
       const result = run(); // Store only IDs/versions: receipts never cache comment text.
       this.database.run(
-        "INSERT INTO request_receipts VALUES(?,?,?,?,?,?,?)",
+        `INSERT INTO ${this.database.table("request_receipts")} VALUES(?,?,?,?,?,?,?)`,
         who.ownerId,
         who.actorId,
         m.requestId,
@@ -268,7 +268,7 @@ export class ReviewStore {
     const thread = this.thread(who, threadId, true);
     if (thread.review_id !== reviewId) this.missing();
     const receipt = this.database.get<{ result_json: string }>(
-      "SELECT result_json FROM request_receipts WHERE owner_id=? AND actor_id=? AND request_id=? AND action='reply'",
+      `SELECT result_json FROM ${this.database.table("request_receipts")} WHERE owner_id=? AND actor_id=? AND request_id=? AND action='reply'`,
       who.ownerId, who.actorId, requestId,
     );
     if (!receipt) return { committed: false };
@@ -276,7 +276,7 @@ export class ReviewStore {
     if (result.threadId !== threadId || !result.messageId) this.missing();
     // Deleted messages can still have a body-free receipt, but never resurrect content.
     const message = this.database.get<{ id: string }>(
-      "SELECT id FROM messages WHERE id=? AND thread_id=? AND review_id=?",
+      `SELECT id FROM ${this.database.table("messages")} WHERE id=? AND thread_id=? AND review_id=?`,
       result.messageId, threadId, reviewId,
     );
     if (!message) this.missing();
@@ -290,10 +290,10 @@ export class ReviewStore {
     threadId: string | null = null,
     dispatchId: string | null = null,
   ) {
-    if (!this.database.get("SELECT id FROM reviews WHERE id=?", reviewId)) return;
-    this.database.run("UPDATE reviews SET updated_at=? WHERE id=?", now(), reviewId);
+    if (!this.database.get(`SELECT id FROM ${this.database.table("reviews")} WHERE id=?`, reviewId)) return;
+    this.database.run(`UPDATE ${this.database.table("reviews")} SET updated_at=? WHERE id=?`, now(), reviewId);
     this.database.run(
-      "INSERT INTO events(review_id,thread_id,dispatch_id,actor_id,kind,data_json,created_at) VALUES(?,?,?,?,?,?,?)",
+      `INSERT INTO ${this.database.table("events")}(review_id,thread_id,dispatch_id,actor_id,kind,data_json,created_at) VALUES(?,?,?,?,?,?,?)`,
       reviewId,
       threadId,
       dispatchId,
@@ -313,18 +313,18 @@ export class ReviewStore {
     reviewId: string,
   ) {
     const stale = {
-      threadIds: new Set(this.ids("SELECT id FROM threads WHERE review_id=?", reviewId)),
-      messageIds: new Set(this.ids("SELECT id FROM messages WHERE review_id=?", reviewId)),
-      draftIds: new Set(this.ids("SELECT id FROM drafts WHERE review_id=?", reviewId)),
-      dispatchIds: new Set(this.ids("SELECT id FROM dispatches WHERE review_id=?", reviewId)),
-      snapshotIds: new Set(this.ids("SELECT id FROM snapshots WHERE review_id=?", reviewId)),
+      threadIds: new Set(this.ids(`SELECT id FROM ${this.database.table("threads")} WHERE review_id=?`, reviewId)),
+      messageIds: new Set(this.ids(`SELECT id FROM ${this.database.table("messages")} WHERE review_id=?`, reviewId)),
+      draftIds: new Set(this.ids(`SELECT id FROM ${this.database.table("drafts")} WHERE review_id=?`, reviewId)),
+      dispatchIds: new Set(this.ids(`SELECT id FROM ${this.database.table("dispatches")} WHERE review_id=?`, reviewId)),
+      snapshotIds: new Set(this.ids(`SELECT id FROM ${this.database.table("snapshots")} WHERE review_id=?`, reviewId)),
     };
     const receipts = this.database.all<{
       actor_id: string;
       request_id: string;
       result_json: string;
     }>(
-      "SELECT actor_id,request_id,result_json FROM request_receipts WHERE owner_id=?",
+      `SELECT actor_id,request_id,result_json FROM ${this.database.table("request_receipts")} WHERE owner_id=?`,
       ownerId,
     );
     for (const receipt of receipts) {
@@ -344,7 +344,7 @@ export class ReviewStore {
         (typeof result.snapshotId === "string" && stale.snapshotIds.has(result.snapshotId));
       if (!staleResult) continue;
       this.database.run(
-        "UPDATE request_receipts SET result_json=? WHERE owner_id=? AND actor_id=? AND request_id=?",
+        `UPDATE ${this.database.table("request_receipts")} SET result_json=? WHERE owner_id=? AND actor_id=? AND request_id=?`,
         JSON.stringify({reviewDeleted:true}),
         ownerId,
         receipt.actor_id,
@@ -357,7 +357,7 @@ export class ReviewStore {
     const scope = this.dispatchScope(who);
     validId(reviewId);
     const record = this.database.get<ReviewRecord>(
-      "SELECT * FROM reviews WHERE id=? AND owner_id=?",
+      `SELECT * FROM ${this.database.table("reviews")} WHERE id=? AND owner_id=?`,
       reviewId,
       who.ownerId,
     );
@@ -392,7 +392,7 @@ export class ReviewStore {
   ): ThreadRecord {
     validId(threadId);
     const record = this.database.get<ThreadRecord>(
-      "SELECT * FROM threads WHERE id=?",
+      `SELECT * FROM ${this.database.table("threads")} WHERE id=?`,
       threadId,
     );
     if (!record || (!includeDeleted && record.state === "deleted"))
@@ -416,7 +416,7 @@ export class ReviewStore {
     const scope = this.dispatchScope(who);
     this.own(who, reviewId);
     const file = this.database.get<SnapshotFileRecord>(
-      "SELECT * FROM snapshot_files WHERE id=? AND review_id=?",
+      `SELECT * FROM ${this.database.table("snapshot_files")} WHERE id=? AND review_id=?`,
       fileId,
       reviewId,
     );
@@ -447,7 +447,7 @@ export class ReviewStore {
         "That snapshot side has no source.",
       );
     const row = this.database.get<{ text: string }>(
-      "SELECT text FROM blobs WHERE review_id=? AND hash=?",
+      `SELECT text FROM ${this.database.table("blobs")} WHERE review_id=? AND hash=?`,
       file.review_id,
       hash,
     );
@@ -481,7 +481,7 @@ export class ReviewStore {
       const reviewId = id("review"),
         time = now();
       this.database.run(
-        "INSERT INTO reviews VALUES(?,?,?,?,?,?,?,1,?,?)",
+        `INSERT INTO ${this.database.table("reviews")} VALUES(?,?,?,?,?,?,?,1,?,?)`,
         reviewId,
         who.ownerId,
         input.workspaceId,
@@ -532,7 +532,7 @@ export class ReviewStore {
   listReviews(who: ReviewIdentity, limit?: number, after = "") {
     operator(who);
     return this.database.all<ReviewRecord>(
-      "SELECT * FROM reviews WHERE owner_id=? AND (? IS NULL OR workspace_id=?) AND id>? ORDER BY id LIMIT ?",
+      `SELECT * FROM ${this.database.table("reviews")} WHERE owner_id=? AND (? IS NULL OR workspace_id=?) AND id>? ORDER BY id LIMIT ?`,
       who.ownerId,
       who.workspaceId ?? null,
       who.workspaceId ?? null,
@@ -552,7 +552,7 @@ export class ReviewStore {
     operator(who);
     if (!who.workspaceId) throw new ReviewError('scope_mismatch', 'Workspace identity required.');
     const days = this.retentionDays(retentionDays);
-    this.database.run('INSERT INTO review_settings(owner_id,workspace_id,retention_days,updated_at) VALUES(?,?,?,?) ON CONFLICT(owner_id,workspace_id) DO UPDATE SET retention_days=excluded.retention_days,updated_at=excluded.updated_at', who.ownerId, who.workspaceId, days, now());
+    this.database.run(`INSERT INTO ${this.database.table("review_settings")}(owner_id,workspace_id,retention_days,updated_at) VALUES(?,?,?,?) ON CONFLICT(owner_id,workspace_id) DO UPDATE SET retention_days=excluded.retention_days,updated_at=excluded.updated_at`, who.ownerId, who.workspaceId, days, now());
     return {retentionDays:days};
   }
   cleanupOldReviews(who: ReviewIdentity, at = Date.now()): ReviewCleanupResult {
@@ -561,13 +561,13 @@ export class ReviewStore {
     const cutoff = new Date(at - days * 86400000).toISOString();
     return this.database.transaction(() => {
       const rows = this.database.all<ReviewRecord>(
-        `SELECT r.* FROM reviews r WHERE r.owner_id=? AND r.workspace_id=? AND r.updated_at<?
-        AND NOT EXISTS(SELECT 1 FROM events WHERE review_id=r.id AND created_at>=?)
-        AND NOT EXISTS(SELECT 1 FROM drafts WHERE review_id=r.id AND updated_at>=?)
-        AND NOT EXISTS(SELECT 1 FROM dispatches d JOIN attempts a ON a.dispatch_id=d.id
-          WHERE d.review_id=r.id AND a.number=(SELECT MAX(number) FROM attempts WHERE dispatch_id=d.id)
+        `SELECT r.* FROM ${this.database.table("reviews")} r WHERE r.owner_id=? AND r.workspace_id=? AND r.updated_at<?
+        AND NOT EXISTS(SELECT 1 FROM ${this.database.table("events")} WHERE review_id=r.id AND created_at>=?)
+        AND NOT EXISTS(SELECT 1 FROM ${this.database.table("drafts")} WHERE review_id=r.id AND updated_at>=?)
+        AND NOT EXISTS(SELECT 1 FROM ${this.database.table("dispatches")} d JOIN ${this.database.table("attempts")} a ON a.dispatch_id=d.id
+          WHERE d.review_id=r.id AND a.number=(SELECT MAX(number) FROM ${this.database.table("attempts")} WHERE dispatch_id=d.id)
           AND (a.state IN ('prepared','attempting','unknown') OR (a.state='accepted' AND EXISTS(
-            SELECT 1 FROM dispatch_items i WHERE i.dispatch_id=d.id AND i.work_state IN ('not_started','in_progress','waiting_user','blocked')))))
+            SELECT 1 FROM ${this.database.table("dispatch_items")} i WHERE i.dispatch_id=d.id AND i.work_state IN ('not_started','in_progress','waiting_user','blocked')))))
         ORDER BY r.updated_at LIMIT ?`, who.ownerId,who.workspaceId,cutoff,cutoff,cutoff,RETENTION_REVIEW_LIMIT);
       for (const row of rows) this.deleteReview(who,{reviewId:row.id,expectedVersion:row.version,requestId:'retention-'+row.id});
       return {retentionDays:days,deletedCount:rows.length,deletedReviewIds:rows.map(r=>r.id)};
@@ -576,7 +576,7 @@ export class ReviewStore {
   /** Persisted opt-in policy grants only deletion of this add-on's own scoped records. */
   cleanupConfiguredReviews(workspaceId: string): number {
     let deleted = 0;
-    for (const policy of this.database.all<{owner_id:string;workspace_id:string}>('SELECT owner_id,workspace_id FROM review_settings WHERE retention_days IS NOT NULL AND workspace_id=?', workspaceId)) {
+    for (const policy of this.database.all<{owner_id:string;workspace_id:string}>(`SELECT owner_id,workspace_id FROM ${this.database.table("review_settings")} WHERE retention_days IS NOT NULL AND workspace_id=?`, workspaceId)) {
       deleted += this.cleanupOldReviews({ownerId:policy.owner_id,actorId:policy.owner_id,workspaceId:policy.workspace_id,kind:'operator'}).deletedCount;
     }
     return deleted;
@@ -594,38 +594,38 @@ export class ReviewStore {
       () => {
         const review = this.own(who, input.reviewId);
         version(review.version, input.expectedVersion);
-        if (this.database.get("SELECT 1 FROM attempts a JOIN dispatches d ON d.id=a.dispatch_id WHERE d.review_id=? AND a.state='attempting' LIMIT 1", input.reviewId))
+        if (this.database.get(`SELECT 1 FROM ${this.database.table("attempts")} a JOIN ${this.database.table("dispatches")} d ON d.id=a.dispatch_id WHERE d.review_id=? AND a.state='attempting' LIMIT 1`, input.reviewId))
           throw new ReviewError('busy', 'A send is in progress. Wait for its outcome before deleting this review.', 409);
         this.purgeDeletedReviewReceipts(who.ownerId, input.reviewId);
         this.database.run(
-          "DELETE FROM projections WHERE review_id=?",
+          `DELETE FROM ${this.database.table("projections")} WHERE review_id=?`,
           input.reviewId,
         );
         this.database.run(
-          "DELETE FROM message_revisions WHERE message_id IN (SELECT id FROM messages WHERE review_id=?)",
+          `DELETE FROM ${this.database.table("message_revisions")} WHERE message_id IN (SELECT id FROM ${this.database.table("messages")} WHERE review_id=?)`,
           input.reviewId,
         );
-        this.database.run("DELETE FROM messages WHERE review_id=?", input.reviewId);
-        this.database.run("DELETE FROM drafts WHERE review_id=?", input.reviewId);
-        this.database.run("DELETE FROM events WHERE review_id=?", input.reviewId);
+        this.database.run(`DELETE FROM ${this.database.table("messages")} WHERE review_id=?`, input.reviewId);
+        this.database.run(`DELETE FROM ${this.database.table("drafts")} WHERE review_id=?`, input.reviewId);
+        this.database.run(`DELETE FROM ${this.database.table("events")} WHERE review_id=?`, input.reviewId);
         this.database.run(
-          "DELETE FROM dispatch_items WHERE review_id=?",
+          `DELETE FROM ${this.database.table("dispatch_items")} WHERE review_id=?`,
           input.reviewId,
         );
         this.database.run(
-          "DELETE FROM attempts WHERE dispatch_id IN (SELECT id FROM dispatches WHERE review_id=?)",
+          `DELETE FROM ${this.database.table("attempts")} WHERE dispatch_id IN (SELECT id FROM ${this.database.table("dispatches")} WHERE review_id=?)`,
           input.reviewId,
         );
-        this.database.run("DELETE FROM dispatches WHERE review_id=?", input.reviewId);
-        this.database.run("DELETE FROM threads WHERE review_id=?", input.reviewId);
+        this.database.run(`DELETE FROM ${this.database.table("dispatches")} WHERE review_id=?`, input.reviewId);
+        this.database.run(`DELETE FROM ${this.database.table("threads")} WHERE review_id=?`, input.reviewId);
         this.database.run(
-          "DELETE FROM snapshot_files WHERE review_id=?",
+          `DELETE FROM ${this.database.table("snapshot_files")} WHERE review_id=?`,
           input.reviewId,
         );
-        this.database.run("DELETE FROM snapshots WHERE review_id=?", input.reviewId);
-        this.database.run("DELETE FROM blobs WHERE review_id=?", input.reviewId);
+        this.database.run(`DELETE FROM ${this.database.table("snapshots")} WHERE review_id=?`, input.reviewId);
+        this.database.run(`DELETE FROM ${this.database.table("blobs")} WHERE review_id=?`, input.reviewId);
         this.database.run(
-          "DELETE FROM reviews WHERE id=? AND owner_id=?",
+          `DELETE FROM ${this.database.table("reviews")} WHERE id=? AND owner_id=?`,
           input.reviewId,
           who.ownerId,
         );
@@ -651,7 +651,7 @@ export class ReviewStore {
         const review = this.own(who, reviewId);
         version(review.version, m.expectedVersion);
         this.database.run(
-          "UPDATE reviews SET target_json=?,version=version+1,updated_at=? WHERE id=?",
+          `UPDATE ${this.database.table("reviews")} SET target_json=?,version=version+1,updated_at=? WHERE id=?`,
           JSON.stringify(selected),
           now(),
           reviewId,
@@ -702,7 +702,7 @@ export class ReviewStore {
       const snapshotId = id("snapshot"),
         files: string[] = [];
       this.database.run(
-        "INSERT INTO snapshots VALUES(?,?,?,?,?,?,?)",
+        `INSERT INTO ${this.database.table("snapshots")} VALUES(?,?,?,?,?,?,?)`,
         snapshotId,
         reviewId,
         capture.mode,
@@ -716,7 +716,7 @@ export class ReviewStore {
           if (text === null) return null;
           const hash = hashText(text);
           this.database.run(
-            "INSERT OR IGNORE INTO blobs VALUES(?,?,?,?)",
+            `INSERT OR IGNORE INTO ${this.database.table("blobs")} VALUES(?,?,?,?)`,
             reviewId,
             hash,
             text,
@@ -727,7 +727,7 @@ export class ReviewStore {
         const fileId = id("file");
         files.push(fileId);
         this.database.run(
-          "INSERT INTO snapshot_files VALUES(?,?,?,?,?,?,?,?,?)",
+          `INSERT INTO ${this.database.table("snapshot_files")} VALUES(?,?,?,?,?,?,?,?,?)`,
           fileId,
           snapshotId,
           reviewId,
@@ -758,7 +758,7 @@ export class ReviewStore {
         "Add file requires one saved source file.",
       );
     const snap = this.database.get<{ mode: string }>(
-      "SELECT mode FROM snapshots WHERE id=? AND review_id=?",
+      `SELECT mode FROM ${this.database.table("snapshots")} WHERE id=? AND review_id=?`,
       snapshotId,
       reviewId,
     );
@@ -807,7 +807,7 @@ export class ReviewStore {
     operator(who);
     this.own(who, reviewId);
     return this.database.all(
-      "SELECT * FROM snapshots WHERE review_id=? ORDER BY captured_at DESC,id DESC LIMIT ?",
+      `SELECT * FROM ${this.database.table("snapshots")} WHERE review_id=? ORDER BY captured_at DESC,id DESC LIMIT ?`,
       reviewId,
       pageSize(limit, LIMITS.threadPage),
     );
@@ -816,7 +816,7 @@ export class ReviewStore {
     operator(who);
     this.own(who, reviewId);
     return this.database.all<SnapshotFileRecord>(
-      "SELECT * FROM snapshot_files WHERE review_id=? AND snapshot_id=? ORDER BY COALESCE(new_path,old_path),id",
+      `SELECT * FROM ${this.database.table("snapshot_files")} WHERE review_id=? AND snapshot_id=? ORDER BY COALESCE(new_path,old_path),id`,
       reviewId,
       snapshotId,
     );
@@ -827,7 +827,7 @@ export class ReviewStore {
     const read = (hash: string | null) =>
       hash
         ? (this.database.get<{ text: string }>(
-            "SELECT text FROM blobs WHERE review_id=? AND hash=?",
+            `SELECT text FROM ${this.database.table("blobs")} WHERE review_id=? AND hash=?`,
             reviewId,
             hash,
           )?.text ?? null)
@@ -846,7 +846,7 @@ export class ReviewStore {
       old_path: string | null;
       new_path: string | null;
     }>(
-      "SELECT old_path,new_path FROM snapshot_files WHERE review_id=? AND id=?",
+      `SELECT old_path,new_path FROM ${this.database.table("snapshot_files")} WHERE review_id=? AND id=?`,
       reviewId,
       anchor.snapshotFileId,
     );
@@ -859,11 +859,11 @@ export class ReviewStore {
       author_kind: "operator" | "agent" | null;
       author_id: string;
     }>(
-      "SELECT substr(r.body,1,240) AS body,m.author_kind,m.author_id FROM messages m JOIN message_revisions r ON r.message_id=m.id AND r.version=m.version WHERE m.thread_id=? AND m.deleted=0 AND r.body IS NOT NULL ORDER BY m.ordinal LIMIT 1",
+      `SELECT substr(r.body,1,240) AS body,m.author_kind,m.author_id FROM ${this.database.table("messages")} m JOIN ${this.database.table("message_revisions")} r ON r.message_id=m.id AND r.version=m.version WHERE m.thread_id=? AND m.deleted=0 AND r.body IS NOT NULL ORDER BY m.ordinal LIMIT 1`,
       thread.id,
     );
     const counts = this.database.get<{ message_count: number }>(
-      "SELECT COUNT(*) AS message_count FROM messages WHERE thread_id=? AND deleted=0",
+      `SELECT COUNT(*) AS message_count FROM ${this.database.table("messages")} WHERE thread_id=? AND deleted=0`,
       thread.id,
     );
     const selected = JSON.parse(thread.target_json) as LocalTarget;
@@ -872,7 +872,7 @@ export class ReviewStore {
       work_state: WorkState;
       delivery_state: DeliveryState;
     }>(
-      "SELECT i.dispatch_id,i.work_state,a.state AS delivery_state FROM dispatch_items i JOIN dispatches d ON d.id=i.dispatch_id AND d.review_id=i.review_id JOIN attempts a ON a.dispatch_id=d.id AND a.number=(SELECT MAX(number) FROM attempts WHERE dispatch_id=d.id) WHERE i.thread_id=? AND i.assignment_epoch=? AND json_extract(d.target_json,'$.chatId')=? AND json_extract(d.target_json,'$.incarnation')=? ORDER BY d.rowid DESC LIMIT 1",
+      `SELECT i.dispatch_id,i.work_state,a.state AS delivery_state FROM ${this.database.table("dispatch_items")} i JOIN ${this.database.table("dispatches")} d ON d.id=i.dispatch_id AND d.review_id=i.review_id JOIN ${this.database.table("attempts")} a ON a.dispatch_id=d.id AND a.number=(SELECT MAX(number) FROM ${this.database.table("attempts")} WHERE dispatch_id=d.id) WHERE i.thread_id=? AND i.assignment_epoch=? AND json_extract(d.target_json,'$.chatId')=? AND json_extract(d.target_json,'$.incarnation')=? ORDER BY d.rowid DESC LIMIT 1`,
       thread.id,
       thread.assignment_epoch,
       selected.chatId,
@@ -908,7 +908,7 @@ export class ReviewStore {
       data_json: string;
     }>(
       `SELECT json_extract(data_json,'$.messageId') AS message_id,data_json
-       FROM events
+       FROM ${this.database.table("events")}
        WHERE review_id=? AND thread_id=? AND kind='thread.resolved'
          AND json_extract(data_json,'$.messageId') IN (${placeholders})`,
       reviewId,
@@ -941,11 +941,11 @@ export class ReviewStore {
     const messageId = id("message"),
       time = now();
     const last = this.database.get<{ n: number }>(
-      "SELECT COALESCE(MAX(ordinal),0) AS n FROM messages WHERE thread_id=?",
+      `SELECT COALESCE(MAX(ordinal),0) AS n FROM ${this.database.table("messages")} WHERE thread_id=?`,
       thread.id,
     )!;
     this.database.run(
-      "INSERT INTO messages VALUES(?,?,?,?,?,?,1,0,?,?)",
+      `INSERT INTO ${this.database.table("messages")} VALUES(?,?,?,?,?,?,1,0,?,?)`,
       messageId,
       thread.id,
       thread.review_id,
@@ -956,7 +956,7 @@ export class ReviewStore {
       time,
     );
     this.database.run(
-      "INSERT INTO message_revisions VALUES(?,1,?,?)",
+      `INSERT INTO ${this.database.table("message_revisions")} VALUES(?,1,?,?)`,
       messageId,
       body,
       time,
@@ -965,7 +965,7 @@ export class ReviewStore {
   }
   private advance(thread: ThreadRecord) {
     this.database.run(
-      "UPDATE threads SET version=version+1,updated_at=? WHERE id=?",
+      `UPDATE ${this.database.table("threads")} SET version=version+1,updated_at=? WHERE id=?`,
       now(),
       thread.id,
     );
@@ -996,7 +996,7 @@ export class ReviewStore {
       const threadId = id("thread"),
         time = now();
       this.database.run(
-        "INSERT INTO threads VALUES(?,?,?,'open',?,1,1,?,?)",
+        `INSERT INTO ${this.database.table("threads")} VALUES(?,?,?,'open',?,1,1,?,?)`,
         threadId,
         reviewId,
         JSON.stringify(anchor),
@@ -1029,7 +1029,7 @@ export class ReviewStore {
     }
     const rows = scope
       ? this.database.all<ThreadRecord>(
-          "SELECT t.* FROM dispatch_items i JOIN threads t ON t.id=i.thread_id AND t.review_id=i.review_id WHERE i.dispatch_id=? AND i.review_id=? AND t.state!='deleted' AND t.id>? AND (? IS NULL OR t.state=?) AND json_extract(t.target_json,'$.chatId')=? AND json_extract(t.target_json,'$.incarnation')=? AND t.assignment_epoch=i.assignment_epoch ORDER BY t.id LIMIT ?",
+          `SELECT t.* FROM ${this.database.table("dispatch_items")} i JOIN ${this.database.table("threads")} t ON t.id=i.thread_id AND t.review_id=i.review_id WHERE i.dispatch_id=? AND i.review_id=? AND t.state!='deleted' AND t.id>? AND (? IS NULL OR t.state=?) AND json_extract(t.target_json,'$.chatId')=? AND json_extract(t.target_json,'$.incarnation')=? AND t.assignment_epoch=i.assignment_epoch ORDER BY t.id LIMIT ?`,
           scope.dispatchId,
           reviewId,
           options.after ?? "",
@@ -1040,7 +1040,7 @@ export class ReviewStore {
           pageSize(options.limit, LIMITS.threadPage),
         )
       : this.database.all<ThreadRecord>(
-          "SELECT * FROM threads WHERE review_id=? AND state!='deleted' AND id>? AND (? IS NULL OR state=?) AND (?='operator' OR (json_extract(target_json,'$.chatId')=? AND json_extract(target_json,'$.incarnation')=?)) ORDER BY id LIMIT ?",
+          `SELECT * FROM ${this.database.table("threads")} WHERE review_id=? AND state!='deleted' AND id>? AND (? IS NULL OR state=?) AND (?='operator' OR (json_extract(target_json,'$.chatId')=? AND json_extract(target_json,'$.incarnation')=?)) ORDER BY id LIMIT ?`,
           reviewId,
           options.after ?? "",
           options.state ?? null,
@@ -1066,7 +1066,7 @@ export class ReviewStore {
     const thread = this.thread(who, threadId),
       anchor = JSON.parse(thread.anchor_json) as OriginalAnchor;
     const messages = this.database.all<MessageRecord & { body: string | null }>(
-      "SELECT m.*,r.body FROM messages m JOIN message_revisions r ON r.message_id=m.id AND r.version=m.version WHERE m.thread_id=? AND m.ordinal>? ORDER BY m.ordinal LIMIT ?",
+      `SELECT m.*,r.body FROM ${this.database.table("messages")} m JOIN ${this.database.table("message_revisions")} r ON r.message_id=m.id AND r.version=m.version WHERE m.thread_id=? AND m.ordinal>? ORDER BY m.ordinal LIMIT ?`,
       thread.id,
       after,
       pageSize(limit, LIMITS.historyPage),
@@ -1103,7 +1103,7 @@ export class ReviewStore {
     validId(messageId, "message ID");
     return (
       this.database.get<{ thread_id: string }>(
-        "SELECT thread_id FROM messages WHERE id=?",
+        `SELECT thread_id FROM ${this.database.table("messages")} WHERE id=?`,
         messageId,
       )?.thread_id ?? null
     );
@@ -1135,7 +1135,7 @@ export class ReviewStore {
               409,
             );
           this.database.run(
-            "UPDATE threads SET state='open' WHERE id=?",
+            `UPDATE ${this.database.table("threads")} SET state='open' WHERE id=?`,
             threadId,
           );
           this.event(who, thread.review_id, "thread.reopened", {}, threadId);
@@ -1161,7 +1161,7 @@ export class ReviewStore {
     assignmentEpoch?: number,
   ) {
     const message = this.database.get<MessageRecord>(
-      "SELECT * FROM messages WHERE id=?",
+      `SELECT * FROM ${this.database.table("messages")} WHERE id=?`,
       messageId,
     );
     if (!message) return this.missing();
@@ -1180,7 +1180,7 @@ export class ReviewStore {
       { messageId, body, version: m.expectedVersion, assignmentEpoch },
       () => {
         const current = this.database.get<MessageRecord>(
-          "SELECT * FROM messages WHERE id=?",
+          `SELECT * FROM ${this.database.table("messages")} WHERE id=?`,
           messageId,
         )!;
         const thread = this.thread(who, current.thread_id);
@@ -1190,18 +1190,18 @@ export class ReviewStore {
           throw new ReviewError("deleted", "Message was deleted.", 409);
         if (body === null)
           this.database.run(
-            "UPDATE message_revisions SET body=NULL WHERE message_id=?",
+            `UPDATE ${this.database.table("message_revisions")} SET body=NULL WHERE message_id=?`,
             messageId,
           );
         this.database.run(
-          "INSERT INTO message_revisions VALUES(?,?,?,?)",
+          `INSERT INTO ${this.database.table("message_revisions")} VALUES(?,?,?,?)`,
           messageId,
           current.version + 1,
           body,
           now(),
         );
         this.database.run(
-          "UPDATE messages SET version=version+1,deleted=?,updated_at=? WHERE id=?",
+          `UPDATE ${this.database.table("messages")} SET version=version+1,deleted=?,updated_at=? WHERE id=?`,
           body === null ? 1 : 0,
           now(),
           messageId,
@@ -1268,7 +1268,7 @@ export class ReviewStore {
         const explanation = who.kind === 'operator' && !input.explanation?.trim() ? null : input.explanation;
         const messageId = explanation === null ? null : this.append(who, thread, explanation);
         this.database.run(
-          "UPDATE threads SET state='resolved',version=version+1,updated_at=? WHERE id=?",
+          `UPDATE ${this.database.table("threads")} SET state='resolved',version=version+1,updated_at=? WHERE id=?`,
           now(),
           threadId,
         );
@@ -1306,7 +1306,7 @@ export class ReviewStore {
             409,
           );
         this.database.run(
-          "UPDATE threads SET state='open',version=version+1,updated_at=? WHERE id=?",
+          `UPDATE ${this.database.table("threads")} SET state='open',version=version+1,updated_at=? WHERE id=?`,
           now(),
           threadId,
         );
@@ -1333,7 +1333,7 @@ export class ReviewStore {
         const thread = this.thread(who, threadId);
         version(thread.version, m.expectedVersion);
         this.database.run(
-          "UPDATE threads SET target_json=?,assignment_epoch=assignment_epoch+1,version=version+1,updated_at=? WHERE id=?",
+          `UPDATE ${this.database.table("threads")} SET target_json=?,assignment_epoch=assignment_epoch+1,version=version+1,updated_at=? WHERE id=?`,
           JSON.stringify(selected),
           now(),
           threadId,
@@ -1365,16 +1365,16 @@ export class ReviewStore {
         const thread = this.thread(who, threadId);
         version(thread.version, m.expectedVersion);
         this.database.run(
-          "UPDATE message_revisions SET body=NULL WHERE message_id IN (SELECT id FROM messages WHERE thread_id=?)",
+          `UPDATE ${this.database.table("message_revisions")} SET body=NULL WHERE message_id IN (SELECT id FROM ${this.database.table("messages")} WHERE thread_id=?)`,
           threadId,
         );
         this.database.run(
-          "UPDATE messages SET deleted=1 WHERE thread_id=?",
+          `UPDATE ${this.database.table("messages")} SET deleted=1 WHERE thread_id=?`,
           threadId,
         );
-        this.database.run("DELETE FROM drafts WHERE thread_id=?", threadId);
+        this.database.run(`DELETE FROM ${this.database.table("drafts")} WHERE thread_id=?`, threadId);
         this.database.run(
-          "UPDATE threads SET state='deleted',version=version+1,updated_at=? WHERE id=?",
+          `UPDATE ${this.database.table("threads")} SET state='deleted',version=version+1,updated_at=? WHERE id=?`,
           now(),
           threadId,
         );
@@ -1440,7 +1440,7 @@ export class ReviewStore {
             version: number;
             owner_id: string;
             review_id: string;
-          }>("SELECT * FROM drafts WHERE id=?", draftId);
+          }>(`SELECT * FROM ${this.database.table("drafts")} WHERE id=?`, draftId);
         if (old) {
           if (old.owner_id !== who.ownerId || old.review_id !== reviewId)
             this.missing();
@@ -1454,7 +1454,7 @@ export class ReviewStore {
           const binding = this.database.get<{
             thread_id: string | null;
             anchor_json: string | null;
-          }>("SELECT thread_id,anchor_json FROM drafts WHERE id=?", draftId)!;
+          }>(`SELECT thread_id,anchor_json FROM ${this.database.table("drafts")} WHERE id=?`, draftId)!;
           if (
             binding.thread_id !== (input.threadId ?? null) ||
             binding.anchor_json !==
@@ -1467,7 +1467,7 @@ export class ReviewStore {
             );
         }
         this.database.run(
-          "INSERT INTO drafts VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET body=excluded.body,version=excluded.version,updated_at=excluded.updated_at",
+          `INSERT INTO ${this.database.table("drafts")} VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET body=excluded.body,version=excluded.version,updated_at=excluded.updated_at`,
           draftId,
           who.ownerId,
           reviewId,
@@ -1485,7 +1485,7 @@ export class ReviewStore {
     operator(who);
     this.own(who, reviewId);
     return this.database.all(
-      "SELECT * FROM drafts WHERE owner_id=? AND review_id=? ORDER BY updated_at DESC LIMIT ?",
+      `SELECT * FROM ${this.database.table("drafts")} WHERE owner_id=? AND review_id=? ORDER BY updated_at DESC LIMIT ?`,
       who.ownerId,
       reviewId,
       LIMITS.historyPage,
@@ -1517,14 +1517,14 @@ export class ReviewStore {
       { reviewId, draftId, version: m.expectedVersion },
       () => {
         const draft = this.database.get<{ version: number }>(
-          "SELECT version FROM drafts WHERE id=? AND review_id=? AND owner_id=?",
+          `SELECT version FROM ${this.database.table("drafts")} WHERE id=? AND review_id=? AND owner_id=?`,
           draftId,
           reviewId,
           who.ownerId,
         );
         if (!draft) return this.missing();
         version(draft.version, m.expectedVersion);
-        this.database.run("DELETE FROM drafts WHERE id=?", draftId);
+        this.database.run(`DELETE FROM ${this.database.table("drafts")} WHERE id=?`, draftId);
         return { draftId, deleted: true };
       },
     );
@@ -1535,7 +1535,7 @@ export class ReviewStore {
     const previous = this.file(who, thread.review_id, anchor.snapshotFileId),
       current = this.file(who, thread.review_id, fileId);
     const manual = this.database.get<{ projection_json: string }>(
-      "SELECT projection_json FROM projections WHERE thread_id=? AND snapshot_file_id=?",
+      `SELECT projection_json FROM ${this.database.table("projections")} WHERE thread_id=? AND snapshot_file_id=?`,
       threadId,
       fileId,
     );
@@ -1613,7 +1613,7 @@ export class ReviewStore {
           scope: anchor.scope,
         };
         this.database.run(
-          "INSERT INTO projections VALUES(?,?,?,?,?,?) ON CONFLICT(thread_id,snapshot_file_id) DO UPDATE SET projection_json=excluded.projection_json,actor_id=excluded.actor_id,created_at=excluded.created_at",
+          `INSERT INTO ${this.database.table("projections")} VALUES(?,?,?,?,?,?) ON CONFLICT(thread_id,snapshot_file_id) DO UPDATE SET projection_json=excluded.projection_json,actor_id=excluded.actor_id,created_at=excluded.created_at`,
           threadId,
           thread.review_id,
           file.id,
@@ -1622,7 +1622,7 @@ export class ReviewStore {
           now(),
         );
         this.database.run(
-          "UPDATE threads SET state='open',version=version+1,updated_at=? WHERE id=?",
+          `UPDATE ${this.database.table("threads")} SET state='open',version=version+1,updated_at=? WHERE id=?`,
           now(),
           threadId,
         );
@@ -1647,7 +1647,7 @@ export class ReviewStore {
     if (!Number.isSafeInteger(after) || after < 0)
       throw new ReviewError("invalid_input", "Invalid event cursor.");
     return this.database.all(
-      "SELECT * FROM events WHERE review_id=? AND cursor>? ORDER BY cursor LIMIT ?",
+      `SELECT * FROM ${this.database.table("events")} WHERE review_id=? AND cursor>? ORDER BY cursor LIMIT ?`,
       reviewId,
       after,
       pageSize(limit, LIMITS.historyPage),
