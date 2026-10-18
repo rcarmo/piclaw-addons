@@ -14,7 +14,7 @@
  * and __piclaw_registerToolStatusHintProvider for tool progress hints.
  */
 
-import { resolve, extname, dirname } from "node:path";
+import { resolve, extname, dirname, relative as pathRelative, isAbsolute } from "node:path";
 import { existsSync, realpathSync, statSync } from "node:fs";
 
 // ── Constants ───────────────────────────────────────────────────
@@ -95,10 +95,17 @@ function handleRoute(req: Request, pathname: string): Response | null {
 
   const filePath = resolve(VENDOR_DIR, relative);
   let realPath: string;
+  let canonicalVendorDir: string;
   try {
+    canonicalVendorDir = realpathSync(VENDOR_DIR);
     realPath = realpathSync(filePath);
   } catch {
     return new Response("Not Found", { status: 404, headers: HEADERS });
+  }
+
+  const canonicalRelative = pathRelative(canonicalVendorDir, realPath);
+  if (canonicalRelative === ".." || canonicalRelative.startsWith("../") || isAbsolute(canonicalRelative)) {
+    return new Response("Forbidden", { status: 403, headers: HEADERS });
   }
 
   if (!existsSync(realPath) || !statSync(realPath).isFile()) {
