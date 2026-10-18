@@ -2,7 +2,23 @@ import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import editableTableAddon from "./index.ts";
+import editableTableAddon, { createEditableTableTool } from "./index.ts";
+
+test("public factory uses native port without any extension context", async () => {
+  const publications: unknown[] = [];
+  const tool = createEditableTableTool({ available: true, publishWidget(key, content, options) { publications.push({ key, content, options }); } });
+  const result = await tool.execute("native", { markdown: "A | B\n--- | ---\nx | y" }, undefined, undefined, undefined as never);
+  expect(result.details).toMatchObject({ ok: true, columns: 2, rows: 1 });
+  expect(publications).toHaveLength(1);
+});
+
+test("public factory fails closed when unavailable or synchronous publication rejects", async () => {
+  const params = { markdown: "| A |\n| --- |\n| x |" };
+  const unavailable = createEditableTableTool({ available: false, publishWidget() { throw Error("must not publish"); } });
+  expect((await unavailable.execute("none", params, undefined, undefined, undefined as never)).details).toMatchObject({ ok: false, reason: "no_ui" });
+  const revoked = createEditableTableTool({ available: true, publishWidget() { throw Error("source revoked"); } });
+  await expect(revoked.execute("revoked", params, undefined, undefined, undefined as never)).rejects.toThrow("source revoked");
+});
 
 test("editable_table opens a widget payload and returns guidance text", async () => {
   const tools = new Map<string, any>();
