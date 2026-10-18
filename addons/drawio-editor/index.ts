@@ -67,6 +67,13 @@ export function getDrawioVendorCacheDir(workspace = process.env.PICLAW_DATA?.tri
   return resolve(workspace, "cache", "drawio", DRAWIO_VERSION);
 }
 
+export class DrawioVendorCleanupError extends Error {
+  constructor(cause: unknown) {
+    super("Draw.io vendor cleanup uncertain", { cause });
+    this.name = "DrawioVendorCleanupError";
+  }
+}
+
 const vendorExtractionPromises = new Map<string, Promise<string>>();
 
 export async function ensureDrawioVendorDir(
@@ -115,7 +122,8 @@ async function extractDrawioVendorDir(
       }
       if (existsSync(cacheDir) && !existsSync(resolve(cacheDir, "index.html"))) {
         guard();
-        rmSync(cacheDir, { recursive: true, force: true });
+        try { rmSync(cacheDir, { recursive: true, force: true }); }
+        catch (cause) { throw new DrawioVendorCleanupError(cause); }
       }
       try {
         guard();
@@ -125,7 +133,8 @@ async function extractDrawioVendorDir(
       }
       return cacheDir;
     } finally {
-      rmSync(temporary, { recursive: true, force: true });
+      try { rmSync(temporary, { recursive: true, force: true }); }
+      catch (cause) { throw new DrawioVendorCleanupError(cause); }
     }
   })();
   vendorExtractionPromises.set(cacheDir, extraction);
@@ -193,11 +202,14 @@ export function bindDrawioVendorHost(options: DrawioVendorHostOptions): DrawioVe
     close() {
       closed = true;
       return closing ??= (async () => {
-        try { await host.readyPromise; } catch { /* preparation failure still joins cleanup */ }
-        finally {
-          directory = undefined;
-          if (currentVendorHost === host) currentVendorHost = undefined;
+        directory = undefined;
+        try { await host.readyPromise; }
+        catch (error) {
+          // Failed cleanup seals the owner until operator reconciliation. A
+          // cached rejected close must never grant a replacement owner.
+          if (error instanceof DrawioVendorCleanupError) throw error;
         }
+        if (currentVendorHost === host) currentVendorHost = undefined;
       })();
     },
   };

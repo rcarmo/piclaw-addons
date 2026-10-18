@@ -1,4 +1,5 @@
-import { afterEach, expect, test } from "bun:test";
+import { afterEach, expect, spyOn, test } from "bun:test";
+import * as fs from "node:fs";
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -37,6 +38,48 @@ function heldExtraction() {
   };
   return { started, release, get calls() { return calls; }, restore() { Bun.Archive.prototype.extract = original; } };
 }
+
+test("staging cleanup uncertainty seals native owner and cached close rejection", async () => {
+  const f = await fixture();
+  const host = f.api.bindDrawioVendorHost({ ...f, assertCurrent() {} });
+  const held = heldExtraction();
+  const originalRm = fs.rmSync;
+  let faultCalls = 0;
+  let staging: string | undefined;
+  const fault = spyOn(fs, "rmSync").mockImplementation((path, options) => {
+    if (String(path).startsWith(`${f.cacheDir}.tmp-`)) {
+      faultCalls++;
+      staging = String(path);
+      throw new Error("injected staging cleanup failure");
+    }
+    return originalRm(path, options);
+  });
+  try {
+    const preparation = host.prepare();
+    const failed = preparation.catch(error => error);
+    await held.started;
+    const sibling = join(f.root, "cache", "other-owner");
+    writeFileSync(sibling, "preserved");
+    const closing = host.close();
+    const closeFailure = closing.catch(error => error);
+    held.release();
+    expect(await failed).toBeInstanceOf(f.api.DrawioVendorCleanupError);
+    expect(await closeFailure).toBeInstanceOf(f.api.DrawioVendorCleanupError);
+    expect(faultCalls).toBeGreaterThan(0);
+    expect(host.close()).toBe(closing);
+    await expect(host.close()).rejects.toBeInstanceOf(f.api.DrawioVendorCleanupError);
+    expect(host.directory).toBeUndefined();
+    expect(() => f.api.bindDrawioVendorHost({ ...f, assertCurrent() {} })).toThrow("already owned");
+    expect(existsSync(f.cacheDir)).toBe(false);
+    expect(existsSync(staging!)).toBe(true);
+    expect(readFileSync(sibling, "utf8")).toBe("preserved");
+    expect((await f.route()).status).toBe(503);
+  } finally {
+    fault.mockRestore(); held.release(); held.restore();
+    // Fixture-only manual cleanup; no reset or replacement grant is exposed.
+    if (staging) originalRm(staging, { recursive: true, force: true });
+  }
+});
 
 test("native binding refuses a legacy extraction in progress", async () => {
   const f = await fixture();
