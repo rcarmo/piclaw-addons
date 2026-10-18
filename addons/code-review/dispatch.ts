@@ -79,7 +79,7 @@ export class ReviewService extends ReviewStore {
     const scope = this.dispatchScope(who);
     if (scope && scope.dispatchId !== dispatchId) return this.missing();
     const row = this.database.get<DispatchRow>(
-      "SELECT * FROM dispatches WHERE id=?",
+      `SELECT * FROM ${this.database.table("dispatches")} WHERE id=?`,
       dispatchId,
     );
     if (!row) return this.missing();
@@ -95,7 +95,7 @@ export class ReviewService extends ReviewStore {
       // Prepared/rejected intents have not authorised work for this dispatch.
       if (
         !this.database.get(
-          "SELECT id FROM attempts WHERE dispatch_id=? AND state IN ('attempting','accepted','unknown')",
+          `SELECT id FROM ${this.database.table("attempts")} WHERE dispatch_id=? AND state IN ('attempting','accepted','unknown')`,
           dispatchId,
         )
       )
@@ -143,7 +143,7 @@ export class ReviewService extends ReviewStore {
           409,
         );
       const latest = this.database.get<{ dispatch_id: string; state: DeliveryState; work_state: WorkState; summary: string }>(
-        "SELECT i.dispatch_id,i.work_state,a.state,d.summary FROM dispatch_items i JOIN dispatches d ON d.id=i.dispatch_id JOIN attempts a ON a.dispatch_id=d.id AND a.number=(SELECT MAX(number) FROM attempts WHERE dispatch_id=d.id) WHERE i.thread_id=? AND i.assignment_epoch=? ORDER BY d.rowid DESC LIMIT 1",
+        `SELECT i.dispatch_id,i.work_state,a.state,d.summary FROM ${this.database.table("dispatch_items")} i JOIN ${this.database.table("dispatches")} d ON d.id=i.dispatch_id JOIN ${this.database.table("attempts")} a ON a.dispatch_id=d.id AND a.number=(SELECT MAX(number) FROM ${this.database.table("attempts")} WHERE dispatch_id=d.id) WHERE i.thread_id=? AND i.assignment_epoch=? ORDER BY d.rowid DESC LIMIT 1`,
         thread.id, thread.assignment_epoch,
       );
       if (latest?.state === "unknown")
@@ -182,7 +182,7 @@ export class ReviewService extends ReviewStore {
         dispatchId = id("dispatch"),
         time = now();
       this.database.run(
-        "INSERT INTO dispatches VALUES(?,?,?,?,?,?,1,?)",
+        `INSERT INTO ${this.database.table("dispatches")} VALUES(?,?,?,?,?,?,1,?)`,
         dispatchId,
         reviewId,
         who.actorId,
@@ -194,7 +194,7 @@ export class ReviewService extends ReviewStore {
       threads.forEach((thread, index) => {
         const anchor = JSON.parse(thread.anchor_json) as OriginalAnchor;
         this.database.run(
-          "INSERT INTO dispatch_items VALUES(?,?,?,?,?,?,?,'not_started',1)",
+          `INSERT INTO ${this.database.table("dispatch_items")} VALUES(?,?,?,?,?,?,?,'not_started',1)`,
           dispatchId,
           reviewId,
           thread.id,
@@ -206,7 +206,7 @@ export class ReviewService extends ReviewStore {
       });
       const attemptId = id("attempt");
       this.database.run(
-        "INSERT INTO attempts VALUES(?,?,1,'prepared',NULL,NULL,?,?)",
+        `INSERT INTO ${this.database.table("attempts")} VALUES(?,?,1,'prepared',NULL,NULL,?,?)`,
         attemptId,
         dispatchId,
         time,
@@ -264,12 +264,12 @@ export class ReviewService extends ReviewStore {
   inspectDispatch(who: ReviewIdentity, dispatchId: string) {
     const row = this.dispatch(who, dispatchId);
     const items = this.database.all<ItemRow>(
-      "SELECT * FROM dispatch_items WHERE dispatch_id=? ORDER BY ordinal",
+      `SELECT * FROM ${this.database.table("dispatch_items")} WHERE dispatch_id=? ORDER BY ordinal`,
       dispatchId,
     );
     const visibleItems = items.map((item) => {
       const thread = this.database.get<ThreadRecord>(
-        "SELECT * FROM threads WHERE id=?",
+        `SELECT * FROM ${this.database.table("threads")} WHERE id=?`,
         item.thread_id,
       )!;
       const currentTarget = JSON.parse(thread.target_json) as LocalTarget;
@@ -303,7 +303,7 @@ export class ReviewService extends ReviewStore {
       target: JSON.parse(row.target_json),
       items: visibleItems,
       attempts: this.database.all<AttemptRow>(
-        "SELECT * FROM attempts WHERE dispatch_id=? ORDER BY number",
+        `SELECT * FROM ${this.database.table("attempts")} WHERE dispatch_id=? ORDER BY number`,
         dispatchId,
       ),
     };
@@ -324,7 +324,7 @@ export class ReviewService extends ReviewStore {
     }
     if (reviewId) this.own(who, reviewId);
     const rows = this.database.all<DispatchRow>(
-      "SELECT d.* FROM dispatches d JOIN reviews r ON r.id=d.review_id WHERE r.owner_id=? AND (? IS NULL OR r.workspace_id=?) AND d.id>? AND (? IS NULL OR d.review_id=?) AND (?='operator' OR (json_extract(d.target_json,'$.chatId')=? AND json_extract(d.target_json,'$.incarnation')=? AND EXISTS(SELECT 1 FROM attempts a WHERE a.dispatch_id=d.id AND a.state IN ('attempting','accepted','unknown')))) ORDER BY d.id LIMIT ?",
+      `SELECT d.* FROM ${this.database.table("dispatches")} d JOIN ${this.database.table("reviews")} r ON r.id=d.review_id WHERE r.owner_id=? AND (? IS NULL OR r.workspace_id=?) AND d.id>? AND (? IS NULL OR d.review_id=?) AND (?='operator' OR (json_extract(d.target_json,'$.chatId')=? AND json_extract(d.target_json,'$.incarnation')=? AND EXISTS(SELECT 1 FROM ${this.database.table("attempts")} a WHERE a.dispatch_id=d.id AND a.state IN ('attempting','accepted','unknown')))) ORDER BY d.id LIMIT ?`,
       who.ownerId,
       who.workspaceId ?? null,
       who.workspaceId ?? null,
@@ -375,7 +375,7 @@ export class ReviewService extends ReviewStore {
   ) {
     const row = this.dispatch(who, dispatchId);
     const rows = this.database.all<ThreadRecord>(
-      "SELECT t.* FROM dispatch_items i JOIN threads t ON t.id=i.thread_id AND t.review_id=i.review_id WHERE i.dispatch_id=? AND i.review_id=? AND t.state!='deleted' AND t.id>? AND (? IS NULL OR t.state=?) AND (?='operator' OR (json_extract(t.target_json,'$.chatId')=? AND json_extract(t.target_json,'$.incarnation')=? AND t.assignment_epoch=i.assignment_epoch)) ORDER BY t.id LIMIT ?",
+      `SELECT t.* FROM ${this.database.table("dispatch_items")} i JOIN ${this.database.table("threads")} t ON t.id=i.thread_id AND t.review_id=i.review_id WHERE i.dispatch_id=? AND i.review_id=? AND t.state!='deleted' AND t.id>? AND (? IS NULL OR t.state=?) AND (?='operator' OR (json_extract(t.target_json,'$.chatId')=? AND json_extract(t.target_json,'$.incarnation')=? AND t.assignment_epoch=i.assignment_epoch)) ORDER BY t.id LIMIT ?`,
       dispatchId,
       row.review_id,
       options.after ?? "",
@@ -399,7 +399,7 @@ export class ReviewService extends ReviewStore {
   /** A stopped attempting call is never treated as definitely rejected. Call only at service startup. */
   recoverInterrupted(): number {
     return this.database.run(
-      "UPDATE attempts SET state='unknown',error_code='interrupted',updated_at=? WHERE state='attempting'",
+      `UPDATE ${this.database.table("attempts")} SET state='unknown',error_code='interrupted',updated_at=? WHERE state='attempting'`,
       now(),
     ).changes;
   }
@@ -409,18 +409,18 @@ export class ReviewService extends ReviewStore {
     const claimed = this.database.transaction(() => {
       const row = this.dispatch(who, dispatchId),
         attempt = this.database.get<AttemptRow>(
-          "SELECT * FROM attempts WHERE dispatch_id=? ORDER BY number DESC LIMIT 1",
+          `SELECT * FROM ${this.database.table("attempts")} WHERE dispatch_id=? ORDER BY number DESC LIMIT 1`,
           dispatchId,
         )!;
       if (attempt.state !== "prepared") return null;
       const expected = JSON.parse(row.target_json) as LocalTarget;
       const items = this.database.all<ItemRow>(
-        "SELECT * FROM dispatch_items WHERE dispatch_id=?",
+        `SELECT * FROM ${this.database.table("dispatch_items")} WHERE dispatch_id=?`,
         dispatchId,
       );
       const stale = items.some((item) => {
         const thread = this.database.get<ThreadRecord>(
-          "SELECT * FROM threads WHERE id=?",
+          `SELECT * FROM ${this.database.table("threads")} WHERE id=?`,
           item.thread_id,
         );
         if (
@@ -439,7 +439,7 @@ export class ReviewService extends ReviewStore {
       });
       if (stale) {
         this.database.run(
-          "UPDATE attempts SET state='rejected',error_code='selection_changed',updated_at=? WHERE id=? AND state='prepared'",
+          `UPDATE ${this.database.table("attempts")} SET state='rejected',error_code='selection_changed',updated_at=? WHERE id=? AND state='prepared'`,
           now(),
           attempt.id,
         );
@@ -454,7 +454,7 @@ export class ReviewService extends ReviewStore {
         return null;
       }
       const changed = this.database.run(
-        "UPDATE attempts SET state='attempting',updated_at=? WHERE id=? AND state='prepared'",
+        `UPDATE ${this.database.table("attempts")} SET state='attempting',updated_at=? WHERE id=? AND state='prepared'`,
         now(),
         attempt.id,
       ).changes;
@@ -488,7 +488,7 @@ export class ReviewService extends ReviewStore {
     }
     this.database.transaction(() => {
       this.database.run(
-        "UPDATE attempts SET state=?,host_row_id=?,error_code=?,updated_at=? WHERE id=? AND state='attempting'",
+        `UPDATE ${this.database.table("attempts")} SET state=?,host_row_id=?,error_code=?,updated_at=? WHERE id=? AND state='attempting'`,
         state,
         hostRow,
         errorCode,
@@ -512,7 +512,7 @@ export class ReviewService extends ReviewStore {
     return this.mutation(who, m, "retry", { dispatchId }, () => {
       const row = this.dispatch(who, dispatchId),
         attempt = this.database.get<AttemptRow>(
-          "SELECT * FROM attempts WHERE dispatch_id=? ORDER BY number DESC LIMIT 1",
+          `SELECT * FROM ${this.database.table("attempts")} WHERE dispatch_id=? ORDER BY number DESC LIMIT 1`,
           dispatchId,
         )!;
       if (attempt.state !== "rejected")
@@ -522,7 +522,7 @@ export class ReviewService extends ReviewStore {
           409,
         );
       const items = this.database.all<ItemRow>(
-        "SELECT * FROM dispatch_items WHERE dispatch_id=? ORDER BY ordinal",
+        `SELECT * FROM ${this.database.table("dispatch_items")} WHERE dispatch_id=? ORDER BY ordinal`,
         dispatchId,
       );
       for (const item of items) {
@@ -542,7 +542,7 @@ export class ReviewService extends ReviewStore {
       const attemptId = id("attempt"),
         time = now();
       this.database.run(
-        "INSERT INTO attempts VALUES(?,?,?,'prepared',NULL,NULL,?,?)",
+        `INSERT INTO ${this.database.table("attempts")} VALUES(?,?,?,'prepared',NULL,NULL,?,?)`,
         attemptId,
         dispatchId,
         attempt.number + 1,
@@ -588,7 +588,7 @@ export class ReviewService extends ReviewStore {
     return this.mutation(who, m, "reconcile", { dispatchId, input }, () => {
       const row = this.dispatch(who, dispatchId),
         attempt = this.database.get<AttemptRow>(
-          "SELECT * FROM attempts WHERE dispatch_id=? ORDER BY number DESC LIMIT 1",
+          `SELECT * FROM ${this.database.table("attempts")} WHERE dispatch_id=? ORDER BY number DESC LIMIT 1`,
           dispatchId,
         )!;
       if (attempt.id !== input.attemptId || attempt.state !== "unknown")
@@ -598,7 +598,7 @@ export class ReviewService extends ReviewStore {
           409,
         );
       this.database.run(
-        "UPDATE attempts SET state=?,host_row_id=?,updated_at=? WHERE id=?",
+        `UPDATE ${this.database.table("attempts")} SET state=?,host_row_id=?,updated_at=? WHERE id=?`,
         input.decision,
         input.hostRowId ?? null,
         now(),
@@ -658,14 +658,14 @@ export class ReviewService extends ReviewStore {
       () => {
         const row = this.dispatch(who, dispatchId),
           item = this.database.get<ItemRow>(
-            "SELECT * FROM dispatch_items WHERE dispatch_id=? AND thread_id=?",
+            `SELECT * FROM ${this.database.table("dispatch_items")} WHERE dispatch_id=? AND thread_id=?`,
             dispatchId,
             threadId,
           );
         if (!item) return this.missing();
         version(item.version, input.itemVersion);
         const thread = this.database.get<ThreadRecord>(
-          "SELECT * FROM threads WHERE id=?",
+          `SELECT * FROM ${this.database.table("threads")} WHERE id=?`,
           threadId,
         )!;
         const selected = JSON.parse(thread.target_json) as LocalTarget;
@@ -678,7 +678,7 @@ export class ReviewService extends ReviewStore {
           thread.state === "resolved" &&
           assignmentValid &&
           !!this.database.get(
-            "SELECT cursor FROM events WHERE thread_id=? AND kind='thread.resolved' AND actor_id=? AND json_extract(data_json,'$.addressedVersion')=?",
+            `SELECT cursor FROM ${this.database.table("events")} WHERE thread_id=? AND kind='thread.resolved' AND actor_id=? AND json_extract(data_json,'$.addressedVersion')=?`,
             threadId,
             who.actorId,
             thread.version - 1,
@@ -703,7 +703,7 @@ export class ReviewService extends ReviewStore {
             409,
           );
         this.database.run(
-          "UPDATE dispatch_items SET work_state=?,version=version+1 WHERE dispatch_id=? AND thread_id=?",
+          `UPDATE ${this.database.table("dispatch_items")} SET work_state=?,version=version+1 WHERE dispatch_id=? AND thread_id=?`,
           input.state,
           dispatchId,
           threadId,

@@ -9,6 +9,7 @@
     "README.md",
     "docs/*.png",
     "index.ts",
+    "tool.ts",
     "runtime.ts",
     "anchors.ts",
     "contracts.ts",
