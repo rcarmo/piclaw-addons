@@ -15,6 +15,8 @@
  */
 
 import { resolve, extname, dirname } from "node:path";
+import { createDrawioEditorTool, DEFAULT_DRAWIO_XML, resolveWorkspacePath as resolveToolWorkspacePath } from "./tool";
+export { createDrawioEditorTool } from "./tool";
 import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 // Tool status hint registration - uses globalThis if available
 interface ToolStatusHintProvider {
@@ -114,7 +116,6 @@ export async function ensureDrawioVendorDir(
 
 const VENDOR_DIR = resolveDrawioVendorDir();
 
-const DRAWIO_EXTENSIONS = [".drawio", ".drawio.xml", ".drawio.svg", ".drawio.png"];
 const EXPORT_EXTENSIONS: Record<string, string> = {
   "image/svg+xml": ".svg",
   "image/png": ".png",
@@ -124,7 +125,6 @@ const EXPORT_EXTENSIONS: Record<string, string> = {
   "text/xml": ".xml",
   "application/xml": ".xml",
 };
-const DEFAULT_DRAWIO_XML = '<mxfile host="app.diagrams.net"><diagram id="page-1" name="Page-1"><mxGraphModel dx="1260" dy="720" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0"><root><mxCell id="0"/><mxCell id="1" parent="0"/></root></mxGraphModel></diagram></mxfile>';
 
 const MIME_TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -800,38 +800,8 @@ function getWorkspaceRoot(): string {
   return process.env.PICLAW_WORKSPACE || DEFAULT_WORKSPACE_ROOT;
 }
 
-function normalizeWorkspaceRelativePath(input: string): string {
-  const trimmed = String(input || "").trim().replace(/^@/, "").replace(/\\+/g, "/");
-  if (!trimmed) throw new Error("Missing path");
-  const stripped = trimmed.replace(/^\/workspace\//, "").replace(/^\/+/, "");
-  const normalized = stripped
-    .split("/")
-    .filter((segment) => segment && segment !== ".")
-    .reduce<string[]>((parts, segment) => {
-      if (segment === "..") {
-        if (parts.length === 0) throw new Error("Forbidden path");
-        parts.pop();
-        return parts;
-      }
-      parts.push(segment);
-      return parts;
-    }, [])
-    .join("/");
-  if (!normalized) throw new Error("Missing path");
-  return normalized;
-}
-
 function resolveWorkspacePath(path: string): string {
-  const workspaceRoot = getWorkspaceRoot();
-  const relative = normalizeWorkspaceRelativePath(path);
-  const fullPath = resolve(workspaceRoot, relative);
-  const realRoot = realpathSync(workspaceRoot);
-  const parentDir = resolve(fullPath, "..");
-  const realParent = existsSync(parentDir) ? realpathSync(parentDir) : realpathSync(workspaceRoot);
-  if (!fullPath.startsWith(realRoot) || !realParent.startsWith(realRoot)) {
-    throw new Error("Forbidden path");
-  }
-  return fullPath;
+  return resolveToolWorkspacePath(path, getWorkspaceRoot());
 }
 
 function decodeDataUri(dataUri: string): { mimeType: string | null; bytes: Uint8Array } {
@@ -1003,115 +973,5 @@ export default function drawioEditor(pi: any) {
   }
 
   // Register tool for the LLM to open the diagram editor
-  pi.registerTool({
-    name: "open_drawio_editor",
-    label: "Open Draw.io Editor",
-    description:
-      "Open or create a .drawio diagram file in the web UI draw.io pane when available. " +
-      "Returns a fallback URL when direct pane opening is unavailable.",
-    promptSnippet: "open_drawio_editor: open/create a draw.io file in the web UI draw.io pane.",
-    parameters: {
-      type: "object",
-      properties: {
-        path: {
-          type: "string",
-          description: "Workspace path to the .drawio file (created if it doesn't exist).",
-        },
-      },
-      required: ["path"],
-    },
-    async execute(_toolCallId: string, params: { path: string }, _signal: AbortSignal | undefined, _onUpdate: unknown, ctx: any) {
-      const filePath = normalizeWorkspaceRelativePath(params.path || "");
-
-      // Validate extension
-      const hasValidExt = DRAWIO_EXTENSIONS.some(ext => filePath.toLowerCase().endsWith(ext));
-      if (!hasValidExt && !filePath.toLowerCase().endsWith(".xml")) {
-        throw new Error(
-          `Unsupported file type. Expected: ${DRAWIO_EXTENSIONS.join(", ")} or .xml`
-        );
-      }
-
-      const absolutePath = resolveWorkspacePath(filePath);
-      if (!existsSync(absolutePath)) {
-        mkdirSync(dirname(absolutePath), { recursive: true });
-        writeFileSync(absolutePath, DEFAULT_DRAWIO_XML, "utf8");
-      } else {
-        const stat = statSync(absolutePath);
-        if (!stat.isFile()) {
-          throw new Error(`Not a file: ${filePath}`);
-        }
-      }
-
-      const editorUrl = `${ROUTE_PREFIX}/edit?path=${encodeURIComponent(filePath)}`;
-      const label = filePath.split("/").pop() || "diagram.drawio";
-
-      if (ctx?.hasUI && typeof ctx?.ui?.custom === "function") {
-        try {
-          const outcome = await ctx.ui.custom(
-            () => null,
-            {
-              timeout: 15000,
-              action: "open_workspace_file",
-              path: filePath,
-              label,
-              target: "tab",
-            },
-          ) as { ok?: boolean; opened?: boolean; target?: string; detail?: string; reason?: string } | undefined;
-
-          if (outcome?.ok !== false && outcome?.opened !== false) {
-            return {
-              content: [
-                {
-                  type: "text" as const,
-                  text: `Opened ${filePath} in the Draw.io editor pane.`,
-                },
-              ],
-              details: { ok: true, opened: true, path: filePath, target: outcome?.target || "tab", editorUrl },
-            };
-          }
-
-          const detail = typeof outcome?.detail === "string" && outcome.detail.trim()
-            ? outcome.detail.trim()
-            : "The web UI did not open the Draw.io pane directly.";
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `${detail}\n\nFallback URL: ${editorUrl}`,
-              },
-            ],
-            details: {
-              ok: false,
-              opened: false,
-              reason: outcome?.reason || "ui_open_failed",
-              path: filePath,
-              target: "tab",
-              editorUrl,
-            },
-          };
-        } catch (error) {
-          const detail = error instanceof Error ? error.message : String(error || "Unknown UI error");
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `Could not open the Draw.io pane directly.\n\nFallback URL: ${editorUrl}\n\nReason: ${detail}`,
-              },
-            ],
-            details: { ok: false, opened: false, reason: "ui_open_failed", path: filePath, target: "tab", editorUrl },
-          };
-        }
-      }
-
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: `Draw.io editor URL: ${editorUrl}\n\nOpen this URL in the browser to edit the diagram. Changes are auto-saved to the workspace.`,
-          },
-        ],
-        details: { editorUrl, path: filePath },
-      };
-    },
-  });
+  pi.registerTool(createDrawioEditorTool());
 }
