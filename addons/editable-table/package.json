@@ -48,5 +48,13 @@
     "spreadsheet"
   ],
   "license": "MIT",
-  "homepage": "https://rcarmo.github.io/piclaw-addons/addons/editable-table/"
+  "homepage": "https://rcarmo.github.io/piclaw-addons/addons/editable-table/",
+  "files": [
+    "index.ts",
+    "tool.ts",
+    "shared.ts",
+    "web",
+    "skills",
+    "README.md"
+  ]
 }
