@@ -14,7 +14,8 @@
  *   - Diagrams are stored as .drawio XML files in the workspace.
  */
 
-import { resolve, extname, dirname } from "node:path";
+import { resolve, extname, dirname, sep } from "node:path";
+import { randomUUID } from "node:crypto";
 import { createDrawioEditorTool, DEFAULT_DRAWIO_XML, resolveWorkspacePath as resolveToolWorkspacePath } from "./tool";
 export { createDrawioEditorTool } from "./tool";
 import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -73,6 +74,18 @@ export async function ensureDrawioVendorDir(
   cwd = process.cwd(),
   cacheDir = getDrawioVendorCacheDir(),
 ): Promise<string> {
+  // Legacy callers must never join a native owner's preparation grant.
+  if (nativeVendorSelected) throw new Error("Draw.io vendor requires startup preparation");
+  return extractDrawioVendorDir(baseDir, cwd, cacheDir, () => {});
+}
+
+async function extractDrawioVendorDir(
+  baseDir: string,
+  cwd: string,
+  cacheDir: string,
+  guard: () => void,
+): Promise<string> {
+  guard();
   const looseDir = resolveDrawioVendorDir(baseDir, cwd);
   if (existsSync(resolve(looseDir, "index.html"))) return looseDir;
 
@@ -85,18 +98,27 @@ export async function ensureDrawioVendorDir(
 
   const extraction = (async () => {
     const parent = dirname(cacheDir);
-    const temporary = `${cacheDir}.tmp-${process.pid}-${Date.now()}`;
+    // Dedicated, unguessable caller-owned namespace: cleanup remains permitted
+    // after revocation, but no published/shared path may be mutated then.
+    const temporary = `${cacheDir}.tmp-${randomUUID()}`;
+    guard();
     mkdirSync(parent, { recursive: true });
-    if (existsSync(cacheDir) && !existsSync(resolve(cacheDir, "index.html"))) {
-      rmSync(cacheDir, { recursive: true, force: true });
-    }
     try {
       const archive = new Bun.Archive(await Bun.file(archivePath).arrayBuffer());
+      guard();
+      // Bun performs internal async writes. Revocation cannot fence each entry;
+      // only this owned staging directory may receive those pending writes.
       await archive.extract(temporary);
+      guard();
       if (!existsSync(resolve(temporary, "index.html"))) {
         throw new Error(`Draw.io vendor archive is missing index.html: ${archivePath}`);
       }
+      if (existsSync(cacheDir) && !existsSync(resolve(cacheDir, "index.html"))) {
+        guard();
+        rmSync(cacheDir, { recursive: true, force: true });
+      }
       try {
+        guard();
         renameSync(temporary, cacheDir);
       } catch (error) {
         if (!existsSync(resolve(cacheDir, "index.html"))) throw error;
@@ -111,6 +133,90 @@ export async function ensureDrawioVendorDir(
     return await extraction;
   } finally {
     vendorExtractionPromises.delete(cacheDir);
+  }
+}
+
+export interface DrawioVendorHostOptions {
+  assertCurrent(): void;
+  baseDir?: string;
+  cwd?: string;
+  cacheDir?: string;
+}
+
+interface DrawioVendorHost {
+  readonly directory: string | undefined;
+  readyPromise: Promise<void> | undefined;
+  assertCurrent(): void;
+  prepare(): Promise<void>;
+  close(): Promise<void>;
+}
+
+let currentVendorHost: DrawioVendorHost | undefined;
+// Once selected, native routing never falls back to request-time installation.
+let nativeVendorSelected = false;
+
+/** Application-global startup owner only; not an agent/request-scoped grant.
+ * The owner must await close() before releasing its lifetime authority.
+ */
+export function bindDrawioVendorHost(options: DrawioVendorHostOptions): DrawioVendorHost {
+  if (currentVendorHost || vendorExtractionPromises.size) {
+    throw new Error("Draw.io vendor preparation is already owned");
+  }
+  // Capture both callback and receiver before any await or caller mutation.
+  const capturedAssert = options.assertCurrent.bind(options);
+  const baseDir = options.baseDir ?? EXT_DIR;
+  const cwd = options.cwd ?? process.cwd();
+  const cacheDir = options.cacheDir ?? getDrawioVendorCacheDir();
+  capturedAssert();
+  let closed = false;
+  let directory: string | undefined;
+  let closing: Promise<void> | undefined;
+  const host: DrawioVendorHost = {
+    get directory() { return directory; },
+    readyPromise: undefined,
+    assertCurrent() {
+      if (closed || currentVendorHost !== host) throw new Error("Draw.io vendor owner is closed");
+      capturedAssert();
+    },
+    prepare() {
+      try { host.assertCurrent(); } catch (error) { return Promise.reject(error); }
+      return host.readyPromise ??= (async () => {
+        const prepared = await extractDrawioVendorDir(baseDir, cwd, cacheDir, host.assertCurrent);
+        host.assertCurrent();
+        if (!statSync(resolve(prepared, "index.html")).isFile()) {
+          throw new Error("Draw.io vendor index is unavailable");
+        }
+        host.assertCurrent();
+        directory = realpathSync(prepared);
+      })();
+    },
+    close() {
+      closed = true;
+      return closing ??= (async () => {
+        try { await host.readyPromise; } catch { /* preparation failure still joins cleanup */ }
+        finally {
+          directory = undefined;
+          if (currentVendorHost === host) currentVendorHost = undefined;
+        }
+      })();
+    },
+  };
+  nativeVendorSelected = true;
+  currentVendorHost = host;
+  return host;
+}
+
+export async function prepareDrawioVendor(options: DrawioVendorHostOptions): Promise<{
+  directory: string;
+  close(): Promise<void>;
+}> {
+  const host = bindDrawioVendorHost(options);
+  try {
+    await host.prepare();
+    return { directory: host.directory!, close: host.close };
+  } catch (error) {
+    await host.close();
+    throw error;
   }
 }
 
@@ -916,16 +1022,33 @@ export function handleRoute(req: Request, pathname: string): Response | Promise<
 }
 
 async function serveVendorFile(relative: string): Promise<Response> {
-  const vendorDir = await ensureDrawioVendorDir();
+  const host = currentVendorHost;
+  let vendorDir: string;
+  if (nativeVendorSelected) {
+    try {
+      if (!host?.directory) throw new Error("Not prepared");
+      host.assertCurrent();
+      vendorDir = host.directory;
+    } catch {
+      return new Response("Draw.io vendor unavailable", { status: 503 });
+    }
+  } else {
+    vendorDir = await ensureDrawioVendorDir();
+  }
   const filePath = resolve(vendorDir, relative);
 
   let realPath: string;
+  let vendorRoot: string;
   try {
+    vendorRoot = realpathSync(vendorDir);
     realPath = realpathSync(filePath);
   } catch {
     return new Response("Not Found", { status: 404 });
   }
 
+  if (realPath !== vendorRoot && !realPath.startsWith(vendorRoot + sep)) {
+    return new Response("Forbidden", { status: 403 });
+  }
   if (!existsSync(realPath)) {
     return new Response("Not Found", { status: 404 });
   }
@@ -939,6 +1062,10 @@ async function serveVendorFile(relative: string): Promise<Response> {
     ? "no-cache"
     : "public, max-age=86400";
 
+  if (nativeVendorSelected) {
+    try { if (!host) throw new Error("Closed"); host.assertCurrent(); }
+    catch { return new Response("Draw.io vendor unavailable", { status: 503 }); }
+  }
   return new Response(Bun.file(realPath), {
     headers: {
       "Content-Type": getMimeType(realPath),
