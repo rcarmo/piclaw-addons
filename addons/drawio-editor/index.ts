@@ -14,7 +14,10 @@
  *   - Diagrams are stored as .drawio XML files in the workspace.
  */
 
-import { resolve, extname, dirname } from "node:path";
+import { resolve, extname, dirname, sep } from "node:path";
+import { randomUUID } from "node:crypto";
+import { createDrawioEditorTool, DEFAULT_DRAWIO_XML, resolveWorkspacePath as resolveToolWorkspacePath } from "./tool";
+export { createDrawioEditorTool } from "./tool";
 import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 // Tool status hint registration - uses globalThis if available
 interface ToolStatusHintProvider {
@@ -64,6 +67,13 @@ export function getDrawioVendorCacheDir(workspace = process.env.PICLAW_DATA?.tri
   return resolve(workspace, "cache", "drawio", DRAWIO_VERSION);
 }
 
+export class DrawioVendorCleanupError extends Error {
+  constructor(cause: unknown) {
+    super("Draw.io vendor cleanup uncertain", { cause });
+    this.name = "DrawioVendorCleanupError";
+  }
+}
+
 const vendorExtractionPromises = new Map<string, Promise<string>>();
 
 export async function ensureDrawioVendorDir(
@@ -71,6 +81,18 @@ export async function ensureDrawioVendorDir(
   cwd = process.cwd(),
   cacheDir = getDrawioVendorCacheDir(),
 ): Promise<string> {
+  // Legacy callers must never join a native owner's preparation grant.
+  if (nativeVendorSelected) throw new Error("Draw.io vendor requires startup preparation");
+  return extractDrawioVendorDir(baseDir, cwd, cacheDir, () => {});
+}
+
+async function extractDrawioVendorDir(
+  baseDir: string,
+  cwd: string,
+  cacheDir: string,
+  guard: () => void,
+): Promise<string> {
+  guard();
   const looseDir = resolveDrawioVendorDir(baseDir, cwd);
   if (existsSync(resolve(looseDir, "index.html"))) return looseDir;
 
@@ -83,25 +105,36 @@ export async function ensureDrawioVendorDir(
 
   const extraction = (async () => {
     const parent = dirname(cacheDir);
-    const temporary = `${cacheDir}.tmp-${process.pid}-${Date.now()}`;
+    // Dedicated, unguessable caller-owned namespace: cleanup remains permitted
+    // after revocation, but no published/shared path may be mutated then.
+    const temporary = `${cacheDir}.tmp-${randomUUID()}`;
+    guard();
     mkdirSync(parent, { recursive: true });
-    if (existsSync(cacheDir) && !existsSync(resolve(cacheDir, "index.html"))) {
-      rmSync(cacheDir, { recursive: true, force: true });
-    }
     try {
       const archive = new Bun.Archive(await Bun.file(archivePath).arrayBuffer());
+      guard();
+      // Bun performs internal async writes. Revocation cannot fence each entry;
+      // only this owned staging directory may receive those pending writes.
       await archive.extract(temporary);
+      guard();
       if (!existsSync(resolve(temporary, "index.html"))) {
         throw new Error(`Draw.io vendor archive is missing index.html: ${archivePath}`);
       }
+      if (existsSync(cacheDir) && !existsSync(resolve(cacheDir, "index.html"))) {
+        guard();
+        try { rmSync(cacheDir, { recursive: true, force: true }); }
+        catch (cause) { throw new DrawioVendorCleanupError(cause); }
+      }
       try {
+        guard();
         renameSync(temporary, cacheDir);
       } catch (error) {
         if (!existsSync(resolve(cacheDir, "index.html"))) throw error;
       }
       return cacheDir;
     } finally {
-      rmSync(temporary, { recursive: true, force: true });
+      try { rmSync(temporary, { recursive: true, force: true }); }
+      catch (cause) { throw new DrawioVendorCleanupError(cause); }
     }
   })();
   vendorExtractionPromises.set(cacheDir, extraction);
@@ -112,9 +145,95 @@ export async function ensureDrawioVendorDir(
   }
 }
 
+export interface DrawioVendorHostOptions {
+  assertCurrent(): void;
+  baseDir?: string;
+  cwd?: string;
+  cacheDir?: string;
+}
+
+interface DrawioVendorHost {
+  readonly directory: string | undefined;
+  readyPromise: Promise<void> | undefined;
+  assertCurrent(): void;
+  prepare(): Promise<void>;
+  close(): Promise<void>;
+}
+
+let currentVendorHost: DrawioVendorHost | undefined;
+// Once selected, native routing never falls back to request-time installation.
+let nativeVendorSelected = false;
+
+/** Application-global startup owner only; not an agent/request-scoped grant.
+ * The owner must await close() before releasing its lifetime authority.
+ */
+export function bindDrawioVendorHost(options: DrawioVendorHostOptions): DrawioVendorHost {
+  if (currentVendorHost || vendorExtractionPromises.size) {
+    throw new Error("Draw.io vendor preparation is already owned");
+  }
+  // Capture both callback and receiver before any await or caller mutation.
+  const capturedAssert = options.assertCurrent.bind(options);
+  const baseDir = options.baseDir ?? EXT_DIR;
+  const cwd = options.cwd ?? process.cwd();
+  const cacheDir = options.cacheDir ?? getDrawioVendorCacheDir();
+  capturedAssert();
+  let closed = false;
+  let directory: string | undefined;
+  let closing: Promise<void> | undefined;
+  const host: DrawioVendorHost = {
+    get directory() { return directory; },
+    readyPromise: undefined,
+    assertCurrent() {
+      if (closed || currentVendorHost !== host) throw new Error("Draw.io vendor owner is closed");
+      capturedAssert();
+    },
+    prepare() {
+      try { host.assertCurrent(); } catch (error) { return Promise.reject(error); }
+      return host.readyPromise ??= (async () => {
+        const prepared = await extractDrawioVendorDir(baseDir, cwd, cacheDir, host.assertCurrent);
+        host.assertCurrent();
+        if (!statSync(resolve(prepared, "index.html")).isFile()) {
+          throw new Error("Draw.io vendor index is unavailable");
+        }
+        host.assertCurrent();
+        directory = realpathSync(prepared);
+      })();
+    },
+    close() {
+      closed = true;
+      return closing ??= (async () => {
+        directory = undefined;
+        try { await host.readyPromise; }
+        catch (error) {
+          // Failed cleanup seals the owner until operator reconciliation. A
+          // cached rejected close must never grant a replacement owner.
+          if (error instanceof DrawioVendorCleanupError) throw error;
+        }
+        if (currentVendorHost === host) currentVendorHost = undefined;
+      })();
+    },
+  };
+  nativeVendorSelected = true;
+  currentVendorHost = host;
+  return host;
+}
+
+export async function prepareDrawioVendor(options: DrawioVendorHostOptions): Promise<{
+  directory: string;
+  close(): Promise<void>;
+}> {
+  const host = bindDrawioVendorHost(options);
+  try {
+    await host.prepare();
+    return { directory: host.directory!, close: host.close };
+  } catch (error) {
+    await host.close();
+    throw error;
+  }
+}
+
 const VENDOR_DIR = resolveDrawioVendorDir();
 
-const DRAWIO_EXTENSIONS = [".drawio", ".drawio.xml", ".drawio.svg", ".drawio.png"];
 const EXPORT_EXTENSIONS: Record<string, string> = {
   "image/svg+xml": ".svg",
   "image/png": ".png",
@@ -124,7 +243,6 @@ const EXPORT_EXTENSIONS: Record<string, string> = {
   "text/xml": ".xml",
   "application/xml": ".xml",
 };
-const DEFAULT_DRAWIO_XML = '<mxfile host="app.diagrams.net"><diagram id="page-1" name="Page-1"><mxGraphModel dx="1260" dy="720" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0"><root><mxCell id="0"/><mxCell id="1" parent="0"/></root></mxGraphModel></diagram></mxfile>';
 
 const MIME_TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -800,38 +918,8 @@ function getWorkspaceRoot(): string {
   return process.env.PICLAW_WORKSPACE || DEFAULT_WORKSPACE_ROOT;
 }
 
-function normalizeWorkspaceRelativePath(input: string): string {
-  const trimmed = String(input || "").trim().replace(/^@/, "").replace(/\\+/g, "/");
-  if (!trimmed) throw new Error("Missing path");
-  const stripped = trimmed.replace(/^\/workspace\//, "").replace(/^\/+/, "");
-  const normalized = stripped
-    .split("/")
-    .filter((segment) => segment && segment !== ".")
-    .reduce<string[]>((parts, segment) => {
-      if (segment === "..") {
-        if (parts.length === 0) throw new Error("Forbidden path");
-        parts.pop();
-        return parts;
-      }
-      parts.push(segment);
-      return parts;
-    }, [])
-    .join("/");
-  if (!normalized) throw new Error("Missing path");
-  return normalized;
-}
-
 function resolveWorkspacePath(path: string): string {
-  const workspaceRoot = getWorkspaceRoot();
-  const relative = normalizeWorkspaceRelativePath(path);
-  const fullPath = resolve(workspaceRoot, relative);
-  const realRoot = realpathSync(workspaceRoot);
-  const parentDir = resolve(fullPath, "..");
-  const realParent = existsSync(parentDir) ? realpathSync(parentDir) : realpathSync(workspaceRoot);
-  if (!fullPath.startsWith(realRoot) || !realParent.startsWith(realRoot)) {
-    throw new Error("Forbidden path");
-  }
-  return fullPath;
+  return resolveToolWorkspacePath(path, getWorkspaceRoot());
 }
 
 function decodeDataUri(dataUri: string): { mimeType: string | null; bytes: Uint8Array } {
@@ -946,16 +1034,33 @@ export function handleRoute(req: Request, pathname: string): Response | Promise<
 }
 
 async function serveVendorFile(relative: string): Promise<Response> {
-  const vendorDir = await ensureDrawioVendorDir();
+  const host = currentVendorHost;
+  let vendorDir: string;
+  if (nativeVendorSelected) {
+    try {
+      if (!host?.directory) throw new Error("Not prepared");
+      host.assertCurrent();
+      vendorDir = host.directory;
+    } catch {
+      return new Response("Draw.io vendor unavailable", { status: 503 });
+    }
+  } else {
+    vendorDir = await ensureDrawioVendorDir();
+  }
   const filePath = resolve(vendorDir, relative);
 
   let realPath: string;
+  let vendorRoot: string;
   try {
+    vendorRoot = realpathSync(vendorDir);
     realPath = realpathSync(filePath);
   } catch {
     return new Response("Not Found", { status: 404 });
   }
 
+  if (realPath !== vendorRoot && !realPath.startsWith(vendorRoot + sep)) {
+    return new Response("Forbidden", { status: 403 });
+  }
   if (!existsSync(realPath)) {
     return new Response("Not Found", { status: 404 });
   }
@@ -969,6 +1074,10 @@ async function serveVendorFile(relative: string): Promise<Response> {
     ? "no-cache"
     : "public, max-age=86400";
 
+  if (nativeVendorSelected) {
+    try { if (!host) throw new Error("Closed"); host.assertCurrent(); }
+    catch { return new Response("Draw.io vendor unavailable", { status: 503 }); }
+  }
   return new Response(Bun.file(realPath), {
     headers: {
       "Content-Type": getMimeType(realPath),
@@ -1003,115 +1112,5 @@ export default function drawioEditor(pi: any) {
   }
 
   // Register tool for the LLM to open the diagram editor
-  pi.registerTool({
-    name: "open_drawio_editor",
-    label: "Open Draw.io Editor",
-    description:
-      "Open or create a .drawio diagram file in the web UI draw.io pane when available. " +
-      "Returns a fallback URL when direct pane opening is unavailable.",
-    promptSnippet: "open_drawio_editor: open/create a draw.io file in the web UI draw.io pane.",
-    parameters: {
-      type: "object",
-      properties: {
-        path: {
-          type: "string",
-          description: "Workspace path to the .drawio file (created if it doesn't exist).",
-        },
-      },
-      required: ["path"],
-    },
-    async execute(_toolCallId: string, params: { path: string }, _signal: AbortSignal | undefined, _onUpdate: unknown, ctx: any) {
-      const filePath = normalizeWorkspaceRelativePath(params.path || "");
-
-      // Validate extension
-      const hasValidExt = DRAWIO_EXTENSIONS.some(ext => filePath.toLowerCase().endsWith(ext));
-      if (!hasValidExt && !filePath.toLowerCase().endsWith(".xml")) {
-        throw new Error(
-          `Unsupported file type. Expected: ${DRAWIO_EXTENSIONS.join(", ")} or .xml`
-        );
-      }
-
-      const absolutePath = resolveWorkspacePath(filePath);
-      if (!existsSync(absolutePath)) {
-        mkdirSync(dirname(absolutePath), { recursive: true });
-        writeFileSync(absolutePath, DEFAULT_DRAWIO_XML, "utf8");
-      } else {
-        const stat = statSync(absolutePath);
-        if (!stat.isFile()) {
-          throw new Error(`Not a file: ${filePath}`);
-        }
-      }
-
-      const editorUrl = `${ROUTE_PREFIX}/edit?path=${encodeURIComponent(filePath)}`;
-      const label = filePath.split("/").pop() || "diagram.drawio";
-
-      if (ctx?.hasUI && typeof ctx?.ui?.custom === "function") {
-        try {
-          const outcome = await ctx.ui.custom(
-            () => null,
-            {
-              timeout: 15000,
-              action: "open_workspace_file",
-              path: filePath,
-              label,
-              target: "tab",
-            },
-          ) as { ok?: boolean; opened?: boolean; target?: string; detail?: string; reason?: string } | undefined;
-
-          if (outcome?.ok !== false && outcome?.opened !== false) {
-            return {
-              content: [
-                {
-                  type: "text" as const,
-                  text: `Opened ${filePath} in the Draw.io editor pane.`,
-                },
-              ],
-              details: { ok: true, opened: true, path: filePath, target: outcome?.target || "tab", editorUrl },
-            };
-          }
-
-          const detail = typeof outcome?.detail === "string" && outcome.detail.trim()
-            ? outcome.detail.trim()
-            : "The web UI did not open the Draw.io pane directly.";
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `${detail}\n\nFallback URL: ${editorUrl}`,
-              },
-            ],
-            details: {
-              ok: false,
-              opened: false,
-              reason: outcome?.reason || "ui_open_failed",
-              path: filePath,
-              target: "tab",
-              editorUrl,
-            },
-          };
-        } catch (error) {
-          const detail = error instanceof Error ? error.message : String(error || "Unknown UI error");
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `Could not open the Draw.io pane directly.\n\nFallback URL: ${editorUrl}\n\nReason: ${detail}`,
-              },
-            ],
-            details: { ok: false, opened: false, reason: "ui_open_failed", path: filePath, target: "tab", editorUrl },
-          };
-        }
-      }
-
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: `Draw.io editor URL: ${editorUrl}\n\nOpen this URL in the browser to edit the diagram. Changes are auto-saved to the workspace.`,
-          },
-        ],
-        details: { editorUrl, path: filePath },
-      };
-    },
-  });
+  pi.registerTool(createDrawioEditorTool());
 }
