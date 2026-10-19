@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import goalAddon, { registerGoalTools, createGoalTools, resolveGoalInput, prepareGoalInput, clearThreadGoal,
+  shouldContinueGoalAfterMessage,
   buildGoalBudgetLimitPrompt,
   buildGoalContinuationPrompt,
   buildGoalFinalizationPrompt,
@@ -20,6 +21,19 @@ import { withChatContext } from "./compat/chat-context.ts";
 import { goalDeadlineCheckpointProvider } from "./deadline-checkpoint.ts";
 
 const addonDir = import.meta.dir;
+
+for (const [message, expected] of [
+  [{ role: "assistant", stopReason: "stop" }, true],
+  [{ role: "assistant", stopReason: "length" }, true],
+  [{ role: "assistant", stopReason: "toolUse" }, true],
+  [{ role: "assistant", stopReason: "aborted", errorMessage: "Request was aborted" }, true],
+  [{ role: "assistant", stopReason: "error" }, false],
+  [{ role: "assistant", stopReason: "stop", errorMessage: "Provider failure" }, false],
+  [{ role: "user", stopReason: "stop" }, false],
+  [null, false],
+] as const) test(`shared committed Goal continuation policy: ${JSON.stringify(message)}`, () => {
+  expect(shouldContinueGoalAfterMessage(message)).toBe(expected);
+});
 
 afterEach(async () => {
   await flushGoalPromptDispatchesForTests();

@@ -828,7 +828,7 @@ function recordAssistantOutcome(chatJidInput: unknown, message: unknown): void {
   // aborted turn is never "errored" regardless of its errorMessage; only a genuine
   // model/tool error (stopReason "error", or an errorMessage WITHOUT an abort) counts.
   const aborted = stopReason === "aborted";
-  const errored = !aborted && (stopReason === "error" || Boolean(errorMessage));
+  const errored = !shouldContinueGoalAfterMessage({ stopReason, errorMessage });
   const ok = !errored && !aborted;
   lastAssistantOutcomeByChat.delete(chatJid);
   lastAssistantOutcomeByChat.set(chatJid, { ok, stopReason, errored, recordedAt: Date.now() });
@@ -862,6 +862,17 @@ function recordAssistantOutcome(chatJidInput: unknown, message: unknown): void {
 // is `errored`. A user stop is rare for an autonomous goal and `/goal pause` is
 // the intended stop control; a spurious continuation is also bounded by the
 // no-progress guard, so erring toward continuation is correct here.
+/** Shared outcome policy; native callers supply the actual committed SDK
+ * assistant message. Lifecycle, pending-input and no-progress checks stay separate. */
+export function shouldContinueGoalAfterMessage(message: unknown): boolean {
+  if (!message || typeof message !== "object") return false;
+  const candidate = message as { role?: unknown; stopReason?: unknown; errorMessage?: unknown };
+  if (candidate.role !== undefined && candidate.role !== "assistant") return false;
+  const stopReason = normalizeText(candidate.stopReason);
+  const errorMessage = normalizeText(candidate.errorMessage);
+  return stopReason === "aborted" || (stopReason !== "error" && !errorMessage);
+}
+
 function shouldContinueAfterTurn(chatJidInput: unknown): boolean {
   const chatJid = normalizeChatJid(chatJidInput);
   pruneAssistantOutcomes();
