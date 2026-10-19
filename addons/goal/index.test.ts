@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import goalAddon, { registerGoalTools, createGoalTools,
+import goalAddon, { registerGoalTools, createGoalTools, resolveGoalInput,
   buildGoalBudgetLimitPrompt,
   buildGoalContinuationPrompt,
   buildGoalFinalizationPrompt,
@@ -1166,4 +1166,14 @@ test('Goal tool policy owns every invocation and denies before mutation', async 
   await expect(complete.execute('denied-complete', { summary: 'Must not complete', evidence: ['denied'] }, undefined, undefined, {} as any)).rejects.toThrow('Goal authority revoked');
   expect(loadThreadGoal('web:owned-goal')?.status).toBe('active');
   expect(calls).toEqual(['create_goal', 'goal_complete']);
+});
+
+
+test('explicit Goal input decision rejects stale objectives without legacy events', () => {
+  const goal = createThreadGoal('web:native-input', 'Current objective');
+  expect(resolveGoalInput('ordinary input', goal.chat_jid)).toEqual({ action: 'continue' });
+  expect(resolveGoalInput(buildGoalContinuationPrompt(goal), goal.chat_jid)).toEqual({ action: 'continue' });
+  const stale = { ...goal, objective: 'Old objective' };
+  expect(resolveGoalInput(buildGoalContinuationPrompt(stale), goal.chat_jid)).toMatchObject({ action: 'handled', reason: 'continuation' });
+  expect(resolveGoalInput('🎯 Continue goal: Current objective', goal.chat_jid)).toMatchObject({ action: 'transform' });
 });

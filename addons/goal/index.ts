@@ -1209,6 +1209,25 @@ const GoalStopSchema = Type.Object({
   evidence: Type.Optional(Type.Array(Type.String(), { description: "Optional supporting evidence for the stop decision." })),
 });
 
+export type GoalInputDecision = { action: "continue" } | { action: "handled"; reason: GoalPromptReason; status: string } | { action: "transform"; text: string };
+
+/** Shared input decision; callers supply their own admitted chat scope. */
+export function resolveGoalInput(text: string, chatJid: string): GoalInputDecision {
+  const goal = loadThreadGoal(chatJid);
+  const visibleReason: GoalPromptReason | null = text.startsWith(GOAL_VISIBLE_BUDGET_PREFIX) ? "budget_limited"
+    : text.startsWith(GOAL_VISIBLE_UPDATED_PREFIX) ? "objective_updated"
+    : text.startsWith(GOAL_VISIBLE_FINALIZE_PREFIX) ? "finalize"
+    : text.startsWith(GOAL_VISIBLE_CONTINUE_PREFIX) ? "continuation" : null;
+  if (visibleReason) {
+    const allowed = goal && (visibleReason === "budget_limited" ? goal.status === "budget_limited" : goal.status === "active");
+    if (!allowed) return { action: "handled", reason: visibleReason, status: goal?.status || "stopped" };
+    return { action: "transform", text: expandedPromptForReason(goal, visibleReason) };
+  }
+  const parsed = parseGoalPrompt(text);
+  if (parsed && !shouldRunGoalPrompt(chatJid, parsed)) return { action: "handled", reason: parsed.reason, status: goal?.status || "stopped" };
+  return { action: "continue" };
+}
+
 export interface GoalToolInvocationPolicy {
   /** Host owns validation, chat binding and the storage/effect scope for this call. */
   run<T>(name: string, args: unknown, context: ExtensionContext, body: () => Promise<T>): Promise<T>;
@@ -1416,34 +1435,12 @@ export default function goalAddon(pi: ExtensionAPI): void {
   });
 
   pi.on("input", (event, ctx) => {
-    const text = (event as { text?: unknown }).text;
-    const chatJid = resolveActiveChatJid(ctx);
-    const goal = loadThreadGoal(chatJid);
-    if (typeof text === "string") {
-      const visibleReason: GoalPromptReason | null = text.startsWith(GOAL_VISIBLE_BUDGET_PREFIX)
-        ? "budget_limited"
-        : text.startsWith(GOAL_VISIBLE_UPDATED_PREFIX)
-          ? "objective_updated"
-          : text.startsWith(GOAL_VISIBLE_FINALIZE_PREFIX)
-            ? "finalize"
-            : text.startsWith(GOAL_VISIBLE_CONTINUE_PREFIX)
-              ? "continuation"
-              : null;
-      if (visibleReason) {
-        if (!goal || (visibleReason === "budget_limited" ? goal.status !== "budget_limited" : goal.status !== "active")) {
-          sendGoalSkippedActivity(pi, chatJid, visibleReason, goal?.status || "stopped");
-          return { action: "handled" as const };
-        }
-        return { action: "transform" as const, text: expandedPromptForReason(goal, visibleReason), images: (event as { images?: never }).images };
-      }
+    const decision = resolveGoalInput(String(event.text || ""), resolveActiveChatJid(ctx));
+    if (decision.action === "handled") {
+      sendGoalSkippedActivity(pi, resolveActiveChatJid(ctx), decision.reason, decision.status);
+      return { action: "handled" };
     }
-    const parsed = parseGoalPrompt(text);
-    if (!parsed) return { action: "continue" as const };
-    if (!shouldRunGoalPrompt(chatJid, parsed)) {
-      sendGoalSkippedActivity(pi, chatJid, parsed.reason, goal?.status || "stopped");
-      return { action: "handled" as const };
-    }
-    return { action: "continue" as const };
+    return decision.action === "transform" ? { ...decision, images: event.images } : decision;
   });
 
   registerGoalTools(pi, resolveActiveChatJid);
