@@ -1,6 +1,7 @@
+import { assertInvocationCurrent, currentInvocation, withInvocation, type PortainerInvocationOptions } from "./invocation.js";
 import type { ExtensionAPI, ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import { StringEnum } from "@earendil-works/pi-ai";
-import { Type } from "typebox";
+import { Type, type Static } from "typebox";
 
 import { getChatJid } from "./compat/chat-context.js";
 import { registerToolStatusHintProvider } from "./compat/tool-status-hints.js";
@@ -1000,19 +1001,20 @@ function finishPortainerUiProgress(ctx: { hasUI?: boolean; ui?: { setWorkingIndi
   ctx.ui.setWorkingIndicator({ frames: [] });
 }
 
-export const portainerTool: ExtensionFactory = (pi: ExtensionAPI) => {
-  pi.on("before_agent_start", async (event) => ({
-    systemPrompt: `${event.systemPrompt}\n\n${PORTAINER_TOOL_HINT}`,
-  }));
+export function getPortainerPrompt(): string { return PORTAINER_TOOL_HINT; }
 
-  pi.registerTool({
+function createPortainerDefinition() {
+  return {
     name: "portainer",
     label: "portainer",
     description: "Get, set, or clear the session-scoped Portainer API profile, perform ad-hoc API requests, or run common Portainer workflows.",
     promptSnippet: "portainer: inspect/update the current session Portainer API profile, send ad-hoc API requests, or run common endpoint/stack/container/image/volume workflows.",
     parameters: PortainerToolSchema,
-    async execute(_toolCallId, params, _signal, _update, ctx): Promise<PortainerToolResult> {
-      const chatJid = normalizeChatJid(params.chat_jid);
+    async execute(_toolCallId: string, params: Static<typeof PortainerToolSchema>, _signal?: AbortSignal, _update?: unknown, ctx?: any): Promise<PortainerToolResult> {
+      assertInvocationCurrent();
+      const invocation = currentInvocation();
+      if (invocation && params.chat_jid && params.chat_jid !== invocation.chatJid) throw Error("Foreign chat profile denied");
+      const chatJid = invocation?.chatJid ?? normalizeChatJid(params.chat_jid);
 
       if (params.action === "contract") {
         const payload = buildPortainerContractPayload();
@@ -1090,7 +1092,7 @@ export const portainerTool: ExtensionFactory = (pi: ExtensionAPI) => {
         };
       }
 
-      const handlers = registeredHandlers;
+      const handlers = currentInvocation() ? null : registeredHandlers;
       if (params.action === "get") {
         const resolved = resolvePortainerConfigState(chatJid, handlers?.get(chatJid));
         if (!resolved.effective_config) {
@@ -1371,5 +1373,16 @@ export const portainerTool: ExtensionFactory = (pi: ExtensionAPI) => {
         },
       };
     },
-  });
+  };
+}
+
+export function createPortainerTool(options: PortainerInvocationOptions) {
+  const definition = createPortainerDefinition();
+  return { ...definition, execute(id: string, params: any, signal?: AbortSignal) {
+    return withInvocation(options, signal, () => definition.execute(id, params, signal, undefined, undefined));
+  } };
+}
+export const portainerTool: ExtensionFactory = (pi: ExtensionAPI) => {
+  pi.on("before_agent_start", async (event) => ({ systemPrompt: `${event.systemPrompt}\n\n${getPortainerPrompt()}` }));
+  pi.registerTool(createPortainerDefinition());
 };

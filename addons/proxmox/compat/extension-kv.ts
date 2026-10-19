@@ -1,3 +1,4 @@
+import { assertInvocationCurrent } from "../invocation.js";
 /**
  * compat/extension-kv.ts — Extension KV store client for standalone addons.
  *
@@ -28,19 +29,23 @@ class InMemoryStorage implements ExtensionStorage {
   }
 
   get<T = unknown>(key: string, scope?: KvScope, scopeKey?: string): T | null {
+    assertInvocationCurrent();
     const v = this.store.get(this.k(key, scope, scopeKey));
     return v ? JSON.parse(v) : null;
   }
 
   set(key: string, value: unknown, scope?: KvScope, scopeKey?: string): void {
+    assertInvocationCurrent();
     this.store.set(this.k(key, scope, scopeKey), JSON.stringify(value));
   }
 
   delete(key: string, scope?: KvScope, scopeKey?: string): boolean {
+    assertInvocationCurrent();
     return this.store.delete(this.k(key, scope, scopeKey));
   }
 
   list(prefix?: string, scope?: KvScope, scopeKey?: string): string[] {
+    assertInvocationCurrent();
     const base = `${this.extensionId}\0${scope || "chat"}\0${scopeKey || ""}\0`;
     const keys: string[] = [];
     for (const k of this.store.keys()) {
@@ -53,6 +58,7 @@ class InMemoryStorage implements ExtensionStorage {
   }
 
   clear(scope?: KvScope, scopeKey?: string): number {
+    assertInvocationCurrent();
     const prefix = scopeKey
       ? `${this.extensionId}\0${scope || "chat"}\0${scopeKey}\0`
       : scope
@@ -80,22 +86,27 @@ class RuntimeBackedStorage implements ExtensionStorage {
   constructor(private extensionId: string, private store: RuntimeKvStore) {}
 
   get<T = unknown>(key: string, scope?: KvScope, scopeKey?: string): T | null {
+    assertInvocationCurrent();
     return this.store.get<T>(this.extensionId, key, scope, scopeKey);
   }
 
   set(key: string, value: unknown, scope?: KvScope, scopeKey?: string): void {
+    assertInvocationCurrent();
     this.store.set(this.extensionId, key, value, scope, scopeKey);
   }
 
   delete(key: string, scope?: KvScope, scopeKey?: string): boolean {
+    assertInvocationCurrent();
     return this.store.delete(this.extensionId, key, scope, scopeKey);
   }
 
   list(prefix?: string, scope?: KvScope, scopeKey?: string): string[] {
+    assertInvocationCurrent();
     return this.store.list(this.extensionId, prefix, scope, scopeKey);
   }
 
   clear(scope?: KvScope, scopeKey?: string): number {
+    assertInvocationCurrent();
     return this.store.clear(this.extensionId, scope, scopeKey);
   }
 }

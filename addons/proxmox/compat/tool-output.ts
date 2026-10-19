@@ -1,3 +1,4 @@
+import { assertInvocationCurrent } from "../invocation.js";
 /**
  * compat/tool-output.ts — Tool output store shim for standalone addons.
  * Writes large tool responses to workspace files for search_tool_output.
@@ -32,7 +33,9 @@ export function saveToolOutput(
   const filename = `${id}.log`;
   const outputPath = join(OUTPUT_DIR, filename);
 
+  assertInvocationCurrent();
   mkdirSync(dirname(outputPath), { recursive: true });
+  assertInvocationCurrent();
   writeFileSync(outputPath, content, "utf8");
 
   const sizeBytes = Buffer.byteLength(content, "utf8");

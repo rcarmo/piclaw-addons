@@ -37,3 +37,26 @@ labels, matching core Settings in Classic and Visual without changing save
 payloads, defaults or secret handling. A package-local layered stylesheet keeps
 older supported hosts readable; host rules take precedence when available.
 Native checkboxes and action buttons retain their own control roles.
+
+## Operation-owned native API
+
+`createProxmoxTool(options)` exports the same schema/actions without registering an
+extension or constructing an agent session/context. Required options are
+`chatJid: string` and `assertCurrent(): void`. A supplied `chat_jid` must match
+that captured chat; omission uses the captured chat, never an ambient default.
+`getProxmoxPrompt()` returns the complete lifecycle prompt text without callbacks.
+The default extension still registers its tool, lifecycle hook and static skill.
+
+Optional invocation-local ports:
+- `transport`: CurlExecutor (exported from `client.ts`); defaults to the existing
+  production transport, not the legacy test-executor override.
+- `credentials`: `{ get(name): Promise<KeychainEntry>, list(): KeychainEntryMetadata[] }`;
+  defaults to the existing environment/runtime/CLI credential resolution.
+
+Async-local authority is checked at credential lookup, HTTP dispatch, each
+batch attempt/retry, profile storage and output-file effects. Workflow HTTP
+steps inherit that same scope, including guest/container exec steps. Scope is
+closed on completion so timed-out continuations cannot begin later effects.
+Native calls do not use the legacy global `setProxmoxToolHandlers` override: an
+arbitrary handler cannot provide internal operation fences. No handler swaps
+are performed. Already-dispatched remote effects cannot be rolled back.

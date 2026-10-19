@@ -1,3 +1,4 @@
+import { assertInvocationCurrent, currentInvocation } from "./invocation.js";
 import { getKeychainEntry, listKeychainEntries, resolveKeychainPlaceholders } from "./compat/keychain.js";
 import { buildInjectedExecCommand } from "./compat/keychain.js";
 import { createLogger, debugSuppressedError } from "./compat/logger.js";
@@ -228,7 +229,7 @@ interface CurlExecutionResult {
   stderr: string;
 }
 
-type CurlExecutor = (command: string[], timeoutMs?: number) => Promise<CurlExecutionResult>;
+export type CurlExecutor = (command: string[], timeoutMs?: number) => Promise<CurlExecutionResult>;
 
 const DEFAULT_STATUS_MARKER = "__PICLAW_PROXMOX_STATUS__:";
 export const DEFAULT_PROXMOX_POLL_MS = 2_000;
@@ -237,6 +238,7 @@ export const DEFAULT_PROXMOX_REQUEST_TIMEOUT_MS = 15_000;
 export const DEFAULT_PROXMOX_CONNECT_TIMEOUT_MS = 5_000;
 
 async function defaultCurlExecutor(command: string[], timeoutMs = DEFAULT_PROXMOX_REQUEST_TIMEOUT_MS + 1_000): Promise<CurlExecutionResult> {
+  assertInvocationCurrent();
   const proc = Bun.spawn(command, {
     cwd: process.cwd(),
     stdout: "pipe",
@@ -598,6 +600,7 @@ export async function requestProxmoxApi(
   config: ProxmoxApiConfig,
   request: ProxmoxApiRequest,
 ): Promise<ProxmoxApiResponse> {
+  assertInvocationCurrent();
   const baseUrl = normalizeBaseUrl(config.base_url);
   const path = normalizeApiPath(request.path);
   const method = request.method;
@@ -640,13 +643,14 @@ export async function requestProxmoxApi(
   let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
   try {
     const result = await Promise.race([
-      curlExecutor(command, timeoutMs + 1_000),
+      (assertInvocationCurrent(), (currentInvocation()?.transport ?? (currentInvocation() ? defaultCurlExecutor : curlExecutor))(command, timeoutMs + 1_000)),
       new Promise<CurlExecutionResult>((_, reject) => {
         timeoutHandle = setTimeout(() => {
           reject(new Error(`Proxmox request ${method} ${path} timed out after ${timeoutMs}ms.`));
         }, timeoutMs);
       }),
     ]);
+    assertInvocationCurrent();
     if (result.exitCode !== 0) {
       const stderr = result.stderr.trim() || `curl failed with exit code ${result.exitCode}`;
       throw new Error(stderr);
@@ -676,6 +680,7 @@ export class ProxmoxClient {
   constructor(private readonly config: ProxmoxApiConfig) {}
 
   async request(request: ProxmoxApiRequest): Promise<ProxmoxApiResponse> {
+  assertInvocationCurrent();
     return requestProxmoxApi(this.config, request);
   }
 
