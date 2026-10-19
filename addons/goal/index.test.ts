@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import goalAddon, {
+import goalAddon, { registerGoalTools,
   buildGoalBudgetLimitPrompt,
   buildGoalContinuationPrompt,
   buildGoalFinalizationPrompt,
@@ -1134,4 +1134,18 @@ describe("/goal command and runtime loop", () => {
     expect(sentUserMessages).toHaveLength(1);
     expect(String(sentUserMessages[0]?.content)).toBe("🎯 Goal budget reached: Stabilize deployment");
   });
+});
+
+
+test('explicit Goal tools share state without a fabricated session context', async () => {
+  const tools = new Map<string, any>();
+  registerGoalTools({ registerTool(tool: any) { tools.set(tool.name, tool); } } as any, () => 'web:native-goal');
+  expect([...tools.keys()].sort()).toEqual(['create_goal', 'get_goal', 'goal_complete', 'goal_stop', 'update_goal']);
+  const context = { get sessionManager() { throw Error('Legacy session access forbidden'); } };
+  await tools.get('create_goal').execute('native-create', { objective: 'Native factory proof', token_budget: 250 }, undefined, undefined, context);
+  expect((await tools.get('get_goal').execute('native-get', {}, undefined, undefined, context)).details).toMatchObject({
+    goal: { threadId: 'web:native-goal', objective: 'Native factory proof', tokenBudget: 250, status: 'active' },
+  });
+  await tools.get('goal_complete').execute('native-complete', { summary: 'Factory verified', evidence: ['actual shared tool test'] }, undefined, undefined, context);
+  expect(loadThreadGoal('web:native-goal')).toMatchObject({ status: 'complete', completion_summary: 'Factory verified' });
 });

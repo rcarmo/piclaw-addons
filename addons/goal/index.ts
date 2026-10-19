@@ -1209,6 +1209,173 @@ const GoalStopSchema = Type.Object({
   evidence: Type.Optional(Type.Array(Type.String(), { description: "Optional supporting evidence for the stop decision." })),
 });
 
+/** Shared tool registration with explicit chat resolution. No session lifecycle is run here. */
+export function registerGoalTools(
+  pi: Pick<ExtensionAPI, "registerTool">,
+  resolveChat: (context: ExtensionContext) => string,
+): void {
+  pi.registerTool({
+    name: "get_goal",
+    label: "get_goal",
+    description: "Get the current goal for this thread, including status, budgets, token and elapsed-time usage, and remaining token budget.",
+    promptSnippet: "get_goal: inspect the current active or stopped thread goal.",
+    parameters: EmptyObjectSchema,
+    async execute(_toolCallId, _params, _signal, _onUpdate, ctx) {
+      const chatJid = resolveChat(ctx);
+      const goal = loadThreadGoal(chatJid);
+      return { content: [{ type: "text", text: JSON.stringify(goalResponse(goal)) }], details: goalResponse(goal) };
+    },
+  });
+
+  pi.registerTool({
+    name: "create_goal",
+    label: "create_goal",
+    description: "Create a goal only when explicitly requested by the user or system/developer instructions; do not infer goals from ordinary tasks. Set token_budget only when an explicit token budget is requested. Fails if a goal exists; use update_goal only for status.",
+    promptSnippet: "create_goal: create an explicitly requested active thread goal when none exists.",
+    parameters: CreateGoalSchema,
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      const chatJid = resolveChat(ctx);
+      const goal = createThreadGoal(chatJid, params.objective, params.token_budget);
+      broadcastGoalUpdated(goal, chatJid, "tool", "create");
+      return { content: [{ type: "text", text: JSON.stringify(goalResponse(goal)) }], details: goalResponse(goal) };
+    },
+  });
+
+  pi.registerTool({
+    name: "goal_complete",
+    label: "goal_complete",
+    description: "Mark the active goal complete. Use only when the entire objective is actually done and concrete evidence proves completion, then provide a concise final reply to the user.",
+    promptSnippet: "goal_complete: record verified completion when the entire active goal is complete; requires summary and evidence; after it succeeds, reply to the user.",
+    promptGuidelines: [
+      "Use goal_complete only when the entire goal is actually complete, then provide a concise user-facing final reply.",
+      "Do not use goal_complete for intermediate milestones or merely because the plan currently has all items checked.",
+      "If plan items are all complete but the objective is not proven complete, add remaining plan work or call goal_stop.",
+    ],
+    parameters: GoalCompleteSchema,
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      const chatJid = resolveChat(ctx);
+      accountGoalProgress(chatJid, 0);
+      const summary = validateGoalObjective(params.summary);
+      const evidence = normalizeStringArray(params.evidence);
+      if (evidence.length === 0) throw new Error("goal_complete requires at least one concrete evidence item");
+      const completedAt = nowIso();
+      const goal = patchThreadGoal(chatJid, {
+        status: "complete",
+        last_accounted_at: null,
+        blocked_turns: 0,
+        last_blocker: "",
+        completion_summary: summary,
+        completion_evidence: evidence,
+        completed_at: completedAt,
+        stop_reason: "",
+        stop_summary: "",
+        stop_evidence: [],
+        stopped_at: null,
+        completion_candidate_at: null,
+        completion_plan_fingerprint: "",
+        completion_probe_count: 0,
+        last_auto_continue_fingerprint: "",
+        no_progress_turns: 0,
+      });
+      broadcastGoalUpdated(goal, chatJid, "tool", "complete");
+      return {
+        content: [{ type: "text", text: `Goal marked complete for ${chatJid}: ${summary}\n\nNow provide a concise final answer to the user with the completion summary and evidence. Do not call more tools unless the user asked for additional work.` }],
+        details: goalResponse(goal, true),
+      };
+    },
+  });
+
+  pi.registerTool({
+    name: "goal_stop",
+    label: "goal_stop",
+    description: "Stop the active autonomous goal loop without marking it complete. Use when completion is unverified, progress is stuck, user input is required, or external state blocks the goal.",
+    promptSnippet: "goal_stop: stop the active goal loop without completion when no safe autonomous continuation remains; after it succeeds, explain the stop to the user.",
+    parameters: GoalStopSchema,
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      const chatJid = resolveChat(ctx);
+      accountGoalProgress(chatJid, 0);
+      const summary = validateGoalObjective(params.summary);
+      const evidence = normalizeStringArray(params.evidence);
+      const stoppedAt = nowIso();
+      const goal = patchThreadGoal(chatJid, {
+        status: "stopped",
+        last_accounted_at: null,
+        blocked_turns: 0,
+        last_blocker: summary,
+        stop_reason: normalizeText(params.reason, "other"),
+        stop_summary: summary,
+        stop_evidence: evidence,
+        stopped_at: stoppedAt,
+        completion_candidate_at: null,
+        completion_plan_fingerprint: "",
+        completion_probe_count: 0,
+        last_auto_continue_fingerprint: "",
+        no_progress_turns: 0,
+      });
+      broadcastGoalUpdated(goal, chatJid, "tool", "stopped");
+      return {
+        content: [{ type: "text", text: `Goal stopped for ${chatJid}: ${summary}\n\nNow provide a concise final answer to the user explaining why the autonomous goal loop stopped. Do not call more tools unless the user asked for additional work.` }],
+        details: goalResponse(goal),
+      };
+    },
+  });
+
+  pi.registerTool({
+    name: "update_goal",
+    label: "update_goal",
+    description: "Update the existing goal. Codex-compatible terminal path: use status complete when the objective has actually been achieved and no required work remains; include summary/evidence. Use status blocked only when the strict repeated-blocker audit is satisfied. Do not mark a goal complete merely because its budget is nearly exhausted or because you are stopping work.",
+    promptSnippet: "update_goal: Codex-compatible terminal goal-state tool for marking complete or blocked. Use status=complete for verified completion if goal_complete is unavailable or not selected; include summary/evidence, then reply to the user.",
+    parameters: UpdateGoalSchema,
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      const chatJid = resolveChat(ctx);
+      accountGoalProgress(chatJid, 0);
+      const status = params.status === "blocked" ? "blocked" : "complete";
+      const summary = status === "complete" ? validateGoalObjective(params.summary) : normalizeText(params.summary);
+      const evidence = normalizeStringArray(params.evidence);
+      if (status === "complete" && evidence.length === 0) {
+        throw new Error("update_goal status=complete requires at least one concrete evidence item");
+      }
+      const patch: Partial<ThreadGoal> = status === "complete"
+        ? {
+            status,
+            last_accounted_at: null,
+            blocked_turns: 0,
+            last_blocker: "",
+            completion_summary: summary,
+            completion_evidence: evidence,
+            completed_at: nowIso(),
+            stop_reason: "",
+            stop_summary: "",
+            stop_evidence: [],
+            stopped_at: null,
+            completion_candidate_at: null,
+            completion_plan_fingerprint: "",
+            completion_probe_count: 0,
+            last_auto_continue_fingerprint: "",
+            no_progress_turns: 0,
+          }
+        : {
+            status,
+            last_accounted_at: null,
+            blocked_turns: 3,
+            last_blocker: summary,
+            completion_candidate_at: null,
+            completion_plan_fingerprint: "",
+            completion_probe_count: 0,
+            last_auto_continue_fingerprint: "",
+            no_progress_turns: 0,
+          };
+      const goal = patchThreadGoal(chatJid, patch);
+      broadcastGoalUpdated(goal, chatJid, "tool", status === "blocked" ? "blocked" : "complete");
+      return {
+        content: [{ type: "text", text: `Marked goal ${status} for ${chatJid}.\n\nNow provide a concise final answer to the user describing the goal ${status} state. Do not call more tools unless the user asked for additional work.` }],
+        details: goalResponse(goal, status === "complete"),
+      };
+    },
+  });
+
+}
+
 export default function goalAddon(pi: ExtensionAPI): void {
   pi.on("before_agent_start", async (event, ctx) => {
     const chatJid = resolveActiveChatJid(ctx);
@@ -1261,165 +1428,7 @@ export default function goalAddon(pi: ExtensionAPI): void {
     return { action: "continue" as const };
   });
 
-  pi.registerTool({
-    name: "get_goal",
-    label: "get_goal",
-    description: "Get the current goal for this thread, including status, budgets, token and elapsed-time usage, and remaining token budget.",
-    promptSnippet: "get_goal: inspect the current active or stopped thread goal.",
-    parameters: EmptyObjectSchema,
-    async execute(_toolCallId, _params, _signal, _onUpdate, ctx) {
-      const chatJid = resolveActiveChatJid(ctx);
-      const goal = loadThreadGoal(chatJid);
-      return { content: [{ type: "text", text: JSON.stringify(goalResponse(goal)) }], details: goalResponse(goal) };
-    },
-  });
-
-  pi.registerTool({
-    name: "create_goal",
-    label: "create_goal",
-    description: "Create a goal only when explicitly requested by the user or system/developer instructions; do not infer goals from ordinary tasks. Set token_budget only when an explicit token budget is requested. Fails if a goal exists; use update_goal only for status.",
-    promptSnippet: "create_goal: create an explicitly requested active thread goal when none exists.",
-    parameters: CreateGoalSchema,
-    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const chatJid = resolveActiveChatJid(ctx);
-      const goal = createThreadGoal(chatJid, params.objective, params.token_budget);
-      broadcastGoalUpdated(goal, chatJid, "tool", "create");
-      return { content: [{ type: "text", text: JSON.stringify(goalResponse(goal)) }], details: goalResponse(goal) };
-    },
-  });
-
-  pi.registerTool({
-    name: "goal_complete",
-    label: "goal_complete",
-    description: "Mark the active goal complete. Use only when the entire objective is actually done and concrete evidence proves completion, then provide a concise final reply to the user.",
-    promptSnippet: "goal_complete: record verified completion when the entire active goal is complete; requires summary and evidence; after it succeeds, reply to the user.",
-    promptGuidelines: [
-      "Use goal_complete only when the entire goal is actually complete, then provide a concise user-facing final reply.",
-      "Do not use goal_complete for intermediate milestones or merely because the plan currently has all items checked.",
-      "If plan items are all complete but the objective is not proven complete, add remaining plan work or call goal_stop.",
-    ],
-    parameters: GoalCompleteSchema,
-    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const chatJid = resolveActiveChatJid(ctx);
-      accountGoalProgress(chatJid, 0);
-      const summary = validateGoalObjective(params.summary);
-      const evidence = normalizeStringArray(params.evidence);
-      if (evidence.length === 0) throw new Error("goal_complete requires at least one concrete evidence item");
-      const completedAt = nowIso();
-      const goal = patchThreadGoal(chatJid, {
-        status: "complete",
-        last_accounted_at: null,
-        blocked_turns: 0,
-        last_blocker: "",
-        completion_summary: summary,
-        completion_evidence: evidence,
-        completed_at: completedAt,
-        stop_reason: "",
-        stop_summary: "",
-        stop_evidence: [],
-        stopped_at: null,
-        completion_candidate_at: null,
-        completion_plan_fingerprint: "",
-        completion_probe_count: 0,
-        last_auto_continue_fingerprint: "",
-        no_progress_turns: 0,
-      });
-      broadcastGoalUpdated(goal, chatJid, "tool", "complete");
-      return {
-        content: [{ type: "text", text: `Goal marked complete for ${chatJid}: ${summary}\n\nNow provide a concise final answer to the user with the completion summary and evidence. Do not call more tools unless the user asked for additional work.` }],
-        details: goalResponse(goal, true),
-      };
-    },
-  });
-
-  pi.registerTool({
-    name: "goal_stop",
-    label: "goal_stop",
-    description: "Stop the active autonomous goal loop without marking it complete. Use when completion is unverified, progress is stuck, user input is required, or external state blocks the goal.",
-    promptSnippet: "goal_stop: stop the active goal loop without completion when no safe autonomous continuation remains; after it succeeds, explain the stop to the user.",
-    parameters: GoalStopSchema,
-    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const chatJid = resolveActiveChatJid(ctx);
-      accountGoalProgress(chatJid, 0);
-      const summary = validateGoalObjective(params.summary);
-      const evidence = normalizeStringArray(params.evidence);
-      const stoppedAt = nowIso();
-      const goal = patchThreadGoal(chatJid, {
-        status: "stopped",
-        last_accounted_at: null,
-        blocked_turns: 0,
-        last_blocker: summary,
-        stop_reason: normalizeText(params.reason, "other"),
-        stop_summary: summary,
-        stop_evidence: evidence,
-        stopped_at: stoppedAt,
-        completion_candidate_at: null,
-        completion_plan_fingerprint: "",
-        completion_probe_count: 0,
-        last_auto_continue_fingerprint: "",
-        no_progress_turns: 0,
-      });
-      broadcastGoalUpdated(goal, chatJid, "tool", "stopped");
-      return {
-        content: [{ type: "text", text: `Goal stopped for ${chatJid}: ${summary}\n\nNow provide a concise final answer to the user explaining why the autonomous goal loop stopped. Do not call more tools unless the user asked for additional work.` }],
-        details: goalResponse(goal),
-      };
-    },
-  });
-
-  pi.registerTool({
-    name: "update_goal",
-    label: "update_goal",
-    description: "Update the existing goal. Codex-compatible terminal path: use status complete when the objective has actually been achieved and no required work remains; include summary/evidence. Use status blocked only when the strict repeated-blocker audit is satisfied. Do not mark a goal complete merely because its budget is nearly exhausted or because you are stopping work.",
-    promptSnippet: "update_goal: Codex-compatible terminal goal-state tool for marking complete or blocked. Use status=complete for verified completion if goal_complete is unavailable or not selected; include summary/evidence, then reply to the user.",
-    parameters: UpdateGoalSchema,
-    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const chatJid = resolveActiveChatJid(ctx);
-      accountGoalProgress(chatJid, 0);
-      const status = params.status === "blocked" ? "blocked" : "complete";
-      const summary = status === "complete" ? validateGoalObjective(params.summary) : normalizeText(params.summary);
-      const evidence = normalizeStringArray(params.evidence);
-      if (status === "complete" && evidence.length === 0) {
-        throw new Error("update_goal status=complete requires at least one concrete evidence item");
-      }
-      const patch: Partial<ThreadGoal> = status === "complete"
-        ? {
-            status,
-            last_accounted_at: null,
-            blocked_turns: 0,
-            last_blocker: "",
-            completion_summary: summary,
-            completion_evidence: evidence,
-            completed_at: nowIso(),
-            stop_reason: "",
-            stop_summary: "",
-            stop_evidence: [],
-            stopped_at: null,
-            completion_candidate_at: null,
-            completion_plan_fingerprint: "",
-            completion_probe_count: 0,
-            last_auto_continue_fingerprint: "",
-            no_progress_turns: 0,
-          }
-        : {
-            status,
-            last_accounted_at: null,
-            blocked_turns: 3,
-            last_blocker: summary,
-            completion_candidate_at: null,
-            completion_plan_fingerprint: "",
-            completion_probe_count: 0,
-            last_auto_continue_fingerprint: "",
-            no_progress_turns: 0,
-          };
-      const goal = patchThreadGoal(chatJid, patch);
-      broadcastGoalUpdated(goal, chatJid, "tool", status === "blocked" ? "blocked" : "complete");
-      return {
-        content: [{ type: "text", text: `Marked goal ${status} for ${chatJid}.\n\nNow provide a concise final answer to the user describing the goal ${status} state. Do not call more tools unless the user asked for additional work.` }],
-        details: goalResponse(goal, status === "complete"),
-      };
-    },
-  });
+  registerGoalTools(pi, resolveActiveChatJid);
 
   pi.registerCommand("goal", {
     description: "Set, inspect, pause, resume, edit, or clear a Codex-style thread goal. Use /goal or /goal help for the command list.",
