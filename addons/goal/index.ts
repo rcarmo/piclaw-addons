@@ -1209,6 +1209,24 @@ const GoalStopSchema = Type.Object({
   evidence: Type.Optional(Type.Array(Type.String(), { description: "Optional supporting evidence for the stop decision." })),
 });
 
+export interface GoalToolInvocationPolicy {
+  /** Host owns validation, chat binding and the storage/effect scope for this call. */
+  run<T>(name: string, args: unknown, context: ExtensionContext, body: () => Promise<T>): Promise<T>;
+}
+
+/** Collect the shared tools without registering legacy lifecycle handlers or commands. */
+export function createGoalTools(resolveChat: (context: ExtensionContext) => string, policy?: GoalToolInvocationPolicy) {
+  const tools: Parameters<ExtensionAPI["registerTool"]>[0][] = [];
+  registerGoalTools({ registerTool(tool) {
+    if (!policy) { tools.push(tool); return; }
+    const execute = tool.execute;
+    tools.push({ ...tool, execute(callId, args, signal, onUpdate, context) {
+      return policy.run(tool.name, args, context, () => execute(callId, args, signal, onUpdate, context));
+    } });
+  } }, resolveChat);
+  return tools;
+}
+
 /** Shared tool registration with explicit chat resolution. No session lifecycle is run here. */
 export function registerGoalTools(
   pi: Pick<ExtensionAPI, "registerTool">,

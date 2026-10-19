@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import goalAddon, { registerGoalTools,
+import goalAddon, { registerGoalTools, createGoalTools,
   buildGoalBudgetLimitPrompt,
   buildGoalContinuationPrompt,
   buildGoalFinalizationPrompt,
@@ -1148,4 +1148,22 @@ test('explicit Goal tools share state without a fabricated session context', asy
   });
   await tools.get('goal_complete').execute('native-complete', { summary: 'Factory verified', evidence: ['actual shared tool test'] }, undefined, undefined, context);
   expect(loadThreadGoal('web:native-goal')).toMatchObject({ status: 'complete', completion_summary: 'Factory verified' });
+});
+
+
+test('Goal tool policy owns every invocation and denies before mutation', async () => {
+  let allowed = true;
+  const calls: string[] = [];
+  const tools = createGoalTools(() => 'web:owned-goal', { async run(name, args, context, body) {
+    calls.push(name);
+    if (!allowed) throw Error('Goal authority revoked');
+    return body();
+  } });
+  const create = tools.find(tool => tool.name === 'create_goal')!;
+  await create.execute('owned-create', { objective: 'Owned goal' }, undefined, undefined, {} as any);
+  allowed = false;
+  const complete = tools.find(tool => tool.name === 'goal_complete')!;
+  await expect(complete.execute('denied-complete', { summary: 'Must not complete', evidence: ['denied'] }, undefined, undefined, {} as any)).rejects.toThrow('Goal authority revoked');
+  expect(loadThreadGoal('web:owned-goal')?.status).toBe('active');
+  expect(calls).toEqual(['create_goal', 'goal_complete']);
 });
