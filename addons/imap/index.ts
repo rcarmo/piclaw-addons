@@ -34,50 +34,42 @@ interface ImapAccount extends ImapConfig {
   allowSend: boolean;
 }
 
-interface PoolEntry {
-  client: ImapClient;
-  account: ImapAccount;
-  lastUsed: number;
+export interface ImapToolOptions {
+  assertCurrent(): void;
+  chatJid: string;
+  signal?: AbortSignal;
+  pool?: ImapPool;
 }
 
-const pool = new Map<string, PoolEntry>();
-const IDLE_MS = 5 * 60 * 1000;
-let cleanupTimer: ReturnType<typeof setTimeout> | null = null;
-
-function scheduleCleanup() {
-  if (cleanupTimer) return;
-  cleanupTimer = setTimeout(async () => {
-    cleanupTimer = null;
-    const now = Date.now();
-    for (const [key, entry] of pool) {
-      if (now - entry.lastUsed <= IDLE_MS) continue;
-      try { await entry.client.logout(); } catch {}
-      pool.delete(key);
-    }
-    if (pool.size > 0) scheduleCleanup();
-  }, 60_000);
-}
-
-async function getClient(account: ImapAccount): Promise<ImapClient> {
-  const key = `${account.user}@${account.host}:${account.port}:${account.tls ? "tls" : account.starttls ? "starttls" : "plain"}`;
-  const existing = pool.get(key);
-  if (existing) {
-    existing.lastUsed = Date.now();
+/** Application-owned active connection pool; never retains invocation authority. */
+export class ImapPool {
+  private clients = new Set<ImapClient>();
+  private disposed = false;
+  constructor(private factory = (config: ImapConfig, check: () => void) => new ImapClient(config, check)) {}
+  async acquire(account: ImapAccount, check: () => void, onClient?: (client: ImapClient) => void) {
+    check();
+    if (this.disposed) throw Error("IMAP pool disposed");
+    const client = this.factory(account, check);
+    this.clients.add(client);
+    onClient?.(client);
     try {
-      await existing.client.noop();
-      return existing.client;
-    } catch {
-      pool.delete(key);
-      try { await existing.client.logout(); } catch {}
-    }
+      check();
+      await client.connect(); check();
+      if (this.disposed) throw Error("IMAP pool disposed");
+      await client.login(); check();
+      if (this.disposed) throw Error("IMAP pool disposed");
+      return client;
+    } catch (error) { this.release(client); throw error; }
   }
-  const client = new ImapClient(account);
-  await client.connect();
-  await client.login();
-  pool.set(key, { client, account, lastUsed: Date.now() });
-  scheduleCleanup();
-  return client;
+  release(client: ImapClient) { this.clients.delete(client); client.dispose(); }
+  dispose() {
+    this.disposed = true;
+    for (const client of this.clients) client.dispose();
+    this.clients.clear();
+  }
 }
+export const imapPool = new ImapPool();
+export function disposeImapPool() { imapPool.dispose(); }
 
 function parseBoolean(value: unknown): boolean {
   return value === true || (typeof value === "string" && value.toLowerCase() === "true");
@@ -140,8 +132,8 @@ export function describeImapAction(action: string, params: Record<string, unknow
   }
 }
 
-async function resolveAccount(_pi: ExtensionAPI, accountName?: string): Promise<ImapAccount> {
-  const resolved = await resolveAccountForRuntime(accountName);
+async function resolveAccount(accountName: string | undefined, check: () => void): Promise<ImapAccount> {
+  const resolved = await resolveAccountForRuntime(accountName, check);
   return {
     ...resolved.config,
     from: resolved.config.from ?? resolved.config.user,
@@ -259,18 +251,11 @@ export default function imapExtension(pi: ExtensionAPI) {
     registerRoute(ROUTE_PREFIX, (req, pathname) => handleSettingsRoute(pi, req, pathname), EXT_DIR);
   }
 
-  pi.on("session_shutdown", async () => {
-    if (cleanupTimer) {
-      clearTimeout(cleanupTimer);
-      cleanupTimer = null;
-    }
-    for (const [, entry] of pool) {
-      try { await entry.client.logout(); } catch {}
-    }
-    pool.clear();
-  });
+  pi.registerTool(createImapTool({ assertCurrent() {}, chatJid: "legacy" }));
+}
 
-  pi.registerTool({
+export function createImapTool(options: ImapToolOptions) {
+  return {
     name: "imap",
     label: "IMAP Email",
     description: "Manage email via IMAP and administer IMAP accounts stored in SQLite KV + keychain.",
@@ -318,14 +303,22 @@ export default function imapExtension(pi: ExtensionAPI) {
       setDefault: Type.Optional(Type.String()),
     }),
 
-    async execute(_id: string, params: any, _signal, _onUpdate, ctx) {
+    async execute(_id: string, params: any, signal?: AbortSignal, _onUpdate?: unknown, ctx?: ToolUiContext): Promise<{ content: { type: "text"; text: string }[]; details: Record<string, unknown> }> {
+      const check = () => { options.assertCurrent(); if (options.signal?.aborted || signal?.aborted) throw Error("IMAP operation aborted"); };
+      check();
+      const pool = options.pool ?? imapPool;
+      let leased: ImapClient | undefined;
+      const abort = () => leased?.dispose();
+      signal?.addEventListener("abort", abort);
+      options.signal?.addEventListener("abort", abort);
       const action = String(params.action ?? "").toLowerCase().trim();
       const text = "text" as const;
       const showProgress = shouldShowImapProgress(action);
       if (showProgress) startImapProgress(ctx, describeImapAction(action, params));
       try {
         if (action === "list_accounts") {
-          const payload = await listAccounts();
+          const payload = await listAccounts(check);
+          check();
           return {
             content: [{ type: text, text: truncate(JSON.stringify(payload, null, 2)) }],
             details: payload,
@@ -334,8 +327,9 @@ export default function imapExtension(pi: ExtensionAPI) {
 
         if (action === "get_account") {
           if (!params.account) throw new Error("account required");
-          const payload = await getAccount(params.account);
+          const payload = await getAccount(params.account, check);
           if (!payload) throw new Error(`Account not found: ${params.account}`);
+          check();
           return {
             content: [{ type: text, text: truncate(JSON.stringify({ ...payload, password: undefined }, null, 2)) }],
             details: { ...payload, password: undefined },
@@ -352,7 +346,8 @@ export default function imapExtension(pi: ExtensionAPI) {
             tls: parseBoolean(params.tls),
             starttls: parseBoolean(params.starttls),
             allowInsecureTls: parseBoolean(params.allowInsecureTls),
-          }, typeof params.pass === "string" ? params.pass : undefined, parseBoolean(params.setDefault));
+          }, typeof params.pass === "string" ? params.pass : undefined, parseBoolean(params.setDefault), check);
+          check();
           return {
             content: [{ type: text, text: `Saved IMAP account ${saved.name}.` }],
             details: { account: saved, defaultAccount: getDefaultAccount() },
@@ -361,7 +356,8 @@ export default function imapExtension(pi: ExtensionAPI) {
 
         if (action === "delete_account") {
           if (!params.account) throw new Error("account required");
-          const deleted = await deleteAccount(params.account);
+          const deleted = await deleteAccount(params.account, check);
+          check();
           return {
             content: [{ type: text, text: deleted ? `Deleted IMAP account ${params.account}.` : `No IMAP KV config existed for ${params.account}; password key was removed if present.` }],
             details: { deleted, defaultAccount: getDefaultAccount() },
@@ -370,7 +366,8 @@ export default function imapExtension(pi: ExtensionAPI) {
 
         if (action === "set_default_account") {
           if (!params.account) throw new Error("account required");
-          setDefaultAccount(params.account);
+          setDefaultAccount(params.account, check);
+          check();
           return {
             content: [{ type: text, text: `Set default IMAP account to ${params.account}.` }],
             details: { defaultAccount: getDefaultAccount() },
@@ -379,11 +376,19 @@ export default function imapExtension(pi: ExtensionAPI) {
 
         const dryRun = parseBoolean(params.dryRun);
         const confirmed = parseBoolean(params.confirm);
-        const account = await resolveAccount(pi, params.account);
-        const client = await getClient(account);
+        const account = await resolveAccount(params.account, check);
+        check();
+        leased = await pool.acquire(account, check, client => { leased = client; });
+        const client = new Proxy(leased, { get(target, key) {
+          const value = Reflect.get(target, key);
+          if (typeof value !== "function") return value;
+          return async (...args: unknown[]) => { check(); const result = await value.apply(target, args); check(); return result; };
+        } });
+        check();
 
         if (action === "list_folders") {
           const folders = await client.list();
+          check();
           return {
             content: [{ type: text, text: truncate(JSON.stringify(folders, null, 2)) }],
             details: { action, account: account.name, count: folders.length },
@@ -395,6 +400,7 @@ export default function imapExtension(pi: ExtensionAPI) {
           const limit = Math.min(params.limit ?? 20, 100);
           const criteria = buildSearchCriteria(params);
           const envelopes = await client.searchAndFetch(folder, criteria, limit);
+          check();
           return {
             content: [{ type: text, text: truncate(JSON.stringify(envelopes, null, 2)) }],
             details: { action, folder, criteria, count: envelopes.length },
@@ -412,9 +418,11 @@ export default function imapExtension(pi: ExtensionAPI) {
             for (const uid of uids.split(",").map((value) => Number.parseInt(value, 10))) {
               results.push({ uid, body: (await client.fetchSource(folder, uid)).slice(0, 50_000) });
             }
-            return { content: [{ type: text, text: truncate(JSON.stringify(results, null, 2)) }], details: { action, folder, count: results.length, withBody } };
+            check();
+          return { content: [{ type: text, text: truncate(JSON.stringify(results, null, 2)) }], details: { action, folder, count: results.length, withBody } };
           }
           const raw = await client.fetch(uids, "UID FLAGS RFC822.SIZE ENVELOPE");
+          check();
           return { content: [{ type: text, text: truncate(JSON.stringify(raw, null, 2)) }], details: { action, folder, count: raw.length } };
         }
 
@@ -426,6 +434,7 @@ export default function imapExtension(pi: ExtensionAPI) {
           if (dryRun) return { content: [{ type: text, text: `Dry run: move [${uids}] ${folder} → ${params.targetFolder}` }], details: { action, dryRun: true } };
           await client.select(folder);
           await client.move(uids, params.targetFolder);
+          check();
           return { content: [{ type: text, text: `Moved [${uids}] ${folder} → ${params.targetFolder}` }], details: { action, from: folder, to: params.targetFolder } };
         }
 
@@ -437,6 +446,7 @@ export default function imapExtension(pi: ExtensionAPI) {
           if (dryRun) return { content: [{ type: text, text: `Dry run: copy [${uids}] ${folder} → ${params.targetFolder}` }], details: { action, dryRun: true } };
           await client.select(folder);
           await client.copy(uids, params.targetFolder);
+          check();
           return { content: [{ type: text, text: `Copied [${uids}] ${folder} → ${params.targetFolder}` }], details: { action, from: folder, to: params.targetFolder } };
         }
 
@@ -452,6 +462,7 @@ export default function imapExtension(pi: ExtensionAPI) {
           if (dryRun) return { content: [{ type: text, text: `Dry run: ${flagAction} [${flags}] on [${uids}] in ${folder}` }], details: { action, dryRun: true } };
           await client.select(folder);
           await client.store(uids, storeAction, flags);
+          check();
           return { content: [{ type: text, text: `${flagAction === "remove" ? "Removed" : "Added"} [${flags}] on [${uids}] in ${folder}` }], details: { action, flagAction, flags } };
         }
 
@@ -471,6 +482,7 @@ export default function imapExtension(pi: ExtensionAPI) {
           });
           if (dryRun) return { content: [{ type: text, text: `Dry run: draft "${params.draftSubject}" → ${target}\nFrom: ${account.from}` }], details: { action, dryRun: true } };
           await client.append(target, mime, ["\\Seen", "\\Draft"]);
+          check();
           return { content: [{ type: text, text: `Draft saved: "${params.draftSubject}" → ${target}\nFrom: ${account.from}` }], details: { action, folder: target, from: account.from } };
         }
 
@@ -490,6 +502,7 @@ export default function imapExtension(pi: ExtensionAPI) {
           });
           if (dryRun) return { content: [{ type: text, text: `Dry run: file "${params.draftSubject}" → ${params.targetFolder}\nFrom: ${account.from}` }], details: { action, dryRun: true } };
           await client.append(params.targetFolder, mime, ["\\Seen"]);
+          check();
           return { content: [{ type: text, text: `Filed: "${params.draftSubject}" → ${params.targetFolder}\nFrom: ${account.from}` }], details: { action, folder: params.targetFolder, from: account.from } };
         }
 
@@ -498,6 +511,7 @@ export default function imapExtension(pi: ExtensionAPI) {
           if (!folder) throw new Error("folder required");
           if (dryRun) return { content: [{ type: text, text: `Dry run: create "${folder}"` }], details: { action, dryRun: true } };
           await client.create(folder);
+          check();
           return { content: [{ type: text, text: `Created: ${folder}` }], details: { action, folder } };
         }
 
@@ -507,6 +521,7 @@ export default function imapExtension(pi: ExtensionAPI) {
           if (!confirmed) throw new Error("delete_folder requires confirm=true");
           if (dryRun) return { content: [{ type: text, text: `Dry run: delete "${folder}"` }], details: { action, dryRun: true } };
           await client.delete(folder);
+          check();
           return { content: [{ type: text, text: `Deleted: ${folder}` }], details: { action, folder } };
         }
 
@@ -515,8 +530,11 @@ export default function imapExtension(pi: ExtensionAPI) {
         const message = error instanceof Error ? error.message : String(error);
         throw new Error(`IMAP ${action || "operation"} failed: ${message}`);
       } finally {
+        signal?.removeEventListener("abort", abort);
+        options.signal?.removeEventListener("abort", abort);
+        if (leased) pool.release(leased);
         if (showProgress) finishImapProgress(ctx);
       }
     },
-  });
+  };
 }

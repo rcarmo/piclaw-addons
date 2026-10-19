@@ -2,7 +2,7 @@
  * compat/extension-kv.ts — Extension KV store client for standalone addons.
  *
  * Accesses piclaw's global extension KV store singleton when running inside
- * the piclaw runtime. Falls back to an in-memory store for standalone use.
+ * the piclaw runtime. Requires the authoritative runtime store.
  *
  * Extensions use this through scoped wrappers that bind the extension ID.
  */
@@ -15,55 +15,6 @@ export interface ExtensionStorage {
   delete(key: string, scope?: KvScope, scopeKey?: string): boolean;
   list(prefix?: string, scope?: KvScope, scopeKey?: string): string[];
   clear(scope?: KvScope, scopeKey?: string): number;
-}
-
-// ── In-memory fallback ───────────────────────────────────────────
-
-class InMemoryStorage implements ExtensionStorage {
-  private store = new Map<string, string>();
-  constructor(private extensionId: string) {}
-
-  private k(key: string, scope?: KvScope, scopeKey?: string): string {
-    return `${this.extensionId}\0${scope || "chat"}\0${scopeKey || ""}\0${key}`;
-  }
-
-  get<T = unknown>(key: string, scope?: KvScope, scopeKey?: string): T | null {
-    const v = this.store.get(this.k(key, scope, scopeKey));
-    return v ? JSON.parse(v) : null;
-  }
-
-  set(key: string, value: unknown, scope?: KvScope, scopeKey?: string): void {
-    this.store.set(this.k(key, scope, scopeKey), JSON.stringify(value));
-  }
-
-  delete(key: string, scope?: KvScope, scopeKey?: string): boolean {
-    return this.store.delete(this.k(key, scope, scopeKey));
-  }
-
-  list(prefix?: string, scope?: KvScope, scopeKey?: string): string[] {
-    const base = `${this.extensionId}\0${scope || "chat"}\0${scopeKey || ""}\0`;
-    const keys: string[] = [];
-    for (const k of this.store.keys()) {
-      if (k.startsWith(base)) {
-        const remainder = k.slice(base.length);
-        if (!prefix || remainder.startsWith(prefix)) keys.push(remainder);
-      }
-    }
-    return keys.sort();
-  }
-
-  clear(scope?: KvScope, scopeKey?: string): number {
-    const prefix = scopeKey
-      ? `${this.extensionId}\0${scope || "chat"}\0${scopeKey}\0`
-      : scope
-        ? `${this.extensionId}\0${scope}\0`
-        : `${this.extensionId}\0`;
-    let count = 0;
-    for (const k of [...this.store.keys()]) {
-      if (k.startsWith(prefix)) { this.store.delete(k); count++; }
-    }
-    return count;
-  }
 }
 
 // ── Runtime-backed storage ───────────────────────────────────────
@@ -109,8 +60,7 @@ function getRuntimeInterop(): { getExtensionKvStore?: () => RuntimeKvStore } | n
 
 /**
  * Try to resolve piclaw's runtime KV store through the supported runtime bridge.
- * Do not import piclaw runtime internals from add-ons; standalone/test runs use
- * the in-memory fallback below.
+ * Do not import piclaw runtime internals from add-ons; standalone/test runs must provide an explicit runtime bridge.
  */
 function tryGetRuntimeStore(): RuntimeKvStore | null {
   try {
@@ -127,12 +77,12 @@ function tryGetRuntimeStore(): RuntimeKvStore | null {
 /**
  * Create a scoped ExtensionStorage for the given extension ID.
  * If running inside piclaw, uses the DB-backed store.
- * Otherwise falls back to in-memory.
+ * Otherwise fails closed.
  */
 export function createExtensionStorage(extensionId: string): ExtensionStorage {
   const runtimeStore = tryGetRuntimeStore();
   if (runtimeStore) {
     return new RuntimeBackedStorage(extensionId, runtimeStore);
   }
-  return new InMemoryStorage(extensionId);
+  throw new Error("Authoritative runtime extension KV required");
 }
