@@ -1150,6 +1150,22 @@ function readChatJidFromRequest(req: Request, payload?: Record<string, unknown>)
   return normalizeChatJid(payload?.chat_jid);
 }
 
+/** State-only Settings transition; host owns atomic continuation admission. */
+export function applyGoalConfig(chatJid: string, body: Record<string, unknown>) {
+  if (body.objective !== undefined && !normalizePlanText(body.objective)) {
+    clearThreadGoal(chatJid);
+    return { goal: null, action: "clear" as GoalMutationAction, reason: null, continuation: undefined, response: { ok: true, ...goalResponse(null) } };
+  }
+  const current = loadThreadGoal(chatJid);
+  const goal = body.objective !== undefined ? replaceThreadGoal(chatJid, body.objective, body.token_budget)
+    : patchThreadGoal(chatJid, { status: normalizeStatus(body.status, current?.status ?? "active"),
+        token_budget: body.token_budget === undefined ? current?.token_budget : normalizePositiveIntOrNull(body.token_budget) });
+  const resumed = body.objective === undefined && current?.status !== "active" && goal.status === "active";
+  const action: GoalMutationAction = body.objective !== undefined ? current ? "update" : "create" : resumed ? "resume" : "update";
+  const reason: GoalPromptReason | null = body.objective !== undefined ? current ? "objective_updated" : "start" : resumed ? "resume" : null;
+  return { goal, action, reason, continuation: reason ? buildVisibleGoalPrompt(goal, reason) : undefined, response: { ok: true, ...goalResponse(goal) } };
+}
+
 type AddonConfigApiRegistrar = (
   addonId: string,
   action: string,
@@ -1171,26 +1187,11 @@ if (typeof registerAddonConfigApi === "function") {
     set: async (payload, req) => {
       const body = payload && typeof payload === "object" ? payload as Record<string, unknown> : {};
       const chatJid = readChatJidFromRequest(req, body);
-      if (body.objective !== undefined && !normalizePlanText(body.objective)) {
-        clearThreadGoal(chatJid);
-        broadcastGoalUpdated(null, chatJid, "api", "clear");
-        return { ok: true, ...goalResponse(null) };
-      }
-      const current = loadThreadGoal(chatJid);
-      const goal = body.objective !== undefined
-        ? replaceThreadGoal(chatJid, body.objective, body.token_budget)
-        : patchThreadGoal(chatJid, {
-            status: normalizeStatus(body.status, current?.status ?? "active"),
-            token_budget: body.token_budget === undefined ? current?.token_budget : normalizePositiveIntOrNull(body.token_budget),
-          });
-      const resumed = body.objective === undefined && current?.status !== "active" && goal.status === "active";
-      const action: GoalMutationAction = body.objective !== undefined ? (current ? "update" : "create") : resumed ? "resume" : "update";
-      broadcastGoalUpdated(goal, chatJid, "api", action);
-      const reason: GoalPromptReason | null = body.objective !== undefined
-        ? (current ? "objective_updated" : "start")
-        : resumed ? "resume" : null;
-      const continuationQueued = reason ? await enqueueGoalPrompt(goal, reason === "objective_updated" ? objectiveUpdatedPrompt(goal) : buildGoalContinuationPrompt(goal), reason) : false;
-      return { ok: true, ...goalResponse(goal), continuationQueued, continuationReason: reason };
+      const result = applyGoalConfig(chatJid, body);
+      broadcastGoalUpdated(result.goal, chatJid, "api", result.action);
+      const continuationQueued = result.goal && result.reason ? await enqueueGoalPrompt(result.goal,
+        result.reason === "objective_updated" ? objectiveUpdatedPrompt(result.goal) : buildGoalContinuationPrompt(result.goal), result.reason) : false;
+      return { ...result.response, continuationQueued, continuationReason: result.reason };
     },
   }, import.meta.dir);
 }
