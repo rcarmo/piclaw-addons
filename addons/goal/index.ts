@@ -374,6 +374,15 @@ function saveThreadGoal(goal: ThreadGoal): ThreadGoal {
   return next;
 }
 
+/** State-only claim; native hosts own the scoped transaction and wrap-up admission. */
+export function claimGoalBudgetWrapup(chatJid: string, expected: { goalId: string; generation: number }): ThreadGoal | null {
+  const goal = loadThreadGoal(chatJid);
+  if (!goal || goal.goal_id !== expected.goalId || goal.lifecycle_generation !== expected.generation || goal.status !== "budget_limited")
+    throw Error("Goal budget lifecycle changed");
+  if (goal.budget_limit_reported) return null;
+  return saveThreadGoal({ ...goal, budget_limit_reported: true, last_accounted_at: null });
+}
+
 export function clearThreadGoal(chatJidInput?: unknown): boolean {
   const chat_jid = normalizeChatJid(chatJidInput);
   lastAssistantOutcomeByChat.delete(chat_jid);
@@ -538,6 +547,11 @@ function parseGoalPrompt(text: unknown): { reason: GoalPromptReason; escapedObje
     return escapedObjective ? { reason: "finalize", escapedObjective } : null;
   }
   return null;
+}
+
+/** Prompt classification only; identity and lifecycle validation remain caller-owned. */
+export function isGoalBudgetInput(text: string): boolean {
+  return parseGoalPrompt(text)?.reason === "budget_limited";
 }
 
 function shouldRunGoalPrompt(chatJid: string, parsed: { reason: GoalPromptReason; escapedObjective: string }): boolean {
@@ -1009,7 +1023,7 @@ async function sendGoalPromptViaLocalAgent(goal: ThreadGoal, content: string): P
   }
 }
 
-function buildVisibleGoalPrompt(goal: ThreadGoal, reason: GoalPromptReason): string {
+export function buildVisibleGoalPrompt(goal: ThreadGoal, reason: GoalPromptReason): string {
   if (reason === "budget_limited") return `${GOAL_VISIBLE_BUDGET_PREFIX} ${goal.objective}`;
   if (reason === "objective_updated") return `${GOAL_VISIBLE_UPDATED_PREFIX} ${goal.objective}`;
   if (reason === "finalize") return `${GOAL_VISIBLE_FINALIZE_PREFIX} ${goal.objective}`;
@@ -1566,7 +1580,8 @@ export default function goalAddon(pi: ExtensionAPI): void {
     let goal = accountGoalProgress(chatJid, 0);
     if (!goal) return;
     if (goal.status === "budget_limited" && !goal.budget_limit_reported) {
-      const reported = saveThreadGoal({ ...goal, budget_limit_reported: true, last_accounted_at: null });
+      const reported = claimGoalBudgetWrapup(chatJid, { goalId: goal.goal_id, generation: goal.lifecycle_generation });
+      if (!reported) return;
       broadcastGoalUpdated(reported, chatJid, "runtime", "budget_limited");
       await enqueueGoalPrompt(reported, buildGoalBudgetLimitPrompt(reported), "budget_limited");
       return;

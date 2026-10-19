@@ -3,6 +3,9 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import goalAddon, { registerGoalTools, createGoalTools, resolveGoalInput, prepareGoalInput, clearThreadGoal,
+  accountGoalProgress,
+  claimGoalBudgetWrapup,
+  isGoalBudgetInput,
   decideGoalPlanProgress,
   shouldContinueGoalAfterMessage,
   buildGoalBudgetLimitPrompt,
@@ -337,6 +340,104 @@ test("goal prompts port Codex fidelity, escaping, plan action=update, and blocke
   const budget = buildGoalBudgetLimitPrompt(goal);
   expect(budget).toContain("has reached its token budget");
   expect(budget).toContain("Do not call goal_complete or update_goal(status=\"complete\") unless the goal is actually complete");
+});
+
+describe("shared Goal budget wrap-up", () => {
+  test("claim requires an existing budget-limited Goal with exact identity before checking the reported flag", () => {
+    installRuntimeKvStore();
+    const chat = "web:budget-claim-identity";
+    const expected = { goalId: "missing", generation: 1 };
+    expect(() => claimGoalBudgetWrapup(chat, expected)).toThrow(new Error("Goal budget lifecycle changed"));
+    createThreadGoal(chat, "Budget claim identity", 100);
+    const goal = accountGoalProgress(chat, 100)!;
+    const store = (globalThis as any).__piclawRuntimeInterop.getExtensionKvStore();
+    for (const reported of [false, true]) {
+      const snapshot = { ...goal, budget_limit_reported: reported };
+      store.set("goal", "thread-goal", snapshot, "chat", chat);
+      for (const identity of [
+        { goalId: goal.goal_id + "-other", generation: goal.lifecycle_generation },
+        { goalId: " " + goal.goal_id, generation: goal.lifecycle_generation },
+        { goalId: goal.goal_id, generation: goal.lifecycle_generation - 1 },
+        { goalId: goal.goal_id, generation: goal.lifecycle_generation + 1 },
+        { goalId: goal.goal_id, generation: String(goal.lifecycle_generation) as unknown as number },
+      ]) {
+        expect(() => claimGoalBudgetWrapup(chat, identity)).toThrow(new Error("Goal budget lifecycle changed"));
+        expect(loadThreadGoal(chat)).toEqual(snapshot);
+      }
+      for (const status of ["active", "paused", "blocked", "usage_limited", "complete", "stopped"] as const) {
+        const nonBudgetGoal = { ...snapshot, status };
+        store.set("goal", "thread-goal", nonBudgetGoal, "chat", chat);
+        expect(() => claimGoalBudgetWrapup(chat, { goalId: goal.goal_id, generation: goal.lifecycle_generation }))
+          .toThrow(new Error("Goal budget lifecycle changed"));
+        expect(loadThreadGoal(chat)).toEqual(nonBudgetGoal);
+      }
+    }
+    clearThreadGoal(chat);
+    createThreadGoal(chat, goal.objective, 100);
+    const replacement = accountGoalProgress(chat, 100)!;
+    expect(replacement.lifecycle_generation).toBe(goal.lifecycle_generation);
+    expect(replacement.goal_id).not.toBe(goal.goal_id);
+    expect(() => claimGoalBudgetWrapup(chat, { goalId: goal.goal_id, generation: goal.lifecycle_generation }))
+      .toThrow(new Error("Goal budget lifecycle changed"));
+    expect(loadThreadGoal(chat)).toEqual(replacement);
+  });
+
+  test("claim saves once, clears accounting time, preserves generation and usage, and has no delivery effects", () => {
+    installRuntimeKvStore();
+    const store = (globalThis as any).__piclawRuntimeInterop.getExtensionKvStore();
+    (globalThis as any).__piclawRuntimeInterop.getExtensionKvStore = () => store;
+    const { sentUserMessages, sentMessages } = createHarness();
+    const broadcasts: unknown[] = [], enqueued: unknown[] = [];
+    (globalThis as any).__PICLAW_BROADCAST_EVENT__ = (...args: unknown[]) => broadcasts.push(args);
+    (globalThis as any).__piclaw_runtime = { enqueueAgentMessage: async (request: unknown) => { enqueued.push(request); } };
+    const chat = "web:budget-claim-once";
+    createThreadGoal(chat, "Budget claim once", 100);
+    const goal = accountGoalProgress(chat, 120)!;
+    expect(goal).toMatchObject({ status: "budget_limited", lifecycle_generation: 2, budget_limit_reported: false });
+    const snapshot = { ...goal, updated_at: "2000-01-01T00:00:00.000Z", last_accounted_at: "2000-01-01T00:00:00.000Z" };
+    store.set("goal", "thread-goal", snapshot, "chat", chat);
+    let writes = 0;
+    const set = store.set;
+    store.set = (...args: unknown[]) => { writes += 1; return set(...args); };
+    const expected = { goalId: goal.goal_id, generation: goal.lifecycle_generation };
+    const claimed = claimGoalBudgetWrapup(chat, expected)!;
+    expect(claimed).not.toBeNull();
+    expect(claimed.updated_at).not.toBe(snapshot.updated_at);
+    expect(claimed).toEqual({ ...snapshot, budget_limit_reported: true, last_accounted_at: null, updated_at: claimed.updated_at });
+    expect(loadThreadGoal(chat)).toEqual(claimed);
+    expect(writes).toBe(1);
+    expect(claimGoalBudgetWrapup(chat, expected)).toBeNull();
+    expect(writes).toBe(1);
+    expect(loadThreadGoal(chat)).toEqual(claimed);
+    expect(broadcasts).toEqual([]);
+    expect(enqueued).toEqual([]);
+    expect(sentUserMessages).toEqual([]);
+    expect(sentMessages).toEqual([]);
+  });
+
+  test("only expanded budget prompts are classified, including prepared identity markers without validating them", () => {
+    const chat = "web:budget-input";
+    createThreadGoal(chat, "Budget <input> & identity", 100);
+    const goal = accountGoalProgress(chat, 100)!;
+    expect(isGoalBudgetInput(buildGoalBudgetLimitPrompt(goal))).toBe(true);
+    const prepared = prepareGoalInput("🎯 Goal budget reached: " + goal.objective, chat);
+    expect(prepared.decision.action).toBe("transform");
+    if (prepared.decision.action !== "transform") throw Error("Expected expanded budget input");
+    const text = prepared.decision.text;
+    expect(text).toContain("<piclaw_goal_input>");
+    expect(isGoalBudgetInput(text)).toBe(true);
+    expect(prepareGoalInput(text, chat).decision).toEqual({ action: "continue" });
+    for (const input of ["", "ordinary input", "The active thread goal has reached its token budget.",
+      "🎯 Goal budget reached: " + goal.objective, "🎯 Continue goal: " + goal.objective,
+      buildGoalContinuationPrompt(goal), buildGoalSystemPrompt(goal), buildGoalFinalizationPrompt(goal, 1, [])]) {
+      expect(isGoalBudgetInput(input)).toBe(false);
+    }
+    clearThreadGoal(chat);
+    createThreadGoal(chat, goal.objective, 100);
+    expect(isGoalBudgetInput(text)).toBe(true);
+    expect(() => prepared.assertCurrent()).toThrow("Goal input lifecycle changed");
+    expect(prepareGoalInput(text, chat).decision.action).toBe("handled");
+  });
 });
 
 describe("Codex-style goal tools", () => {
