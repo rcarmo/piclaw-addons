@@ -1211,7 +1211,7 @@ const GoalStopSchema = Type.Object({
 
 interface GoalInputIdentity { goalId: string; generation: number }
 const GOAL_INPUT_IDENTITY = /<piclaw_goal_input>([^<]*)<\/piclaw_goal_input>/g;
-function goalInputIdentity(text: string): GoalInputIdentity | null | false {
+export function goalInputIdentity(text: string): GoalInputIdentity | null | false {
   const matches = [...text.matchAll(GOAL_INPUT_IDENTITY)];
   if (!matches.length) return text.includes("<piclaw_goal_input") ? false : null;
   if (matches.length !== 1 || text.split("<piclaw_goal_input").length !== 2 ||
