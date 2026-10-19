@@ -887,11 +887,26 @@ function extractUsageTokens(message: unknown): number {
 export function accountGoalProgress(chatJidInput: unknown, tokenDeltaInput = 0): ThreadGoal | null {
   const goal = loadThreadGoal(chatJidInput);
   if (!goal || !(goal.status === "active" || goal.status === "budget_limited")) return goal;
+  return accountProgress(goal, tokenDeltaInput);
+}
+
+/** Native host only: the caller must prove committed usage and atomically store
+ * its replay cursor. Terminal accounting never reactivates or relimits a Goal. */
+export function accountTerminalGoalProgress(chatJid: string, expected: { goalId: string; generation: number }, tokens: number): ThreadGoal {
+  if (!Number.isSafeInteger(tokens) || tokens < 0) throw Error("Invalid terminal Goal usage");
+  const goal = loadThreadGoal(chatJid);
+  if (!goal || goal.goal_id !== expected.goalId || goal.lifecycle_generation !== expected.generation ||
+    (goal.status !== "complete" && goal.status !== "stopped")) throw Error("Terminal Goal lifecycle changed");
+  if (!Number.isSafeInteger(goal.tokens_used + tokens)) throw Error("Terminal Goal usage overflow");
+  return accountProgress(goal, tokens, true);
+}
+
+function accountProgress(goal: ThreadGoal, tokenDeltaInput: number, terminal = false): ThreadGoal {
   const now = nowIso();
   const last = goal.last_accounted_at ? Date.parse(goal.last_accounted_at) : NaN;
   const elapsedDelta = Number.isFinite(last) ? Math.max(0, Math.floor((Date.parse(now) - last) / 1000)) : 0;
   const tokens_used = goal.tokens_used + Math.max(0, Math.trunc(tokenDeltaInput));
-  const status = goal.token_budget !== null && tokens_used >= goal.token_budget ? "budget_limited" : goal.status;
+  const status = !terminal && goal.token_budget !== null && tokens_used >= goal.token_budget ? "budget_limited" : goal.status;
   return saveThreadGoal({
     ...goal,
     status,
