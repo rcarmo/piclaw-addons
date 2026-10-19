@@ -1,4 +1,4 @@
-import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { basename } from "node:path";
 import { Type } from "typebox";
 import { createExtensionStorage, type ExtensionStorage } from "./compat/extension-kv.js";
@@ -1228,6 +1228,26 @@ export function resolveGoalInput(text: string, chatJid: string): GoalInputDecisi
   return { action: "continue" };
 }
 
+export interface PreparedGoalInput {
+  readonly decision: GoalInputDecision;
+  /** Recheck under the host's admission/write fence before publishing input. */
+  assertCurrent(): void;
+}
+
+export function prepareGoalInput(text: string, chatJid: string): PreparedGoalInput {
+  const goal = loadThreadGoal(chatJid);
+  const decision = Object.freeze(resolveGoalInput(text, chatJid));
+  // Ordinary input does not inherit Goal lifecycle authority.
+  const goalInput = decision.action !== "continue" || parseGoalPrompt(text) !== null;
+  const identity = goal && [goal.goal_id, goal.lifecycle_generation, goal.status, goal.objective];
+  return Object.freeze({ decision, assertCurrent() {
+    if (!goalInput) return;
+    const current = loadThreadGoal(chatJid);
+    const currentIdentity = current && [current.goal_id, current.lifecycle_generation, current.status, current.objective];
+    if (JSON.stringify(currentIdentity) !== JSON.stringify(identity)) throw Error("Goal input lifecycle changed");
+  } });
+}
+
 export interface GoalToolInvocationPolicy {
   /** Host owns validation, chat binding and the storage/effect scope for this call. */
   run<T>(name: string, args: unknown, context: ExtensionContext, body: () => Promise<T>): Promise<T>;
@@ -1235,13 +1255,13 @@ export interface GoalToolInvocationPolicy {
 
 /** Collect the shared tools without registering legacy lifecycle handlers or commands. */
 export function createGoalTools(resolveChat: (context: ExtensionContext) => string, policy?: GoalToolInvocationPolicy) {
-  const tools: Parameters<ExtensionAPI["registerTool"]>[0][] = [];
+  const tools: ToolDefinition<any, any, any>[] = [];
   registerGoalTools({ registerTool(tool) {
     if (!policy) { tools.push(tool); return; }
-    const execute = tool.execute;
-    tools.push({ ...tool, execute(callId, args, signal, onUpdate, context) {
-      return policy.run(tool.name, args, context, () => execute(callId, args, signal, onUpdate, context));
-    } });
+    const wrapped: typeof tool = { ...tool, execute(callId, args, signal, onUpdate, context) {
+      return policy.run(tool.name, args, context, () => tool.execute(callId, args, signal, onUpdate, context));
+    } };
+    tools.push(wrapped);
   } }, resolveChat);
   return tools;
 }

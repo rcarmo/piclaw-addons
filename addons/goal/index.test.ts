@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import goalAddon, { registerGoalTools, createGoalTools, resolveGoalInput,
+import goalAddon, { registerGoalTools, createGoalTools, resolveGoalInput, prepareGoalInput, clearThreadGoal,
   buildGoalBudgetLimitPrompt,
   buildGoalContinuationPrompt,
   buildGoalFinalizationPrompt,
@@ -1176,4 +1176,19 @@ test('explicit Goal input decision rejects stale objectives without legacy event
   const stale = { ...goal, objective: 'Old objective' };
   expect(resolveGoalInput(buildGoalContinuationPrompt(stale), goal.chat_jid)).toMatchObject({ action: 'handled', reason: 'continuation' });
   expect(resolveGoalInput('🎯 Continue goal: Current objective', goal.chat_jid)).toMatchObject({ action: 'transform' });
+});
+
+
+test('prepared Goal input refuses same-objective replacement after preparation', () => {
+  const chat = 'web:prepared-goal';
+  const original = createThreadGoal(chat, 'Same objective');
+  const prepared = prepareGoalInput('🎯 Continue goal: Same objective', chat);
+  expect(prepared.decision.action).toBe('transform');
+  expect(() => prepared.assertCurrent()).not.toThrow();
+  const ordinary = prepareGoalInput('ordinary user message', chat);
+  clearThreadGoal(chat);
+  const replacement = createThreadGoal(chat, 'Same objective');
+  expect(replacement.goal_id).not.toBe(original.goal_id);
+  expect(() => prepared.assertCurrent()).toThrow('Goal input lifecycle changed');
+  expect(() => ordinary.assertCurrent()).not.toThrow();
 });

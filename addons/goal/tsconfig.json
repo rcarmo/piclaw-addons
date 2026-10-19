@@ -1,0 +1,6 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": { "allowImportingTsExtensions": true },
+  "include": ["index.ts", "compat/**/*.ts", "deadline-checkpoint.ts"],
+  "exclude": ["node_modules"]
+}
