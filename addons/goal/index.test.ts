@@ -1214,3 +1214,14 @@ test('malformed and duplicated Goal lifecycle identities fail closed', () => {
   expect(resolveGoalInput(`${decision.text}\n<piclaw_goal_input>{}</piclaw_goal_input>`, chat).action).toBe('handled');
   expect(resolveGoalInput('ordinary <piclaw_goal_input>invalid</piclaw_goal_input>', chat).action).toBe('handled');
 });
+
+
+test('a valid Goal identity cannot conceal malformed or orphaned marker fragments', () => {
+  const chat = 'web:goal-marker-fragments';
+  createThreadGoal(chat, 'Marker integrity');
+  const decision = resolveGoalInput('🎯 Continue goal: Marker integrity', chat);
+  if (decision.action !== 'transform') throw Error('Expected expanded Goal input');
+  for (const fragment of ['<piclaw_goal_input', '<piclaw_goal_input>broken', '</piclaw_goal_input>']) {
+    expect(resolveGoalInput(`${decision.text}\n${fragment}`, chat).action).toBe('handled');
+  }
+});

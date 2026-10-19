@@ -1214,11 +1214,12 @@ const GOAL_INPUT_IDENTITY = /<piclaw_goal_input>([^<]*)<\/piclaw_goal_input>/g;
 function goalInputIdentity(text: string): GoalInputIdentity | null | false {
   const matches = [...text.matchAll(GOAL_INPUT_IDENTITY)];
   if (!matches.length) return text.includes("<piclaw_goal_input") ? false : null;
-  if (matches.length !== 1) return false;
+  if (matches.length !== 1 || text.split("<piclaw_goal_input").length !== 2 ||
+    text.split("</piclaw_goal_input>").length !== 2) return false;
   try {
     const value = JSON.parse(matches[0][1]);
     if (!value || Object.keys(value).sort().join(",") !== "generation,goalId" || typeof value.goalId !== "string" ||
-      !value.goalId || !Number.isSafeInteger(value.generation) || value.generation < 1) return false;
+      !value.goalId || value.goalId.length > 256 || value.goalId.trim() !== value.goalId || !Number.isSafeInteger(value.generation) || value.generation < 1) return false;
     return value;
   } catch { return false; }
 }
