@@ -1466,6 +1466,34 @@ export function registerGoalTools(
 
 }
 
+/** Shared command state transition. Hosts own transaction/admission and delivery;
+ * this function never calls a session, broadcasts, or enqueues a continuation. */
+export function applyGoalCommand(chatJid: string, args: string): {
+  text: string; help?: boolean; goal: ThreadGoal | null; action?: "clear" | "pause" | "resume" | "update" | "create"; continuation?: string;
+} {
+  const parsed = parseGoalCommandInput(args || ""), current = loadThreadGoal(chatJid);
+  if (parsed.mode === "help") return { text: goalHelpMessage(current, chatJid), help: true, goal: current };
+  if (parsed.mode === "summary") return { text: goalStatusSummary(current, chatJid), goal: current };
+  if (parsed.mode === "edit") return { text: "Use /goal <objective> to replace the current objective, or edit it in Settings → Goal.", goal: current };
+  if (parsed.mode === "clear") {
+    const cleared = clearThreadGoal(chatJid);
+    return { text: cleared ? "Goal cleared" : "No goal to clear", goal: null, action: "clear" };
+  }
+  if (parsed.mode === "pause") {
+    const goal = patchThreadGoal(chatJid, { status: "paused", last_accounted_at: null });
+    return { text: "Goal paused", goal, action: "pause" };
+  }
+  if (parsed.mode === "resume") {
+    if (current?.status === "active") return { text: "Goal is already active", goal: current };
+    const goal = patchThreadGoal(chatJid, { status: "active", last_accounted_at: nowIso(), blocked_turns: 0, last_blocker: "" });
+    return { text: "Goal resumed", goal, action: "resume", continuation: buildVisibleGoalPrompt(goal, "resume") };
+  }
+  const objective = validateGoalObjective(parsed.objective);
+  const goal = current ? replaceThreadGoal(chatJid, objective) : createThreadGoal(chatJid, objective);
+  return { text: "Goal active", goal, action: current ? "update" : "create",
+    continuation: buildVisibleGoalPrompt(goal, current ? "objective_updated" : "start") };
+}
+
 export default function goalAddon(pi: ExtensionAPI): void {
   pi.on("before_agent_start", async (event, ctx) => {
     const chatJid = resolveActiveChatJid(ctx);
@@ -1502,51 +1530,17 @@ export default function goalAddon(pi: ExtensionAPI): void {
     description: "Set, inspect, pause, resume, edit, or clear a Codex-style thread goal. Use /goal or /goal help for the command list.",
     handler: async (args, ctx) => {
       const chatJid = resolveActiveChatJid(ctx);
-      const parsed = parseGoalCommandInput(args || "");
-      const current = loadThreadGoal(chatJid);
-
-      if (parsed.mode === "help") {
-        pi.sendMessage({ customType: "goal_help", content: [{ type: "text", text: goalHelpMessage(current, chatJid) }], display: true });
+      const result = applyGoalCommand(chatJid, args);
+      if (result.action) broadcastGoalUpdated(result.goal, chatJid, "command", result.action);
+      if (result.help) {
+        pi.sendMessage({ customType: "goal_help", content: [{ type: "text", text: result.text }], display: true });
         return;
       }
-      if (parsed.mode === "summary") {
-        ctx.ui.notify(goalStatusSummary(current, chatJid), "info");
-        return;
-      }
-      if (parsed.mode === "clear") {
-        const cleared = clearThreadGoal(chatJid);
-        broadcastGoalUpdated(null, chatJid, "command", "clear");
-        ctx.ui.notify(cleared ? "Goal cleared" : "No goal to clear", "info");
-        return;
-      }
-      if (parsed.mode === "pause") {
-        const goal = patchThreadGoal(chatJid, { status: "paused", last_accounted_at: null });
-        broadcastGoalUpdated(goal, chatJid, "command", "pause");
-        ctx.ui.notify("Goal paused", "info");
-        return;
-      }
-      if (parsed.mode === "resume") {
-        if (current?.status === "active") {
-          ctx.ui.notify("Goal is already active", "info");
-          return;
-        }
-        const goal = patchThreadGoal(chatJid, { status: "active", last_accounted_at: nowIso(), blocked_turns: 0, last_blocker: "" });
-        broadcastGoalUpdated(goal, chatJid, "command", "resume");
-        const queued = await enqueueGoalPrompt(goal, buildGoalContinuationPrompt(goal), "resume");
-        ctx.ui.notify(queued ? "Goal resumed — server-side continuation queued" : "Goal resumed — continuation enqueue failed", queued ? "info" : "warning");
-        return;
-      }
-      if (parsed.mode === "edit") {
-        ctx.ui.notify("Use /goal <objective> to replace the current objective, or edit it in Settings → Goal.", "info");
-        return;
-      }
-
-      const objective = validateGoalObjective(parsed.objective);
-      const goal = current ? replaceThreadGoal(chatJid, objective) : createThreadGoal(chatJid, objective);
-      broadcastGoalUpdated(goal, chatJid, "command", current ? "update" : "create");
-      const queued = await enqueueGoalPrompt(goal, current ? objectiveUpdatedPrompt(goal) : buildGoalContinuationPrompt(goal), current ? "objective_updated" : "start");
-      ctx.ui.notify(queued ? "Goal active — server-side continuation queued" : "Goal active — continuation enqueue failed", queued ? "info" : "warning");
-      return;
+      if (result.continuation && result.goal) {
+        const reason = result.action === "resume" ? "resume" : result.action === "update" ? "objective_updated" : "start";
+        const queued = await enqueueGoalPrompt(result.goal, reason === "objective_updated" ? objectiveUpdatedPrompt(result.goal) : buildGoalContinuationPrompt(result.goal), reason);
+        ctx.ui.notify(queued ? result.text + " — server-side continuation queued" : result.text + " — continuation enqueue failed", queued ? "info" : "warning");
+      } else ctx.ui.notify(result.text, "info");
     },
   });
 
