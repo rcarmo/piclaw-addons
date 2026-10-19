@@ -562,20 +562,18 @@ function planFingerprint(plan: PlanRuntimeItem[]): string {
 function getPlanCompletionState(chatJid: string): { available: boolean; total: number; allCompleted: boolean; fingerprint: string; plan: PlanRuntimeItem[] } {
   try {
     const details = getPlanSidebarRuntimeApi()?.getPlan(chatJid);
-    const plan = Array.isArray(details?.plan) ? details.plan.filter((item): item is PlanRuntimeItem => (
-      item && typeof item.step === "string" && (item.status === "pending" || item.status === "in_progress" || item.status === "completed")
-    )) : [];
-    const total = plan.length;
-    return {
-      available: Boolean(details),
-      total,
-      allCompleted: total > 0 && plan.every((item) => item.status === "completed"),
-      fingerprint: planFingerprint(plan),
-      plan,
-    };
+    return summarizeGoalPlan(details?.plan, Boolean(details));
   } catch {
     return { available: false, total: 0, allCompleted: false, fingerprint: "", plan: [] };
   }
+}
+
+/** Shared persisted Plan interpretation; no global API or session access. */
+export function summarizeGoalPlan(items: unknown, available = Array.isArray(items)) {
+  const plan = Array.isArray(items) ? items.filter((item): item is PlanRuntimeItem => (
+    item && typeof item.step === "string" && (item.status === "pending" || item.status === "in_progress" || item.status === "completed")
+  )) : [];
+  return { available, total: plan.length, allCompleted: plan.length > 0 && plan.every(item => item.status === "completed"), fingerprint: planFingerprint(plan), plan };
 }
 
 function clearCompletionCandidate(goal: ThreadGoal): ThreadGoal {
