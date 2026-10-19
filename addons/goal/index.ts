@@ -1082,80 +1082,47 @@ export function decideGoalPlanProgress(goal: Pick<ThreadGoal, "last_auto_continu
     : { action: "finalize", completionProbeCount: samePlan ? goal.completion_probe_count + 1 : 1 };
 }
 
+/** Persist guard changes only. Native hosts wrap this in their scoped KV
+ * transaction; no broadcasts, session calls or continuation dispatch occur. */
+export function applyGoalPlanProgress(goal: ThreadGoal, planState: ReturnType<typeof getPlanCompletionState>, hadToolActivity: boolean) {
+  const current = loadThreadGoal(goal.chat_jid);
+  if (!current || current.goal_id !== goal.goal_id || current.lifecycle_generation !== goal.lifecycle_generation || current.status !== "active")
+    throw Error("Goal Plan lifecycle changed");
+  const decision = decideGoalPlanProgress(current, planState, hadToolActivity);
+  if (decision.action === "reset") {
+    clearPlanLoopGuards(current);
+    return { goal: loadThreadGoal(goal.chat_jid)!, decision };
+  }
+  const cleared = { completion_candidate_at: null, completion_plan_fingerprint: "", completion_probe_count: 0,
+    last_auto_continue_fingerprint: "", no_progress_turns: 0 };
+  if (decision.action === "stop") {
+    const noProgress = decision.reason === "no_progress";
+    const stopped = saveThreadGoal({ ...current, ...cleared, status: "stopped", last_accounted_at: null,
+      stop_reason: decision.reason,
+      stop_summary: noProgress
+        ? "Stopped after repeated unchanged plan state without substantive progress."
+        : "Plan is complete, but the objective was not verified after repeated finalization probes.",
+      stop_evidence: [noProgress ? "Plan fingerprint did not change across autonomous continuations." : "Plan contains only completed items.",
+        ...planState.plan.slice(0, 5).map(item => item.step)], stopped_at: nowIso() });
+    return { goal: stopped, decision };
+  }
+  if (decision.action === "continue") {
+    return { goal: saveThreadGoal({ ...current, ...cleared, last_auto_continue_fingerprint: planState.fingerprint,
+      no_progress_turns: decision.noProgressTurns }), decision };
+  }
+  return { goal: saveThreadGoal({ ...current, ...cleared,
+    completion_candidate_at: current.completion_candidate_at || nowIso(), completion_plan_fingerprint: planState.fingerprint,
+    completion_probe_count: decision.completionProbeCount }), decision };
+}
+
 async function handlePlanAtAgentEnd(goal: ThreadGoal): Promise<boolean> {
   const planState = getPlanCompletionState(goal.chat_jid);
-  const decision = decideGoalPlanProgress(goal, planState, turnHadToolActivity(goal.chat_jid));
-  if (decision.action === "reset") {
-    clearPlanLoopGuards(goal);
-    return false;
-  }
-
-  if (!planState.allCompleted) {
-    // Real tool work this turn counts as progress even if the Plan Sidebar text is
-    // unchanged, so a model doing edits/bash/commits without touching the plan tool
-    // is not force-stopped as "no progress".
-    if (decision.action === "stop") {
-      const stopped = saveThreadGoal({
-        ...goal,
-        status: "stopped",
-        last_accounted_at: null,
-        last_blocker: "Plan did not change across repeated autonomous continuations.",
-        stop_reason: "no_progress",
-        stop_summary: "Plan did not change across repeated autonomous continuations.",
-        stop_evidence: planState.plan.map((item) => `${item.status} plan item: ${item.step}`),
-        stopped_at: nowIso(),
-        completion_candidate_at: null,
-        completion_plan_fingerprint: "",
-        completion_probe_count: 0,
-        last_auto_continue_fingerprint: "",
-        no_progress_turns: 0,
-      });
-      broadcastGoalUpdated(stopped, stopped.chat_jid, "runtime", "stopped");
-      return true;
-    }
-    const tracked = saveThreadGoal({
-      ...goal,
-      completion_candidate_at: null,
-      completion_plan_fingerprint: "",
-      completion_probe_count: 0,
-      last_auto_continue_fingerprint: planState.fingerprint,
-      no_progress_turns: decision.action === "continue" ? decision.noProgressTurns : 1,
-    });
-    broadcastGoalUpdated(tracked, tracked.chat_jid, "runtime", "update");
-    return false;
-  }
-
-  if (decision.action === "stop") {
-    const stopped = saveThreadGoal({
-      ...goal,
-      status: "stopped",
-      last_accounted_at: null,
-      last_blocker: "Plan completed but goal completion was not verified after repeated finalization prompts.",
-      stop_reason: "plan_complete_unverified",
-      stop_summary: "Plan completed but goal completion was not verified after repeated finalization prompts.",
-      stop_evidence: planState.plan.map((item) => `completed plan item: ${item.step}`),
-      stopped_at: nowIso(),
-      completion_candidate_at: null,
-      completion_plan_fingerprint: "",
-      completion_probe_count: 0,
-      last_auto_continue_fingerprint: "",
-      no_progress_turns: 0,
-    });
-    broadcastGoalUpdated(stopped, stopped.chat_jid, "runtime", "stopped");
-    return true;
-  }
-
-  const candidate = saveThreadGoal({
-    ...goal,
-    completion_candidate_at: goal.completion_candidate_at || nowIso(),
-    completion_plan_fingerprint: planState.fingerprint,
-    completion_probe_count: decision.action === "finalize" ? decision.completionProbeCount : 1,
-    last_auto_continue_fingerprint: "",
-    no_progress_turns: 0,
-  });
-  broadcastGoalUpdated(candidate, candidate.chat_jid, "runtime", "update");
-  await enqueueGoalPrompt(candidate, buildGoalFinalizationPrompt(candidate, candidate.completion_probe_count, planState.plan), "finalize");
-  return true;
+  const result = applyGoalPlanProgress(goal, planState, turnHadToolActivity(goal.chat_jid));
+  if (result.decision.action === "reset") return false;
+  broadcastGoalUpdated(result.goal, result.goal.chat_jid, "runtime", result.decision.action === "stop" ? "stopped" : "update");
+  if (result.decision.action === "finalize")
+    await enqueueGoalPrompt(result.goal, buildGoalFinalizationPrompt(result.goal, result.decision.completionProbeCount, planState.plan), "finalize");
+  return result.decision.action !== "continue";
 }
 
 function parseGoalCommandInput(input: string): { mode: "summary" | "clear" | "pause" | "resume" | "edit" | "start" | "help"; objective?: string } {
