@@ -1209,11 +1209,31 @@ const GoalStopSchema = Type.Object({
   evidence: Type.Optional(Type.Array(Type.String(), { description: "Optional supporting evidence for the stop decision." })),
 });
 
+interface GoalInputIdentity { goalId: string; generation: number }
+const GOAL_INPUT_IDENTITY = /<piclaw_goal_input>([^<]*)<\/piclaw_goal_input>/g;
+function goalInputIdentity(text: string): GoalInputIdentity | null | false {
+  const matches = [...text.matchAll(GOAL_INPUT_IDENTITY)];
+  if (!matches.length) return text.includes("<piclaw_goal_input") ? false : null;
+  if (matches.length !== 1) return false;
+  try {
+    const value = JSON.parse(matches[0][1]);
+    if (!value || Object.keys(value).sort().join(",") !== "generation,goalId" || typeof value.goalId !== "string" ||
+      !value.goalId || !Number.isSafeInteger(value.generation) || value.generation < 1) return false;
+    return value;
+  } catch { return false; }
+}
+function bindGoalInput(text: string, goal: ThreadGoal): string {
+  return `${text}\n\n<piclaw_goal_input>${JSON.stringify({ goalId: goal.goal_id, generation: goal.lifecycle_generation })}</piclaw_goal_input>`;
+}
+
 export type GoalInputDecision = { action: "continue" } | { action: "handled"; reason: GoalPromptReason; status: string } | { action: "transform"; text: string };
 
 /** Shared input decision; callers supply their own admitted chat scope. */
 export function resolveGoalInput(text: string, chatJid: string): GoalInputDecision {
   const goal = loadThreadGoal(chatJid);
+  const identity = goalInputIdentity(text);
+  if (identity === false || (identity && (!goal || identity.goalId !== goal.goal_id || identity.generation !== goal.lifecycle_generation)))
+    return { action: "handled", reason: parseGoalPrompt(text)?.reason ?? "continuation", status: goal?.status || "stopped" };
   const visibleReason: GoalPromptReason | null = text.startsWith(GOAL_VISIBLE_BUDGET_PREFIX) ? "budget_limited"
     : text.startsWith(GOAL_VISIBLE_UPDATED_PREFIX) ? "objective_updated"
     : text.startsWith(GOAL_VISIBLE_FINALIZE_PREFIX) ? "finalize"
@@ -1221,7 +1241,7 @@ export function resolveGoalInput(text: string, chatJid: string): GoalInputDecisi
   if (visibleReason) {
     const allowed = goal && (visibleReason === "budget_limited" ? goal.status === "budget_limited" : goal.status === "active");
     if (!allowed) return { action: "handled", reason: visibleReason, status: goal?.status || "stopped" };
-    return { action: "transform", text: expandedPromptForReason(goal, visibleReason) };
+    return { action: "transform", text: bindGoalInput(expandedPromptForReason(goal, visibleReason), goal) };
   }
   const parsed = parseGoalPrompt(text);
   if (parsed && !shouldRunGoalPrompt(chatJid, parsed)) return { action: "handled", reason: parsed.reason, status: goal?.status || "stopped" };

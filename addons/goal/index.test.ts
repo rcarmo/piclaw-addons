@@ -1192,3 +1192,25 @@ test('prepared Goal input refuses same-objective replacement after preparation',
   expect(() => prepared.assertCurrent()).toThrow('Goal input lifecycle changed');
   expect(() => ordinary.assertCurrent()).not.toThrow();
 });
+
+
+test('accepted Goal input retains lifecycle identity after fresh preparation and rejects replacement', () => {
+  const chat = 'web:durable-goal-identity';
+  const original = createThreadGoal(chat, 'Restart-safe objective');
+  const decision = prepareGoalInput('🎯 Continue goal: Restart-safe objective', chat).decision;
+  expect(decision.action).toBe('transform');
+  if (decision.action !== 'transform') throw Error('Expected expanded Goal input');
+  expect(decision.text).toContain(original.goal_id);
+  expect(prepareGoalInput(decision.text, chat).decision).toEqual({ action: 'continue' });
+  clearThreadGoal(chat); createThreadGoal(chat, 'Restart-safe objective');
+  expect(prepareGoalInput(decision.text, chat).decision).toMatchObject({ action: 'handled' });
+});
+
+test('malformed and duplicated Goal lifecycle identities fail closed', () => {
+  const chat = 'web:malformed-goal-identity';
+  createThreadGoal(chat, 'Identity validation');
+  const decision = resolveGoalInput('🎯 Continue goal: Identity validation', chat);
+  if (decision.action !== 'transform') throw Error('Expected expanded Goal input');
+  expect(resolveGoalInput(`${decision.text}\n<piclaw_goal_input>{}</piclaw_goal_input>`, chat).action).toBe('handled');
+  expect(resolveGoalInput('ordinary <piclaw_goal_input>invalid</piclaw_goal_input>', chat).action).toBe('handled');
+});
