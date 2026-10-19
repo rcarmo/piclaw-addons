@@ -884,7 +884,7 @@ function extractUsageTokens(message: unknown): number {
   return parts.reduce((sum, value) => sum + Math.trunc(value), 0);
 }
 
-function accountGoalProgress(chatJidInput: unknown, tokenDeltaInput = 0): ThreadGoal | null {
+export function accountGoalProgress(chatJidInput: unknown, tokenDeltaInput = 0): ThreadGoal | null {
   const goal = loadThreadGoal(chatJidInput);
   if (!goal || !(goal.status === "active" || goal.status === "budget_limited")) return goal;
   const now = nowIso();
