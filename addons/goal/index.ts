@@ -294,9 +294,13 @@ export function resetGoalAddonForTests(): void {
   resetGoalDeadlineCheckpointForTests();
 }
 
-function recordTurnToolActivity(chatJidInput: unknown, toolName: unknown): void {
+export function isGoalProgressTool(toolName: unknown): boolean {
   const name = normalizeText(toolName);
-  if (!name || GOAL_INTERNAL_TOOLS.has(name)) return;
+  return Boolean(name) && !GOAL_INTERNAL_TOOLS.has(name);
+}
+
+function recordTurnToolActivity(chatJidInput: unknown, toolName: unknown): void {
+  if (!isGoalProgressTool(toolName)) return;
   const chatJid = normalizeChatJid(chatJidInput);
   turnToolActivityByChat.set(chatJid, (turnToolActivityByChat.get(chatJid) ?? 0) + 1);
 }
