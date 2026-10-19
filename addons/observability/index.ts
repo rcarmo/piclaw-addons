@@ -83,7 +83,23 @@ function kv(): ExtensionStorage {
   return storage;
 }
 
+type ConfigurationPort = { assertCurrent(): void; read(): Partial<ObservabilityConfig> | null; write(config: ObservabilityConfig): void };
+let configurationPort: ConfigurationPort | undefined;
+/** Native host owns this one global configuration key, not the chat KV router. */
+export function bindObservabilityConfiguration(port: ConfigurationPort): () => void {
+  port.assertCurrent();
+  let active = true;
+  const check = () => { if (!active) throw Error("Observability configuration owner released"); port.assertCurrent(); };
+  configurationPort = {
+    assertCurrent: check,
+    read() { check(); const saved = port.read(); check(); return saved; },
+    write(config) { check(); port.write(config); check(); },
+  };
+  return () => { active = false; }; // Keep the revoked port: never fall back to unscoped KV.
+}
+
 function loadConfig(): ObservabilityConfig {
+  if (configurationPort) return { ...DEFAULT_CONFIG, ...configurationPort.read() };
   try {
     const saved = kv().get<Partial<ObservabilityConfig>>("config", "global");
     if (saved) return { ...DEFAULT_CONFIG, ...saved };
@@ -92,16 +108,20 @@ function loadConfig(): ObservabilityConfig {
 }
 
 function saveConfig(config: ObservabilityConfig): void {
+  if (configurationPort) { configurationPort.write(config); return; }
   kv().set("config", config, "global");
 }
 
 // ── Keychain resolution ──────────────────────────────────────────
 
-async function resolveSecret(keychainName: string): Promise<string | null> {
+async function resolveSecret(keychainName: string, assertCurrent?: () => void): Promise<string | null> {
+  assertCurrent?.();
   if (!keychainName) return null;
   try {
     const { getKeychainEntry } = await import("./compat/keychain.js");
+    assertCurrent?.();
     const entry = await getKeychainEntry(keychainName);
+    assertCurrent?.();
     return entry?.secret?.trim() || null;
   } catch { return null; }
 }
@@ -143,12 +163,15 @@ async function createOtelResource(attributes: Record<string, string>) {
   return { attributes } as any;
 }
 
-async function startOtel(config: ObservabilityConfig): Promise<boolean> {
+async function startOtel(config: ObservabilityConfig, assertCurrent?: () => void): Promise<boolean> {
+  assertCurrent?.();
   if (otelActive) await stopOtel();
+  assertCurrent?.();
 
   const connectionString = config.appinsights_enabled && config.appinsights_keychain
-    ? await resolveSecret(config.appinsights_keychain)
+    ? await resolveSecret(config.appinsights_keychain, assertCurrent)
     : null;
+  assertCurrent?.();
 
   if (!connectionString && !config.graphite_enabled) {
     log.info("No backends configured", { operation: "otel.skip" });
@@ -165,6 +188,7 @@ async function startOtel(config: ObservabilityConfig): Promise<boolean> {
         "deployment.environment": DEPLOYMENT_MODE,
         "host.name": hostname(),
       });
+      assertCurrent?.();
       useAzureMonitor({
         azureMonitorExporterOptions: { connectionString },
         enableLiveMetrics: config.appinsights_live_metrics,
@@ -442,16 +466,19 @@ export function buildRuntimeConfigKey(config: ObservabilityConfig): string {
 let appliedRuntimeConfigKey: string | null = null;
 let runtimeApplyChain: Promise<void> = Promise.resolve();
 
-async function applyRuntimeConfig(config: ObservabilityConfig): Promise<void> {
+async function applyRuntimeConfig(config: ObservabilityConfig, assertCurrent?: () => void): Promise<void> {
+  assertCurrent?.();
   if (!config.enabled) {
     removeLogSinkBridge();
     await stopOtel();
+    assertCurrent?.();
     teardownGraphite();
     scheduleUsageTelemetry(config);
     return;
   }
 
-  await startOtel(config);
+  await startOtel(config, assertCurrent);
+  assertCurrent?.();
 
   if (config.graphite_enabled && config.graphite_host) {
     teardownGraphite();
@@ -465,13 +492,16 @@ async function applyRuntimeConfig(config: ObservabilityConfig): Promise<void> {
   scheduleUsageTelemetry(config);
 }
 
-async function ensureProcessRuntimeConfig(config: ObservabilityConfig, options: { force?: boolean } = {}): Promise<void> {
+async function ensureProcessRuntimeConfig(config: ObservabilityConfig, options: { force?: boolean; assertCurrent?: () => void } = {}): Promise<void> {
+  options.assertCurrent?.();
   const nextKey = buildRuntimeConfigKey(config);
   if (!options.force && nextKey === appliedRuntimeConfigKey) return;
 
   const run = async () => {
+    options.assertCurrent?.();
     if (!options.force && nextKey === appliedRuntimeConfigKey) return;
-    await applyRuntimeConfig(config);
+    await applyRuntimeConfig(config, options.assertCurrent);
+    options.assertCurrent?.();
     appliedRuntimeConfigKey = nextKey;
   };
 
@@ -507,7 +537,7 @@ async function handleSetConfig(body: Partial<ObservabilityConfig>): Promise<{ ok
     graphite_render_url:         typeof body.graphite_render_url === "string" ? body.graphite_render_url.trim().replace(/\/$/, "") : c.graphite_render_url,
   };
   saveConfig(next);
-  await ensureProcessRuntimeConfig(next, { force: true });
+  await ensureProcessRuntimeConfig(next, { force: true, assertCurrent: configurationPort?.assertCurrent });
   return { ok: true, config: next };
 }
 
@@ -528,18 +558,31 @@ if (typeof registerAddonConfigApi === "function") {
 
 // ── Extension entry point ────────────────────────────────────────
 
+/** Process-owned, idempotent startup; no session lifecycle or agent runner. */
+export async function prepareObservabilityRuntime(assertCurrent?: () => void): Promise<void> {
+  assertCurrent?.();
+  await ensureProcessRuntimeConfig(loadConfig(), { assertCurrent });
+  assertCurrent?.();
+}
+
+/** Request-only context shared by legacy and native hosts. */
+export function buildObservabilitySystemPrompt(): string {
+  const config = loadConfig();
+  return `## Observability\nOTel tracing ${config.enabled ? "active" : "disabled"}. Instance: ${instanceName(config)} (${DEPLOYMENT_MODE}).${config.appinsights_live_metrics ? " Live Metrics enabled." : ""}`;
+}
+
 export default function observabilityExtension(pi: ExtensionAPI): void {
-  void ensureProcessRuntimeConfig(loadConfig()).catch(() => undefined);
+  // Registration is effect-free. Native startup prepares the process explicitly;
+  // legacy hosts prepare it at their real session_start, never a fabricated event.
   pi.on("resources_discover", () => ({ skillPaths: [join(baseDir, "skills", "usage-telemetry-chart", "SKILL.md")] }));
 
   pi.on("session_start", async () => {
-    await ensureProcessRuntimeConfig(loadConfig()).catch(() => undefined);
+    await prepareObservabilityRuntime().catch(() => undefined);
   });
 
   pi.on("before_agent_start", async (event) => {
-    const config = loadConfig();
     return {
-      systemPrompt: `${event.systemPrompt}\n\n## Observability\nOTel tracing ${config.enabled ? "active" : "disabled"}. Instance: ${instanceName(config)} (${DEPLOYMENT_MODE}).${config.appinsights_live_metrics ? " Live Metrics enabled." : ""}`,
+      systemPrompt: `${event.systemPrompt}\n\n${buildObservabilitySystemPrompt()}`,
     };
   });
 }

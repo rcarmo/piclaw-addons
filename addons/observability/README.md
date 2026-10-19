@@ -661,3 +661,15 @@ labels, matching core Settings in Classic and Visual without changing save
 payloads, defaults or secret handling. A package-local layered stylesheet keeps
 older supported hosts readable; host rules take precedence when available.
 Native checkboxes and action buttons retain their own control roles.
+
+## Native hosts (0.1.18)
+
+`bindObservabilityConfiguration({ assertCurrent, read, write })` binds the host's
+single global configuration key. Release the returned binding when its owner
+closes. Revoked reads and writes throw; they do not fall back to defaults.
+
+Call `prepareObservabilityRuntime(assertCurrent)` during owned process startup.
+Use `buildObservabilitySystemPrompt()` from the native SDK request hook. Both read
+the bound configuration, as do the existing Settings handlers. Registration has
+no process effects. Legacy hosts initialise through their real `session_start`.
+The host retains static skill discovery from the package metadata.

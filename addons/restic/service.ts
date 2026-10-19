@@ -48,12 +48,17 @@ export class ResticService {
     try{this.reloadDurable();return structuredClone({config:this.config,state:this.status});}finally{release();}
   }
   get tag(){return `piclaw:${this.state.instanceId}`;}
-  async setConfig(input:unknown){
+  /** Explicit capability: an older startup service must not silently ignore a native fence. */
+  setConfigWithAuthority(input:unknown,assertCurrent:()=>void){return this.setConfig(input,assertCurrent);}
+  async setConfig(input:unknown,assertCurrent?:()=>void){
+    assertCurrent?.();
     if(this.active)throw Error('Backup operation is running');const c=validateJobConfig(input);
     if(c.enabled && (await this.options.legacySchedulerActive?.()))throw Error('Previous Restic scheduler is active; disable it explicitly before enabling');
+    assertCurrent?.();
     if(this.active)throw Error('Backup operation started while validating configuration; retry after it finishes');
     const release=this.acquire();
     try{
+    assertCurrent?.();
     this.reloadDurable();
     if(c.enabled && (this.state.successRepository!==this.repositoryIdentity()||!this.state.lastSuccess||this.state.backup?.status!=='success'||JSON.stringify(c.repository)!==JSON.stringify(this.config.repository)||c.passwordRef!==this.config.passwordRef))throw Error('Verify a successful manual backup with this repository before enabling');
     const oldIdentity=this.repositoryIdentity();

@@ -1,20 +1,82 @@
 import { expect, test } from 'bun:test';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import resticAddon from './index.ts';
+import resticAddon, { createResticTool } from './index.ts';
 import { resticRuntime } from './runtime-state.ts';
 import { ResticService } from './service.ts';
 import { defaultJobConfig } from './job-config.ts';
 
-function fixture() {
+function fixture(legacySchedulerActive?: () => Promise<boolean>) {
   const root=mkdtempSync(join(tmpdir(),'restic-tool-'));
   const state=resticRuntime(),previous=state.service;let secretReads=0,runs=0;
-  const service=new ResticService({paths:{sources:[{name:'workspace',path:root}],stateDir:join(root,'state'),stageDir:join(root,'stage'),cacheDir:join(root,'cache')},resolveSecret:async()=>{secretReads++;throw Error('Must not resolve secrets');},run:async()=>{runs++;throw Error('Must not execute Restic');}});
+  const service=new ResticService({legacySchedulerActive,paths:{sources:[{name:'workspace',path:root}],stateDir:join(root,'state'),stageDir:join(root,'stage'),cacheDir:join(root,'cache')},resolveSecret:async()=>{secretReads++;throw Error('Must not resolve secrets');},run:async()=>{runs++;throw Error('Must not execute Restic');}});
   state.service=service;let tool:any;resticAddon({registerTool(value:any){tool=value;}});
   const execute=(params:any,signal?:AbortSignal)=>tool.execute('fixture',params,signal);
   return {root,service,tool,execute,counts:()=>({secretReads,runs}),cleanup(){service.stop();state.service=previous;rmSync(root,{recursive:true,force:true});}};
 }
+test('native factory preserves legacy declaration and reads/configures the startup-owned service',async()=>{
+ const f=fixture();try{
+  let checks=0;const tool=createResticTool(()=>{checks++;});
+  for(const key of ['name','label','description','parameters'] as const)expect(tool[key]).toEqual(f.tool[key]);
+  const initial:any=await tool.execute('native',{action:'get_config',config:null});
+  const config={...initial.details.config,excludes:['workspace/private-fixture']};
+  expect((await tool.execute('native',{action:'set_config',config})).details).toEqual({config});
+  expect((await tool.execute('native',{action:'status',config:null})).details).toHaveProperty('state');
+  expect((await f.execute({action:'get_config'})).details.config).toEqual(config);
+  expect(checks).toBeGreaterThan(0);expect(resticRuntime().service).toBe(f.service);
+  expect(f.counts()).toEqual({secretReads:0,runs:0});
+ }finally{f.cleanup();}
+});
+test('native factory rejects an older startup service that could ignore its fence',async()=>{
+ const f=fixture();try{
+  (f.service as any).setConfigWithAuthority=undefined;
+  (f.service as any).setConfig=()=>{throw Error('Unfenced write escaped');};
+  const tool=createResticTool(()=>{});
+  await expect(tool.execute('native',{action:'set_config',config:defaultJobConfig()})).rejects.toThrow('lacks native configuration authority');
+  expect(existsSync(join(f.root,'state/config.json'))).toBe(false);
+ }finally{f.cleanup();}
+});
+test('native invalidated invocation fences all reads and config effects',async()=>{
+ const f=fixture();try{
+  const before=readFileSync(join(f.root,'state/state.json'),'utf8');
+  const tool=createResticTool(()=>{throw Error('Invocation invalidated');});
+  // Invalidated reads must not even acquire the snapshot lock.
+  (f.service as any).configurationSnapshot=()=>{throw Error('Read escaped fence');};
+  for(const action of ['get_config','status','set_config']){
+   await expect(tool.execute('native',{action,config:action==='set_config'?defaultJobConfig():null})).rejects.toThrow('Invocation invalidated');
+  }
+  expect(existsSync(join(f.root,'state/config.json'))).toBe(false);
+  expect(existsSync(join(f.root,'state/job.lock'))).toBe(false);
+  expect(readFileSync(join(f.root,'state/state.json'),'utf8')).toBe(before);
+  expect(f.counts()).toEqual({secretReads:0,runs:0});
+ }finally{f.cleanup();}
+});
+for(const reason of ['invalidation','replacement','abort'] as const)test(`native ${reason} during legacy-scheduler await prevents mutation`,async()=>{
+ let resume!:(active:boolean)=>void,entered!:()=>void;
+ const waiting=new Promise<void>(r=>entered=r),gate=new Promise<boolean>(r=>resume=r);
+ const f=fixture(()=>{entered();return gate;});
+ try{
+  const before=readFileSync(join(f.root,'state/state.json'),'utf8');
+  let current=true;const controller=new AbortController();
+  const tool=createResticTool(()=>{if(!current)throw Error('Invocation invalidated');});
+  const config={...defaultJobConfig(),enabled:true,repository:{backend:'local',path:join(f.root,'repo')},passwordRef:'fixture/password'};
+  const saving=tool.execute('native',{action:'set_config',config},controller.signal).then(()=>null,error=>error);
+  await waiting;
+  if(reason==='invalidation')current=false;
+  // A distinct identity only: no second service constructor or scheduler.
+  if(reason==='replacement')resticRuntime().service=Object.create(f.service);
+  if(reason==='abort')controller.abort();
+  resume(false);
+  const error=await saving;expect(error).toBeInstanceOf(Error);
+  if(reason!=='abort')expect(error.message).toContain(reason==='replacement'?'service was replaced':'Invocation invalidated');
+  expect(f.service.config).toEqual(defaultJobConfig());
+  expect(existsSync(join(f.root,'state/config.json'))).toBe(false);
+  expect(existsSync(join(f.root,'state/job.lock'))).toBe(false);
+  expect(readFileSync(join(f.root,'state/state.json'),'utf8')).toBe(before);
+  expect(f.counts()).toEqual({secretReads:0,runs:0});
+ }finally{resume(false);f.cleanup();}
+});
 test('agent reads/sets complete validated config shared with Settings without secret lookup or child launch',async()=>{
  const f=fixture();try{
   expect(f.tool.name).toBe('restic');expect(f.tool.parameters.properties.action.enum).toEqual(['get_config','set_config','status']);

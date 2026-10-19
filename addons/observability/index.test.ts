@@ -1,13 +1,37 @@
 import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import {
+import observabilityExtension, {
+  prepareObservabilityRuntime,
+  bindObservabilityConfiguration,
+  buildObservabilitySystemPrompt,
   buildAppInsightsActorAttributes,
   buildRuntimeConfigKey,
   buildSyntheticDependencyAttributes,
   buildSyntheticRequestAttributes,
   modelDependencyTarget,
 } from "./index.ts";
+
+test("native process preparation rejects revoked startup authority across its queued await", async () => {
+  let current = true;
+  let checks = 0;
+  const pending = prepareObservabilityRuntime(() => { checks++; if (!current) throw Error("Startup owner revoked"); });
+  current = false;
+  await expect(pending).rejects.toThrow("Startup owner revoked");
+  expect(checks).toBeGreaterThan(1);
+});
+
+test("native process preparation and prompt exports preserve existing lifecycle behaviour", async () => {
+  const handlers = new Map<string, Function>();
+  observabilityExtension({ on(name: string, handler: Function) { handlers.set(name, handler); } } as any);
+  await prepareObservabilityRuntime();
+  await prepareObservabilityRuntime();
+  await handlers.get("session_start")!();
+  const prompt = buildObservabilitySystemPrompt();
+  expect(prompt).toStartWith("## Observability\nOTel tracing ");
+  expect(await handlers.get("before_agent_start")!({ systemPrompt: "Base instructions" })).toEqual({ systemPrompt: `Base instructions\n\n${prompt}` });
+  expect(handlers.get("resources_discover")!().skillPaths).toHaveLength(1);
+});
 
 test("observability compat shims avoid runtime source imports", () => {
   for (const file of ["extension-kv.ts", "keychain.ts", "log-sink.ts"]) {
@@ -104,6 +128,17 @@ test("buildAppInsightsActorAttributes maps chat and session into App Insights us
     "piclaw.session.id": "leaf-123",
     "piclaw.session_leaf_id": "leaf-123",
   });
+});
+
+test("native configuration reads preserve persisted settings and never mask revoked authority as defaults", () => {
+  let denied = false;
+  const release = bindObservabilityConfiguration({ assertCurrent() {}, read() { if (denied) throw Error("Configuration read denied"); return { enabled: true, instance_name: "owned-native-instance", appinsights_live_metrics: false }; }, write() { throw Error("No write expected"); } });
+  expect(buildObservabilitySystemPrompt()).toContain("OTel tracing active. Instance: owned-native-instance");
+  expect(buildObservabilitySystemPrompt()).not.toContain("Live Metrics enabled.");
+  denied = true;
+  expect(() => buildObservabilitySystemPrompt()).toThrow("Configuration read denied");
+  release();
+  expect(() => buildObservabilitySystemPrompt()).toThrow("configuration owner released");
 });
 
 test("modelDependencyTarget prefers the provider prefix and falls back to llm", () => {

@@ -587,7 +587,7 @@
     {
       "slug": "observability",
       "name": "@rcarmo/piclaw-addon-observability",
-      "version": "0.1.17",
+      "version": "0.1.18",
       "type": "extension",
       "description": "OpenTelemetry observability — trace errors and agent turns across piclaw instances to Azure Application Insights (with Live Metrics) and local Graphite",
       "path": "addons/observability",
@@ -608,7 +608,7 @@
       ],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-observability-0.1.17.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-observability-0.1.18.tgz"
       },
       "updatedAt": "2026-09-19"
     },
@@ -753,7 +753,7 @@
     {
       "slug": "restic",
       "name": "@rcarmo/piclaw-addon-restic",
-      "version": "0.1.4",
+      "version": "0.1.5",
       "type": "extension",
       "description": "Settings-managed Restic backups with consistent SQLite staging and scoped retention.",
       "path": "addons/restic",
@@ -766,7 +766,7 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-restic-0.1.4.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-restic-0.1.5.tgz"
       },
       "updatedAt": "2026-10-04",
       "owner": {
