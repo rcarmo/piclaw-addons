@@ -38,6 +38,23 @@ function fixture(run?: (o:RunOptions)=>Promise<RunResult>){
     const reload=new ResticService({paths:f.paths,resolveSecret:async()=>''});expect(reload.state.instanceId).toBe(f.service.state.instanceId);reload.stop();
   }finally{db.close();f.cleanup();}
 },60000);
+test('setConfig invocation fence rejects before effects and always releases an acquired lock',async()=>{
+ const f=fixture();try{
+  const before=readFileSync(join(f.paths.stateDir,'state.json'),'utf8');
+  for(const rejectAt of [1,2,3]){
+   let checks=0;
+   await expect(f.service.setConfig(f.config,()=>{if(++checks===rejectAt)throw Error('Invocation invalidated');})).rejects.toThrow('Invocation invalidated');
+   expect(checks).toBe(rejectAt);
+   expect(f.service.config).toEqual(defaultJobConfig());
+   expect(existsSync(join(f.paths.stateDir,'config.json'))).toBe(false);
+   expect(existsSync(join(f.paths.stateDir,'job.lock'))).toBe(false);
+   expect(readFileSync(join(f.paths.stateDir,'state.json'),'utf8')).toBe(before);
+  }
+  // Existing Settings callers still need no invocation callback.
+  await f.service.setConfig(f.config);
+  expect(JSON.parse(readFileSync(join(f.paths.stateDir,'config.json'),'utf8'))).toEqual(f.config);
+ }finally{f.cleanup();}
+});
 test('single missed schedule slot claimed once; no burst and timezone validation',async()=>{
   const s={enabled:true,hours:[8,12,20],minute:0,timezone:'Europe/Lisbon'};
   expect(nextRun(s,Date.parse('2026-01-01T08:00:00Z'))).toBe(Date.parse('2026-01-01T12:00:00Z'));

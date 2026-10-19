@@ -29,9 +29,9 @@ const configSchema = {
   },
 };
 
-/** Use the startup-owned service; registering a tool must not spawn a second scheduler. */
-export default function resticAddon(pi: any) {
-  pi.registerTool({
+/** Use the startup-owned service; native callers supply their invocation fence. */
+export function createResticTool(assertCurrent?: () => void) {
+  return {
     name: 'restic',
     label: 'Restic configuration',
     description: 'Read or configure this instance’s Restic backup add-on. Pass config:null for get_config/status. Use get_config, edit the returned full config, then set_config. Keychain reference names only; use the keychain tool separately for secrets. Shares Settings validation, locks, prior-backup and legacy-scheduler checks. Enabling a schedule permits future automatic backups; retention remains explicit-preview only. No immediate backup, restore, prune, binary install, credential retrieval or external scheduler management is exposed here.',
@@ -48,6 +48,12 @@ export default function resticAddon(pi: any) {
       if (params.action === 'set_config' && (!params.config || typeof params.config !== 'object' || Array.isArray(params.config))) throw Error('set_config requires a complete configuration object');
       const service = resticRuntime().service;
       if (!service) throw Error('Restic startup runtime is unavailable; enable the add-on and reload the host');
+      const guard = () => {
+        signal?.throwIfAborted();
+        assertCurrent?.();
+        if (resticRuntime().service !== service) throw Error('Restic startup service was replaced during invocation');
+      };
+      guard();
       let details: unknown;
       if (params.action === 'set_config') {
         // Strict schemas require all repository properties; null denotes an unused
@@ -57,13 +63,20 @@ export default function resticAddon(pi: any) {
           ? { ...params.config, repository: Object.fromEntries(Object.entries(repository).filter(([key, value]) =>
             value !== null || !Object.prototype.hasOwnProperty.call(configSchema.properties.repository.properties, key))) }
           : params.config;
-        details = { config: await service.setConfig(config) };
+        if (assertCurrent && typeof service.setConfigWithAuthority !== 'function') throw Error('Restic startup service lacks native configuration authority');
+        details = { config: await (assertCurrent ? service.setConfigWithAuthority(config, guard) : service.setConfig(config, guard)) };
       }
       else {
+        guard();
         const snapshot = service.configurationSnapshot();
         details = params.action === 'get_config' ? { config: snapshot.config } : { state: snapshot.state };
       }
       return { content: [{ type: 'text' as const, text: JSON.stringify(details) }], details };
     },
-  });
+  };
+}
+
+/** Legacy registration shares the declaration without granting native authority. */
+export default function resticAddon(pi: any) {
+  pi.registerTool(createResticTool());
 }

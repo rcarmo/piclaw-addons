@@ -155,3 +155,15 @@ runtime for v1; other platforms have not passed the process/SSH/mount matrix.
 
 Screenshot uses the real Settings host in a disposable browser fixture with synthetic
 paths/status; it is not a production backup or deployment screenshot.
+
+## Native hosts (0.1.5)
+
+`createResticTool(assertCurrent)` returns the same configuration declaration used
+by legacy registration. The native host supplies its invocation check. Reads and
+writes use the existing startup-owned service; the factory starts no scheduler.
+
+Native writes require `ResticService.setConfigWithAuthority`. The service checks
+the invocation after the asynchronous legacy-scheduler query and before acquiring
+the job lock or changing configuration. Cancellation, revoked invocation authority,
+service replacement or an older service without this method reject the write.
+Backup, restore, prune and binary installation remain outside this tool.
