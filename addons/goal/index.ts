@@ -917,6 +917,7 @@ function accountProgress(goal: ThreadGoal, tokenDeltaInput: number, terminal = f
   const last = goal.last_accounted_at ? Date.parse(goal.last_accounted_at) : NaN;
   const elapsedDelta = Number.isFinite(last) ? Math.max(0, Math.floor((Date.parse(now) - last) / 1000)) : 0;
   const tokens_used = goal.tokens_used + Math.max(0, Math.trunc(tokenDeltaInput));
+  if (!Number.isSafeInteger(tokens_used)) throw Error("Goal usage overflow");
   const status = !terminal && goal.token_budget !== null && tokens_used >= goal.token_budget ? "budget_limited" : goal.status;
   return saveThreadGoal({
     ...goal,
