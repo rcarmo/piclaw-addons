@@ -1,4 +1,4 @@
-import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { basename } from "node:path";
 import { Type } from "typebox";
 import { createExtensionStorage, type ExtensionStorage } from "./compat/extension-kv.js";
@@ -294,9 +294,13 @@ export function resetGoalAddonForTests(): void {
   resetGoalDeadlineCheckpointForTests();
 }
 
-function recordTurnToolActivity(chatJidInput: unknown, toolName: unknown): void {
+export function isGoalProgressTool(toolName: unknown): boolean {
   const name = normalizeText(toolName);
-  if (!name || GOAL_INTERNAL_TOOLS.has(name)) return;
+  return Boolean(name) && !GOAL_INTERNAL_TOOLS.has(name);
+}
+
+function recordTurnToolActivity(chatJidInput: unknown, toolName: unknown): void {
+  if (!isGoalProgressTool(toolName)) return;
   const chatJid = normalizeChatJid(chatJidInput);
   turnToolActivityByChat.set(chatJid, (turnToolActivityByChat.get(chatJid) ?? 0) + 1);
 }
@@ -368,6 +372,15 @@ function saveThreadGoal(goal: ThreadGoal): ThreadGoal {
   };
   kv().set(GOAL_KEY, next, "chat", next.chat_jid);
   return next;
+}
+
+/** State-only claim; native hosts own the scoped transaction and wrap-up admission. */
+export function claimGoalBudgetWrapup(chatJid: string, expected: { goalId: string; generation: number }): ThreadGoal | null {
+  const goal = loadThreadGoal(chatJid);
+  if (!goal || goal.goal_id !== expected.goalId || goal.lifecycle_generation !== expected.generation || goal.status !== "budget_limited")
+    throw Error("Goal budget lifecycle changed");
+  if (goal.budget_limit_reported) return null;
+  return saveThreadGoal({ ...goal, budget_limit_reported: true, last_accounted_at: null });
 }
 
 export function clearThreadGoal(chatJidInput?: unknown): boolean {
@@ -536,6 +549,11 @@ function parseGoalPrompt(text: unknown): { reason: GoalPromptReason; escapedObje
   return null;
 }
 
+/** Prompt classification only; identity and lifecycle validation remain caller-owned. */
+export function isGoalBudgetInput(text: string): boolean {
+  return parseGoalPrompt(text)?.reason === "budget_limited";
+}
+
 function shouldRunGoalPrompt(chatJid: string, parsed: { reason: GoalPromptReason; escapedObjective: string }): boolean {
   const goal = loadThreadGoal(chatJid);
   if (!goal || escapeXmlText(goal.objective) !== parsed.escapedObjective) return false;
@@ -562,20 +580,18 @@ function planFingerprint(plan: PlanRuntimeItem[]): string {
 function getPlanCompletionState(chatJid: string): { available: boolean; total: number; allCompleted: boolean; fingerprint: string; plan: PlanRuntimeItem[] } {
   try {
     const details = getPlanSidebarRuntimeApi()?.getPlan(chatJid);
-    const plan = Array.isArray(details?.plan) ? details.plan.filter((item): item is PlanRuntimeItem => (
-      item && typeof item.step === "string" && (item.status === "pending" || item.status === "in_progress" || item.status === "completed")
-    )) : [];
-    const total = plan.length;
-    return {
-      available: Boolean(details),
-      total,
-      allCompleted: total > 0 && plan.every((item) => item.status === "completed"),
-      fingerprint: planFingerprint(plan),
-      plan,
-    };
+    return summarizeGoalPlan(details?.plan, Boolean(details));
   } catch {
     return { available: false, total: 0, allCompleted: false, fingerprint: "", plan: [] };
   }
+}
+
+/** Shared persisted Plan interpretation; no global API or session access. */
+export function summarizeGoalPlan(items: unknown, available = Array.isArray(items)) {
+  const plan = Array.isArray(items) ? items.filter((item): item is PlanRuntimeItem => (
+    item && typeof item.step === "string" && (item.status === "pending" || item.status === "in_progress" || item.status === "completed")
+  )) : [];
+  return { available, total: plan.length, allCompleted: plan.length > 0 && plan.every(item => item.status === "completed"), fingerprint: planFingerprint(plan), plan };
 }
 
 function clearCompletionCandidate(goal: ThreadGoal): ThreadGoal {
@@ -828,7 +844,7 @@ function recordAssistantOutcome(chatJidInput: unknown, message: unknown): void {
   // aborted turn is never "errored" regardless of its errorMessage; only a genuine
   // model/tool error (stopReason "error", or an errorMessage WITHOUT an abort) counts.
   const aborted = stopReason === "aborted";
-  const errored = !aborted && (stopReason === "error" || Boolean(errorMessage));
+  const errored = !shouldContinueGoalAfterMessage({ stopReason, errorMessage });
   const ok = !errored && !aborted;
   lastAssistantOutcomeByChat.delete(chatJid);
   lastAssistantOutcomeByChat.set(chatJid, { ok, stopReason, errored, recordedAt: Date.now() });
@@ -862,6 +878,17 @@ function recordAssistantOutcome(chatJidInput: unknown, message: unknown): void {
 // is `errored`. A user stop is rare for an autonomous goal and `/goal pause` is
 // the intended stop control; a spurious continuation is also bounded by the
 // no-progress guard, so erring toward continuation is correct here.
+/** Shared outcome policy; native callers supply the actual committed SDK
+ * assistant message. Lifecycle, pending-input and no-progress checks stay separate. */
+export function shouldContinueGoalAfterMessage(message: unknown): boolean {
+  if (!message || typeof message !== "object") return false;
+  const candidate = message as { role?: unknown; stopReason?: unknown; errorMessage?: unknown };
+  if (candidate.role !== undefined && candidate.role !== "assistant") return false;
+  const stopReason = normalizeText(candidate.stopReason);
+  const errorMessage = normalizeText(candidate.errorMessage);
+  return stopReason === "aborted" || (stopReason !== "error" && !errorMessage);
+}
+
 function shouldContinueAfterTurn(chatJidInput: unknown): boolean {
   const chatJid = normalizeChatJid(chatJidInput);
   pruneAssistantOutcomes();
@@ -884,14 +911,30 @@ function extractUsageTokens(message: unknown): number {
   return parts.reduce((sum, value) => sum + Math.trunc(value), 0);
 }
 
-function accountGoalProgress(chatJidInput: unknown, tokenDeltaInput = 0): ThreadGoal | null {
+export function accountGoalProgress(chatJidInput: unknown, tokenDeltaInput = 0): ThreadGoal | null {
   const goal = loadThreadGoal(chatJidInput);
   if (!goal || !(goal.status === "active" || goal.status === "budget_limited")) return goal;
+  return accountProgress(goal, tokenDeltaInput);
+}
+
+/** Native host only: the caller must prove committed usage and atomically store
+ * its replay cursor. Terminal accounting never reactivates or relimits a Goal. */
+export function accountTerminalGoalProgress(chatJid: string, expected: { goalId: string; generation: number }, tokens: number): ThreadGoal {
+  if (!Number.isSafeInteger(tokens) || tokens < 0) throw Error("Invalid terminal Goal usage");
+  const goal = loadThreadGoal(chatJid);
+  if (!goal || goal.goal_id !== expected.goalId || goal.lifecycle_generation !== expected.generation ||
+    (goal.status !== "complete" && goal.status !== "stopped")) throw Error("Terminal Goal lifecycle changed");
+  if (!Number.isSafeInteger(goal.tokens_used + tokens)) throw Error("Terminal Goal usage overflow");
+  return accountProgress(goal, tokens, true);
+}
+
+function accountProgress(goal: ThreadGoal, tokenDeltaInput: number, terminal = false): ThreadGoal {
   const now = nowIso();
   const last = goal.last_accounted_at ? Date.parse(goal.last_accounted_at) : NaN;
   const elapsedDelta = Number.isFinite(last) ? Math.max(0, Math.floor((Date.parse(now) - last) / 1000)) : 0;
   const tokens_used = goal.tokens_used + Math.max(0, Math.trunc(tokenDeltaInput));
-  const status = goal.token_budget !== null && tokens_used >= goal.token_budget ? "budget_limited" : goal.status;
+  if (!Number.isSafeInteger(tokens_used)) throw Error("Goal usage overflow");
+  const status = !terminal && goal.token_budget !== null && tokens_used >= goal.token_budget ? "budget_limited" : goal.status;
   return saveThreadGoal({
     ...goal,
     status,
@@ -980,7 +1023,7 @@ async function sendGoalPromptViaLocalAgent(goal: ThreadGoal, content: string): P
   }
 }
 
-function buildVisibleGoalPrompt(goal: ThreadGoal, reason: GoalPromptReason): string {
+export function buildVisibleGoalPrompt(goal: ThreadGoal, reason: GoalPromptReason): string {
   if (reason === "budget_limited") return `${GOAL_VISIBLE_BUDGET_PREFIX} ${goal.objective}`;
   if (reason === "objective_updated") return `${GOAL_VISIBLE_UPDATED_PREFIX} ${goal.objective}`;
   if (reason === "finalize") return `${GOAL_VISIBLE_FINALIZE_PREFIX} ${goal.objective}`;
@@ -1033,86 +1076,69 @@ export async function flushGoalPromptDispatchesForTests(): Promise<void> {
   // Kept for compatibility with older tests; continuations are now enqueued synchronously.
 }
 
+export type GoalPlanDecision =
+  | { action: "continue"; noProgressTurns: number }
+  | { action: "finalize"; completionProbeCount: number }
+  | { action: "stop"; reason: "no_progress" | "plan_complete_unverified" }
+  | { action: "reset" };
+
+/** Pure shared policy; no legacy lifecycle or enqueue effects. */
+export function decideGoalPlanProgress(goal: Pick<ThreadGoal, "last_auto_continue_fingerprint" | "no_progress_turns" | "completion_plan_fingerprint" | "completion_probe_count">,
+  plan: { available: boolean; total: number; allCompleted: boolean; fingerprint: string }, hadToolActivity: boolean): GoalPlanDecision {
+  if (!plan.available || plan.total === 0) return { action: "reset" };
+  if (!plan.allCompleted) {
+    const stalled = goal.last_auto_continue_fingerprint === plan.fingerprint && !hadToolActivity;
+    const noProgressTurns = stalled ? goal.no_progress_turns + 1 : 1;
+    return stalled && noProgressTurns >= MAX_NO_PROGRESS_TURNS
+      ? { action: "stop", reason: "no_progress" } : { action: "continue", noProgressTurns };
+  }
+  const samePlan = goal.completion_plan_fingerprint === plan.fingerprint;
+  return samePlan && goal.completion_probe_count >= MAX_COMPLETION_PROBES
+    ? { action: "stop", reason: "plan_complete_unverified" }
+    : { action: "finalize", completionProbeCount: samePlan ? goal.completion_probe_count + 1 : 1 };
+}
+
+/** Persist guard changes only. Native hosts wrap this in their scoped KV
+ * transaction; no broadcasts, session calls or continuation dispatch occur. */
+export function applyGoalPlanProgress(goal: ThreadGoal, planState: ReturnType<typeof getPlanCompletionState>, hadToolActivity: boolean) {
+  const current = loadThreadGoal(goal.chat_jid);
+  if (!current || current.goal_id !== goal.goal_id || current.lifecycle_generation !== goal.lifecycle_generation || current.status !== "active")
+    throw Error("Goal Plan lifecycle changed");
+  const decision = decideGoalPlanProgress(current, planState, hadToolActivity);
+  if (decision.action === "reset") {
+    clearPlanLoopGuards(current);
+    return { goal: loadThreadGoal(goal.chat_jid)!, decision };
+  }
+  const cleared = { completion_candidate_at: null, completion_plan_fingerprint: "", completion_probe_count: 0,
+    last_auto_continue_fingerprint: "", no_progress_turns: 0 };
+  if (decision.action === "stop") {
+    const noProgress = decision.reason === "no_progress";
+    const stopped = saveThreadGoal({ ...current, ...cleared, status: "stopped", last_accounted_at: null,
+      stop_reason: decision.reason,
+      stop_summary: noProgress
+        ? "Stopped after repeated unchanged plan state without substantive progress."
+        : "Plan is complete, but the objective was not verified after repeated finalization probes.",
+      stop_evidence: [noProgress ? "Plan fingerprint did not change across autonomous continuations." : "Plan contains only completed items.",
+        ...planState.plan.slice(0, 5).map(item => item.step)], stopped_at: nowIso() });
+    return { goal: stopped, decision };
+  }
+  if (decision.action === "continue") {
+    return { goal: saveThreadGoal({ ...current, ...cleared, last_auto_continue_fingerprint: planState.fingerprint,
+      no_progress_turns: decision.noProgressTurns }), decision };
+  }
+  return { goal: saveThreadGoal({ ...current, ...cleared,
+    completion_candidate_at: current.completion_candidate_at || nowIso(), completion_plan_fingerprint: planState.fingerprint,
+    completion_probe_count: decision.completionProbeCount }), decision };
+}
+
 async function handlePlanAtAgentEnd(goal: ThreadGoal): Promise<boolean> {
   const planState = getPlanCompletionState(goal.chat_jid);
-  if (!planState.available || planState.total === 0) {
-    clearPlanLoopGuards(goal);
-    return false;
-  }
-
-  if (!planState.allCompleted) {
-    const samePlan = goal.last_auto_continue_fingerprint === planState.fingerprint;
-    // Real tool work this turn counts as progress even if the Plan Sidebar text is
-    // unchanged, so a model doing edits/bash/commits without touching the plan tool
-    // is not force-stopped as "no progress".
-    const hadToolActivity = turnHadToolActivity(goal.chat_jid);
-    const stalled = samePlan && !hadToolActivity;
-    const noProgressTurns = stalled ? goal.no_progress_turns + 1 : 1;
-    if (stalled && noProgressTurns >= MAX_NO_PROGRESS_TURNS) {
-      const stopped = saveThreadGoal({
-        ...goal,
-        status: "stopped",
-        last_accounted_at: null,
-        last_blocker: "Plan did not change across repeated autonomous continuations.",
-        stop_reason: "no_progress",
-        stop_summary: "Plan did not change across repeated autonomous continuations.",
-        stop_evidence: planState.plan.map((item) => `${item.status} plan item: ${item.step}`),
-        stopped_at: nowIso(),
-        completion_candidate_at: null,
-        completion_plan_fingerprint: "",
-        completion_probe_count: 0,
-        last_auto_continue_fingerprint: "",
-        no_progress_turns: 0,
-      });
-      broadcastGoalUpdated(stopped, stopped.chat_jid, "runtime", "stopped");
-      return true;
-    }
-    const tracked = saveThreadGoal({
-      ...goal,
-      completion_candidate_at: null,
-      completion_plan_fingerprint: "",
-      completion_probe_count: 0,
-      last_auto_continue_fingerprint: planState.fingerprint,
-      no_progress_turns: noProgressTurns,
-    });
-    broadcastGoalUpdated(tracked, tracked.chat_jid, "runtime", "update");
-    return false;
-  }
-
-  const sameCompletedPlan = goal.completion_plan_fingerprint === planState.fingerprint;
-  const nextProbeCount = sameCompletedPlan ? goal.completion_probe_count + 1 : 1;
-
-  if (sameCompletedPlan && goal.completion_probe_count >= MAX_COMPLETION_PROBES) {
-    const stopped = saveThreadGoal({
-      ...goal,
-      status: "stopped",
-      last_accounted_at: null,
-      last_blocker: "Plan completed but goal completion was not verified after repeated finalization prompts.",
-      stop_reason: "plan_complete_unverified",
-      stop_summary: "Plan completed but goal completion was not verified after repeated finalization prompts.",
-      stop_evidence: planState.plan.map((item) => `completed plan item: ${item.step}`),
-      stopped_at: nowIso(),
-      completion_candidate_at: null,
-      completion_plan_fingerprint: "",
-      completion_probe_count: 0,
-      last_auto_continue_fingerprint: "",
-      no_progress_turns: 0,
-    });
-    broadcastGoalUpdated(stopped, stopped.chat_jid, "runtime", "stopped");
-    return true;
-  }
-
-  const candidate = saveThreadGoal({
-    ...goal,
-    completion_candidate_at: goal.completion_candidate_at || nowIso(),
-    completion_plan_fingerprint: planState.fingerprint,
-    completion_probe_count: nextProbeCount,
-    last_auto_continue_fingerprint: "",
-    no_progress_turns: 0,
-  });
-  broadcastGoalUpdated(candidate, candidate.chat_jid, "runtime", "update");
-  await enqueueGoalPrompt(candidate, buildGoalFinalizationPrompt(candidate, nextProbeCount, planState.plan), "finalize");
-  return true;
+  const result = applyGoalPlanProgress(goal, planState, turnHadToolActivity(goal.chat_jid));
+  if (result.decision.action === "reset") return false;
+  broadcastGoalUpdated(result.goal, result.goal.chat_jid, "runtime", result.decision.action === "stop" ? "stopped" : "update");
+  if (result.decision.action === "finalize")
+    await enqueueGoalPrompt(result.goal, buildGoalFinalizationPrompt(result.goal, result.decision.completionProbeCount, planState.plan), "finalize");
+  return result.decision.action !== "continue";
 }
 
 function parseGoalCommandInput(input: string): { mode: "summary" | "clear" | "pause" | "resume" | "edit" | "start" | "help"; objective?: string } {
@@ -1138,6 +1164,22 @@ function readChatJidFromRequest(req: Request, payload?: Record<string, unknown>)
   return normalizeChatJid(payload?.chat_jid);
 }
 
+/** State-only Settings transition; host owns atomic continuation admission. */
+export function applyGoalConfig(chatJid: string, body: Record<string, unknown>) {
+  if (body.objective !== undefined && !normalizePlanText(body.objective)) {
+    clearThreadGoal(chatJid);
+    return { goal: null, action: "clear" as GoalMutationAction, reason: null, continuation: undefined, response: { ok: true, ...goalResponse(null) } };
+  }
+  const current = loadThreadGoal(chatJid);
+  const goal = body.objective !== undefined ? replaceThreadGoal(chatJid, body.objective, body.token_budget)
+    : patchThreadGoal(chatJid, { status: normalizeStatus(body.status, current?.status ?? "active"),
+        token_budget: body.token_budget === undefined ? current?.token_budget : normalizePositiveIntOrNull(body.token_budget) });
+  const resumed = body.objective === undefined && current?.status !== "active" && goal.status === "active";
+  const action: GoalMutationAction = body.objective !== undefined ? current ? "update" : "create" : resumed ? "resume" : "update";
+  const reason: GoalPromptReason | null = body.objective !== undefined ? current ? "objective_updated" : "start" : resumed ? "resume" : null;
+  return { goal, action, reason, continuation: reason ? buildVisibleGoalPrompt(goal, reason) : undefined, response: { ok: true, ...goalResponse(goal) } };
+}
+
 type AddonConfigApiRegistrar = (
   addonId: string,
   action: string,
@@ -1159,26 +1201,11 @@ if (typeof registerAddonConfigApi === "function") {
     set: async (payload, req) => {
       const body = payload && typeof payload === "object" ? payload as Record<string, unknown> : {};
       const chatJid = readChatJidFromRequest(req, body);
-      if (body.objective !== undefined && !normalizePlanText(body.objective)) {
-        clearThreadGoal(chatJid);
-        broadcastGoalUpdated(null, chatJid, "api", "clear");
-        return { ok: true, ...goalResponse(null) };
-      }
-      const current = loadThreadGoal(chatJid);
-      const goal = body.objective !== undefined
-        ? replaceThreadGoal(chatJid, body.objective, body.token_budget)
-        : patchThreadGoal(chatJid, {
-            status: normalizeStatus(body.status, current?.status ?? "active"),
-            token_budget: body.token_budget === undefined ? current?.token_budget : normalizePositiveIntOrNull(body.token_budget),
-          });
-      const resumed = body.objective === undefined && current?.status !== "active" && goal.status === "active";
-      const action: GoalMutationAction = body.objective !== undefined ? (current ? "update" : "create") : resumed ? "resume" : "update";
-      broadcastGoalUpdated(goal, chatJid, "api", action);
-      const reason: GoalPromptReason | null = body.objective !== undefined
-        ? (current ? "objective_updated" : "start")
-        : resumed ? "resume" : null;
-      const continuationQueued = reason ? await enqueueGoalPrompt(goal, reason === "objective_updated" ? objectiveUpdatedPrompt(goal) : buildGoalContinuationPrompt(goal), reason) : false;
-      return { ok: true, ...goalResponse(goal), continuationQueued, continuationReason: reason };
+      const result = applyGoalConfig(chatJid, body);
+      broadcastGoalUpdated(result.goal, chatJid, "api", result.action);
+      const continuationQueued = result.goal && result.reason ? await enqueueGoalPrompt(result.goal,
+        result.reason === "objective_updated" ? objectiveUpdatedPrompt(result.goal) : buildGoalContinuationPrompt(result.goal), result.reason) : false;
+      return { ...result.response, continuationQueued, continuationReason: result.reason };
     },
   }, import.meta.dir);
 }
@@ -1209,58 +1236,89 @@ const GoalStopSchema = Type.Object({
   evidence: Type.Optional(Type.Array(Type.String(), { description: "Optional supporting evidence for the stop decision." })),
 });
 
-export default function goalAddon(pi: ExtensionAPI): void {
-  pi.on("before_agent_start", async (event, ctx) => {
-    const chatJid = resolveActiveChatJid(ctx);
-    resetTurnToolActivity(chatJid);
-    compactionSeenByChat.delete(chatJid);
-    const goal = loadThreadGoal(chatJid);
-    if (!goal || (goal.status !== "active" && goal.status !== "budget_limited")) return {};
-    const prompt = buildGoalSystemPrompt(goal);
-    return { systemPrompt: `${event.systemPrompt}\n\n${prompt}` };
-  });
+interface GoalInputIdentity { goalId: string; generation: number }
+const GOAL_INPUT_IDENTITY = /<piclaw_goal_input>([^<]*)<\/piclaw_goal_input>/g;
+export function goalInputIdentity(text: string): GoalInputIdentity | null | false {
+  const matches = [...text.matchAll(GOAL_INPUT_IDENTITY)];
+  if (!matches.length) return text.includes("<piclaw_goal_input") ? false : null;
+  if (matches.length !== 1 || text.split("<piclaw_goal_input").length !== 2 ||
+    text.split("</piclaw_goal_input>").length !== 2) return false;
+  try {
+    const value = JSON.parse(matches[0][1]);
+    if (!value || Object.keys(value).sort().join(",") !== "generation,goalId" || typeof value.goalId !== "string" ||
+      !value.goalId || value.goalId.length > 256 || value.goalId.trim() !== value.goalId || !Number.isSafeInteger(value.generation) || value.generation < 1) return false;
+    return value;
+  } catch { return false; }
+}
+function bindGoalInput(text: string, goal: ThreadGoal): string {
+  return `${text}\n\n<piclaw_goal_input>${JSON.stringify({ goalId: goal.goal_id, generation: goal.lifecycle_generation })}</piclaw_goal_input>`;
+}
 
-  pi.on("tool_execution_end", (event, ctx) => {
-    recordTurnToolActivity(resolveActiveChatJid(ctx), (event as { toolName?: unknown }).toolName);
-    return undefined;
-  });
+export type GoalInputDecision = { action: "continue" } | { action: "handled"; reason: GoalPromptReason; status: string } | { action: "transform"; text: string };
 
-  pi.on("session_compact", (_event, ctx) => {
-    compactionSeenByChat.add(resolveActiveChatJid(ctx));
-    return undefined;
-  });
+/** Shared input decision; callers supply their own admitted chat scope. */
+export function resolveGoalInput(text: string, chatJid: string): GoalInputDecision {
+  const goal = loadThreadGoal(chatJid);
+  const identity = goalInputIdentity(text);
+  if (identity === false || (identity && (!goal || identity.goalId !== goal.goal_id || identity.generation !== goal.lifecycle_generation)))
+    return { action: "handled", reason: parseGoalPrompt(text)?.reason ?? "continuation", status: goal?.status || "stopped" };
+  const visibleReason: GoalPromptReason | null = text.startsWith(GOAL_VISIBLE_BUDGET_PREFIX) ? "budget_limited"
+    : text.startsWith(GOAL_VISIBLE_UPDATED_PREFIX) ? "objective_updated"
+    : text.startsWith(GOAL_VISIBLE_FINALIZE_PREFIX) ? "finalize"
+    : text.startsWith(GOAL_VISIBLE_CONTINUE_PREFIX) ? "continuation" : null;
+  if (visibleReason) {
+    const allowed = goal && (visibleReason === "budget_limited" ? goal.status === "budget_limited" : goal.status === "active");
+    if (!allowed) return { action: "handled", reason: visibleReason, status: goal?.status || "stopped" };
+    return { action: "transform", text: bindGoalInput(expandedPromptForReason(goal, visibleReason), goal) };
+  }
+  const parsed = parseGoalPrompt(text);
+  if (parsed && !shouldRunGoalPrompt(chatJid, parsed)) return { action: "handled", reason: parsed.reason, status: goal?.status || "stopped" };
+  return { action: "continue" };
+}
 
-  pi.on("input", (event, ctx) => {
-    const text = (event as { text?: unknown }).text;
-    const chatJid = resolveActiveChatJid(ctx);
-    const goal = loadThreadGoal(chatJid);
-    if (typeof text === "string") {
-      const visibleReason: GoalPromptReason | null = text.startsWith(GOAL_VISIBLE_BUDGET_PREFIX)
-        ? "budget_limited"
-        : text.startsWith(GOAL_VISIBLE_UPDATED_PREFIX)
-          ? "objective_updated"
-          : text.startsWith(GOAL_VISIBLE_FINALIZE_PREFIX)
-            ? "finalize"
-            : text.startsWith(GOAL_VISIBLE_CONTINUE_PREFIX)
-              ? "continuation"
-              : null;
-      if (visibleReason) {
-        if (!goal || (visibleReason === "budget_limited" ? goal.status !== "budget_limited" : goal.status !== "active")) {
-          sendGoalSkippedActivity(pi, chatJid, visibleReason, goal?.status || "stopped");
-          return { action: "handled" as const };
-        }
-        return { action: "transform" as const, text: expandedPromptForReason(goal, visibleReason), images: (event as { images?: never }).images };
-      }
-    }
-    const parsed = parseGoalPrompt(text);
-    if (!parsed) return { action: "continue" as const };
-    if (!shouldRunGoalPrompt(chatJid, parsed)) {
-      sendGoalSkippedActivity(pi, chatJid, parsed.reason, goal?.status || "stopped");
-      return { action: "handled" as const };
-    }
-    return { action: "continue" as const };
-  });
+export interface PreparedGoalInput {
+  readonly decision: GoalInputDecision;
+  /** Recheck under the host's admission/write fence before publishing input. */
+  assertCurrent(): void;
+}
 
+export function prepareGoalInput(text: string, chatJid: string): PreparedGoalInput {
+  const goal = loadThreadGoal(chatJid);
+  const decision = Object.freeze(resolveGoalInput(text, chatJid));
+  // Ordinary input does not inherit Goal lifecycle authority.
+  const goalInput = decision.action !== "continue" || parseGoalPrompt(text) !== null;
+  const identity = goal && [goal.goal_id, goal.lifecycle_generation, goal.status, goal.objective];
+  return Object.freeze({ decision, assertCurrent() {
+    if (!goalInput) return;
+    const current = loadThreadGoal(chatJid);
+    const currentIdentity = current && [current.goal_id, current.lifecycle_generation, current.status, current.objective];
+    if (JSON.stringify(currentIdentity) !== JSON.stringify(identity)) throw Error("Goal input lifecycle changed");
+  } });
+}
+
+export interface GoalToolInvocationPolicy {
+  /** Host owns validation, chat binding and the storage/effect scope for this call. */
+  run<T>(name: string, args: unknown, context: ExtensionContext, body: () => Promise<T>): Promise<T>;
+}
+
+/** Collect the shared tools without registering legacy lifecycle handlers or commands. */
+export function createGoalTools(resolveChat: (context: ExtensionContext) => string, policy?: GoalToolInvocationPolicy) {
+  const tools: ToolDefinition<any, any, any>[] = [];
+  registerGoalTools({ registerTool(tool) {
+    if (!policy) { tools.push(tool); return; }
+    const wrapped: typeof tool = { ...tool, execute(callId, args, signal, onUpdate, context) {
+      return policy.run(tool.name, args, context, () => tool.execute(callId, args, signal, onUpdate, context));
+    } };
+    tools.push(wrapped);
+  } }, resolveChat);
+  return tools;
+}
+
+/** Shared tool registration with explicit chat resolution. No session lifecycle is run here. */
+export function registerGoalTools(
+  pi: Pick<ExtensionAPI, "registerTool">,
+  resolveChat: (context: ExtensionContext) => string,
+): void {
   pi.registerTool({
     name: "get_goal",
     label: "get_goal",
@@ -1268,7 +1326,7 @@ export default function goalAddon(pi: ExtensionAPI): void {
     promptSnippet: "get_goal: inspect the current active or stopped thread goal.",
     parameters: EmptyObjectSchema,
     async execute(_toolCallId, _params, _signal, _onUpdate, ctx) {
-      const chatJid = resolveActiveChatJid(ctx);
+      const chatJid = resolveChat(ctx);
       const goal = loadThreadGoal(chatJid);
       return { content: [{ type: "text", text: JSON.stringify(goalResponse(goal)) }], details: goalResponse(goal) };
     },
@@ -1281,7 +1339,7 @@ export default function goalAddon(pi: ExtensionAPI): void {
     promptSnippet: "create_goal: create an explicitly requested active thread goal when none exists.",
     parameters: CreateGoalSchema,
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const chatJid = resolveActiveChatJid(ctx);
+      const chatJid = resolveChat(ctx);
       const goal = createThreadGoal(chatJid, params.objective, params.token_budget);
       broadcastGoalUpdated(goal, chatJid, "tool", "create");
       return { content: [{ type: "text", text: JSON.stringify(goalResponse(goal)) }], details: goalResponse(goal) };
@@ -1300,7 +1358,7 @@ export default function goalAddon(pi: ExtensionAPI): void {
     ],
     parameters: GoalCompleteSchema,
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const chatJid = resolveActiveChatJid(ctx);
+      const chatJid = resolveChat(ctx);
       accountGoalProgress(chatJid, 0);
       const summary = validateGoalObjective(params.summary);
       const evidence = normalizeStringArray(params.evidence);
@@ -1339,7 +1397,7 @@ export default function goalAddon(pi: ExtensionAPI): void {
     promptSnippet: "goal_stop: stop the active goal loop without completion when no safe autonomous continuation remains; after it succeeds, explain the stop to the user.",
     parameters: GoalStopSchema,
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const chatJid = resolveActiveChatJid(ctx);
+      const chatJid = resolveChat(ctx);
       accountGoalProgress(chatJid, 0);
       const summary = validateGoalObjective(params.summary);
       const evidence = normalizeStringArray(params.evidence);
@@ -1374,7 +1432,7 @@ export default function goalAddon(pi: ExtensionAPI): void {
     promptSnippet: "update_goal: Codex-compatible terminal goal-state tool for marking complete or blocked. Use status=complete for verified completion if goal_complete is unavailable or not selected; include summary/evidence, then reply to the user.",
     parameters: UpdateGoalSchema,
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const chatJid = resolveActiveChatJid(ctx);
+      const chatJid = resolveChat(ctx);
       accountGoalProgress(chatJid, 0);
       const status = params.status === "blocked" ? "blocked" : "complete";
       const summary = status === "complete" ? validateGoalObjective(params.summary) : normalizeText(params.summary);
@@ -1421,55 +1479,83 @@ export default function goalAddon(pi: ExtensionAPI): void {
     },
   });
 
+}
+
+/** Shared command state transition. Hosts own transaction/admission and delivery;
+ * this function never calls a session, broadcasts, or enqueues a continuation. */
+export function applyGoalCommand(chatJid: string, args: string): {
+  text: string; help?: boolean; goal: ThreadGoal | null; action?: "clear" | "pause" | "resume" | "update" | "create"; continuation?: string;
+} {
+  const parsed = parseGoalCommandInput(args || ""), current = loadThreadGoal(chatJid);
+  if (parsed.mode === "help") return { text: goalHelpMessage(current, chatJid), help: true, goal: current };
+  if (parsed.mode === "summary") return { text: goalStatusSummary(current, chatJid), goal: current };
+  if (parsed.mode === "edit") return { text: "Use /goal <objective> to replace the current objective, or edit it in Settings → Goal.", goal: current };
+  if (parsed.mode === "clear") {
+    const cleared = clearThreadGoal(chatJid);
+    return { text: cleared ? "Goal cleared" : "No goal to clear", goal: null, action: "clear" };
+  }
+  if (parsed.mode === "pause") {
+    const goal = patchThreadGoal(chatJid, { status: "paused", last_accounted_at: null });
+    return { text: "Goal paused", goal, action: "pause" };
+  }
+  if (parsed.mode === "resume") {
+    if (current?.status === "active") return { text: "Goal is already active", goal: current };
+    const goal = patchThreadGoal(chatJid, { status: "active", last_accounted_at: nowIso(), blocked_turns: 0, last_blocker: "" });
+    return { text: "Goal resumed", goal, action: "resume", continuation: buildVisibleGoalPrompt(goal, "resume") };
+  }
+  const objective = validateGoalObjective(parsed.objective);
+  const goal = current ? replaceThreadGoal(chatJid, objective) : createThreadGoal(chatJid, objective);
+  return { text: "Goal active", goal, action: current ? "update" : "create",
+    continuation: buildVisibleGoalPrompt(goal, current ? "objective_updated" : "start") };
+}
+
+export default function goalAddon(pi: ExtensionAPI): void {
+  pi.on("before_agent_start", async (event, ctx) => {
+    const chatJid = resolveActiveChatJid(ctx);
+    resetTurnToolActivity(chatJid);
+    compactionSeenByChat.delete(chatJid);
+    const goal = loadThreadGoal(chatJid);
+    if (!goal || (goal.status !== "active" && goal.status !== "budget_limited")) return {};
+    const prompt = buildGoalSystemPrompt(goal);
+    return { systemPrompt: `${event.systemPrompt}\n\n${prompt}` };
+  });
+
+  pi.on("tool_execution_end", (event, ctx) => {
+    recordTurnToolActivity(resolveActiveChatJid(ctx), (event as { toolName?: unknown }).toolName);
+    return undefined;
+  });
+
+  pi.on("session_compact", (_event, ctx) => {
+    compactionSeenByChat.add(resolveActiveChatJid(ctx));
+    return undefined;
+  });
+
+  pi.on("input", (event, ctx) => {
+    const decision = resolveGoalInput(String(event.text || ""), resolveActiveChatJid(ctx));
+    if (decision.action === "handled") {
+      sendGoalSkippedActivity(pi, resolveActiveChatJid(ctx), decision.reason, decision.status);
+      return { action: "handled" };
+    }
+    return decision.action === "transform" ? { ...decision, images: event.images } : decision;
+  });
+
+  registerGoalTools(pi, resolveActiveChatJid);
+
   pi.registerCommand("goal", {
     description: "Set, inspect, pause, resume, edit, or clear a Codex-style thread goal. Use /goal or /goal help for the command list.",
     handler: async (args, ctx) => {
       const chatJid = resolveActiveChatJid(ctx);
-      const parsed = parseGoalCommandInput(args || "");
-      const current = loadThreadGoal(chatJid);
-
-      if (parsed.mode === "help") {
-        pi.sendMessage({ customType: "goal_help", content: [{ type: "text", text: goalHelpMessage(current, chatJid) }], display: true });
+      const result = applyGoalCommand(chatJid, args);
+      if (result.action) broadcastGoalUpdated(result.goal, chatJid, "command", result.action);
+      if (result.help) {
+        pi.sendMessage({ customType: "goal_help", content: [{ type: "text", text: result.text }], display: true });
         return;
       }
-      if (parsed.mode === "summary") {
-        ctx.ui.notify(goalStatusSummary(current, chatJid), "info");
-        return;
-      }
-      if (parsed.mode === "clear") {
-        const cleared = clearThreadGoal(chatJid);
-        broadcastGoalUpdated(null, chatJid, "command", "clear");
-        ctx.ui.notify(cleared ? "Goal cleared" : "No goal to clear", "info");
-        return;
-      }
-      if (parsed.mode === "pause") {
-        const goal = patchThreadGoal(chatJid, { status: "paused", last_accounted_at: null });
-        broadcastGoalUpdated(goal, chatJid, "command", "pause");
-        ctx.ui.notify("Goal paused", "info");
-        return;
-      }
-      if (parsed.mode === "resume") {
-        if (current?.status === "active") {
-          ctx.ui.notify("Goal is already active", "info");
-          return;
-        }
-        const goal = patchThreadGoal(chatJid, { status: "active", last_accounted_at: nowIso(), blocked_turns: 0, last_blocker: "" });
-        broadcastGoalUpdated(goal, chatJid, "command", "resume");
-        const queued = await enqueueGoalPrompt(goal, buildGoalContinuationPrompt(goal), "resume");
-        ctx.ui.notify(queued ? "Goal resumed — server-side continuation queued" : "Goal resumed — continuation enqueue failed", queued ? "info" : "warning");
-        return;
-      }
-      if (parsed.mode === "edit") {
-        ctx.ui.notify("Use /goal <objective> to replace the current objective, or edit it in Settings → Goal.", "info");
-        return;
-      }
-
-      const objective = validateGoalObjective(parsed.objective);
-      const goal = current ? replaceThreadGoal(chatJid, objective) : createThreadGoal(chatJid, objective);
-      broadcastGoalUpdated(goal, chatJid, "command", current ? "update" : "create");
-      const queued = await enqueueGoalPrompt(goal, current ? objectiveUpdatedPrompt(goal) : buildGoalContinuationPrompt(goal), current ? "objective_updated" : "start");
-      ctx.ui.notify(queued ? "Goal active — server-side continuation queued" : "Goal active — continuation enqueue failed", queued ? "info" : "warning");
-      return;
+      if (result.continuation && result.goal) {
+        const reason = result.action === "resume" ? "resume" : result.action === "update" ? "objective_updated" : "start";
+        const queued = await enqueueGoalPrompt(result.goal, reason === "objective_updated" ? objectiveUpdatedPrompt(result.goal) : buildGoalContinuationPrompt(result.goal), reason);
+        ctx.ui.notify(queued ? result.text + " — server-side continuation queued" : result.text + " — continuation enqueue failed", queued ? "info" : "warning");
+      } else ctx.ui.notify(result.text, "info");
     },
   });
 
@@ -1494,7 +1580,8 @@ export default function goalAddon(pi: ExtensionAPI): void {
     let goal = accountGoalProgress(chatJid, 0);
     if (!goal) return;
     if (goal.status === "budget_limited" && !goal.budget_limit_reported) {
-      const reported = saveThreadGoal({ ...goal, budget_limit_reported: true, last_accounted_at: null });
+      const reported = claimGoalBudgetWrapup(chatJid, { goalId: goal.goal_id, generation: goal.lifecycle_generation });
+      if (!reported) return;
       broadcastGoalUpdated(reported, chatJid, "runtime", "budget_limited");
       await enqueueGoalPrompt(reported, buildGoalBudgetLimitPrompt(reported), "budget_limited");
       return;

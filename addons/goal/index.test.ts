@@ -2,7 +2,12 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import goalAddon, {
+import goalAddon, { registerGoalTools, createGoalTools, resolveGoalInput, prepareGoalInput, clearThreadGoal,
+  accountGoalProgress,
+  claimGoalBudgetWrapup,
+  isGoalBudgetInput,
+  decideGoalPlanProgress,
+  shouldContinueGoalAfterMessage,
   buildGoalBudgetLimitPrompt,
   buildGoalContinuationPrompt,
   buildGoalFinalizationPrompt,
@@ -20,6 +25,31 @@ import { withChatContext } from "./compat/chat-context.ts";
 import { goalDeadlineCheckpointProvider } from "./deadline-checkpoint.ts";
 
 const addonDir = import.meta.dir;
+
+test("shared Plan policy preserves progress and completion probe boundaries without effects", () => {
+  const goal = { last_auto_continue_fingerprint: "same", no_progress_turns: 2, completion_plan_fingerprint: "same", completion_probe_count: 2 };
+  const plan = { available: true, total: 1, allCompleted: false, fingerprint: "same" };
+  expect(decideGoalPlanProgress(goal, plan, false)).toEqual({ action: "stop", reason: "no_progress" });
+  expect(decideGoalPlanProgress(goal, plan, true)).toEqual({ action: "continue", noProgressTurns: 1 });
+  expect(decideGoalPlanProgress(goal, { ...plan, fingerprint: "new" }, false)).toEqual({ action: "continue", noProgressTurns: 1 });
+  expect(decideGoalPlanProgress(goal, { ...plan, allCompleted: true }, true)).toEqual({ action: "stop", reason: "plan_complete_unverified" });
+  expect(decideGoalPlanProgress(goal, { ...plan, allCompleted: true, fingerprint: "new" }, false)).toEqual({ action: "finalize", completionProbeCount: 1 });
+  expect(decideGoalPlanProgress(goal, { ...plan, available: false }, false)).toEqual({ action: "reset" });
+  expect(goal.no_progress_turns).toBe(2);
+});
+
+for (const [message, expected] of [
+  [{ role: "assistant", stopReason: "stop" }, true],
+  [{ role: "assistant", stopReason: "length" }, true],
+  [{ role: "assistant", stopReason: "toolUse" }, true],
+  [{ role: "assistant", stopReason: "aborted", errorMessage: "Request was aborted" }, true],
+  [{ role: "assistant", stopReason: "error" }, false],
+  [{ role: "assistant", stopReason: "stop", errorMessage: "Provider failure" }, false],
+  [{ role: "user", stopReason: "stop" }, false],
+  [null, false],
+] as const) test(`shared committed Goal continuation policy: ${JSON.stringify(message)}`, () => {
+  expect(shouldContinueGoalAfterMessage(message)).toBe(expected);
+});
 
 afterEach(async () => {
   await flushGoalPromptDispatchesForTests();
@@ -310,6 +340,104 @@ test("goal prompts port Codex fidelity, escaping, plan action=update, and blocke
   const budget = buildGoalBudgetLimitPrompt(goal);
   expect(budget).toContain("has reached its token budget");
   expect(budget).toContain("Do not call goal_complete or update_goal(status=\"complete\") unless the goal is actually complete");
+});
+
+describe("shared Goal budget wrap-up", () => {
+  test("claim requires an existing budget-limited Goal with exact identity before checking the reported flag", () => {
+    installRuntimeKvStore();
+    const chat = "web:budget-claim-identity";
+    const expected = { goalId: "missing", generation: 1 };
+    expect(() => claimGoalBudgetWrapup(chat, expected)).toThrow(new Error("Goal budget lifecycle changed"));
+    createThreadGoal(chat, "Budget claim identity", 100);
+    const goal = accountGoalProgress(chat, 100)!;
+    const store = (globalThis as any).__piclawRuntimeInterop.getExtensionKvStore();
+    for (const reported of [false, true]) {
+      const snapshot = { ...goal, budget_limit_reported: reported };
+      store.set("goal", "thread-goal", snapshot, "chat", chat);
+      for (const identity of [
+        { goalId: goal.goal_id + "-other", generation: goal.lifecycle_generation },
+        { goalId: " " + goal.goal_id, generation: goal.lifecycle_generation },
+        { goalId: goal.goal_id, generation: goal.lifecycle_generation - 1 },
+        { goalId: goal.goal_id, generation: goal.lifecycle_generation + 1 },
+        { goalId: goal.goal_id, generation: String(goal.lifecycle_generation) as unknown as number },
+      ]) {
+        expect(() => claimGoalBudgetWrapup(chat, identity)).toThrow(new Error("Goal budget lifecycle changed"));
+        expect(loadThreadGoal(chat)).toEqual(snapshot);
+      }
+      for (const status of ["active", "paused", "blocked", "usage_limited", "complete", "stopped"] as const) {
+        const nonBudgetGoal = { ...snapshot, status };
+        store.set("goal", "thread-goal", nonBudgetGoal, "chat", chat);
+        expect(() => claimGoalBudgetWrapup(chat, { goalId: goal.goal_id, generation: goal.lifecycle_generation }))
+          .toThrow(new Error("Goal budget lifecycle changed"));
+        expect(loadThreadGoal(chat)).toEqual(nonBudgetGoal);
+      }
+    }
+    clearThreadGoal(chat);
+    createThreadGoal(chat, goal.objective, 100);
+    const replacement = accountGoalProgress(chat, 100)!;
+    expect(replacement.lifecycle_generation).toBe(goal.lifecycle_generation);
+    expect(replacement.goal_id).not.toBe(goal.goal_id);
+    expect(() => claimGoalBudgetWrapup(chat, { goalId: goal.goal_id, generation: goal.lifecycle_generation }))
+      .toThrow(new Error("Goal budget lifecycle changed"));
+    expect(loadThreadGoal(chat)).toEqual(replacement);
+  });
+
+  test("claim saves once, clears accounting time, preserves generation and usage, and has no delivery effects", () => {
+    installRuntimeKvStore();
+    const store = (globalThis as any).__piclawRuntimeInterop.getExtensionKvStore();
+    (globalThis as any).__piclawRuntimeInterop.getExtensionKvStore = () => store;
+    const { sentUserMessages, sentMessages } = createHarness();
+    const broadcasts: unknown[] = [], enqueued: unknown[] = [];
+    (globalThis as any).__PICLAW_BROADCAST_EVENT__ = (...args: unknown[]) => broadcasts.push(args);
+    (globalThis as any).__piclaw_runtime = { enqueueAgentMessage: async (request: unknown) => { enqueued.push(request); } };
+    const chat = "web:budget-claim-once";
+    createThreadGoal(chat, "Budget claim once", 100);
+    const goal = accountGoalProgress(chat, 120)!;
+    expect(goal).toMatchObject({ status: "budget_limited", lifecycle_generation: 2, budget_limit_reported: false });
+    const snapshot = { ...goal, updated_at: "2000-01-01T00:00:00.000Z", last_accounted_at: "2000-01-01T00:00:00.000Z" };
+    store.set("goal", "thread-goal", snapshot, "chat", chat);
+    let writes = 0;
+    const set = store.set;
+    store.set = (...args: unknown[]) => { writes += 1; return set(...args); };
+    const expected = { goalId: goal.goal_id, generation: goal.lifecycle_generation };
+    const claimed = claimGoalBudgetWrapup(chat, expected)!;
+    expect(claimed).not.toBeNull();
+    expect(claimed.updated_at).not.toBe(snapshot.updated_at);
+    expect(claimed).toEqual({ ...snapshot, budget_limit_reported: true, last_accounted_at: null, updated_at: claimed.updated_at });
+    expect(loadThreadGoal(chat)).toEqual(claimed);
+    expect(writes).toBe(1);
+    expect(claimGoalBudgetWrapup(chat, expected)).toBeNull();
+    expect(writes).toBe(1);
+    expect(loadThreadGoal(chat)).toEqual(claimed);
+    expect(broadcasts).toEqual([]);
+    expect(enqueued).toEqual([]);
+    expect(sentUserMessages).toEqual([]);
+    expect(sentMessages).toEqual([]);
+  });
+
+  test("only expanded budget prompts are classified, including prepared identity markers without validating them", () => {
+    const chat = "web:budget-input";
+    createThreadGoal(chat, "Budget <input> & identity", 100);
+    const goal = accountGoalProgress(chat, 100)!;
+    expect(isGoalBudgetInput(buildGoalBudgetLimitPrompt(goal))).toBe(true);
+    const prepared = prepareGoalInput("🎯 Goal budget reached: " + goal.objective, chat);
+    expect(prepared.decision.action).toBe("transform");
+    if (prepared.decision.action !== "transform") throw Error("Expected expanded budget input");
+    const text = prepared.decision.text;
+    expect(text).toContain("<piclaw_goal_input>");
+    expect(isGoalBudgetInput(text)).toBe(true);
+    expect(prepareGoalInput(text, chat).decision).toEqual({ action: "continue" });
+    for (const input of ["", "ordinary input", "The active thread goal has reached its token budget.",
+      "🎯 Goal budget reached: " + goal.objective, "🎯 Continue goal: " + goal.objective,
+      buildGoalContinuationPrompt(goal), buildGoalSystemPrompt(goal), buildGoalFinalizationPrompt(goal, 1, [])]) {
+      expect(isGoalBudgetInput(input)).toBe(false);
+    }
+    clearThreadGoal(chat);
+    createThreadGoal(chat, goal.objective, 100);
+    expect(isGoalBudgetInput(text)).toBe(true);
+    expect(() => prepared.assertCurrent()).toThrow("Goal input lifecycle changed");
+    expect(prepareGoalInput(text, chat).decision.action).toBe("handled");
+  });
 });
 
 describe("Codex-style goal tools", () => {
@@ -1134,4 +1262,94 @@ describe("/goal command and runtime loop", () => {
     expect(sentUserMessages).toHaveLength(1);
     expect(String(sentUserMessages[0]?.content)).toBe("🎯 Goal budget reached: Stabilize deployment");
   });
+});
+
+
+test('explicit Goal tools share state without a fabricated session context', async () => {
+  const tools = new Map<string, any>();
+  registerGoalTools({ registerTool(tool: any) { tools.set(tool.name, tool); } } as any, () => 'web:native-goal');
+  expect([...tools.keys()].sort()).toEqual(['create_goal', 'get_goal', 'goal_complete', 'goal_stop', 'update_goal']);
+  const context = { get sessionManager() { throw Error('Legacy session access forbidden'); } };
+  await tools.get('create_goal').execute('native-create', { objective: 'Native factory proof', token_budget: 250 }, undefined, undefined, context);
+  expect((await tools.get('get_goal').execute('native-get', {}, undefined, undefined, context)).details).toMatchObject({
+    goal: { threadId: 'web:native-goal', objective: 'Native factory proof', tokenBudget: 250, status: 'active' },
+  });
+  await tools.get('goal_complete').execute('native-complete', { summary: 'Factory verified', evidence: ['actual shared tool test'] }, undefined, undefined, context);
+  expect(loadThreadGoal('web:native-goal')).toMatchObject({ status: 'complete', completion_summary: 'Factory verified' });
+});
+
+
+test('Goal tool policy owns every invocation and denies before mutation', async () => {
+  let allowed = true;
+  const calls: string[] = [];
+  const tools = createGoalTools(() => 'web:owned-goal', { async run(name, args, context, body) {
+    calls.push(name);
+    if (!allowed) throw Error('Goal authority revoked');
+    return body();
+  } });
+  const create = tools.find(tool => tool.name === 'create_goal')!;
+  await create.execute('owned-create', { objective: 'Owned goal' }, undefined, undefined, {} as any);
+  allowed = false;
+  const complete = tools.find(tool => tool.name === 'goal_complete')!;
+  await expect(complete.execute('denied-complete', { summary: 'Must not complete', evidence: ['denied'] }, undefined, undefined, {} as any)).rejects.toThrow('Goal authority revoked');
+  expect(loadThreadGoal('web:owned-goal')?.status).toBe('active');
+  expect(calls).toEqual(['create_goal', 'goal_complete']);
+});
+
+
+test('explicit Goal input decision rejects stale objectives without legacy events', () => {
+  const goal = createThreadGoal('web:native-input', 'Current objective');
+  expect(resolveGoalInput('ordinary input', goal.chat_jid)).toEqual({ action: 'continue' });
+  expect(resolveGoalInput(buildGoalContinuationPrompt(goal), goal.chat_jid)).toEqual({ action: 'continue' });
+  const stale = { ...goal, objective: 'Old objective' };
+  expect(resolveGoalInput(buildGoalContinuationPrompt(stale), goal.chat_jid)).toMatchObject({ action: 'handled', reason: 'continuation' });
+  expect(resolveGoalInput('🎯 Continue goal: Current objective', goal.chat_jid)).toMatchObject({ action: 'transform' });
+});
+
+
+test('prepared Goal input refuses same-objective replacement after preparation', () => {
+  const chat = 'web:prepared-goal';
+  const original = createThreadGoal(chat, 'Same objective');
+  const prepared = prepareGoalInput('🎯 Continue goal: Same objective', chat);
+  expect(prepared.decision.action).toBe('transform');
+  expect(() => prepared.assertCurrent()).not.toThrow();
+  const ordinary = prepareGoalInput('ordinary user message', chat);
+  clearThreadGoal(chat);
+  const replacement = createThreadGoal(chat, 'Same objective');
+  expect(replacement.goal_id).not.toBe(original.goal_id);
+  expect(() => prepared.assertCurrent()).toThrow('Goal input lifecycle changed');
+  expect(() => ordinary.assertCurrent()).not.toThrow();
+});
+
+
+test('accepted Goal input retains lifecycle identity after fresh preparation and rejects replacement', () => {
+  const chat = 'web:durable-goal-identity';
+  const original = createThreadGoal(chat, 'Restart-safe objective');
+  const decision = prepareGoalInput('🎯 Continue goal: Restart-safe objective', chat).decision;
+  expect(decision.action).toBe('transform');
+  if (decision.action !== 'transform') throw Error('Expected expanded Goal input');
+  expect(decision.text).toContain(original.goal_id);
+  expect(prepareGoalInput(decision.text, chat).decision).toEqual({ action: 'continue' });
+  clearThreadGoal(chat); createThreadGoal(chat, 'Restart-safe objective');
+  expect(prepareGoalInput(decision.text, chat).decision).toMatchObject({ action: 'handled' });
+});
+
+test('malformed and duplicated Goal lifecycle identities fail closed', () => {
+  const chat = 'web:malformed-goal-identity';
+  createThreadGoal(chat, 'Identity validation');
+  const decision = resolveGoalInput('🎯 Continue goal: Identity validation', chat);
+  if (decision.action !== 'transform') throw Error('Expected expanded Goal input');
+  expect(resolveGoalInput(`${decision.text}\n<piclaw_goal_input>{}</piclaw_goal_input>`, chat).action).toBe('handled');
+  expect(resolveGoalInput('ordinary <piclaw_goal_input>invalid</piclaw_goal_input>', chat).action).toBe('handled');
+});
+
+
+test('a valid Goal identity cannot conceal malformed or orphaned marker fragments', () => {
+  const chat = 'web:goal-marker-fragments';
+  createThreadGoal(chat, 'Marker integrity');
+  const decision = resolveGoalInput('🎯 Continue goal: Marker integrity', chat);
+  if (decision.action !== 'transform') throw Error('Expected expanded Goal input');
+  for (const fragment of ['<piclaw_goal_input', '<piclaw_goal_input>broken', '</piclaw_goal_input>']) {
+    expect(resolveGoalInput(`${decision.text}\n${fragment}`, chat).action).toBe('handled');
+  }
 });
