@@ -1059,22 +1059,41 @@ export async function flushGoalPromptDispatchesForTests(): Promise<void> {
   // Kept for compatibility with older tests; continuations are now enqueued synchronously.
 }
 
+export type GoalPlanDecision =
+  | { action: "continue"; noProgressTurns: number }
+  | { action: "finalize"; completionProbeCount: number }
+  | { action: "stop"; reason: "no_progress" | "plan_complete_unverified" }
+  | { action: "reset" };
+
+/** Pure shared policy; no legacy lifecycle or enqueue effects. */
+export function decideGoalPlanProgress(goal: Pick<ThreadGoal, "last_auto_continue_fingerprint" | "no_progress_turns" | "completion_plan_fingerprint" | "completion_probe_count">,
+  plan: { available: boolean; total: number; allCompleted: boolean; fingerprint: string }, hadToolActivity: boolean): GoalPlanDecision {
+  if (!plan.available || plan.total === 0) return { action: "reset" };
+  if (!plan.allCompleted) {
+    const stalled = goal.last_auto_continue_fingerprint === plan.fingerprint && !hadToolActivity;
+    const noProgressTurns = stalled ? goal.no_progress_turns + 1 : 1;
+    return stalled && noProgressTurns >= MAX_NO_PROGRESS_TURNS
+      ? { action: "stop", reason: "no_progress" } : { action: "continue", noProgressTurns };
+  }
+  const samePlan = goal.completion_plan_fingerprint === plan.fingerprint;
+  return samePlan && goal.completion_probe_count >= MAX_COMPLETION_PROBES
+    ? { action: "stop", reason: "plan_complete_unverified" }
+    : { action: "finalize", completionProbeCount: samePlan ? goal.completion_probe_count + 1 : 1 };
+}
+
 async function handlePlanAtAgentEnd(goal: ThreadGoal): Promise<boolean> {
   const planState = getPlanCompletionState(goal.chat_jid);
-  if (!planState.available || planState.total === 0) {
+  const decision = decideGoalPlanProgress(goal, planState, turnHadToolActivity(goal.chat_jid));
+  if (decision.action === "reset") {
     clearPlanLoopGuards(goal);
     return false;
   }
 
   if (!planState.allCompleted) {
-    const samePlan = goal.last_auto_continue_fingerprint === planState.fingerprint;
     // Real tool work this turn counts as progress even if the Plan Sidebar text is
     // unchanged, so a model doing edits/bash/commits without touching the plan tool
     // is not force-stopped as "no progress".
-    const hadToolActivity = turnHadToolActivity(goal.chat_jid);
-    const stalled = samePlan && !hadToolActivity;
-    const noProgressTurns = stalled ? goal.no_progress_turns + 1 : 1;
-    if (stalled && noProgressTurns >= MAX_NO_PROGRESS_TURNS) {
+    if (decision.action === "stop") {
       const stopped = saveThreadGoal({
         ...goal,
         status: "stopped",
@@ -1099,16 +1118,13 @@ async function handlePlanAtAgentEnd(goal: ThreadGoal): Promise<boolean> {
       completion_plan_fingerprint: "",
       completion_probe_count: 0,
       last_auto_continue_fingerprint: planState.fingerprint,
-      no_progress_turns: noProgressTurns,
+      no_progress_turns: decision.action === "continue" ? decision.noProgressTurns : 1,
     });
     broadcastGoalUpdated(tracked, tracked.chat_jid, "runtime", "update");
     return false;
   }
 
-  const sameCompletedPlan = goal.completion_plan_fingerprint === planState.fingerprint;
-  const nextProbeCount = sameCompletedPlan ? goal.completion_probe_count + 1 : 1;
-
-  if (sameCompletedPlan && goal.completion_probe_count >= MAX_COMPLETION_PROBES) {
+  if (decision.action === "stop") {
     const stopped = saveThreadGoal({
       ...goal,
       status: "stopped",
@@ -1132,12 +1148,12 @@ async function handlePlanAtAgentEnd(goal: ThreadGoal): Promise<boolean> {
     ...goal,
     completion_candidate_at: goal.completion_candidate_at || nowIso(),
     completion_plan_fingerprint: planState.fingerprint,
-    completion_probe_count: nextProbeCount,
+    completion_probe_count: decision.action === "finalize" ? decision.completionProbeCount : 1,
     last_auto_continue_fingerprint: "",
     no_progress_turns: 0,
   });
   broadcastGoalUpdated(candidate, candidate.chat_jid, "runtime", "update");
-  await enqueueGoalPrompt(candidate, buildGoalFinalizationPrompt(candidate, nextProbeCount, planState.plan), "finalize");
+  await enqueueGoalPrompt(candidate, buildGoalFinalizationPrompt(candidate, candidate.completion_probe_count, planState.plan), "finalize");
   return true;
 }
 

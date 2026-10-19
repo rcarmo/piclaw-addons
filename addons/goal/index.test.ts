@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import goalAddon, { registerGoalTools, createGoalTools, resolveGoalInput, prepareGoalInput, clearThreadGoal,
+  decideGoalPlanProgress,
   shouldContinueGoalAfterMessage,
   buildGoalBudgetLimitPrompt,
   buildGoalContinuationPrompt,
@@ -21,6 +22,18 @@ import { withChatContext } from "./compat/chat-context.ts";
 import { goalDeadlineCheckpointProvider } from "./deadline-checkpoint.ts";
 
 const addonDir = import.meta.dir;
+
+test("shared Plan policy preserves progress and completion probe boundaries without effects", () => {
+  const goal = { last_auto_continue_fingerprint: "same", no_progress_turns: 2, completion_plan_fingerprint: "same", completion_probe_count: 2 };
+  const plan = { available: true, total: 1, allCompleted: false, fingerprint: "same" };
+  expect(decideGoalPlanProgress(goal, plan, false)).toEqual({ action: "stop", reason: "no_progress" });
+  expect(decideGoalPlanProgress(goal, plan, true)).toEqual({ action: "continue", noProgressTurns: 1 });
+  expect(decideGoalPlanProgress(goal, { ...plan, fingerprint: "new" }, false)).toEqual({ action: "continue", noProgressTurns: 1 });
+  expect(decideGoalPlanProgress(goal, { ...plan, allCompleted: true }, true)).toEqual({ action: "stop", reason: "plan_complete_unverified" });
+  expect(decideGoalPlanProgress(goal, { ...plan, allCompleted: true, fingerprint: "new" }, false)).toEqual({ action: "finalize", completionProbeCount: 1 });
+  expect(decideGoalPlanProgress(goal, { ...plan, available: false }, false)).toEqual({ action: "reset" });
+  expect(goal.no_progress_turns).toBe(2);
+});
 
 for (const [message, expected] of [
   [{ role: "assistant", stopReason: "stop" }, true],
