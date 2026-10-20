@@ -1,3 +1,4 @@
+import { assertInvocationCurrent, withInvocationAttempt } from "../invocation.js";
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
@@ -159,7 +160,9 @@ export function writeRequestOutputFile(rawPath: string, format: RequestOutputFor
   const content = format === "jsonl"
     ? toJsonl(value)
     : `${JSON.stringify(value, null, 2)}\n`;
+  assertInvocationCurrent();
   mkdirSync(path.dirname(resolved.path), { recursive: true });
+  assertInvocationCurrent();
   writeFileSync(resolved.path, content, "utf8");
   return {
     path: resolved.path,
@@ -220,11 +223,11 @@ export async function runRequestBatch<TRequest extends { path: string }, TRespon
       lastAttemptStartedAt = startedAtMs;
       const startedAt = new Date(startedAtMs).toISOString();
       try {
-        const response = await withTimeout(
-          options.execute(request),
-          timeoutMs,
-          `${options.timeout_label_prefix} request ${index + 1}`,
+        const response = await withInvocationAttempt(
+          () => options.execute(request),
+          pending => withTimeout(pending, timeoutMs, `${options.timeout_label_prefix} request ${index + 1}`),
         );
+        assertInvocationCurrent();
         const finishedAtMs = Date.now();
         results.push({
           index,
@@ -239,6 +242,7 @@ export async function runRequestBatch<TRequest extends { path: string }, TRespon
         });
         completed = true;
       } catch (error) {
+        assertInvocationCurrent();
         const inspected = isRetriableError(error);
         const canRetry = inspected.retriable && attempt < retries;
         if (canRetry) {
@@ -248,6 +252,7 @@ export async function runRequestBatch<TRequest extends { path: string }, TRespon
           continue;
         }
 
+        assertInvocationCurrent();
         const finishedAtMs = Date.now();
         results.push({
           index,

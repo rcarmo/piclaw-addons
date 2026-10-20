@@ -20,6 +20,7 @@ export interface ImapStoredAccount extends ImapAccountConfig {
   hasPassword: boolean;
 }
 
+const unchecked = () => {};
 const ACCOUNT_PREFIX = "accounts/";
 const DEFAULT_ACCOUNT_KEY = "default_account";
 const PASSWORD_KEY_PREFIX = "imap/";
@@ -70,16 +71,20 @@ async function keychainDelete(name: string): Promise<void> {
   await deleteKeychainEntry(name);
 }
 
-async function keychainGetSecret(name: string): Promise<string | null> {
+async function keychainGetSecret(name: string, check: () => void = unchecked): Promise<string | null> {
   try {
+    check();
     const entry = await getKeychainEntry(name);
+    check();
     return typeof entry.secret === "string" ? entry.secret : null;
   } catch {
+    check();
     return null;
   }
 }
 
-export async function listAccounts(): Promise<{ accounts: ImapStoredAccount[]; defaultAccount: string | null }> {
+export async function listAccounts(check: () => void = unchecked): Promise<{ accounts: ImapStoredAccount[]; defaultAccount: string | null }> {
+  check();
   const kv = getStorage();
   const accounts = new Map<string, ImapStoredAccount>();
 
@@ -88,7 +93,7 @@ export async function listAccounts(): Promise<{ accounts: ImapStoredAccount[]; d
     const stored = kv.get<ImapAccountConfig>(key, "global");
     if (!stored) continue;
     const config = sanitizeConfig(stored);
-    const password = await keychainGetSecret(passwordKeychainName(name));
+    const password = await keychainGetSecret(passwordKeychainName(name), check);
     accounts.set(name, { name, ...config, hasPassword: typeof password === "string" && password.length > 0 });
   }
 
@@ -96,14 +101,15 @@ export async function listAccounts(): Promise<{ accounts: ImapStoredAccount[]; d
   return { accounts: [...accounts.values()].sort((a, b) => a.name.localeCompare(b.name)), defaultAccount };
 }
 
-export async function getAccount(name: string): Promise<(ImapStoredAccount & { password?: string }) | null> {
+export async function getAccount(name: string, check: () => void = unchecked): Promise<(ImapStoredAccount & { password?: string }) | null> {
   const normalized = normalizeName(name);
   if (!normalized) throw new Error("account name required");
+  check();
   const kv = getStorage();
   const stored = kv.get<ImapAccountConfig>(accountKvKey(normalized), "global");
   if (stored) {
     const config = sanitizeConfig(stored);
-    const password = await keychainGetSecret(passwordKeychainName(normalized));
+    const password = await keychainGetSecret(passwordKeychainName(normalized), check);
     return { name: normalized, ...config, hasPassword: typeof password === "string" && password.length > 0, password: typeof password === "string" ? password : undefined };
   }
   return null;
@@ -114,33 +120,40 @@ export async function saveAccount(
   input: Record<string, unknown>,
   password?: string,
   setDefault = false,
+  check: () => void = unchecked,
 ): Promise<ImapStoredAccount> {
   const normalized = normalizeName(name);
   if (!normalized) throw new Error("account name required");
   const config = sanitizeConfig(input);
   if (typeof password === "string" && password.length > 0) {
+    check();
     await keychainSet(passwordKeychainName(normalized), password);
   }
+  check();
   getStorage().set(accountKvKey(normalized), config, "global");
   if (setDefault) {
     getStorage().set(DEFAULT_ACCOUNT_KEY, normalized, "global");
   }
-  const savedPassword = await keychainGetSecret(passwordKeychainName(normalized));
+  const savedPassword = await keychainGetSecret(passwordKeychainName(normalized), check);
   return { name: normalized, ...config, hasPassword: typeof savedPassword === "string" && savedPassword.length > 0 };
 }
 
-export async function deleteAccount(name: string): Promise<boolean> {
+export async function deleteAccount(name: string, check: () => void = unchecked): Promise<boolean> {
   const normalized = normalizeName(name);
   if (!normalized) throw new Error("account name required");
+  check();
   const kv = getStorage();
   const deleted = kv.delete(accountKvKey(normalized), "global");
+  check();
   await keychainDelete(passwordKeychainName(normalized));
+  check();
   const currentDefault = kv.get<string>(DEFAULT_ACCOUNT_KEY, "global");
   if (currentDefault === normalized) kv.delete(DEFAULT_ACCOUNT_KEY, "global");
   return deleted;
 }
 
-export function setDefaultAccount(name: string | null): void {
+export function setDefaultAccount(name: string | null, check: () => void = unchecked): void {
+  check();
   const kv = getStorage();
   if (!name) kv.delete(DEFAULT_ACCOUNT_KEY, "global");
   else kv.set(DEFAULT_ACCOUNT_KEY, normalizeName(name), "global");
@@ -150,13 +163,15 @@ export function getDefaultAccount(): string | null {
   return getStorage().get<string>(DEFAULT_ACCOUNT_KEY, "global") ?? process.env.IMAP_DEFAULT_ACCOUNT ?? null;
 }
 
-export async function resolveAccountForRuntime(name?: string): Promise<{ name: string; config: ImapAccountConfig & { pass: string } }> {
+export async function resolveAccountForRuntime(name?: string, check: () => void = unchecked): Promise<{ name: string; config: ImapAccountConfig & { pass: string } }> {
+  check();
   const lookupOrder: string[] = [];
   if (name) lookupOrder.push(name);
   else {
     const defaultAccount = getDefaultAccount();
     if (defaultAccount) lookupOrder.push(defaultAccount);
-    const listed = await listAccounts();
+    const listed = await listAccounts(check);
+    check();
     for (const account of listed.accounts) {
       if (!lookupOrder.includes(account.name)) lookupOrder.push(account.name);
     }
@@ -165,7 +180,8 @@ export async function resolveAccountForRuntime(name?: string): Promise<{ name: s
   }
 
   for (const candidate of lookupOrder) {
-    const account = await getAccount(candidate);
+    const account = await getAccount(candidate, check);
+    check();
     if (account?.password) {
       const { password, ...rest } = account;
       return { name: account.name, config: { ...rest, pass: password } };

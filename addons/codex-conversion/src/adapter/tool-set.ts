@@ -26,11 +26,11 @@ export function mergeAdapterTools(activeTools: string[], adapterTools: string[])
 			!DEFAULT_TOOL_NAMES.includes(toolName) &&
 			(!MANAGED_ADAPTER_TOOL_NAMES.includes(toolName) || ON_DEMAND_ADAPTER_TOOL_NAMES.includes(toolName)),
 	);
-	return [...adapterTools, ...preservedTools];
+	return [...new Set([...adapterTools, ...preservedTools])];
 }
 
 export function restoreTools(previousTools: string[], activeTools: string[]): string[] {
-	const restored = [...previousTools];
+	const restored = [...new Set(previousTools)];
 	for (const toolName of activeTools) {
 		if (!MANAGED_ADAPTER_TOOL_NAMES.includes(toolName) && !restored.includes(toolName)) restored.push(toolName);
 	}

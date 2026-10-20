@@ -1,12 +1,10 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { existsSync } from "node:fs";
-import { Database } from "bun:sqlite";
+import type { Database } from "bun:sqlite";
 
 const ADDON_ID = "session-dashboard";
 const API_ACTION = "sessions";
 const DEFAULT_LIMIT = 8;
 const MAX_LIMIT = 12;
-const DEFAULT_MESSAGES_DB = "/workspace/.piclaw/store/messages.db";
 
 export interface RecentSessionCard {
   chat_jid: string;
@@ -47,10 +45,6 @@ function clampLimit(value: unknown): number {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return DEFAULT_LIMIT;
   return Math.max(1, Math.min(MAX_LIMIT, Math.floor(numeric)));
-}
-
-function getMessagesDbPath(): string {
-  return process.env.PICLAW_SESSION_DASHBOARD_DB?.trim() || process.env.PICLAW_MESSAGES_DB?.trim() || DEFAULT_MESSAGES_DB;
 }
 
 function normalizeWhitespace(value: string): string {
@@ -131,12 +125,9 @@ function mapRow(row: RecentSessionRow): RecentSessionCard {
   };
 }
 
-export function queryRecentSessions(options: { dbPath?: string; limit?: unknown } = {}): RecentSessionCard[] {
-  const dbPath = options.dbPath || getMessagesDbPath();
-  if (!dbPath || !existsSync(dbPath)) return [];
+export function queryRecentSessions(options: { root: Database; limit?: unknown }): RecentSessionCard[] {
   const limit = clampLimit(options.limit);
-  const db = new Database(dbPath, { readonly: true, create: false });
-  try {
+  const db = options.root;
     const rows = db.query(`
       WITH recent AS (
         SELECT chat_jid, max(timestamp) AS last_active_at, count(*) AS message_count
@@ -189,9 +180,6 @@ export function queryRecentSessions(options: { dbPath?: string; limit?: unknown 
       ORDER BY datetime(recent.last_active_at) DESC
     `).all({ $limit: limit }) as RecentSessionRow[];
     return rows.map(mapRow);
-  } finally {
-    db.close();
-  }
 }
 
 function readLimit(payload: unknown, req: Request): number {
@@ -204,18 +192,73 @@ function readLimit(payload: unknown, req: Request): number {
   }
 }
 
-const registerAddonConfigApi = (globalThis as Record<string, unknown>).__piclaw_registerAddonConfigApi as AddonConfigApiRegistrar | undefined;
-if (typeof registerAddonConfigApi === "function") {
-  registerAddonConfigApi(ADDON_ID, API_ACTION, {
-    get: async (payload, req) => ({
-      ok: true,
-      sessions: queryRecentSessions({ limit: readLimit(payload, req) }),
-      generated_at: new Date().toISOString(),
-    }),
-  }, import.meta.dir);
+/** Read-only application projection port. No database path or SQL accepted. */
+export interface DashboardScope { ownerId: string; authScope: string }
+export interface NativeDashboardSession {
+  conversationId: string;
+  chatJid: string;
+  agentName?: string;
+  updatedAt: string | null;
+  messageCount: number;
+  latestOutput?: string;
+  latestBlocks?: string;
+  sessionId?: string;
+  usage?: unknown | null;
+  tasks?: readonly { id: number; status: string }[];
+  history?: { rootChatJid?: string; branchId?: string; archivedAt?: string };
+}
+export interface DashboardReader {
+  read(options: DashboardScope & { limit: number }): Promise<readonly NativeDashboardSession[]>;
+}
+const dashboardBindings = new WeakSet<object>();
+export function bindNativeSessionDashboard(options: {
+  scope: DashboardScope;
+  reader: DashboardReader;
+  authorize(req: Request, scope: DashboardScope): boolean;
+  isCurrent(): boolean;
+  register(addon: string, action: string, handlers: { get(payload: unknown, req: Request): Promise<unknown> }): () => void;
+}): () => void {
+  const scope = Object.freeze({ ...options.scope });
+  if (!scope.ownerId || !scope.authScope) throw new Error("Dashboard scope required");
+  if (dashboardBindings.has(options.register)) throw new Error("Dashboard already bound");
+  let disposed = false;
+  const check = (req: Request) => {
+    if (disposed || !options.isCurrent() || !options.authorize(req, scope)) throw new Error("Dashboard owner/auth scope rejected");
+  };
+  const unregister = options.register(ADDON_ID, API_ACTION, {
+    get: async (payload, req) => {
+      check(req);
+      const limit = readLimit(payload, req);
+      const rows = await options.reader.read({ ...scope, limit });
+      check(req);
+      const sessions = rows.slice(0, limit).map(row => ({
+        chat_jid: row.chatJid,
+        agent_name: row.agentName || agentNameFromChatJid(row.chatJid),
+        root_chat_jid: row.history?.rootChatJid || null,
+        branch_id: row.history?.branchId || null,
+        last_active_at: row.updatedAt,
+        summary: truncateSummary(extractReadableText(row.latestOutput, row.latestBlocks)),
+        conversation_id: row.conversationId,
+        session_id: row.sessionId ?? null,
+        usage: row.usage ?? null,
+        tasks: row.tasks ?? null,
+        message_count: row.messageCount,
+        is_archived: Boolean(row.history?.archivedAt),
+      }));
+      return { ok: true, sessions, generated_at: new Date().toISOString() };
+    },
+  });
+  dashboardBindings.add(options.register);
+  return () => { if (!disposed) { disposed = true; dashboardBindings.delete(options.register); unregister(); } };
 }
 
-export default function sessionDashboardAddon(_pi: ExtensionAPI): void {
-  // Browser UI is provided by web/index.ts. The backend work is the read-only
-  // direct add-on API registered at module load time above.
+/** Legacy Root query retained for historical metadata consumers only. */
+export function bindSessionDashboardProjection(root: Database, assertCurrent: () => void) {
+  return Object.freeze({ get: async (payload: unknown, req: Request) => {
+    assertCurrent();
+    const sessions = queryRecentSessions({ root, limit: readLimit(payload, req) });
+    assertCurrent();
+    return { ok: true, sessions, generated_at: new Date().toISOString() };
+  } });
 }
+export default function sessionDashboardAddon(_pi: ExtensionAPI): void {}

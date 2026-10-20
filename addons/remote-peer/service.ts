@@ -1,3 +1,4 @@
+import type { RemotePeerAuthorityScope } from "./native-authority.js";
 import { createHash, randomUUID, randomBytes } from "node:crypto";
 import type {
   ChatTransportRequest,
@@ -46,6 +47,7 @@ function text(value: unknown, max: number) {
   return value;
 }
 export interface PeerServiceOptions {
+  authority?: RemotePeerAuthorityScope;
   dataDir: string;
   runtime: PiclawRuntimeApi;
   bindAddr?: string;
@@ -54,6 +56,7 @@ export interface PeerServiceOptions {
 }
 export class PeerService {
   readonly state: PeerState;
+  private readonly authorizationState: PeerState;
   transport: IrohTransport;
   discovery: PeerDiscovery | null = null;
   private closing = false;
@@ -73,7 +76,9 @@ export class PeerService {
     this.cancelAdmissions();
   }
   constructor(private options: PeerServiceOptions) {
-    this.state = new PeerState(options.dataDir, (peerId) => this.cancelAdmissions(peerId));
+    if (options.authority) options.runtime = options.authority.guard(options.runtime);
+    this.authorizationState = new PeerState(options.dataDir, (peerId) => this.cancelAdmissions(peerId));
+    this.state = this.guard(this.authorizationState);
     try {
       this.transport = this.createTransport();
     } catch (error) {
@@ -81,18 +86,24 @@ export class PeerService {
       throw error;
     }
   }
+  private guard<T extends object>(value: T): T {
+    return this.options.authority?.guard(value) ?? value;
+  }
   private createTransport() {
     const factory =
       this.options.transportFactory ?? ((opts) => new IrohTransport(opts));
-    return factory({
+    return this.guard(factory({
+      assertCurrent: this.options.authority?.assertCurrent,
       keyBytes: this.state.keyBytes,
       config: this.state.config(),
       bindAddr: this.options.bindAddr,
       handler: (peer: string, p: Packet, b: Uint8Array) =>
-        this.receive(peer, p, b),
+        this.authenticatedIngress(peer, p, b),
       authorize: (id: string, p: Packet) => {
-        if (!this.state.config().enabled) return false;
-        const peer = this.state.peer(id);
+        // Preliminary synchronous transport filter only. receive rechecks inside
+        // a newly accepted incoming operation before any state/admission effect.
+        if (!this.authorizationState.config().enabled) return false;
+        const peer = this.authorizationState.peer(id);
         if (["pair", "confirm"].includes(p.op)) return p.size === 0;
         return (
           peer?.status === "paired" &&
@@ -100,7 +111,7 @@ export class PeerService {
           (p.size === 0 || peer.files)
         );
       },
-    });
+    }));
   }
   private enabled() {
     if (this.closing || this.closed || !this.state.config().enabled)
@@ -153,13 +164,13 @@ export class PeerService {
     const factory =
       this.options.discoveryFactory ?? ((opts) => new PeerDiscovery(opts));
     try {
-      this.discovery = factory({
+      this.discovery = this.guard(factory({
         endpointId: this.transport.id,
         instanceId: this.transport.id,
         port: this.transport.port(),
         name: c.instanceName || "Piclaw-" + this.transport.id.slice(0, 8),
         ...(c.mdnsInterface ? { interfaceAddress: c.mdnsInterface } : {}),
-      });
+      }));
       await this.discovery.start();
     } catch (error) {
       this.state.audit(
@@ -886,6 +897,28 @@ export class PeerService {
     if (++old.count > 5 || this.rate.size >= 1024)
       throw new Error("Pairing rate limit.");
     this.rate.set(remote, old);
+  }
+  /** Transport calls only after signature, endpoint, body hash and replay validation.
+   * Resolve policy without borrowing the listener startup/tool async authority. */
+  assertNativePeerCurrent(source: { peer: string; revision: string; operation: string }) {
+    if (this.closed || this.closing || !this.authorizationState.config().enabled) throw Error("Remote Peer owner disabled or retired");
+    if (["pair", "confirm"].includes(source.operation)) return;
+    const peer = this.authorizationState.peer(source.peer);
+    if (!peer || peer.status !== "paired" || peer.epoch !== source.revision) throw Error("Peer authorization revoked or changed");
+  }
+  private authenticatedIngress(remote: string, packet: Packet, bytes: Uint8Array): Promise<Reply> {
+    const peer = this.authorizationState.peer(remote);
+    const pairing = packet.op === "pair" || packet.op === "confirm";
+    if (!this.authorizationState.config().enabled ||
+        (!pairing && (!peer || peer.status !== "paired" || packet.body?.epoch !== peer.epoch)))
+      return Promise.reject(new Error("Peer not paired or stale authorization epoch."));
+    const revision = peer?.epoch ?? packet.body?.epoch;
+    if (typeof revision !== "string" || !revision)
+      return Promise.reject(new Error("Peer authorization revision required."));
+    const body = () => this.receive(remote, packet, bytes);
+    return this.options.authority
+      ? this.options.authority.incoming({ peer: remote, revision, operation: packet.op }, body)
+      : body();
   }
   async receive(
     remote: string,

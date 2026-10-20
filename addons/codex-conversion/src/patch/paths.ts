@@ -24,30 +24,44 @@ export function resolvePatchPath({ cwd, patchPath }: { cwd: string; patchPath: s
 	return absolutePath;
 }
 
-export function openFileAtPath({ cwd, path }: { cwd: string; path: string }): string {
-	const absolutePath = resolvePatchPath({ cwd, patchPath: path });
-	if (!existsSync(absolutePath)) {
-		throw new DiffError(`File not found: ${path}`);
-	}
-	return readFileSync(absolutePath, "utf8");
+export interface PatchFilePorts {
+ existsSync: typeof existsSync;
+ mkdirSync: typeof mkdirSync;
+ readFileSync: typeof readFileSync;
+ unlinkSync: typeof unlinkSync;
+ writeFileSync: typeof writeFileSync;
 }
 
-export function writeFileAtPath({ cwd, path, content }: { cwd: string; path: string; content: string }): { created: boolean } {
+/** Invocation-local ports; never swaps global filesystem authority. */
+export function createPatchPaths(ops: PatchFilePorts) {
+function openFileAtPath({ cwd, path }: { cwd: string; path: string }): string {
 	const absolutePath = resolvePatchPath({ cwd, patchPath: path });
-	const created = !existsSync(absolutePath);
-	mkdirSync(dirname(absolutePath), { recursive: true });
-	writeFileSync(absolutePath, content, "utf8");
+	if (!ops.existsSync(absolutePath)) {
+		throw new DiffError(`File not found: ${path}`);
+	}
+	return ops.readFileSync(absolutePath, "utf8");
+}
+
+function writeFileAtPath({ cwd, path, content }: { cwd: string; path: string; content: string }): { created: boolean } {
+	const absolutePath = resolvePatchPath({ cwd, patchPath: path });
+	const created = !ops.existsSync(absolutePath);
+	ops.mkdirSync(dirname(absolutePath), { recursive: true });
+	ops.writeFileSync(absolutePath, content, "utf8");
 	return { created };
 }
 
-export function removeFileAtPath({ cwd, path }: { cwd: string; path: string }): void {
+function removeFileAtPath({ cwd, path }: { cwd: string; path: string }): void {
 	const absolutePath = resolvePatchPath({ cwd, patchPath: path });
-	if (!existsSync(absolutePath)) {
+	if (!ops.existsSync(absolutePath)) {
 		throw new DiffError(`File not found: ${path}`);
 	}
-	unlinkSync(absolutePath);
+	ops.unlinkSync(absolutePath);
 }
 
-export function pathExists({ cwd, path }: { cwd: string; path: string }): boolean {
-	return existsSync(resolvePatchPath({ cwd, patchPath: path }));
+function pathExists({ cwd, path }: { cwd: string; path: string }): boolean {
+	return ops.existsSync(resolvePatchPath({ cwd, patchPath: path }));
 }
+
+return { openFileAtPath, writeFileAtPath, removeFileAtPath, pathExists };
+}
+export const { openFileAtPath, writeFileAtPath, removeFileAtPath, pathExists } = createPatchPaths({ existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync });

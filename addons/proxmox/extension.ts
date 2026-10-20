@@ -1,6 +1,7 @@
+import { assertInvocationCurrent, currentInvocation, withInvocation, type ProxmoxInvocationOptions } from "./invocation.js";
 import type { ExtensionAPI, ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import { StringEnum } from "@earendil-works/pi-ai";
-import { Type } from "typebox";
+import { Type, type Static } from "typebox";
 
 import { getChatJid } from "./compat/chat-context.js";
 import { registerToolStatusHintProvider } from "./compat/tool-status-hints.js";
@@ -1140,19 +1141,20 @@ function finishProxmoxUiProgress(ctx: { hasUI?: boolean; ui?: { setWorkingIndica
 }
 
 /** Registers the agent-only Proxmox API configuration/request tool. */
-export const proxmoxTool: ExtensionFactory = (pi: ExtensionAPI) => {
-  pi.on("before_agent_start", async (event) => ({
-    systemPrompt: `${event.systemPrompt}\n\n${PROXMOX_TOOL_HINT}`,
-  }));
+export function getProxmoxPrompt(): string { return PROXMOX_TOOL_HINT; }
 
-  pi.registerTool({
+function createProxmoxDefinition() {
+  return {
     name: "proxmox",
     label: "proxmox",
     description: "Get, set, or clear the session-scoped Proxmox API profile, perform ad-hoc API requests, or run common Proxmox workflows.",
     promptSnippet: "proxmox: inspect/update the current session Proxmox API profile, send ad-hoc API requests, or run common VM/task/metrics workflows.",
     parameters: ProxmoxToolSchema,
-    async execute(_toolCallId, params, _signal, _update, ctx): Promise<ProxmoxToolResult> {
-      const chatJid = normalizeChatJid(params.chat_jid);
+    async execute(_toolCallId: string, params: Static<typeof ProxmoxToolSchema>, _signal?: AbortSignal, _update?: unknown, ctx?: any): Promise<ProxmoxToolResult> {
+      assertInvocationCurrent();
+      const invocation = currentInvocation();
+      if (invocation && params.chat_jid && params.chat_jid !== invocation.chatJid) throw Error("Foreign chat profile denied");
+      const chatJid = invocation?.chatJid ?? normalizeChatJid(params.chat_jid);
 
       if (params.action === "contract") {
         const payload = buildProxmoxContractPayload();
@@ -1230,7 +1232,7 @@ export const proxmoxTool: ExtensionFactory = (pi: ExtensionAPI) => {
         };
       }
 
-      const handlers = registeredHandlers;
+      const handlers = currentInvocation() ? null : registeredHandlers;
       if (params.action === "get") {
         const resolved = resolveProxmoxConfigState(chatJid, handlers?.get(chatJid));
         if (!resolved.effective_config) {
@@ -1547,5 +1549,16 @@ export const proxmoxTool: ExtensionFactory = (pi: ExtensionAPI) => {
         },
       };
     },
-  });
+  };
+}
+
+export function createProxmoxTool(options: ProxmoxInvocationOptions) {
+  const definition = createProxmoxDefinition();
+  return { ...definition, execute(id: string, params: any, signal?: AbortSignal) {
+    return withInvocation(options, signal, () => definition.execute(id, params, signal, undefined, undefined));
+  } };
+}
+export const proxmoxTool: ExtensionFactory = (pi: ExtensionAPI) => {
+  pi.on("before_agent_start", async (event) => ({ systemPrompt: `${event.systemPrompt}\n\n${getProxmoxPrompt()}` }));
+  pi.registerTool(createProxmoxDefinition());
 };

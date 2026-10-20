@@ -1,3 +1,5 @@
+export { createProxmoxTool, getProxmoxPrompt } from "./extension.js";
+export type { ProxmoxInvocationOptions } from "./invocation.js";
 /**
  * piclaw-addon-proxmox — Proxmox VE management tool.
  *

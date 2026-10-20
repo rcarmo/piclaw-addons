@@ -1,3 +1,4 @@
+import { assertInvocationCurrent, currentInvocation } from "./invocation.js";
 import { getKeychainEntry, listKeychainEntries } from "./compat/keychain.js";
 import { buildInjectedExecCommand } from "./compat/keychain.js";
 import { createLogger, debugSuppressedError } from "./compat/logger.js";
@@ -134,7 +135,7 @@ type RequestExecutionResult = {
   bodyBytes?: Uint8Array;
 };
 
-type RequestExecutor = (input: {
+export type RequestExecutor = (input: {
   url: string;
   method: string;
   headers: Record<string, string>;
@@ -154,6 +155,7 @@ const defaultRequestExecutor: RequestExecutor = async ({ url, method, headers, b
   const controller = new AbortController();
   const timeoutHandle = setTimeout(() => controller.abort(), timeoutMs);
   try {
+    assertInvocationCurrent();
     const response = await fetch(url, {
       method,
       headers,
@@ -591,6 +593,7 @@ export async function requestPortainerApi(
   config: PortainerApiConfig,
   request: PortainerApiRequest,
 ): Promise<PortainerApiResponse> {
+  assertInvocationCurrent();
   const auth = await resolvePortainerAuth(config.api_token_keychain);
   const baseUrl = normalizeBaseUrl(config.base_url || auth.base_url || "");
   const path = normalizeApiPath(request.path);
@@ -619,7 +622,7 @@ export async function requestPortainerApi(
   let result: RequestExecutionResult;
   try {
     result = await Promise.race([
-      requestExecutor({
+      (assertInvocationCurrent(), currentInvocation()?.transport ?? (currentInvocation() ? defaultRequestExecutor : requestExecutor))({
         url,
         method: request.method,
         headers,
@@ -643,6 +646,7 @@ export async function requestPortainerApi(
   } finally {
     if (timeoutHandle) clearTimeout(timeoutHandle);
   }
+  assertInvocationCurrent();
   const rawBodyBytes = result.bodyBytes ?? new TextEncoder().encode(result.bodyText);
 
   const body = parseResponseBody(result.bodyText);
@@ -665,6 +669,7 @@ export class PortainerClient {
   constructor(private readonly config: PortainerApiConfig) {}
 
   async request(request: PortainerApiRequest): Promise<PortainerApiResponse> {
+  assertInvocationCurrent();
     return requestPortainerApi(this.config, request);
   }
 

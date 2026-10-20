@@ -1,3 +1,5 @@
+export { createPortainerTool, getPortainerPrompt } from "./extension.js";
+export type { PortainerInvocationOptions } from "./invocation.js";
 /**
  * piclaw-addon-portainer — Portainer management tool.
  *

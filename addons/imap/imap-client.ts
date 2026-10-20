@@ -59,15 +59,27 @@ export class ImapClient {
 	private capabilities = new Set<string>();
 	private selected: string | null = null;
 	private greetingResolved = false;
+	private disposed = false;
+	private cancelWait: (() => void) | undefined;
 
-	constructor(private config: ImapConfig) {}
+	constructor(private config: ImapConfig, private assertCurrent: () => void = () => {}) {}
+
+  dispose(): void {
+    this.disposed = true;
+    this.cancelWait?.();
+    this.sock?.destroy(); this.sock = null; this.selected = null;
+    this.abortAll(new Error("IMAP connection disposed"));
+  }
 
 	private async openSocket(useTls: boolean, existingSocket?: Socket): Promise<Socket | TLSSocket> {
+    this.assertCurrent();
+    if (this.disposed) throw new Error("IMAP connection disposed");
 		return await new Promise<Socket | TLSSocket>((resolve, reject) => {
 			let settled = false;
 			const timeout = setTimeout(() => {
 				if (settled) return;
 				settled = true;
+        cleanup(); socket.destroy();
 				reject(new Error(`Timeout connecting to ${this.config.host}:${this.config.port}`));
 			}, 15_000);
 
@@ -82,6 +94,7 @@ export class ImapClient {
 
 			const cleanup = () => {
 				clearTimeout(timeout);
+        this.cancelWait = undefined;
 				socket.removeListener("error", onError);
 				socket.removeListener(useTls ? "secureConnect" : "connect", onReady);
 			};
@@ -95,10 +108,11 @@ export class ImapClient {
 				if (settled) return;
 				settled = true;
 				cleanup();
-				resolve(socket);
+				try { this.assertCurrent(); resolve(socket); } catch (error) { socket.destroy(); reject(error); }
 			};
 
-			socket.once("error", onError);
+			this.cancelWait = () => { onError(new Error("IMAP connection disposed")); socket.destroy(); };
+      socket.once("error", onError);
 			if (existingSocket && !useTls) onReady();
 			else socket.once(useTls ? "secureConnect" : "connect", onReady);
 		});
@@ -106,6 +120,7 @@ export class ImapClient {
 
 	private async awaitGreeting(): Promise<void> {
 		if (!this.sock) throw new Error("Socket not connected");
+    const socket = this.sock;
 		await new Promise<void>((resolve, reject) => {
 			const timeout = setTimeout(() => {
 				cleanup();
@@ -137,11 +152,13 @@ export class ImapClient {
 
 			const cleanup = () => {
 				clearTimeout(timeout);
-				this.sock?.removeListener("error", onError);
-				this.sock?.removeListener("data", onGreet);
+				this.cancelWait = undefined;
+        socket.removeListener("error", onError);
+        socket.removeListener("data", onGreet);
 			};
 
-			this.sock!.on("data", onGreet);
+			this.cancelWait = () => onError(new Error("IMAP connection disposed"));
+      this.sock!.on("data", onGreet);
 			this.sock!.once("error", onError);
 		});
 	}
@@ -197,10 +214,15 @@ export class ImapClient {
 	}
 
 	async connect(): Promise<void> {
+    this.assertCurrent();
+    if (this.disposed) throw new Error("IMAP connection disposed");
 		if (this.sock) return;
 
-		this.sock = await this.openSocket(this.config.tls);
+		this.assertCurrent();
+    this.sock = await this.openSocket(this.config.tls);
+    this.assertCurrent();
 		await this.awaitGreeting();
+    this.assertCurrent();
 		this.bindSocketHandlers();
 
 		if (!this.config.tls && this.config.starttls) {
@@ -250,7 +272,8 @@ export class ImapClient {
 
 	async select(mailbox: string): Promise<{ exists: number; recent: number }> {
 		const resp = await this.command(`SELECT ${this.quote(mailbox)}`);
-		this.selected = mailbox;
+		this.assertCurrent();
+    this.selected = mailbox;
 		let exists = 0;
 		let recent = 0;
 		for (const line of resp) {
@@ -371,7 +394,11 @@ export class ImapClient {
 		this.commandQueue = current;
 		if (previous) await previous.catch(() => {});
 		try {
-			return await this.runCommand(cmd, options);
+			this.assertCurrent();
+      if (this.disposed) throw new Error("IMAP connection disposed");
+      const result = await this.runCommand(cmd, options);
+      this.assertCurrent();
+      return result;
 		} finally {
 			release();
 			if (this.commandQueue === current) this.commandQueue = null;
@@ -405,7 +432,8 @@ export class ImapClient {
 				continuationSent: false,
 			});
 
-			this.sock!.write(line);
+			try { this.assertCurrent(); this.sock!.write(line); }
+      catch (error) { this.pending.delete(tag); clearTimeout(timeout); reject(error); }
 		});
 	}
 
@@ -441,7 +469,8 @@ export class ImapClient {
 				if (pending?.continuationLiteral && !pending.continuationSent) {
 					pending.lines.push(line);
 					pending.continuationSent = true;
-					this.sock?.write(pending.continuationLiteral);
+					try { this.assertCurrent(); } catch (error) { this.dispose(); return; }
+          this.sock?.write(pending.continuationLiteral);
 					this.sock?.write("\r\n");
 					continue;
 				}

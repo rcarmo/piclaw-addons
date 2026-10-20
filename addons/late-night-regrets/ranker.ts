@@ -7,7 +7,14 @@ export interface RankModel {
 }
 export function loadRanker(path: string): RankModel | undefined {
   try {
-    const value = JSON.parse(readFileSync(path, "utf8"));
+    return parseRanker(readFileSync(path, "utf8"));
+  } catch {
+    return;
+  }
+}
+export function parseRanker(text: string): RankModel | undefined {
+  try {
+    const value = JSON.parse(text);
     const m = value.model;
     if (
       !m ||

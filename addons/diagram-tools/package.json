@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-diagram-tools",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Architecture diagram workflow — JSON graph definitions, SVG renderer, colour picker widget",
   "type": "module",
   "piclaw": {
@@ -30,5 +30,12 @@
       "skills"
     ]
   },
-  "homepage": "https://rcarmo.github.io/piclaw-addons/addons/diagram-tools/"
+  "homepage": "https://rcarmo.github.io/piclaw-addons/addons/diagram-tools/",
+  "files": [
+    "native-resources.ts",
+    "scripts",
+    "assets",
+    "README.md",
+    "skills"
+  ]
 }

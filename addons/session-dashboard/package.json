@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-session-dashboard",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "Roll-down active session dashboard with recent work summaries and context indicators",
   "type": "module",
   "main": "index.ts",
@@ -37,5 +37,11 @@
     "navigation"
   ],
   "license": "MIT",
-  "homepage": "https://rcarmo.github.io/piclaw-addons/addons/session-dashboard/"
+  "homepage": "https://rcarmo.github.io/piclaw-addons/addons/session-dashboard/",
+  "files": [
+    "web",
+    "index.ts",
+    "native-resources.ts",
+    "README.md"
+  ]
 }

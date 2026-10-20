@@ -1,21 +1,39 @@
 {
   "name": "@rcarmo/piclaw-addon-web-viewer",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "HTML, image, and video viewer panes and routes for Piclaw",
   "type": "module",
   "main": "index.ts",
   "piclaw": {
     "type": "extension",
     "compatibleVersions": ">=1.8.0",
-    "tags": ["viewer", "html", "image", "video", "media"]
+    "tags": [
+      "viewer",
+      "html",
+      "image",
+      "video",
+      "media"
+    ]
   },
   "license": "MIT",
-  "keywords": ["pi-package"],
+  "keywords": [
+    "pi-package"
+  ],
   "pi": {
-    "extensions": ["index.ts"],
+    "extensions": [
+      "index.ts"
+    ],
     "web": {
-      "entries": ["web/index.ts"]
+      "entries": [
+        "web/index.ts"
+      ]
     }
   },
-  "homepage": "https://rcarmo.github.io/piclaw-addons/addons/web-viewer/"
+  "homepage": "https://rcarmo.github.io/piclaw-addons/addons/web-viewer/",
+  "files": [
+    "README.md",
+    "web",
+    "native-resources.ts",
+    "index.ts"
+  ]
 }

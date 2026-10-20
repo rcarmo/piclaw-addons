@@ -64,11 +64,12 @@ interface PtyExecSession extends BaseExecSession {
 type ExecSession = PipeExecSession | PtyExecSession;
 
 export interface ExecSessionManager {
-	exec(input: ExecCommandInput, cwd: string, signal?: AbortSignal): Promise<UnifiedExecResult>;
-	write(input: WriteStdinInput): Promise<UnifiedExecResult>;
+	exec(input: ExecCommandInput, cwd: string, signal?: AbortSignal, assertCurrent?: () => void): Promise<UnifiedExecResult>;
+	write(input: WriteStdinInput, signal?: AbortSignal, assertCurrent?: () => void): Promise<UnifiedExecResult>;
 	hasSession(sessionId: number): boolean;
 	getSessionCommand(sessionId: number): string | undefined;
 	onSessionExit(listener: (sessionId: number, command: string) => void): () => void;
+	disposeSession(sessionId: number): void;
 	shutdown(): void;
 }
 
@@ -361,6 +362,17 @@ function registerAbortHandler(signal: AbortSignal | undefined, onAbort: () => vo
 
 export function createExecSessionManager(options: ExecSessionManagerOptions = {}): ExecSessionManager {
 	let nextSessionId = 1;
+	let closed = false;
+	const busy = new Set<number>();
+	function kill(session: ExecSession) {
+		try { if (session.kind === "pty") session.child.kill("SIGKILL");
+		else if (session.child.pid) {
+			if (process.platform === "win32") session.child.kill("SIGKILL");
+			else process.kill(-session.child.pid, "SIGKILL");
+		} } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error; }
+	}
+	function disposeSession(id: number) { const session = sessions.get(id); if (session) { kill(session); session.releaseAbort(); sessions.delete(id); } }
+	function check(signal?: AbortSignal, guard?: () => void) { if (closed) throw Error("Process pool closed"); signal?.throwIfAborted(); guard?.(); }
 	const sessions = new Map<number, ExecSession>();
 	const commandHistory = new Map<number, string>();
 	const exitListeners = new Set<(sessionId: number, command: string) => void>();
@@ -467,6 +479,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 			cwd: workdir,
 			stdio: ["ignore", "pipe", "pipe"],
 			env: execution.env,
+			detached: process.platform !== "win32",
 		});
 
 		const session: PipeExecSession = {
@@ -499,7 +512,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 		});
 
 		session.releaseAbort = registerAbortHandler(signal, () => {
-			if (session.exitCode === undefined) child.kill("SIGTERM");
+			kill(session);
 		});
 
 		return session;
@@ -539,14 +552,15 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 		session.child = child;
 
 		session.releaseAbort = registerAbortHandler(signal, () => {
-			if (session.exitCode === undefined) child.kill();
+			kill(session);
 		});
 
 		return session;
 	}
 
 	return {
-		exec: async (input, cwd, signal) => {
+		exec: async (input, cwd, signal, guard) => {
+			check(signal, guard);
 			const shell = resolveShell(input.shell);
 			const workdir = resolveWorkdir(cwd, input.workdir);
 			const session = input.tty
@@ -555,17 +569,29 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 			sessions.set(session.id, session);
 			rememberCommand(session.id, session.command);
 
+			try {
+			check(signal, guard);
 			const waitedMs = await waitForExitOrTimeout(
 				session,
 				clampExecYieldTime(input.yield_time_ms, defaultExecYieldTimeMs, session.interactive, minNonInteractiveExecYieldTimeMs),
 			);
+			check(signal, guard);
 			return makeResult(session, waitedMs, input.max_output_tokens);
+			} catch (error) { disposeSession(session.id); throw error; }
+			finally { /* Background abort ownership transfers at the next admitted write. */ }
 		},
-		write: async (input) => {
+		write: async (input, signal, guard) => {
+			check(signal, guard);
+			if (busy.has(input.session_id)) throw Error("Process session busy");
 			const session = sessions.get(input.session_id);
 			if (!session) {
 				throw new Error(`Unknown process id ${input.session_id}`);
 			}
+			session.releaseAbort();
+			busy.add(session.id);
+			const release = registerAbortHandler(signal, () => kill(session));
+			try {
+			check(signal, guard);
 			if (input.chars && input.chars.length > 0) {
 				if (!session.interactive) {
 					throw new Error("stdin is closed for this session; rerun exec_command with tty=true to keep stdin open");
@@ -586,8 +612,11 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 							),
 						)
 					: 0;
+			check(signal, guard);
 			return makeResult(session, waitedMs, input.max_output_tokens);
+			} catch (error) { disposeSession(session.id); throw error; } finally { release(); busy.delete(session.id); }
 		},
+		disposeSession,
 		hasSession: (sessionId) => sessions.has(sessionId),
 		getSessionCommand: (sessionId) => sessions.get(sessionId)?.command ?? commandHistory.get(sessionId),
 		onSessionExit: (listener) => {
@@ -595,14 +624,9 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 			return () => exitListeners.delete(listener);
 		},
 		shutdown: () => {
-			for (const session of sessions.values()) {
-				session.releaseAbort();
-				if (session.exitCode !== undefined) continue;
-				if (session.kind === "pty") session.child.dispose();
-				else session.child.kill("SIGTERM");
-			}
-			sessions.clear();
-			commandHistory.clear();
-		},
-	};
+            closed = true;
+            for (const id of sessions.keys()) disposeSession(id);
+            commandHistory.clear();
+        },
+    };
 }

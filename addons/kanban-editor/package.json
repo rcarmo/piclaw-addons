@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-kanban-editor",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Workspace .kanban.md editor add-on with Obsidian-style [[links]] between boards",
   "type": "module",
   "main": "index.ts",
@@ -36,5 +36,11 @@
     "wiki-links"
   ],
   "license": "MIT",
-  "homepage": "https://rcarmo.github.io/piclaw-addons/addons/kanban-editor/"
+  "homepage": "https://rcarmo.github.io/piclaw-addons/addons/kanban-editor/",
+  "files": [
+    "web",
+    "native-resources.ts",
+    "index.ts",
+    "README.md"
+  ]
 }

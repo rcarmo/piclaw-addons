@@ -1,3 +1,4 @@
+import { assertInvocationCurrent, currentInvocation } from "../invocation.js";
 /**
  * compat/keychain.ts — Keychain shim for standalone addons.
  *
@@ -28,6 +29,7 @@ function parseJsonFromMixedOutput(text: string): unknown | null {
     try {
       return JSON.parse(candidate);
     } catch {
+    assertInvocationCurrent();
       // keep scanning
     }
   }
@@ -131,6 +133,9 @@ function resolveFromEnv(name: string): KeychainEntry | null {
  * and only then falls back to the piclaw CLI.
  */
 export async function getKeychainEntry(name: string): Promise<KeychainEntry> {
+  assertInvocationCurrent();
+  const credentials = currentInvocation()?.credentials;
+  if (credentials) { const entry = await credentials.get(name); assertInvocationCurrent(); return entry; }
   const fromEnv = resolveFromEnv(name);
   if (fromEnv) return fromEnv;
 
@@ -141,15 +146,19 @@ export async function getKeychainEntry(name: string): Promise<KeychainEntry> {
       };
     }).__piclawRuntimeInterop;
     if (typeof interop?.getKeychainEntry === "function") {
+      assertInvocationCurrent();
       const entry = await interop.getKeychainEntry(name);
+      assertInvocationCurrent();
       const normalized = normalizeKeychainEntry(name, entry || {});
       if (normalized) return normalized;
     }
   } catch {
+    assertInvocationCurrent();
     // Not running inside piclaw runtime — continue to CLI fallback.
   }
 
   try {
+    assertInvocationCurrent();
     const proc = Bun.spawnSync(["piclaw", "keychain", "get", name], {
       stdout: "pipe",
       stderr: "pipe",
@@ -166,6 +175,7 @@ export async function getKeychainEntry(name: string): Promise<KeychainEntry> {
       }
     }
   } catch {
+    assertInvocationCurrent();
     // CLI not available
   }
 
@@ -179,6 +189,9 @@ export async function getKeychainEntry(name: string): Promise<KeychainEntry> {
  * runtime metadata bridge and then the metadata-only Piclaw CLI command.
  */
 export function listKeychainEntries(): KeychainEntryMetadata[] {
+  assertInvocationCurrent();
+  const credentials = currentInvocation()?.credentials;
+  if (credentials) return credentials.list();
   try {
     const interop = (globalThis as {
       __piclawRuntimeInterop?: {
@@ -190,10 +203,12 @@ export function listKeychainEntries(): KeychainEntryMetadata[] {
       if (entries.length) return entries;
     }
   } catch {
+    assertInvocationCurrent();
     // Continue to CLI fallback.
   }
 
   try {
+    assertInvocationCurrent();
     const proc = Bun.spawnSync(["piclaw", "keychain", "list"], {
       stdout: "pipe",
       stderr: "pipe",
@@ -204,6 +219,7 @@ export function listKeychainEntries(): KeychainEntryMetadata[] {
       if (entries.length) return entries;
     }
   } catch {
+    assertInvocationCurrent();
     // CLI not available.
   }
 
@@ -230,6 +246,7 @@ export async function resolveKeychainPlaceholders(input: string): Promise<string
       const value = field === "username" ? (entry.username || "") : entry.secret;
       output = output.replaceAll(match[0], value);
     } catch {
+    assertInvocationCurrent();
       // Leave placeholder in place if resolution fails
     }
   }

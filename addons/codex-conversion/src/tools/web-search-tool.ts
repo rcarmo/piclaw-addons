@@ -1,97 +1,21 @@
-import type { ExtensionAPI, ExtensionContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { Container, Text } from "@earendil-works/pi-tui";
-import { isOpenAICodexModel } from "../adapter/codex-model.ts";
 
 export const WEB_SEARCH_UNSUPPORTED_MESSAGE = "web_search is only available with the openai-codex provider";
 const WEB_SEARCH_LOCAL_EXECUTION_MESSAGE =
 	"web_search is a native openai-codex provider tool and should not execute locally";
 export const WEB_SEARCH_SESSION_NOTE_TYPE = "codex-web-search-session-note";
-const WEB_SEARCH_MULTIMODAL_CONTENT_TYPES = ["text", "image"] as const;
 
 const WEB_SEARCH_PARAMETERS = Type.Unsafe<Record<string, never>>({
 	type: "object",
 	additionalProperties: false,
 });
 
-interface FunctionToolPayload {
-	type?: unknown;
-	name?: unknown;
-}
+export { supportsNativeWebSearch, supportsMultimodalNativeWebSearch, rewriteNativeWebSearchTool } from "../native-request.ts";
+import { supportsNativeWebSearch } from "../native-request.ts";
 
-interface ResponsesPayload {
-	tools?: unknown[];
-	include?: unknown[];
-	[key: string]: unknown;
-}
-
-interface ResponsesWebSearchTool {
-	type: "web_search";
-	external_web_access: true;
-	search_content_types?: string[];
-}
-
-export function supportsNativeWebSearch(model: ExtensionContext["model"]): boolean {
-	return isOpenAICodexModel(model);
-}
-
-export function supportsMultimodalNativeWebSearch(model: ExtensionContext["model"]): boolean {
-	if (!supportsNativeWebSearch(model)) {
-		return false;
-	}
-	const id = (model?.id ?? "").toLowerCase();
-	return !id.includes("spark");
-}
-
-function isWebSearchFunctionTool(tool: unknown): tool is FunctionToolPayload {
-	return !!tool && typeof tool === "object" && (tool as FunctionToolPayload).type === "function" && (tool as FunctionToolPayload).name === "web_search";
-}
-
-function createEmptyResultComponent(): Container {
-	return new Container();
-}
-
-export function rewriteNativeWebSearchTool(payload: unknown, model: ExtensionContext["model"]): unknown {
-	if (!supportsNativeWebSearch(model) || !payload || typeof payload !== "object") {
-		return payload;
-	}
-
-	const tools = (payload as ResponsesPayload).tools;
-	if (!Array.isArray(tools)) {
-		return payload;
-	}
-
-	let rewritten = false;
-	const nextTools = tools.map((tool) => {
-		if (!isWebSearchFunctionTool(tool)) {
-			return tool;
-		}
-		rewritten = true;
-		// Match Codex's native tool shape rather than exposing a synthetic function tool.
-		const nativeTool: ResponsesWebSearchTool = {
-			type: "web_search",
-			external_web_access: true,
-		};
-		if (supportsMultimodalNativeWebSearch(model)) {
-			nativeTool.search_content_types = [...WEB_SEARCH_MULTIMODAL_CONTENT_TYPES];
-		}
-		return nativeTool;
-	});
-
-	if (!rewritten) {
-		return payload;
-	}
-
-	const payloadInclude = (payload as ResponsesPayload).include;
-	const include = Array.isArray(payloadInclude)
-		? payloadInclude.filter((value): value is string => typeof value === "string")
-		: [];
-	return {
-		...(payload as ResponsesPayload),
-		tools: nextTools,
-		include: [...new Set([...include, "web_search_call.action.sources", "web_search_call.results"])],
-	};
-}
+function createEmptyResultComponent(): Container { return new Container(); }
 
 export function createWebSearchTool(): ToolDefinition<typeof WEB_SEARCH_PARAMETERS> {
 	return {

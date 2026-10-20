@@ -69,7 +69,9 @@ test("extractReadableText handles markdown and adaptive-card-like blocks", () =>
 
 test("queryRecentSessions returns bounded recent sessions with branch names and block-only summaries", () => {
   const dbPath = createMessagesDb();
-  const sessions = queryRecentSessions({ dbPath, limit: 2 });
+  const root = new Database(dbPath, { readonly: true });
+  const sessions = queryRecentSessions({ root, limit: 2 });
+  root.close();
 
   expect(sessions.map((session) => session.chat_jid)).toEqual(["web:addons", "web:default-14"]);
   expect(sessions[0]).toMatchObject({ agent_name: "addons", summary: "Block-only assistant summary", message_count: 3 });
@@ -84,7 +86,9 @@ test("queryRecentSessions falls back to a safe agent name when no branch exists"
   );
   db.close();
 
-  const [first] = queryRecentSessions({ dbPath, limit: 1 });
+  const root = new Database(dbPath, { readonly: true });
+  const [first] = queryRecentSessions({ root, limit: 1 });
+  root.close();
   expect(first.agent_name).toBe("ad-hoc-session");
   expect(agentNameFromChatJid(first.chat_jid)).toBe("ad-hoc-session");
 });
