@@ -165,7 +165,7 @@ export function createNativeRemotePeerDelivery(options: {
         assertCurrent();
         const admit = input.mode === "steer" ? bundle.steerApplicationInput?.bind(bundle) : bundle.admitApplicationInput.bind(bundle);
         if (!admit) throw Error("Native steering unavailable");
-        const receipt = await admit({ source: "remote_peer", sourceId: JSON.stringify(["remote_peer", principal.peer, principal.revision, input.source.message_id]), text: input.content,
+        const receipt: { rowId: number; chatJid: string; mode?: string } = await admit({ source: "remote_peer", sourceId: JSON.stringify(["remote_peer", principal.peer, principal.revision, input.source.message_id]), text: input.content,
           queuedAt: new Date().toISOString(), principal: { id: principal.peer, revision: principal.revision }, target, mode: "queue", assertCurrent });
         return { status: "ok" as const, chat_jid: receipt.chatJid, row_id: receipt.rowId, thread_id: null, queued: receipt.mode === "steer" ? "steer" as const : "followup" as const, created: false };
   };
