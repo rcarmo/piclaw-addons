@@ -2,7 +2,7 @@ import * as fs from "node:fs";
 import { dirname } from "node:path";
 import { linesMatch } from "./matching.ts";
 import { parsePatchActions, parseUpdateFile } from "./parser.ts";
-import { openFileAtPath, pathExists, removeFileAtPath, resolvePatchPath, writeFileAtPath } from "./paths.ts";
+import { createPatchPaths, resolvePatchPath, type PatchFilePorts } from "./paths.ts";
 import { DiffError, ExecutePatchError, type ExecutePatchFailure, type ExecutePatchResult, type ParsedPatchAction, type ParserState, type PatchAction } from "./types.ts";
 
 export const patchFsOps = {
@@ -109,6 +109,8 @@ function resolveUpdateAction({ path, text, lines }: { path: string; text: string
 	return { action, fuzz: state.fuzz };
 }
 
+export function createPatchExecutor(ops: PatchFilePorts, moveOps: Pick<PatchFilePorts, "mkdirSync" | "writeFileSync" | "unlinkSync"> = ops) {
+const { openFileAtPath, pathExists, removeFileAtPath, writeFileAtPath } = createPatchPaths(ops);
 function applyMove({
 	cwd,
 	path,
@@ -132,15 +134,15 @@ function applyMove({
 	const toAbsolutePath = resolvePatchPath({ cwd, patchPath: movePath });
 	const destinationExisted = pathExists({ cwd, path: movePath });
 
-	patchFsOps.mkdirSync(dirname(toAbsolutePath), { recursive: true });
-	patchFsOps.writeFileSync(toAbsolutePath, content, "utf8");
+	moveOps.mkdirSync(dirname(toAbsolutePath), { recursive: true });
+	moveOps.writeFileSync(toAbsolutePath, content, "utf8");
 	changedFiles.add(movePath);
 	if (!destinationExisted) {
 		createdFiles.add(movePath);
 	}
 
 	if (fromAbsolutePath !== toAbsolutePath) {
-		patchFsOps.unlinkSync(fromAbsolutePath);
+		moveOps.unlinkSync(fromAbsolutePath);
 		changedFiles.add(path);
 		movedFiles.add(`${path} -> ${movePath}`);
 		deletedFiles.add(path);
@@ -226,7 +228,7 @@ function getCanonicalActionPaths({ cwd, action }: { cwd: string; action: ParsedP
 	return getActionPaths(action).map((path) => resolvePatchPath({ cwd, patchPath: path }));
 }
 
-export function executePatch({ cwd, patchText }: { cwd: string; patchText: string }): ExecutePatchResult {
+function executePatch({ cwd, patchText }: { cwd: string; patchText: string }): ExecutePatchResult {
 	if (!patchText.startsWith("*** Begin Patch")) {
 		throw new DiffError("Patch must start with '*** Begin Patch'");
 	}
@@ -296,3 +298,8 @@ export function executePatch({ cwd, patchText }: { cwd: string; patchText: strin
 		fuzz,
 	});
 }
+
+return executePatch;
+}
+// Preserve legacy move-only fault injection; native callers provide their own ports.
+export const executePatch = createPatchExecutor(fs, patchFsOps);

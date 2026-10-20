@@ -5,7 +5,7 @@
  * and CSS that the frontend pane needs.
  */
 
-import { resolve, extname, dirname } from "node:path";
+import { resolve, extname, dirname, relative, isAbsolute } from "node:path";
 import { existsSync, realpathSync, statSync } from "node:fs";
 
 const EXT_DIR = typeof import.meta.dir === "string"
@@ -50,11 +50,14 @@ function handleRoute(req: Request, pathname: string): Response | null {
     return new Response("Not Found", { status: 404 });
   }
 
+  const within = relative(realpathSync(VENDOR_DIR), realPath);
+  if (within.startsWith("..") || isAbsolute(within)) return new Response("Not Found", { status: 404 });
+
   if (!existsSync(realPath) || !statSync(realPath).isFile()) {
     return new Response("Not Found", { status: 404 });
   }
 
-  return new Response(Bun.file(realPath), {
+  return new Response(req.method === "HEAD" ? null : Bun.file(realPath), {
     headers: {
       ...HEADERS,
       "Content-Type": getMimeType(realPath),

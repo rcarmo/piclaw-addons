@@ -1,7 +1,6 @@
-import type { ExtensionAPI, ExtensionContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { Container, Text } from "@earendil-works/pi-tui";
-import { isOpenAICodexModel } from "../adapter/codex-model.ts";
 
 export const IMAGE_GENERATION_UNSUPPORTED_MESSAGE =
 	"image_generation is only available with image-capable openai-codex models";
@@ -13,69 +12,10 @@ const IMAGE_GENERATION_PARAMETERS = Type.Unsafe<Record<string, never>>({
 	additionalProperties: false,
 });
 
-interface FunctionToolPayload {
-	type?: unknown;
-	name?: unknown;
-}
+export { supportsNativeImageGeneration, rewriteNativeImageGenerationTool } from "../native-request.ts";
+import { supportsNativeImageGeneration } from "../native-request.ts";
 
-interface ResponsesPayload {
-	tools?: unknown[];
-	[key: string]: unknown;
-}
-
-interface ResponsesImageGenerationTool {
-	type: "image_generation";
-	output_format: "png";
-}
-
-function supportsImageInputs(model: ExtensionContext["model"]): boolean {
-	return Array.isArray(model?.input) && model.input.includes("image");
-}
-
-export function supportsNativeImageGeneration(model: ExtensionContext["model"]): boolean {
-	return isOpenAICodexModel(model) && supportsImageInputs(model);
-}
-
-function isImageGenerationFunctionTool(tool: unknown): tool is FunctionToolPayload {
-	return !!tool && typeof tool === "object" && (tool as FunctionToolPayload).type === "function" && (tool as FunctionToolPayload).name === "image_generation";
-}
-
-function createEmptyResultComponent(): Container {
-	return new Container();
-}
-
-export function rewriteNativeImageGenerationTool(payload: unknown, model: ExtensionContext["model"]): unknown {
-	if (!supportsNativeImageGeneration(model) || !payload || typeof payload !== "object") {
-		return payload;
-	}
-
-	const tools = (payload as ResponsesPayload).tools;
-	if (!Array.isArray(tools)) {
-		return payload;
-	}
-
-	let rewritten = false;
-	const nextTools = tools.map((tool) => {
-		if (!isImageGenerationFunctionTool(tool)) {
-			return tool;
-		}
-		rewritten = true;
-		const nativeTool: ResponsesImageGenerationTool = {
-			type: "image_generation",
-			output_format: "png",
-		};
-		return nativeTool;
-	});
-
-	if (!rewritten) {
-		return payload;
-	}
-
-	return {
-		...(payload as ResponsesPayload),
-		tools: nextTools,
-	};
-}
+function createEmptyResultComponent(): Container { return new Container(); }
 
 export function createImageGenerationTool(): ToolDefinition<typeof IMAGE_GENERATION_PARAMETERS> {
 	const description =

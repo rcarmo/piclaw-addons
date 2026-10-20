@@ -1,21 +1,39 @@
 {
   "name": "@rcarmo/piclaw-addon-mindmap",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "D3-based mindmap editor pane for .mindmap.yaml files in Piclaw",
   "type": "module",
   "main": "index.ts",
   "piclaw": {
     "type": "extension",
     "compatibleVersions": ">=1.8.0",
-    "tags": ["mindmap", "editor", "yaml", "diagrams"]
+    "tags": [
+      "mindmap",
+      "editor",
+      "yaml",
+      "diagrams"
+    ]
   },
   "license": "MIT",
-  "keywords": ["pi-package"],
+  "keywords": [
+    "pi-package"
+  ],
   "pi": {
-    "extensions": ["index.ts"],
+    "extensions": [
+      "index.ts"
+    ],
     "web": {
-      "entries": ["web/index.ts"]
+      "entries": [
+        "web/index.ts"
+      ]
     }
   },
-  "homepage": "https://rcarmo.github.io/piclaw-addons/addons/mindmap/"
+  "homepage": "https://rcarmo.github.io/piclaw-addons/addons/mindmap/",
+  "files": [
+    "index.ts",
+    "web",
+    "README.md",
+    "native-resources.ts",
+    "vendor"
+  ]
 }

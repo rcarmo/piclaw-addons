@@ -1,0 +1,8 @@
+import { test, expect } from "bun:test";
+import { createNativeWebSearchTool, createNativeImageGenerationTool, createNativeViewImageTool, type NativeProviderToolPorts } from "./src/native-provider-tools.ts";
+function ports(): NativeProviderToolPorts { return { chatId: "owned", cwd: "/owned", model: { provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5-codex", input: ["text", "image"] }, assertCurrent() {}, readImage: async i => { i.assertCurrent(); return { content: [{ type: "image", data: "owned", mimeType: "image/png" }] }; } }; }
+for (const factory of [createNativeWebSearchTool, createNativeImageGenerationTool, createNativeViewImageTool]) {
+ test(factory.name + " preserves declarative/local-read semantics", async () => { const p = ports(); if (factory !== createNativeViewImageTool) { await expect(factory(p).execute("id", {})).rejects.toThrow("should not execute locally"); return; } const r = await factory(p).execute("id", { path: "test.png" }); expect(r.content.length).toBe(1); });
+ test(factory.name + " foreign authority blocks actual dispatch", async () => { const p = ports(); let calls = 0; p.assertCurrent = () => { throw Error("foreign"); }; p.readImage = async () => { calls++; return { content: [] }; }; await expect(factory(p).execute("id", { path: "test.png" })).rejects.toThrow("foreign"); expect(calls).toBe(0); });
+ test(factory.name + " cancellation", async () => { const p = ports(); const controller = new AbortController(); p.signal = controller.signal; if (factory !== createNativeViewImageTool) controller.abort(); p.readImage = async i => { await Promise.resolve(); controller.abort(); i.assertCurrent(); return { content: [] }; }; await expect(factory(p).execute("id", { path: "test.png" })).rejects.toThrow(); });
+}

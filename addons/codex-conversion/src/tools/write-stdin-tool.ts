@@ -115,12 +115,12 @@ export function registerWriteStdinTool(pi: ExtensionAPI, sessions: ExecSessionMa
 			"When polling with empty `chars`, wait meaningfully between polls and do not repeatedly poll by reflex.",
 		],
 		parameters: WRITE_STDIN_PARAMETERS,
-		async execute(_toolCallId, params) {
+		async execute(_toolCallId, params, signal) {
 			const typed = parseWriteStdinParams(params);
 			const command = sessions.getSessionCommand(typed.session_id);
 			let result: UnifiedExecResult;
 			try {
-				result = await sessions.write(typed);
+				result = await sessions.write(typed, signal);
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				throw new Error(`write_stdin failed: ${message}`);

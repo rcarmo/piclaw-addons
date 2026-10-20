@@ -14,7 +14,7 @@ const OPENAI_CODEX_IMAGE_DIR = ".pi/openai-codex-images";
 const OPENAI_CODEX_LATEST_IMAGE_NAME = "latest.png";
 const NATIVE_OUTPUT_TOOL_NAMES = new Set(["image_generation", "web_search"]);
 
-interface SavedGeneratedImage {
+export interface SavedGeneratedImage {
 	absolutePath: string;
 	relativePath: string;
 	latestAbsolutePath: string;
@@ -29,7 +29,7 @@ interface ImageDisplayMessageDetails {
 	savedImages: SavedGeneratedImage[];
 }
 
-interface SurfacedWebSearch {
+export interface SurfacedWebSearch {
 	callId: string;
 	status?: string;
 	query?: string;
@@ -37,7 +37,7 @@ interface SurfacedWebSearch {
 	sources: Array<{ title?: string; url: string }>;
 }
 
-type PendingActivity =
+export type PendingActivity =
 	| { kind: "image"; savedImage: SavedGeneratedImage; imageData: { data: string; mimeType: string } }
 	| { kind: "web-search"; search: SurfacedWebSearch };
 
@@ -52,7 +52,7 @@ interface NativeOutputItem {
 	results?: unknown;
 }
 
-interface ResponsesEvent {
+export interface ResponsesEvent {
 	type?: string;
 	response?: { id?: string };
 	item?: NativeOutputItem;
@@ -96,16 +96,24 @@ async function findWorkspaceRoot(cwd: string): Promise<string> {
 export async function saveOpenAICodexGeneratedImage(
 	cwd: string,
 	image: { responseId?: string; callId: string; result: string; outputFormat?: string; revisedPrompt?: string },
+  beforeEffect?: () => void,
 ): Promise<SavedGeneratedImage> {
+	beforeEffect?.();
 	const workspaceRoot = await findWorkspaceRoot(cwd);
+	beforeEffect?.();
 	const outputFormat = normalizeImageOutputFormat(image.outputFormat);
 	const imageDirectory = join(workspaceRoot, OPENAI_CODEX_IMAGE_DIR);
 	const filename = `${safeFilePart(image.callId, "image")}-${safeFilePart(image.responseId, "response")}.${outputFormat}`;
 	const absolutePath = join(imageDirectory, filename);
 	const latestAbsolutePath = join(imageDirectory, OPENAI_CODEX_LATEST_IMAGE_NAME);
 	const bytes = Buffer.from(image.result, "base64");
+	beforeEffect?.();
 	await mkdir(imageDirectory, { recursive: true });
-	await Promise.all([writeFile(absolutePath, bytes), writeFile(latestAbsolutePath, bytes)]);
+	beforeEffect?.();
+	await writeFile(absolutePath, bytes);
+	beforeEffect?.();
+	await writeFile(latestAbsolutePath, bytes);
+	beforeEffect?.();
 	return {
 		absolutePath,
 		relativePath: relative(workspaceRoot, absolutePath),
@@ -199,14 +207,17 @@ export function parseResponsesSSE(text: string): ResponsesEvent[] {
 	return events;
 }
 
-async function captureNativeOutputResponse(
+export async function captureNativeOutputResponse(
 	response: Response,
 	cwd: string,
 	requestPrompt: string | undefined,
 	onActivity: (activity: PendingActivity) => void,
+	beforeEffect?: () => void,
 ): Promise<void> {
 	if (!response.ok) return;
+	beforeEffect?.();
 	const events = parseResponsesSSE(await response.text());
+	beforeEffect?.();
 	let responseId: string | undefined;
 	for (const event of events) {
 		if (event.type === "response.created" && typeof event.response?.id === "string") responseId = event.response.id;
@@ -220,7 +231,7 @@ async function captureNativeOutputResponse(
 				result: item.result,
 				outputFormat,
 				revisedPrompt: typeof item.revised_prompt === "string" ? item.revised_prompt : requestPrompt,
-			});
+			}, beforeEffect);
 			onActivity({ kind: "image", savedImage, imageData: { data: item.result, mimeType: `image/${outputFormat}` } });
 			continue;
 		}

@@ -135,7 +135,7 @@
     {
       "slug": "codex-conversion",
       "name": "@rcarmo/piclaw-addon-codex-conversion",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "type": "extension",
       "description": "Provider-aware Codex and Copilot prompt and tool profiles for Piclaw",
       "path": "addons/codex-conversion",
@@ -150,9 +150,9 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-codex-conversion-0.2.1.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-codex-conversion-0.2.2.tgz"
       },
-      "updatedAt": "2026-09-10"
+      "updatedAt": "2026-10-12"
     },
     {
       "slug": "delegate",
@@ -200,7 +200,7 @@
     {
       "slug": "diagram-tools",
       "name": "@rcarmo/piclaw-addon-diagram-tools",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "type": "skill",
       "description": "Architecture diagram workflow — JSON graph definitions, SVG renderer, colour picker widget",
       "path": "addons/diagram-tools",
@@ -214,7 +214,7 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-diagram-tools-0.1.0.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-diagram-tools-0.1.1.tgz"
       },
       "updatedAt": "2026-07-26"
     },
@@ -265,7 +265,7 @@
     {
       "slug": "eml-viewer",
       "name": "@rcarmo/piclaw-addon-eml-viewer",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "type": "extension",
       "description": "Attachment preview route for email message (.eml) files in the web timeline",
       "path": "addons/eml-viewer",
@@ -278,14 +278,14 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-eml-viewer-0.2.1.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-eml-viewer-0.2.2.tgz"
       },
       "updatedAt": "2026-07-26"
     },
     {
       "slug": "export-timeline-pdf",
       "name": "@rcarmo/piclaw-addon-export-timeline-pdf",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "type": "skill",
       "description": "Export chat timelines to PDF with inline avatars and referenced message pills",
       "path": "addons/export-timeline-pdf",
@@ -298,7 +298,7 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-export-timeline-pdf-0.1.1.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-export-timeline-pdf-0.1.2.tgz"
       },
       "updatedAt": "2026-09-08"
     },
@@ -433,7 +433,7 @@
     {
       "slug": "kanban-editor",
       "name": "@rcarmo/piclaw-addon-kanban-editor",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "type": "extension",
       "description": "Workspace .kanban.md editor add-on with Obsidian-style [[links]] between boards",
       "path": "addons/kanban-editor",
@@ -448,14 +448,14 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-kanban-editor-0.1.2.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-kanban-editor-0.1.3.tgz"
       },
       "updatedAt": "2026-09-08"
     },
     {
       "slug": "late-night-regrets",
       "name": "@rcarmo/piclaw-addon-late-night-regrets",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "type": "extension",
       "description": "Budgeted nightly contextual feedback review with optional decision-model triage",
       "path": "addons/late-night-regrets",
@@ -471,9 +471,9 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-late-night-regrets-0.2.1.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-late-night-regrets-0.2.2.tgz"
       },
-      "updatedAt": "2026-10-06"
+      "updatedAt": "2026-10-13"
     },
     {
       "slug": "linkr",
@@ -566,7 +566,7 @@
     {
       "slug": "mindmap",
       "name": "@rcarmo/piclaw-addon-mindmap",
-      "version": "0.1.3",
+      "version": "0.1.4",
       "type": "extension",
       "description": "D3-based mindmap editor pane for .mindmap.yaml files in Piclaw",
       "path": "addons/mindmap",
@@ -580,7 +580,7 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-mindmap-0.1.3.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-mindmap-0.1.4.tgz"
       },
       "updatedAt": "2026-09-10"
     },
@@ -725,7 +725,7 @@
     {
       "slug": "remote-peer",
       "name": "@rcarmo/piclaw-addon-remote-peer",
-      "version": "0.3.6",
+      "version": "0.3.7",
       "type": "extension",
       "description": "Iroh-only client-ID peer chat with explicit pairing, default-off mDNS, durable delivery and files",
       "path": "addons/remote-peer",
@@ -741,9 +741,9 @@
       ],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-remote-peer-0.3.6.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-remote-peer-0.3.7.tgz"
       },
-      "updatedAt": "2026-10-04",
+      "updatedAt": "2026-10-13",
       "owner": {
         "login": "rcarmo",
         "url": "https://github.com/rcarmo"
@@ -798,7 +798,7 @@
     {
       "slug": "session-dashboard",
       "name": "@rcarmo/piclaw-addon-session-dashboard",
-      "version": "0.2.4",
+      "version": "0.2.5",
       "type": "extension",
       "description": "Roll-down active session dashboard with recent work summaries and context indicators",
       "path": "addons/session-dashboard",
@@ -813,7 +813,7 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-session-dashboard-0.2.4.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-session-dashboard-0.2.5.tgz"
       },
       "updatedAt": "2026-09-08"
     },
@@ -993,7 +993,7 @@
     {
       "slug": "web-viewer",
       "name": "@rcarmo/piclaw-addon-web-viewer",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "type": "extension",
       "description": "HTML, image, and video viewer panes and routes for Piclaw",
       "path": "addons/web-viewer",
@@ -1008,7 +1008,7 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-web-viewer-0.1.1.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-web-viewer-0.1.2.tgz"
       },
       "updatedAt": "2026-09-10"
     },
@@ -1078,7 +1078,7 @@
     {
       "slug": "yolo-vibe",
       "name": "@rcarmo/piclaw-addon-yolo-vibe",
-      "version": "0.1.7",
+      "version": "0.1.8",
       "type": "extension",
       "description": "Compose-box YOLO buttons (Continue, Audit, Docs) mounted in the bottom action bar, subtle until hover",
       "path": "addons/yolo-vibe",
@@ -1092,7 +1092,7 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-yolo-vibe-0.1.7.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-yolo-vibe-0.1.8.tgz"
       },
       "updatedAt": "2026-09-08"
     },

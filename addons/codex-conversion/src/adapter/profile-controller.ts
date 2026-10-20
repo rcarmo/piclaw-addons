@@ -19,7 +19,7 @@ export function syncAdapterTools(
 ): AdapterProfile {
 	const profile = resolveAdapterProfile(ctx.model);
 	if (profile !== "native") {
-		if (state.profile === "native") state.previousToolNames = pi.getActiveTools();
+		if (state.profile === "native") state.previousToolNames = [...pi.getActiveTools()];
 		state.profile = profile;
 		pi.setActiveTools(mergeAdapterTools(pi.getActiveTools(), adapterToolNames));
 		setAdapterStatus(ctx, profile);
@@ -31,6 +31,7 @@ export function syncAdapterTools(
 		pi.setActiveTools(restoreTools(previousToolNames, pi.getActiveTools()));
 	}
 	state.profile = "native";
+	state.previousToolNames = undefined;
 	setAdapterStatus(ctx, "native");
 	return profile;
 }

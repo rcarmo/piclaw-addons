@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-export-timeline-pdf",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Export chat timelines to PDF with inline avatars and referenced message pills",
   "type": "module",
   "piclaw": {
@@ -29,5 +29,11 @@
       "skills"
     ]
   },
-  "homepage": "https://rcarmo.github.io/piclaw-addons/addons/export-timeline-pdf/"
+  "homepage": "https://rcarmo.github.io/piclaw-addons/addons/export-timeline-pdf/",
+  "files": [
+    "skills",
+    "README.md",
+    "native-resources.ts",
+    "scripts"
+  ]
 }

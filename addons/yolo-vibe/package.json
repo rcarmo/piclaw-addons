@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-yolo-vibe",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Compose-box YOLO buttons (Continue, Audit, Docs) mounted in the bottom action bar, subtle until hover",
   "type": "module",
   "main": "index.ts",
@@ -32,5 +32,11 @@
     "quick-actions"
   ],
   "license": "MIT",
-  "homepage": "https://rcarmo.github.io/piclaw-addons/addons/yolo-vibe/"
+  "homepage": "https://rcarmo.github.io/piclaw-addons/addons/yolo-vibe/",
+  "files": [
+    "README.md",
+    "index.ts",
+    "native-resources.ts",
+    "web"
+  ]
 }

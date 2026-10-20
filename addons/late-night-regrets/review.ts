@@ -142,26 +142,28 @@ export function buildExchange(
 }
 
 export function readExchanges(
-  dbPath: string,
+  dbPath: string | Database,
   window: ReviewPacket["window"],
 ): { exchanges: Exchange[]; excluded: Record<string, number> } {
-  const db = new Database(dbPath, { readonly: true });
+  const db = typeof dbPath === "string" ? new Database(dbPath, { readonly: true }) : dbPath;
   try {
     const columns =
       "rowid, chat_jid, sender, sender_name, content, timestamp, is_bot_message, content_blocks, thread_id";
+    const hasErasure = (db.query("PRAGMA table_info(messages)").all() as { name: string }[]).some(column => column.name === "content_erased");
+    const visible = hasErasure ? " AND content_erased=0" : "";
     const targets = db
       .query<MessageRow, [string, string, string, string]>(
-        `SELECT ${columns} FROM messages WHERE (?='*' OR chat_jid=?) AND timestamp>=? AND timestamp<? AND content_erased=0 ORDER BY rowid`,
+        `SELECT ${columns} FROM messages WHERE (?='*' OR chat_jid=?) AND timestamp>=? AND timestamp<?${visible} ORDER BY rowid`,
       )
       .all(window.chat_jid, window.chat_jid, window.start, window.end);
     const preceding = db.query<MessageRow, [string, number]>(
-      `SELECT ${columns} FROM messages WHERE chat_jid=? AND rowid<? AND content_erased=0 ORDER BY rowid DESC LIMIT 60`,
+      `SELECT ${columns} FROM messages WHERE chat_jid=? AND rowid<?${visible} ORDER BY rowid DESC LIMIT 60`,
     );
     const following = db.query<MessageRow, [string, number, string]>(
-      `SELECT ${columns} FROM messages WHERE chat_jid=? AND rowid>? AND timestamp<? AND content_erased=0 ORDER BY rowid LIMIT 20`,
+      `SELECT ${columns} FROM messages WHERE chat_jid=? AND rowid>? AND timestamp<?${visible} ORDER BY rowid LIMIT 20`,
     );
     const referenced = db.query<MessageRow, [string, number]>(
-      `SELECT ${columns} FROM messages WHERE chat_jid=? AND rowid=? AND content_erased=0`,
+      `SELECT ${columns} FROM messages WHERE chat_jid=? AND rowid=?${visible}`,
     );
     const excluded: Record<string, number> = {};
     const exchanges: Exchange[] = [];
@@ -189,7 +191,7 @@ export function readExchanges(
     }
     return { exchanges, excluded };
   } finally {
-    db.close();
+    if (typeof dbPath === "string") db.close();
   }
 }
 

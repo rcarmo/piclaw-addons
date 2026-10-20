@@ -158,3 +158,6 @@ function getAdapterToolNames(ctx: ExtensionContext): string[] {
 	}
 	return toolNames;
 }
+
+// Native consumers should import native.ts directly to avoid legacy extension dependencies.
+export * from "./native.ts";

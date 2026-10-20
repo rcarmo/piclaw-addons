@@ -39,6 +39,7 @@ export interface Reply {
   bytes?: Uint8Array;
 }
 export interface TransportOptions {
+  assertCurrent?: () => void;
   keyBytes: number[];
   config: RemotePeerConfig;
   handler: (peer: string, packet: Packet, bytes: Uint8Array) => Promise<Reply>;
@@ -125,6 +126,7 @@ export class IrohTransport {
       for (const relay of await resolveRelayConfigs(c)) map.insert(relay);
       builder.relayMode(RelayMode.custom(map));
     }
+    this.options.assertCurrent?.();
     const endpoint = await builder.bind();
     if (this.closed) {
       await endpoint.close();
@@ -251,16 +253,21 @@ export class IrohTransport {
       throw new Error("Replay cache capacity exceeded.");
     this.replay.set(key, now + 180000);
   }
-  private async write(stream: any, p: Packet, bytes: Uint8Array) {
+  private async write(stream: any, p: Packet, bytes: Uint8Array, assertCurrent = this.options.assertCurrent) {
     const header = Buffer.from(JSON.stringify(p));
     if (header.length > HEADER_LIMIT || bytes.length > MAX_BYTES)
       throw new Error("Iroh frame too large.");
     const prefix = Buffer.alloc(4);
     prefix.writeUInt32BE(header.length);
+    assertCurrent?.();
     await stream.writeAll(Array.from(prefix));
+    assertCurrent?.();
     await stream.writeAll(Array.from(header));
-    for (let i = 0; i < bytes.length; i += 65536)
+    for (let i = 0; i < bytes.length; i += 65536) {
+      assertCurrent?.();
       await stream.writeAll(Array.from(bytes.subarray(i, i + 65536)));
+    }
+    assertCurrent?.();
     await stream.finish();
   }
   private async read(
@@ -318,7 +325,8 @@ export class IrohTransport {
       connection?.close(1n, []);
     }, 30000);
     try {
-      connection = await (await incoming.accept()).connect();
+      const accepted = await incoming.accept();
+      connection = await accepted.connect();
       if (expired || this.closed) {
         connection.close(1n, []);
         return;
@@ -348,6 +356,7 @@ export class IrohTransport {
         bi.send,
         this.packet(remote, "reply", result.body, replyBytes, packet.id),
         replyBytes,
+        () => { if (this.closed) throw new Error("Iroh transport is closed."); },
       );
       await bi.send.stopped();
     } finally {
@@ -398,6 +407,7 @@ export class IrohTransport {
     this.outgoing++;
     try {
       const operation = (async () => {
+        this.options.assertCurrent?.();
         const dial = this.endpoint.connect(addr, ALPN_BYTES);
         this.dialing.add(dial);
         try {
@@ -410,8 +420,9 @@ export class IrohTransport {
           throw new Error("Peer request cancelled.");
         }
         this.connections.add(connection);
-        const packet = this.packet(id, op, body, bytes),
-          bi = await connection.openBi();
+        const packet = this.packet(id, op, body, bytes);
+        this.options.assertCurrent?.();
+        const bi = await connection.openBi();
         await this.write(bi.send, packet, bytes);
         const reply = await this.read(bi.recv);
         this.validate(reply.packet, id, reply.bytes);
