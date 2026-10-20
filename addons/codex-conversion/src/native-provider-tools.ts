@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { createImageGenerationTool, IMAGE_GENERATION_UNSUPPORTED_MESSAGE } from "./tools/image-generation-tool.ts";
 import { createWebSearchTool, WEB_SEARCH_UNSUPPORTED_MESSAGE } from "./tools/web-search-tool.ts";
 import { createViewImageTool, parseViewImageParams } from "./tools/view-image-tool.ts";
-import { supportsNativeImageGeneration, supportsNativeWebSearch, type NativeModelDescriptor } from "./native-request.ts";
+import { supportsNativeImageGeneration, supportsNativeWebSearch, supportsOriginalImageDetail, type NativeModelDescriptor } from "./native-request.ts";
 
 export type NativeProviderResult = { content: Array<{ type: "text"; text: string } | { type: "image"; data: string; mimeType: string }>; details?: unknown };
 export interface NativeProviderInvocation {
@@ -40,7 +40,7 @@ export function createNativeImageGenerationTool(p: NativeProviderToolPorts) {
   } };
 }
 export function createNativeViewImageTool(p: NativeProviderToolPorts) {
-  const original = !!p.model.input?.includes("image") && [p.model.provider, p.model.api, p.model.id].some(v => v?.toLowerCase().includes("codex"));
+  const original = supportsOriginalImageDetail(p.model);
   return { ...createViewImageTool({ allowOriginalDetail: original }), async execute(id: string, params: unknown, signal?: AbortSignal) {
     const i = invocation(p, signal); check(i);
     if (!i.model.input?.includes("image")) throw Error("view_image is not allowed because you do not support image inputs");

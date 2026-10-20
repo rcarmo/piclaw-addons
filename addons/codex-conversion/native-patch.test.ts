@@ -69,3 +69,48 @@ test("move checks destination write and source unlink independently", () => fixt
  expect(fs.readFileSync(join(cwd, "a.txt"), "utf8")).toBe("hello\n");
  expect(fs.readFileSync(join(cwd, "b.txt"), "utf8")).toBe("world\n");
 }));
+
+test("executeTool returns exact legacy success text and details", () => fixture(cwd => {
+ const tool = createNativeApplyPatchFactory(fs)({ assertCurrent() {} }, cwd);
+ const result = tool.executeTool({ input: patch });
+ expect(result.content).toEqual([{ type: "text", text: "Applied patch successfully.\nChanged files: 1\nCreated files: 1\nDeleted files: 0\nMoved files: 0\nFuzz: 0" }]);
+ expect(result.details.status).toBe("success");
+ expect(result.details.result.createdFiles).toEqual(["a.txt"]);
+ expect(fs.readFileSync(join(cwd, "a.txt"), "utf8")).toBe("hello\n");
+}));
+test("executeTool partial failure preserves recovery instructions", () => fixture(cwd => {
+ const tool = createNativeApplyPatchFactory(fs)({ assertCurrent() {} }, cwd);
+ const result = tool.executeTool({ input: patch.replace("*** End Patch", "*** Update File: missing.txt\n@@\n-nope\n+yes\n*** End Patch") });
+ expect(result.details.status).toBe("partial_failure");
+ if (result.details.status !== "partial_failure") throw Error("expected partial");
+ expect(result.details.appliedFiles).toEqual(["a.txt"]);
+ expect(result.details.failedFiles).toEqual(["missing.txt"]);
+ expect(result.details.failedTargets).toEqual(["missing.txt"]);
+ expect(result.details.recoveryInstructions).toEqual({ mustReadFiles: ["missing.txt"], mustNotReadFiles: ["a.txt"] });
+ expect(result.content[0].text).toContain("Recovery: MUST read missing.txt before retrying.");
+ expect(result.content[0].text).toContain("Recovery: MUST NOT reread other files");
+ expect(fs.readFileSync(join(cwd, "a.txt"), "utf8")).toBe("hello\n");
+}));
+test("executeTool never formats revocation after first file as partial success", () => fixture(cwd => {
+ let live = true, writes = 0;
+ const files = { ...fs, writeFileSync(...args: any[]) { (fs.writeFileSync as any)(...args); writes++; live = false; } } as PatchFilePorts;
+ const tool = createNativeApplyPatchFactory(files)({ assertCurrent() { if (!live) throw Error("private SOURCE revocation"); } }, cwd);
+ expect(() => tool.executeTool({ input: patch.replace("*** End Patch", "*** Add File: b.txt\n+blocked\n*** End Patch") })).toThrow("private SOURCE revocation");
+ expect(writes).toBe(1);
+ expect(fs.existsSync(join(cwd, "b.txt"))).toBe(false);
+}));
+
+test("executeTool matches registered legacy success and partial results", async () => {
+ const { registerApplyPatchTool } = await import("./src/tools/apply-patch-tool.ts");
+ let legacy: any;
+ registerApplyPatchTool({ registerTool(tool: any) { legacy = tool; } } as any);
+ for (const input of [patch, patch.replace("*** End Patch", "*** Update File: missing.txt\n@@\n-nope\n+yes\n*** End Patch")]) {
+  const cwd = fs.mkdtempSync(join(tmpdir(), "codex-result-parity-"));
+  try {
+   const expected = await legacy.execute("parity", { input }, undefined, undefined, { cwd });
+   fs.unlinkSync(join(cwd, "a.txt"));
+   const actual = createNativeApplyPatchFactory(fs)({ assertCurrent() {} }, cwd).executeTool({ input });
+   expect(actual).toEqual(expected);
+  } finally { fs.rmSync(cwd, { recursive: true, force: true }); }
+ }
+});

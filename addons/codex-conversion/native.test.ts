@@ -33,6 +33,19 @@ describe("pure native Codex hooks", () => {
   });
 });
 
+test("view image declaration follows the detached source model, not registry inventory", () => {
+  const model = { provider: "openai-codex", api: "openai-codex-responses", input: ["text", "image"] };
+  const hooks = createNativeCodexHooks(model);
+  model.provider = "other"; model.input.length = 0;
+  const inventory = [{ name: "view_image", parameters: { properties: {} as Record<string, unknown> } }, { name: "custom", parameters: { properties: {} as Record<string, unknown> } }];
+  expect(hooks.toolDeclarations(inventory)[0]!.parameters.properties.detail).toBeDefined();
+  const copilot = createNativeCodexHooks({ provider: "github-copilot", id: "gpt-5", input: ["text", "image"] });
+  expect(copilot.toolDeclarations(inventory)[0]!.parameters.properties.detail).toBeUndefined();
+  expect(hooks.toolDeclarations(inventory)[1]).toBe(inventory[1]);
+  expect(inventory[0]!.parameters.properties.detail).toBeUndefined();
+  expect(createNativeCodexHooks({ provider: "other", input: ["text"] }).tools(["view_image", "custom"])).toEqual(["custom"]);
+});
+
 test("native provider shapes are explicit and Spark excludes multimodal search", () => {
   const payload = { tools: [{ type: "function", name: "web_search" }, { type: "function", name: "image_generation" }] };
   expect(createNativeCodexHooks({ provider: "openai-codex", input: ["image"] }).request(payload)).toEqual({

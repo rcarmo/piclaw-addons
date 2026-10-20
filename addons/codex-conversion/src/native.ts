@@ -1,8 +1,9 @@
 /** Native entry: factories only; importing does not register, authenticate or start processes. */
+import { createViewImageParameters } from "./tools/view-image-tool.ts";
 import { resolveAdapterProfile, applyGitHubCopilotInferenceProfile } from "./adapter/provider-profile.ts";
 import { mergeAdapterTools } from "./adapter/tool-set.ts";
 import { buildCodexSystemPrompt, extractPiPromptSkills } from "./prompt/build-system-prompt.ts";
-import { rewriteNativeImageGenerationTool, rewriteNativeWebSearchTool, type NativeModelDescriptor } from "./native-request.ts";
+import { rewriteNativeImageGenerationTool, rewriteNativeWebSearchTool, supportsOriginalImageDetail, type NativeModelDescriptor } from "./native-request.ts";
 export { rewriteNativeImageGenerationTool, rewriteNativeWebSearchTool } from "./native-request.ts";
 export { resolveAdapterProfile } from "./adapter/provider-profile.ts";
 export type { NativeModelDescriptor } from "./native-request.ts";
@@ -15,8 +16,12 @@ export function createNativeCodexHooks(model: NativeModelDescriptor | undefined)
   return Object.freeze({
     profile,
     tools(active: string[]) {
-      if (profile === "native") return [...active];
+      if (profile === "native") return active.filter(name => name !== "view_image" || snapshot?.input?.includes("image"));
       return mergeAdapterTools(active, ["exec_command", "write_stdin", "apply_patch", ...(snapshot?.input?.includes("image") ? ["view_image"] : [])]);
+    },
+    toolDeclarations<T extends { name: string }>(tools: readonly T[]): T[] {
+      return tools.map(tool => tool.name === "view_image"
+        ? { ...tool, parameters: createViewImageParameters(supportsOriginalImageDetail(snapshot)) } : tool);
     },
     headers(headers: Parameters<typeof applyGitHubCopilotInferenceProfile>[0]) {
       const next = { ...headers };

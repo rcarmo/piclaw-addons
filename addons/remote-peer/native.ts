@@ -167,6 +167,6 @@ export function createNativeRemotePeerDelivery(options: {
         if (!admit) throw Error("Native steering unavailable");
         const receipt = await admit({ source: "remote_peer", sourceId: JSON.stringify(["remote_peer", principal.peer, principal.revision, input.source.message_id]), text: input.content,
           queuedAt: new Date().toISOString(), principal: { id: principal.peer, revision: principal.revision }, target, mode: "queue", assertCurrent });
-        return { status: "ok" as const, chat_jid: receipt.chatJid, row_id: receipt.rowId, thread_id: null, queued: "followup" as const, created: false };
+        return { status: "ok" as const, chat_jid: receipt.chatJid, row_id: receipt.rowId, thread_id: null, queued: receipt.mode === "steer" ? "steer" as const : "followup" as const, created: false };
   };
 }

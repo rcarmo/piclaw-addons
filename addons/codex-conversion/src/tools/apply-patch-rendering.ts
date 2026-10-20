@@ -1,4 +1,5 @@
-import { isAbsolute, relative } from "node:path";
+import { formatPatchTarget } from "../patch/tool-result.ts";
+export { formatPatchTarget } from "../patch/tool-result.ts";
 import { renderDiff } from "@earendil-works/pi-coding-agent";
 import { openFileAtPath } from "../patch/paths.ts";
 import { parsePatchActions } from "../patch/parser.ts";
@@ -301,27 +302,6 @@ function findSequence(lines: string[], context: string[], start: number, normali
 		}
 	}
 	return -1;
-}
-
-export function formatPatchTarget(path: string, movePath: string | undefined, cwd: string): string {
-	const from = displayPath(path, cwd);
-	if (!movePath) {
-		return from;
-	}
-	return `${from} → ${displayPath(movePath, cwd)}`;
-}
-
-function displayPath(path: string, cwd: string): string {
-	if (!isAbsolute(path)) {
-		return path;
-	}
-
-	const relativePath = relative(cwd, path);
-	if (relativePath !== "" && !relativePath.startsWith("..") && !isAbsolute(relativePath)) {
-		return relativePath;
-	}
-
-	return path;
 }
 
 function readFileLines(path: string, cwd: string): string[] {

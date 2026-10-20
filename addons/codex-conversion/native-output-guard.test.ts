@@ -34,3 +34,33 @@ test('image writer checks ownership after workspace and mkdir awaits, and betwee
   }finally{await rm(cwd,{recursive:true,force:true});}
  }
 });
+
+test('body error is irrecoverable and explicitly discardable without publication', async () => {
+ const operation={id:'failed',sessionId:'session',cwd:tmpdir(),model:{provider:'openai-codex',id:'test',api:'openai-codex-responses'},signal:new AbortController().signal,assertCurrent(){}};
+ let published=0;
+ const output=await createNativeCodexOutput(operation,async()=>{published++;});
+ const response=new Response(new ReadableStream({start(controller){
+  controller.enqueue(new TextEncoder().encode('data: {"type":"response.created","response":{"id":"resp"}}\n\n'));
+  setTimeout(()=>controller.error(Error('body failed')),5);
+ }}));
+ await expect(output.capture(response)).rejects.toThrow('body failed');
+ expect(output.phase).toBe('capture-failed');
+ await expect(output.finish()).rejects.toThrow('body failed');
+ expect(output.discardFailedCapture()).toBe(true);
+ expect(output.discardFailedCapture()).toBe(true);
+ expect(output.phase).toBe('discarded');
+ expect(published).toBe(0);
+});
+test('publication retry retains the identical pending activity', async()=>{
+ const cwd=await mkdtemp(join(tmpdir(),'codex-retry-'));await mkdir(join(cwd,'.git'));
+ try {
+  const operation={id:'retry',sessionId:'session',cwd,model:{provider:'openai-codex',id:'test',api:'openai-codex-responses'},signal:new AbortController().signal,assertCurrent(){}};
+  const attempts:any[]=[];const published:any[]=[];
+  const output=await createNativeCodexOutput(operation,async(_op,item)=>{attempts.push(item);if(attempts.length===1)throw Error('transient');published.push(item);});
+  await output.capture(new Response(sse));
+  await expect(output.finish()).rejects.toThrow('transient');
+  expect(output.discardFailedCapture()).toBe(false);
+  await output.finish();await output.finish();
+  expect(attempts).toHaveLength(2);expect(attempts[0]).toBe(attempts[1]);expect(published).toHaveLength(1);
+ }finally{await rm(cwd,{recursive:true,force:true});}
+});

@@ -35,7 +35,7 @@ interface CreateViewImageToolOptions {
 
 type ViewImageParameters = ReturnType<typeof createViewImageParameters>;
 
-function createViewImageParameters(allowOriginalDetail: boolean) {
+export function createViewImageParameters(allowOriginalDetail: boolean) {
 	const properties: Record<string, TSchema> = {
 		path: Type.String({ description: "Local filesystem path to an image file" }),
 	};

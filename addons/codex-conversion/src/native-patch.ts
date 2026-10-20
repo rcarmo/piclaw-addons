@@ -1,4 +1,5 @@
 /** Separate native executable entry. No legacy ToolDefinition or session context. */
+import { formatPatchSuccess, formatPatchError } from "./patch/tool-result.ts";
 import { createPatchExecutor } from "./patch/core.ts";
 import type { PatchFilePorts } from "./patch/paths.ts";
 
@@ -33,6 +34,22 @@ export function createNativeApplyPatchFactory(files: PatchFilePorts) {
         check();
         if (typeof params?.input !== "string") throw Error("apply_patch requires a string 'input' parameter");
         return executePatch({ cwd, patchText: params.input });
+      },
+      executeTool(params: { input: string }) {
+        check();
+        if (typeof params?.input !== "string") throw Error("apply_patch requires a string 'input' parameter");
+        let result;
+        try { result = executePatch({ cwd, patchText: params.input }); }
+        catch (error) {
+          check();
+          const formatted = formatPatchError(error, cwd);
+          check();
+          return formatted;
+        }
+        check();
+        const formatted = formatPatchSuccess(result);
+        check();
+        return formatted;
       },
       dispose() { disposed = true; },
     });

@@ -48,7 +48,8 @@ test("standalone native public exports resolve the actual SDK12, without shared 
       const names = ["createNativeCodexHooks", "resolveAdapterProfile", "rewriteNativeImageGenerationTool",
         "rewriteNativeWebSearchTool", "createNativeApplyPatchFactory", "createNativeWebSearchTool",
         "createNativeImageGenerationTool", "createNativeViewImageTool", "createNativeCodexProfile",
-        "bindNativeCodexProvider", "createNativeCodexOutput"];
+        "bindNativeCodexProvider", "createNativeCodexOutput", "createNativeProcessPool",
+        "createNativeExecCommandTool", "createNativeWriteStdinTool"];
       expect(Object.keys(native).sort()).toEqual(names.sort());
       for (const name of names) expect(typeof native[name]).toBe("function");
       let active = ["read", "custom"];

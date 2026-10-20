@@ -96,6 +96,10 @@ function supportsImageInputs(model: NativeModelDescriptor | undefined): boolean 
 	return Array.isArray(model?.input) && model.input.includes("image");
 }
 
+export function supportsOriginalImageDetail(model: NativeModelDescriptor | undefined): boolean {
+  return supportsImageInputs(model) && [model?.provider, model?.api, model?.id].some(value => value?.toLowerCase().includes("codex"));
+}
+
 export function supportsNativeImageGeneration(model: NativeModelDescriptor | undefined): boolean {
 	return isOpenAICodexModel(model) && supportsImageInputs(model);
 }
