@@ -257,6 +257,22 @@ export class SourceReader {
     input: CaptureRequest,
     signal?: AbortSignal,
   ): Promise<SourceCapture> {
+    try {
+      return await this.captureStable(input, signal);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT")
+        throw new ReviewError(
+          "changed_during_read",
+          "Source changed during capture.",
+          409,
+        );
+      throw error;
+    }
+  }
+  private async captureStable(
+    input: CaptureRequest,
+    signal?: AbortSignal,
+  ): Promise<SourceCapture> {
     signal?.throwIfAborted();
     if (!["source", "unstaged", "staged", "commit"].includes(input.mode))
       throw new ReviewError("invalid_input", "Unknown source mode.");

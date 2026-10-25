@@ -1,8 +1,29 @@
 import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
-import { delegateCliDiagnostics, getExecutableCatalog, invalidateExecutableCatalog, resolveDelegateCliCommand, resolveRunningPiclawCli, getDelegateWorkspaceRoot } from './delegate.ts';
+import { delegateCliDiagnostics, getExecutableCatalog, invalidateExecutableCatalog, resolveDelegateCliCommand, resolveRunningPiclawCli, getDelegateWorkspaceRoot, resolvePiPackageCli } from './delegate.ts';
+
+test('installed 1.4.0 published CLI resolves and reports its version with an empty offline profile on Bun 1.4.4', () => {
+  const packageRoot = resolve(import.meta.dir, '../../node_modules/@earendil-works/pi-coding-agent');
+  const manifestPath = join(packageRoot, 'package.json');
+  expect(JSON.parse(readFileSync(manifestPath, 'utf8')).version).toBe('1.4.0');
+  const cli = resolvePiPackageCli(manifestPath);
+  expect(cli).toBe(join(packageRoot, 'dist/bundle/cli.js'));
+  const scratch = mkdtempSync(join(getDelegateWorkspaceRoot(), 'sdk140-cli-'));
+  try {
+    const home = join(scratch, 'home'), profile = join(scratch, 'profile');
+    mkdirSync(home); mkdirSync(profile);
+    const child = Bun.spawnSync([process.execPath, '--no-env-file', cli!, '--offline', '--version'], {
+      cwd: scratch, env: { PATH: `${dirname(process.execPath)}:/usr/bin:/bin`, HOME: home,
+        PI_CODING_AGENT_DIR: profile, PI_OFFLINE: '1', PI_TELEMETRY: '0', OTEL_SDK_DISABLED: 'true' },
+      stdin: 'ignore', stdout: 'pipe', stderr: 'pipe', timeout: 10000,
+    });
+    expect(child.exitCode).toBe(0); expect(child.stderr.toString()).toBe('');
+    expect(child.stdout.toString().trim()).toBe('1.4.0');
+    expect(Bun.version).toBe('1.4.4');
+  } finally { rmSync(scratch, { recursive: true, force: true }); }
+});
 
 function piPackage(root: string, version: string, model: string) {
   const directory = join(root, 'node_modules/@earendil-works/pi-coding-agent');

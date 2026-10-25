@@ -20,7 +20,7 @@ const REAL_GIT = ["/usr/bin/git", "/bin/git"].find((path) => existsSync(path));
 if (!REAL_GIT) throw new Error("git binary not found");
 const gitBinary: string = REAL_GIT;
 
-type RaceTrigger = "before-read" | "after-read";
+type RaceTrigger = "before-read" | "after-read" | "remove-before-source-read";
 
 function writeText(path: string, text: string | Uint8Array) {
   mkdirSync(dirname(path), { recursive: true });
@@ -114,7 +114,7 @@ function installGitRace(
     wrapper,
     `#!/usr/bin/env bun
 import { spawnSync } from "node:child_process";
-import { appendFileSync, existsSync, renameSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, renameSync, rmSync, writeFileSync } from "node:fs";
 
 const REAL_GIT = ${JSON.stringify(gitBinary)};
 const TARGET = ${JSON.stringify(targetPath)};
@@ -141,10 +141,15 @@ const tail = verbIndex >= 0 ? args.slice(verbIndex) : args;
 const hit =
   TRIGGER === "before-read"
     ? tail[0] === "ls-files" && tail[1] === "--stage"
-    : tail[0] === "cat-file" && tail[1] === "-s";
+    : TRIGGER === "after-read"
+      ? tail[0] === "cat-file" && tail[1] === "-s"
+      : tail[0] === "rev-parse" && tail[1] === "--show-toplevel";
 if (hit && !existsSync(MARKER)) {
-  writeFileSync(TEMP, REPLACEMENT);
-  renameSync(TEMP, TARGET);
+  if (TRIGGER === "remove-before-source-read") rmSync(TARGET);
+  else {
+    writeFileSync(TEMP, REPLACEMENT);
+    renameSync(TEMP, TARGET);
+  }
   writeFileSync(MARKER, "done");
 }
 if (result.stdout) process.stdout.write(result.stdout);
@@ -162,6 +167,28 @@ process.exit(result.status ?? 1);
     },
   };
 }
+
+test("CR-061 missing path after source admission is a capture conflict", async () => {
+  const f = fixture();
+  try {
+    const path = "src/race.ts";
+    f.write(path, "export const state = 'before';\n");
+    const race = installGitRace(
+      f.root,
+      f.binDir,
+      join(f.repoDir, path),
+      "",
+      "remove-before-source-read",
+    );
+    const error = await rejected(
+      race.capture(() => f.reader.capture({ path, mode: "source" })),
+    );
+    expect(existsSync(race.marker)).toBe(true);
+    expect(error).toMatchObject({ code: "changed_during_read", status: 409 });
+  } finally {
+    f.cleanup();
+  }
+});
 
 test("CR-061 capture never returns a mixed revision under deterministic git and source races", async () => {
   const base = "export const state = 'base';\n";
