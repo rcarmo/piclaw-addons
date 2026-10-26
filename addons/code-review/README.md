@@ -84,10 +84,82 @@ ownership. Browser actions are authenticated; there are no external peer routes.
 
 ## Storage
 
-`messaging.getAddonDataDir('code-review')/reviews.db` belongs to this add-on. Do not
-point it at Piclaw's core message database. Snapshots and review records are
-versioned; uninstall must retain the directory. Back up the SQLite database
-consistently, including any WAL state. Destructive reset is not an implicit upgrade.
+The add-on owns its review schema in both storage modes:
+
+- The standalone host uses `messaging.getAddonDataDir('code-review')/reviews.db`.
+  Keep this path separate from the core database.
+- The native host explicitly calls `setReviewDatabaseSource({ database, assertOwner })`
+  before opening a service. `ReviewDatabase.initializeBorrowed()` creates the
+  `addon_code_review_*` namespace on that exact borrowed connection. The add-on
+  never configures or closes the host connection or changes its `user_version`.
+  Native mode must not fall back to the standalone path.
+
+The shared schema has **16 regular tables and 6 explicit indexes**, plus SQLite's
+own primary-key indexes. Its local marker is schema version 1. The definitions in
+`database.ts` are byte-identical at the native-approved source
+[`e8aac239`](https://github.com/rcarmo/piclaw-addons/blob/e8aac2399148cbef638764ba2b5a1cd916cc5ecc/addons/code-review/database.ts)
+(package 0.1.8) and add-on source
+[`8150ca59`](https://github.com/rcarmo/piclaw-addons/blob/8150ca59edb44d30d6a07557433f30612f71adc0/addons/code-review/database.ts)
+(package 0.1.9): SHA-256 `18ea9fa1d0a5f7e215429d5fc563dcd166314e1ce8f96fe6a0350c93dabe6558`.
+This schema equivalence does not approve a newer package for a native host that
+pins another tool implementation or package version.
+
+All shared tables below use the same add-on initializer. `ReviewStore` in
+`store.ts` owns review mutations; `ReviewService` in `dispatch.ts` adds delivery
+and recovery. Their payloads live in SQLite. The `R` retention class means the
+transactional `deleteReview()` path, invoked by an explicit operator deletion or
+the scoped, opt-in expiry policy described above.
+
+| Table | Writer and supported invariant | Payload and retention |
+|---|---|---|
+| `addon_code_review_schema` | `ReviewDatabase.initializeBorrowed`: local compatibility marker | Version only; retain while any namespace objects remain |
+| `addon_code_review_reviews` | `ReviewStore.createFromCapture`, `setTarget`: owner/workspace and optimistic version | Title, target and timestamps; R |
+| `addon_code_review_blobs` | `ReviewStore` snapshot capture: review-scoped content hash | Saved UTF-8 source bytes; R |
+| `addon_code_review_snapshots` | `ReviewStore` capture/refresh: immutable source revision | Mode, base/head and digest; R |
+| `addon_code_review_snapshot_files` | `ReviewStore` capture/refresh: ordered file identities and composite FKs | Paths and old/new blob references; R |
+| `addon_code_review_threads` | `ReviewStore.createThread`, resolve/reopen/reassign/reanchor | Anchor, state, target, assignment epoch and version; R |
+| `addon_code_review_projections` | `ReviewStore` projection/reanchor: mapping onto a saved snapshot | Projection and actor; R; retain manual mapping evidence |
+| `addon_code_review_messages` | `ReviewStore` reply/edit/delete: stable authorship and ordinal | Metadata and latest revision pointer; R |
+| `addon_code_review_message_revisions` | `ReviewStore` reply/edit/delete: version history | Bodies; explicit message/thread deletion also redacts old bodies; R |
+| `addon_code_review_drafts` | `ReviewStore.saveDraft`/`deleteDraft`: private unsent work | Body and optional anchor; explicit draft deletion or R |
+| `addon_code_review_dispatches` | `ReviewService.submit`: immutable confirmed batch | Target, summary and payload hash; R |
+| `addon_code_review_dispatch_items` | `ReviewService.submit`/`updateWork`: exact submitted versions and per-concern progress | Epoch, file, ordinal and work state; R |
+| `addon_code_review_attempts` | `ReviewService.deliver`/`recoverInterrupted`: delivery certainty | Attempt state, host row and error code; R; never replay an unknown send automatically |
+| `addon_code_review_events` | `ReviewStore.event` and service mutations: ordered reconnect/change cursor | Event metadata; R |
+| `addon_code_review_request_receipts` | `ReviewStore.mutation`/`purgeDeletedReviewReceipts`: same-key/hash replay | Result; retain body-free tombstones after R to prevent resurrection |
+| `addon_code_review_review_settings` | `ReviewStore.saveSettings`: owner/workspace retention choice | Nullable retention days; retain across review deletion and deactivation |
+
+All 16 tables support distinct current contracts; no unsupported or duplicate
+persistence has been proved. Empty tables do not justify removal. Blobs avoid
+copying source for every snapshot, revisions preserve edits, and dispatch receipts
+separate uncertain host delivery from discussion progress. Native SDK tasks own
+agent execution. The add-on's concern/work states do not establish task liveness.
+The six indexes support owner lists, snapshot ordering, thread/draft lists,
+dispatch lookup and event cursors; this work makes no storage-saving claim.
+
+Closing a pane leaves the service and records intact. UI service reset closes
+cached services but retains the native database grant. Backend deactivation
+releases that grant, closes services and stops their hourly cleanup timers;
+stale continuations cannot acquire a new incarnation's authority. Removing or
+excluding the package from host discovery leaves the database unchanged.
+Reinstalling the same supported schema reopens its records. Interrupted delivery
+becomes `unknown`; it is not sent again. Existing active/uncertain work remains
+ineligible for automatic expiry.
+
+Schema installation and the additive version-1 settings initializer run only
+when the add-on opens its store. Core schema inventories do not recreate optional
+objects. Unknown shared schema versions fail transactionally; do not remove the
+marker to force initialisation. Other malformed version-1 objects need schema
+inspection/repair; the marker alone is not proof of full integrity. Restore a
+matching consistent checkpoint when required, preserving the failed source.
+
+There is no per-review archive/export-and-import command. Keep snapshots,
+revisions, receipts and settings together in a consistent database backup.
+Uninstall must retain the standalone directory or, for native storage, the host
+snapshot containing this namespace. Use the host's coordinated backup mechanism;
+copying only an open SQLite main file can omit committed WAL state. A complete
+native recovery unit also needs the host's external payload/configuration
+requirements. No reset, drop, retention schedule or live restore is implied here.
 
 ## Testing during development
 

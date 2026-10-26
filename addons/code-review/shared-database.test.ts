@@ -1,11 +1,11 @@
-import { expect, test } from "bun:test";
+import { expect, test, spyOn } from "bun:test";
 import { Database } from "bun:sqlite";
-import { mkdtempSync, readdirSync, rmSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ReviewDatabase, type BorrowedReviewDatabase } from "./database.js";
 import { ReviewService } from "./dispatch.js";
-import { reviewAction } from "./runtime.js";
+import { reviewAction, reviewService, setReviewDatabaseSource } from "./runtime.js";
 import type { LocalContext } from "./host.js";
 import type { ReviewIdentity, SourceCapture } from "./contracts.js";
 
@@ -281,4 +281,75 @@ test("SHAREDDB is opt-in: legacy standalone schema/data/settings remain unchange
     standalone = new ReviewService(path);
     expect(standalone.getThread(human, x.thread.threadId).messages[0]!.body).toBe(text);
   } finally { standalone.close(); host?.close(); rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("SHAREDDB lifecycle retains all 16 documented owners across deactivation and reinstall", async () => {
+  const f = fixture();
+  const clear = spyOn(globalThis, "clearInterval");
+  let release: (() => void) | undefined, releaseNext: (() => void) | undefined;
+  try {
+    const x = create(f.service), s = f.service;
+    const reply = s.reply(human, x.thread.threadId, "original reply", mutation(1));
+    s.editMessage(human, reply.messageId, "edited reply", mutation(1));
+    s.reanchor(human, x.thread.threadId, { fileId: x.review.files[0]!, side: "source" }, mutation(3));
+    s.saveDraft(human, x.review.reviewId, { threadId: x.thread.threadId, body: "private draft" }, mutation());
+    s.saveSettings(human, null);
+    const dispatch = s.submit(human, x.review.reviewId, { target, items: [{ threadId: x.thread.threadId, version: 4 }] }, mutation());
+    await s.deliver(human, dispatch.dispatchId, { async enqueue() { return { status: "accepted", rowId: 42 }; } });
+    const names = ["schema", ...tables].map(name => `addon_code_review_${name}`).sort();
+    const objects = () => f.db.query("SELECT type,name,tbl_name,sql FROM sqlite_master WHERE name GLOB 'addon_code_review_*' ORDER BY name").all();
+    const rows = () => names.map(name => f.db.query(`SELECT * FROM ${name} ORDER BY rowid`).all());
+    expect(f.db.query("SELECT name FROM sqlite_master WHERE type='table' AND name GLOB 'addon_code_review_*' ORDER BY name").all())
+      .toEqual(names.map(name => ({ name })));
+    for (const data of rows()) expect(data.length).toBeGreaterThan(0);
+    const savedObjects = objects(), savedRows = rows();
+    release = setReviewDatabaseSource(f.source);
+    const active = reviewService();
+    expect(active.database.db).toBe(f.db);
+    expect(rows()).toEqual(savedRows);
+    release();
+    expect(clear).toHaveBeenCalledTimes(1);
+    expect(() => active.listReviews(human)).toThrow("closed");
+    expect(objects()).toEqual(savedObjects);
+    expect(rows()).toEqual(savedRows);
+    // No service is opened in the inactive interval. Core keeps the same file.
+    expect(f.db.query("SELECT marker FROM tasks").all()).toEqual([{ marker: text }]);
+    releaseNext = setReviewDatabaseSource(f.source);
+    const reinstalled = reviewService();
+    release(); // A stale incarnation's release cannot close the new one.
+    expect(reinstalled.readFile(human, x.review.reviewId, x.review.files[0]!).newText).toBe(text);
+    expect(reinstalled.inspectDispatch(human, dispatch.dispatchId).attempts[0]!.state).toBe("accepted");
+    expect(reinstalled.getThread(human, x.thread.threadId).messages.at(-1)!.body).toBe("edited reply");
+    expect(reinstalled.listDrafts(human, x.review.reviewId)).toHaveLength(1);
+    expect(reinstalled.createFromCapture(human, x.input, x.source, x.request)).toEqual(x.review);
+    expect(() => reinstalled.createFromCapture(human, { ...x.input, title: "different" }, x.source, x.request)).toThrow("different action or payload");
+    expect(reinstalled.cleanupOldReviews(human).deletedCount).toBe(0);
+    expect(objects()).toEqual(savedObjects);
+    expect(rows()).toEqual(savedRows);
+    expect(f.db.query("PRAGMA foreign_key_check").all()).toEqual([]);
+    expect(pragmas(f.db)).toEqual(f.config);
+    expect(rootSnapshot(f.db)).toEqual(f.before);
+    const readme = readFileSync(join(import.meta.dir, "README.md"), "utf8");
+    for (const name of names) expect(readme).toContain(`\`${name}\``);
+  } finally { releaseNext?.(); release?.(); clear.mockRestore(); f.close(); }
+});
+
+test("SHAREDDB lifecycle schema1 settings initialization remains add-on-owned", () => {
+  const f = fixture();
+  try {
+    const x = create(f.service);
+    f.service.close();
+    f.db.exec("DROP TABLE addon_code_review_review_settings");
+    const before = rootSnapshot(f.db);
+    const reopened = new ReviewService(f.source);
+    try {
+      expect(reopened.getSettings(human)).toEqual({ retentionDays: null });
+      expect(reopened.readFile(human, x.review.reviewId, x.review.files[0]!).newText).toBe(text);
+      expect(f.db.query("SELECT * FROM addon_code_review_schema").all()).toEqual([{ id: 1, version: 1 }]);
+      expect(f.db.query("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name GLOB 'addon_code_review_*'").get()).toEqual({ n: 16 });
+      expect(rootSnapshot(f.db)).toEqual(before);
+      expect(pragmas(f.db)).toEqual(f.config);
+      expect(f.db.query("PRAGMA foreign_key_check").all()).toEqual([]);
+    } finally { reopened.close(); }
+  } finally { f.close(); }
 });
