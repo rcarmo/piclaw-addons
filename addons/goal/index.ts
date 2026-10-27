@@ -1298,19 +1298,20 @@ export function prepareGoalInput(text: string, chatJid: string): PreparedGoalInp
 
 export interface GoalToolInvocationPolicy {
   /** Host owns validation, chat binding and the storage/effect scope for this call. */
-  run<T>(name: string, args: unknown, context: ExtensionContext, body: () => Promise<T>): Promise<T>;
+  run?<T>(name: string, args: unknown, context: ExtensionContext, body: () => Promise<T>): Promise<T>;
+  write?<T>(body: () => T): Promise<T>;
 }
 
 /** Collect the shared tools without registering legacy lifecycle handlers or commands. */
 export function createGoalTools(resolveChat: (context: ExtensionContext) => string, policy?: GoalToolInvocationPolicy) {
   const tools: ToolDefinition<any, any, any>[] = [];
   registerGoalTools({ registerTool(tool) {
-    if (!policy) { tools.push(tool); return; }
+    if (!policy?.run) { tools.push(tool); return; }
     const wrapped: typeof tool = { ...tool, execute(callId, args, signal, onUpdate, context) {
-      return policy.run(tool.name, args, context, () => tool.execute(callId, args, signal, onUpdate, context));
+      return policy.run!(tool.name, args, context, () => tool.execute(callId, args, signal, onUpdate, context));
     } };
     tools.push(wrapped);
-  } }, resolveChat);
+  } }, resolveChat, policy?.write);
   return tools;
 }
 
@@ -1318,7 +1319,9 @@ export function createGoalTools(resolveChat: (context: ExtensionContext) => stri
 export function registerGoalTools(
   pi: Pick<ExtensionAPI, "registerTool">,
   resolveChat: (context: ExtensionContext) => string,
+  write?: <T>(body: () => T) => Promise<T>,
 ): void {
+  const mutate = write ?? (<T>(body: () => T): T => body());
   pi.registerTool({
     name: "get_goal",
     label: "get_goal",
@@ -1339,10 +1342,13 @@ export function registerGoalTools(
     promptSnippet: "create_goal: create an explicitly requested active thread goal when none exists.",
     parameters: CreateGoalSchema,
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const chatJid = resolveChat(ctx);
-      const goal = createThreadGoal(chatJid, params.objective, params.token_budget);
-      broadcastGoalUpdated(goal, chatJid, "tool", "create");
-      return { content: [{ type: "text", text: JSON.stringify(goalResponse(goal)) }], details: goalResponse(goal) };
+      const { goal, result } = await mutate(() => {
+        const chatJid = resolveChat(ctx);
+        const goal = createThreadGoal(chatJid, params.objective, params.token_budget);
+        return { goal, result: { content: [{ type: "text" as const, text: JSON.stringify(goalResponse(goal)) }], details: goalResponse(goal) } };
+      });
+      broadcastGoalUpdated(goal, goal.chat_jid, "tool", "create");
+      return result;
     },
   });
 
@@ -1358,35 +1364,38 @@ export function registerGoalTools(
     ],
     parameters: GoalCompleteSchema,
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const chatJid = resolveChat(ctx);
-      accountGoalProgress(chatJid, 0);
-      const summary = validateGoalObjective(params.summary);
-      const evidence = normalizeStringArray(params.evidence);
-      if (evidence.length === 0) throw new Error("goal_complete requires at least one concrete evidence item");
-      const completedAt = nowIso();
-      const goal = patchThreadGoal(chatJid, {
-        status: "complete",
-        last_accounted_at: null,
-        blocked_turns: 0,
-        last_blocker: "",
-        completion_summary: summary,
-        completion_evidence: evidence,
-        completed_at: completedAt,
-        stop_reason: "",
-        stop_summary: "",
-        stop_evidence: [],
-        stopped_at: null,
-        completion_candidate_at: null,
-        completion_plan_fingerprint: "",
-        completion_probe_count: 0,
-        last_auto_continue_fingerprint: "",
-        no_progress_turns: 0,
+      const { goal, result } = await mutate(() => {
+        const chatJid = resolveChat(ctx);
+        accountGoalProgress(chatJid, 0);
+        const summary = validateGoalObjective(params.summary);
+        const evidence = normalizeStringArray(params.evidence);
+        if (evidence.length === 0) throw new Error("goal_complete requires at least one concrete evidence item");
+        const completedAt = nowIso();
+        const goal = patchThreadGoal(chatJid, {
+          status: "complete",
+          last_accounted_at: null,
+          blocked_turns: 0,
+          last_blocker: "",
+          completion_summary: summary,
+          completion_evidence: evidence,
+          completed_at: completedAt,
+          stop_reason: "",
+          stop_summary: "",
+          stop_evidence: [],
+          stopped_at: null,
+          completion_candidate_at: null,
+          completion_plan_fingerprint: "",
+          completion_probe_count: 0,
+          last_auto_continue_fingerprint: "",
+          no_progress_turns: 0,
+        });
+        return { goal, result: {
+          content: [{ type: "text" as const, text: `Goal marked complete for ${chatJid}: ${summary}\n\nNow provide a concise final answer to the user with the completion summary and evidence. Do not call more tools unless the user asked for additional work.` }],
+          details: goalResponse(goal, true),
+        } };
       });
-      broadcastGoalUpdated(goal, chatJid, "tool", "complete");
-      return {
-        content: [{ type: "text", text: `Goal marked complete for ${chatJid}: ${summary}\n\nNow provide a concise final answer to the user with the completion summary and evidence. Do not call more tools unless the user asked for additional work.` }],
-        details: goalResponse(goal, true),
-      };
+      broadcastGoalUpdated(goal, goal.chat_jid, "tool", "complete");
+      return result;
     },
   });
 
@@ -1397,31 +1406,34 @@ export function registerGoalTools(
     promptSnippet: "goal_stop: stop the active goal loop without completion when no safe autonomous continuation remains; after it succeeds, explain the stop to the user.",
     parameters: GoalStopSchema,
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const chatJid = resolveChat(ctx);
-      accountGoalProgress(chatJid, 0);
-      const summary = validateGoalObjective(params.summary);
-      const evidence = normalizeStringArray(params.evidence);
-      const stoppedAt = nowIso();
-      const goal = patchThreadGoal(chatJid, {
-        status: "stopped",
-        last_accounted_at: null,
-        blocked_turns: 0,
-        last_blocker: summary,
-        stop_reason: normalizeText(params.reason, "other"),
-        stop_summary: summary,
-        stop_evidence: evidence,
-        stopped_at: stoppedAt,
-        completion_candidate_at: null,
-        completion_plan_fingerprint: "",
-        completion_probe_count: 0,
-        last_auto_continue_fingerprint: "",
-        no_progress_turns: 0,
+      const { goal, result } = await mutate(() => {
+        const chatJid = resolveChat(ctx);
+        accountGoalProgress(chatJid, 0);
+        const summary = validateGoalObjective(params.summary);
+        const evidence = normalizeStringArray(params.evidence);
+        const stoppedAt = nowIso();
+        const goal = patchThreadGoal(chatJid, {
+          status: "stopped",
+          last_accounted_at: null,
+          blocked_turns: 0,
+          last_blocker: summary,
+          stop_reason: normalizeText(params.reason, "other"),
+          stop_summary: summary,
+          stop_evidence: evidence,
+          stopped_at: stoppedAt,
+          completion_candidate_at: null,
+          completion_plan_fingerprint: "",
+          completion_probe_count: 0,
+          last_auto_continue_fingerprint: "",
+          no_progress_turns: 0,
+        });
+        return { goal, result: {
+          content: [{ type: "text" as const, text: `Goal stopped for ${chatJid}: ${summary}\n\nNow provide a concise final answer to the user explaining why the autonomous goal loop stopped. Do not call more tools unless the user asked for additional work.` }],
+          details: goalResponse(goal),
+        } };
       });
-      broadcastGoalUpdated(goal, chatJid, "tool", "stopped");
-      return {
-        content: [{ type: "text", text: `Goal stopped for ${chatJid}: ${summary}\n\nNow provide a concise final answer to the user explaining why the autonomous goal loop stopped. Do not call more tools unless the user asked for additional work.` }],
-        details: goalResponse(goal),
-      };
+      broadcastGoalUpdated(goal, goal.chat_jid, "tool", "stopped");
+      return result;
     },
   });
 
@@ -1432,50 +1444,53 @@ export function registerGoalTools(
     promptSnippet: "update_goal: Codex-compatible terminal goal-state tool for marking complete or blocked. Use status=complete for verified completion if goal_complete is unavailable or not selected; include summary/evidence, then reply to the user.",
     parameters: UpdateGoalSchema,
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const chatJid = resolveChat(ctx);
-      accountGoalProgress(chatJid, 0);
-      const status = params.status === "blocked" ? "blocked" : "complete";
-      const summary = status === "complete" ? validateGoalObjective(params.summary) : normalizeText(params.summary);
-      const evidence = normalizeStringArray(params.evidence);
-      if (status === "complete" && evidence.length === 0) {
-        throw new Error("update_goal status=complete requires at least one concrete evidence item");
-      }
-      const patch: Partial<ThreadGoal> = status === "complete"
-        ? {
-            status,
-            last_accounted_at: null,
-            blocked_turns: 0,
-            last_blocker: "",
-            completion_summary: summary,
-            completion_evidence: evidence,
-            completed_at: nowIso(),
-            stop_reason: "",
-            stop_summary: "",
-            stop_evidence: [],
-            stopped_at: null,
-            completion_candidate_at: null,
-            completion_plan_fingerprint: "",
-            completion_probe_count: 0,
-            last_auto_continue_fingerprint: "",
-            no_progress_turns: 0,
-          }
-        : {
-            status,
-            last_accounted_at: null,
-            blocked_turns: 3,
-            last_blocker: summary,
-            completion_candidate_at: null,
-            completion_plan_fingerprint: "",
-            completion_probe_count: 0,
-            last_auto_continue_fingerprint: "",
-            no_progress_turns: 0,
-          };
-      const goal = patchThreadGoal(chatJid, patch);
-      broadcastGoalUpdated(goal, chatJid, "tool", status === "blocked" ? "blocked" : "complete");
-      return {
-        content: [{ type: "text", text: `Marked goal ${status} for ${chatJid}.\n\nNow provide a concise final answer to the user describing the goal ${status} state. Do not call more tools unless the user asked for additional work.` }],
-        details: goalResponse(goal, status === "complete"),
-      };
+      const { goal, result } = await mutate(() => {
+        const chatJid = resolveChat(ctx);
+        accountGoalProgress(chatJid, 0);
+        const status = params.status === "blocked" ? "blocked" : "complete";
+        const summary = status === "complete" ? validateGoalObjective(params.summary) : normalizeText(params.summary);
+        const evidence = normalizeStringArray(params.evidence);
+        if (status === "complete" && evidence.length === 0) {
+          throw new Error("update_goal status=complete requires at least one concrete evidence item");
+        }
+        const patch: Partial<ThreadGoal> = status === "complete"
+          ? {
+              status,
+              last_accounted_at: null,
+              blocked_turns: 0,
+              last_blocker: "",
+              completion_summary: summary,
+              completion_evidence: evidence,
+              completed_at: nowIso(),
+              stop_reason: "",
+              stop_summary: "",
+              stop_evidence: [],
+              stopped_at: null,
+              completion_candidate_at: null,
+              completion_plan_fingerprint: "",
+              completion_probe_count: 0,
+              last_auto_continue_fingerprint: "",
+              no_progress_turns: 0,
+            }
+          : {
+              status,
+              last_accounted_at: null,
+              blocked_turns: 3,
+              last_blocker: summary,
+              completion_candidate_at: null,
+              completion_plan_fingerprint: "",
+              completion_probe_count: 0,
+              last_auto_continue_fingerprint: "",
+              no_progress_turns: 0,
+            };
+        const goal = patchThreadGoal(chatJid, patch);
+        return { goal, result: {
+          content: [{ type: "text" as const, text: `Marked goal ${status} for ${chatJid}.\n\nNow provide a concise final answer to the user describing the goal ${status} state. Do not call more tools unless the user asked for additional work.` }],
+          details: goalResponse(goal, status === "complete"),
+        } };
+      });
+      broadcastGoalUpdated(goal, goal.chat_jid, "tool", goal.status === "blocked" ? "blocked" : "complete");
+      return result;
     },
   });
 

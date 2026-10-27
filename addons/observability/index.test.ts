@@ -12,6 +12,26 @@ import observabilityExtension, {
   modelDependencyTarget,
 } from "./index.ts";
 
+for (const reject of [false, true]) test(`native settings await durable configuration before activation; reject=${reject}`, async () => {
+  const globals = globalThis as any, original = globals.__piclaw_registerAddonConfigApi;
+  let handlers: any, release!: () => void, committed = false;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  globals.__piclaw_registerAddonConfigApi = (_id: string, action: string, api: unknown) => { if (action === "config") handlers = api; };
+  const native = await import(`./index.ts?async-config=${crypto.randomUUID()}`);
+  globals.__piclaw_registerAddonConfigApi = original;
+  const dispose = native.bindObservabilityConfiguration({ assertCurrent() {}, read: () => ({ enabled: false }),
+    async write() { await gate; if (reject) throw Error("write denied"); committed = true; },
+  });
+  let acknowledged = false;
+  const pending = handlers.set({ enabled: false }).then((result: unknown) => { acknowledged = true; return result; });
+  try {
+    await Bun.sleep(0); expect(acknowledged).toBe(false); expect(committed).toBe(false);
+    release();
+    if (reject) await expect(pending).rejects.toThrow("write denied"); else expect(await pending).toHaveProperty("ok", true);
+    expect(committed).toBe(!reject);
+  } finally { release(); await pending.catch(() => {}); dispose(); globals.__piclaw_registerAddonConfigApi = original; }
+});
+
 test("native process preparation rejects revoked startup authority across its queued await", async () => {
   let current = true;
   let checks = 0;

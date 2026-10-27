@@ -31,5 +31,5 @@ test("revocation after awaited history stops file access", async () => {
 test("single user denial and path escape fail closed", async () => {
   const { native } = fixture({ assertSingleUser() { throw Error("single user required"); } });
   await expect(native.tool.execute("id", {})).rejects.toThrow("single user");
-  expect(() => native.setConfig({ exports_dir: "../outside" })).toThrow("escapes");
+  await expect(native.setConfig({ exports_dir: "../outside" })).rejects.toThrow("escapes");
 });

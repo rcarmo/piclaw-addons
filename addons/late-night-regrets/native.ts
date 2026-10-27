@@ -12,7 +12,7 @@ export interface RegretsNativePorts {
   cwd: string;
   assertCurrent(): void;
   assertSingleUser(): void;
-  config: { get(): Partial<RegretsConfig>; set(value: RegretsConfig): void };
+  config: { get(): Partial<RegretsConfig>; set(value: RegretsConfig): void | Promise<void> };
   /** Host enforces explicit cross-chat opt-in independently of config defaults. */
   history(window: ReviewPacket["window"]): Promise<{ exchanges: Exchange[]; excluded: Record<string, number> }>;
   readFile(path: string): Promise<string | undefined>;
@@ -35,12 +35,12 @@ export function createLateNightRegrets(ports: RegretsNativePorts) {
   const api = {
     resources: regretsResources,
     getConfig: config,
-    setConfig(patch: Partial<RegretsConfig>) {
+    async setConfig(patch: Partial<RegretsConfig>) {
       const next = normaliseConfig(patch, config());
       file(next.exports_dir); file(next.reflections_path);
       if (next.decision_model && !ports.accountedDecision.getAvailable().some(m => `${m.provider}/${m.id}` === next.decision_model))
         throw Error("Select an available provider/model from the model picker");
-      check(); ports.config.set(next); check(); return { ok: true, config: next };
+      check(); await ports.config.set(next); check(); return { ok: true, config: next };
     },
     settings: {
       config: { get: () => ({ ok: true, config: config() }), set: (patch: Partial<RegretsConfig>) => api.setConfig(patch) },

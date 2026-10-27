@@ -1,7 +1,34 @@
-import { expect, test } from "bun:test";
+import { expect, spyOn, test } from "bun:test";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { RemotePeerAuthorityScope } from "./native-authority.js";
-import { createRemotePeerTool } from "./native.js";
+import { bindNativeRemotePeer, createRemotePeerTool } from "./native.js";
 import { remotePeerParameters } from "./actions.js";
+
+test("work-result delivery waits for asynchronous host admission before acknowledging its row", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "remote-peer-admission-"));
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const target = { domain: "fixture", chatJid: "web:fixture", branchId: "main", conversationId: 1, sessionId: "session", revision: "r1" };
+  let admissions = 0, acknowledged = false;
+  const bound = await bindNativeRemotePeer({ dataDir: directory, nativeRootServiceOwner: { assertCurrent() {} },
+    transportFactory: () => ({ async close() {}, status() { return { active: false }; } }) as any,
+    bundle: { sessionTargets: { list: () => [target], resolve: () => target },
+      async admitApplicationInput() { admissions++; await gate; return { rowId: 42, chatJid: target.chatJid }; } },
+  });
+  const policy = spyOn(bound.service, "assertNativePeerCurrent").mockImplementation(() => {});
+  const pending = bound.authority.incoming({ peer: "fixture-peer", revision: "epoch", operation: "work-result" },
+    () => (bound.service as any).options.runtime.enqueueAgentMessage({ mode: "queue", chatJid: target.chatJid, content: "synthetic result" }))
+    .then(result => { acknowledged = true; return result; });
+  try {
+    await Bun.sleep(0);
+    expect(acknowledged).toBe(false);
+    release();
+    expect(await pending).toMatchObject({ status: "ok", row_id: 42, chat_jid: target.chatJid });
+    expect(admissions).toBe(1);
+  } finally { release(); await pending.catch(() => {}); policy.mockRestore(); await bound.authority.application("close", () => bound.service.close()); rmSync(directory, { recursive: true, force: true }); }
+});
 
 function fixture() {
   let current = { chat: "chat-a", incarnation: "inc-a", revoked: false };
