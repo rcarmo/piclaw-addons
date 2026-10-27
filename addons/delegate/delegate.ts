@@ -1459,14 +1459,17 @@ if (typeof registerAddonConfigApi === "function") {
     get: async () => ({ ok: true, config: loadConfig() }),
     set: async (payload) => {
       const body = payload && typeof payload === "object" ? payload as Partial<DelegateConfig> : {};
-      const current = loadConfig();
-      const next = normalizeConfig({
-        ...current,
-        ...(Object.prototype.hasOwnProperty.call(body, "searchable_providers") ? { searchable_providers: body.searchable_providers } : {}),
-        ...(Object.prototype.hasOwnProperty.call(body, "excluded_providers") ? { excluded_providers: body.excluded_providers } : {}),
-        ...(Object.prototype.hasOwnProperty.call(body, "excluded_models") ? { excluded_models: body.excluded_models } : {}),
+      const next = await kv().write(() => {
+        const current = loadConfig();
+        const next = normalizeConfig({
+          ...current,
+          ...(Object.prototype.hasOwnProperty.call(body, "searchable_providers") ? { searchable_providers: body.searchable_providers } : {}),
+          ...(Object.prototype.hasOwnProperty.call(body, "excluded_providers") ? { excluded_providers: body.excluded_providers } : {}),
+          ...(Object.prototype.hasOwnProperty.call(body, "excluded_models") ? { excluded_models: body.excluded_models } : {}),
+        });
+        saveConfig(next);
+        return next;
       });
-      saveConfig(next);
       return { ok: true, config: next };
     },
   }, ADDON_DIR);

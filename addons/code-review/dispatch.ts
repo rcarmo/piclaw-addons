@@ -59,6 +59,7 @@ export interface DispatchInput {
   summary?: string;
 }
 export interface QueueBridge {
+  write?<T>(body: () => T): Promise<T>;
   enqueue(input: {
     target: { chatId: string; incarnation: string };
     content: string;
@@ -406,7 +407,8 @@ export class ReviewService extends ReviewStore {
   async deliver(who: ReviewIdentity, dispatchId: string, bridge: QueueBridge) {
     operator(who);
     this.dispatch(who, dispatchId);
-    const claimed = this.database.transaction(() => {
+    const write = bridge.write?.bind(bridge) ?? this.database.write.bind(this.database);
+    const claimed = await write(() => {
       const row = this.dispatch(who, dispatchId),
         attempt = this.database.get<AttemptRow>(
           `SELECT * FROM ${this.database.table("attempts")} WHERE dispatch_id=? ORDER BY number DESC LIMIT 1`,
@@ -486,7 +488,7 @@ export class ReviewService extends ReviewStore {
           ? failure.code
           : "enqueue_failed";
     }
-    this.database.transaction(() => {
+    await this.database.write(() => {
       this.database.run(
         `UPDATE ${this.database.table("attempts")} SET state=?,host_row_id=?,error_code=?,updated_at=? WHERE id=? AND state='attempting'`,
         state,

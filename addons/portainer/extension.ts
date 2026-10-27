@@ -230,8 +230,8 @@ function handleGetPortainerSettings(): PortainerSettingsConfig {
   return loadPortainerSettingsConfig();
 }
 
-function handleSetPortainerSettings(body: Partial<PortainerSettingsConfig>): { ok: true; config: PortainerSettingsConfig } {
-  return { ok: true, config: savePortainerSettingsConfig(body) };
+async function handleSetPortainerSettings(body: Partial<PortainerSettingsConfig>): Promise<{ ok: true; config: PortainerSettingsConfig }> {
+  return { ok: true, config: await getStorage().write(() => savePortainerSettingsConfig(body)) };
 }
 
 type AddonConfigApiRegistrar = (
@@ -1132,10 +1132,13 @@ function createPortainerDefinition() {
           base_url: typeof params.base_url === "string" ? params.base_url.trim() : (current?.base_url || ""),
           api_token_keychain: typeof params.api_token_keychain === "string" ? params.api_token_keychain.trim() : (current?.api_token_keychain || ""),
           allow_insecure_tls: params.allow_insecure_tls ?? current?.allow_insecure_tls ?? true,
-        }) : kvSetConfig(chatJid, {
-          base_url: typeof params.base_url === "string" ? params.base_url.trim() : (current?.base_url || ""),
-          api_token_keychain: typeof params.api_token_keychain === "string" ? params.api_token_keychain.trim() : (current?.api_token_keychain || ""),
-          allow_insecure_tls: params.allow_insecure_tls ?? current?.allow_insecure_tls ?? true,
+        }) : await getStorage().write(() => {
+          const current = kvGetConfig(chatJid);
+          return kvSetConfig(chatJid, {
+            base_url: typeof params.base_url === "string" ? params.base_url.trim() : (current?.base_url || ""),
+            api_token_keychain: typeof params.api_token_keychain === "string" ? params.api_token_keychain.trim() : (current?.api_token_keychain || ""),
+            allow_insecure_tls: params.allow_insecure_tls ?? current?.allow_insecure_tls ?? true,
+          });
         });
         const resolved = resolvePortainerConfigState(chatJid, result.config);
         return {
@@ -1156,7 +1159,7 @@ function createPortainerDefinition() {
       }
 
       if (params.action === "clear") {
-        const result = handlers ? await handlers.clear(chatJid) : kvClearConfig(chatJid);
+        const result = handlers ? await handlers.clear(chatJid) : await getStorage().write(() => kvClearConfig(chatJid));
         const resolved = resolvePortainerConfigState(chatJid, null);
         return {
           content: [{

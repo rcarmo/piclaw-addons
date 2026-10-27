@@ -73,7 +73,15 @@ test("unknown/prepared/attempting receipt blocks new sends but not saved discuss
       if (state === "unknown") await f.deliver(first.dispatchId, "unknown");
       let release!: () => void;
       let running: Promise<unknown> | undefined;
-      if (state === "attempting") running = f.store.deliver(f.who, first.dispatchId, { async enqueue() { await new Promise<void>(r => { release = r; }); return { status: "accepted", rowId: 1 }; } });
+      if (state === "attempting") {
+        let entered!: () => void;
+        const started = new Promise<void>(resolve => { entered = resolve; });
+        running = f.store.deliver(f.who, first.dispatchId, { async enqueue() {
+          const hold = new Promise<void>(resolve => { release = resolve; }); entered(); await hold;
+          return { status: "accepted", rowId: 1 };
+        } });
+        await started;
+      }
       try { f.reply(); expect(() => f.submit()).toThrow(state === "unknown" ? "no confirmed delivery" : "still being delivered"); }
       finally { if (running) { release(); await running; } }
       if (state === "unknown") {

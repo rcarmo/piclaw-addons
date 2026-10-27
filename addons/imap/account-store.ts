@@ -130,10 +130,11 @@ export async function saveAccount(
     await keychainSet(passwordKeychainName(normalized), password);
   }
   check();
-  getStorage().set(accountKvKey(normalized), config, "global");
-  if (setDefault) {
-    getStorage().set(DEFAULT_ACCOUNT_KEY, normalized, "global");
-  }
+  await getStorage().write(() => {
+    check(); getStorage().set(accountKvKey(normalized), config, "global");
+    if (setDefault) getStorage().set(DEFAULT_ACCOUNT_KEY, normalized, "global");
+    check();
+  });
   const savedPassword = await keychainGetSecret(passwordKeychainName(normalized), check);
   return { name: normalized, ...config, hasPassword: typeof savedPassword === "string" && savedPassword.length > 0 };
 }
@@ -143,20 +144,28 @@ export async function deleteAccount(name: string, check: () => void = unchecked)
   if (!normalized) throw new Error("account name required");
   check();
   const kv = getStorage();
-  const deleted = kv.delete(accountKvKey(normalized), "global");
+  const deleted = await kv.write(() => { check(); const result = kv.delete(accountKvKey(normalized), "global"); check(); return result; });
   check();
   await keychainDelete(passwordKeychainName(normalized));
   check();
-  const currentDefault = kv.get<string>(DEFAULT_ACCOUNT_KEY, "global");
-  if (currentDefault === normalized) kv.delete(DEFAULT_ACCOUNT_KEY, "global");
+  await kv.write(() => {
+    check(); const currentDefault = kv.get<string>(DEFAULT_ACCOUNT_KEY, "global");
+    if (currentDefault === normalized) kv.delete(DEFAULT_ACCOUNT_KEY, "global");
+    check();
+  });
   return deleted;
 }
 
-export function setDefaultAccount(name: string | null, check: () => void = unchecked): void {
+export async function setDefaultAccount(name: string | null, check: () => void = unchecked): Promise<void> {
   check();
-  const kv = getStorage();
-  if (!name) kv.delete(DEFAULT_ACCOUNT_KEY, "global");
-  else kv.set(DEFAULT_ACCOUNT_KEY, normalizeName(name), "global");
+  const kv = getStorage(), normalized = name ? normalizeName(name) : null;
+  await kv.write(() => {
+    check();
+    if (normalized && !kv.get(accountKvKey(normalized), "global")) throw new Error(`Account not found: ${normalized}`);
+    if (!normalized) kv.delete(DEFAULT_ACCOUNT_KEY, "global");
+    else kv.set(DEFAULT_ACCOUNT_KEY, normalized, "global");
+    check();
+  });
 }
 
 export function getDefaultAccount(): string | null {

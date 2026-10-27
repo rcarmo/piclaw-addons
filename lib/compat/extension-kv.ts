@@ -10,6 +10,7 @@
 export type KvScope = "chat" | "global";
 
 export interface ExtensionStorage {
+  write<T>(body: () => T): Promise<T>;
   get<T = unknown>(key: string, scope?: KvScope, scopeKey?: string): T | null;
   set(key: string, value: unknown, scope?: KvScope, scopeKey?: string): void;
   delete(key: string, scope?: KvScope, scopeKey?: string): boolean;
@@ -20,6 +21,7 @@ export interface ExtensionStorage {
 // ── In-memory fallback ───────────────────────────────────────────
 
 class InMemoryStorage implements ExtensionStorage {
+  async write<T>(body: () => T): Promise<T> { return body(); }
   private store = new Map<string, string>();
   constructor(private extensionId: string) {}
 
@@ -69,6 +71,7 @@ class InMemoryStorage implements ExtensionStorage {
 // ── Runtime-backed storage ───────────────────────────────────────
 
 interface RuntimeKvStore {
+  write?<T>(extensionId: string, body: () => T): Promise<T>;
   get<T>(extensionId: string, key: string, scope?: KvScope, scopeKey?: string): T | null;
   set(extensionId: string, key: string, value: unknown, scope?: KvScope, scopeKey?: string): void;
   delete(extensionId: string, key: string, scope?: KvScope, scopeKey?: string): boolean;
@@ -77,6 +80,9 @@ interface RuntimeKvStore {
 }
 
 class RuntimeBackedStorage implements ExtensionStorage {
+  async write<T>(body: () => T): Promise<T> {
+    return this.store.write ? this.store.write(this.extensionId, body) : body();
+  }
   constructor(private extensionId: string, private store: RuntimeKvStore) {}
 
   get<T = unknown>(key: string, scope?: KvScope, scopeKey?: string): T | null {
