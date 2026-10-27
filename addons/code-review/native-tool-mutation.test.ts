@@ -67,6 +67,24 @@ async function fixture(action: "reply" | "work") {
   };
 }
 
+test("native review awaits asynchronous host mutation admission before serialising the result", async () => {
+  const f = await fixture("reply");
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const tool = createCodeReviewTool({ async resolve() { return { ...f.authority,
+    async write<T>(body: () => T): Promise<T> { await gate; return f.authority.write!(body); },
+  }; } });
+  let acknowledged = false;
+  const before = f.snapshot();
+  const pending = tool.execute("async-review", f.params).then(result => { acknowledged = true; return result; });
+  try {
+    await Bun.sleep(0); expect(acknowledged).toBe(false); expect(f.snapshot()).toEqual(before);
+    release(); const result = await pending;
+    expect(result.details).toMatchObject({ version: 2 });
+    expect(JSON.parse(result.content[0]!.text)).toEqual(result.details); expect(f.writes).toBe(1);
+  } finally { release(); await pending.catch(() => {}); f.close(); }
+});
+
 for (const action of ["reply", "work"] as const) {
 test(`native ${action}: revocation across awaited resolve prevents every backend mutation`, async () => {
   const f = await fixture(action);

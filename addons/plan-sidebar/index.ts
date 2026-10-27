@@ -1,4 +1,4 @@
-import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { basename } from "node:path";
 import { Type } from "typebox";
 import { createExtensionStorage, type ExtensionStorage } from "./compat/extension-kv.js";
@@ -559,6 +559,19 @@ export default function planSidebarAddon(pi: ExtensionAPI): void {
     };
   });
 
+  registerPlanTool(pi);
+}
+
+
+/** Shared native/legacy declaration; publish only after the supplied write commits. */
+export function createPlanTool(write?: <T>(body: () => T) => Promise<T>) {
+  let declaration!: ToolDefinition<any, any, any>;
+  registerPlanTool({ registerTool(tool) { declaration = tool; } }, write);
+  return declaration;
+}
+
+function registerPlanTool(pi: Pick<ExtensionAPI, "registerTool">, write?: <T>(body: () => T) => Promise<T>) {
+  const mutate = write ?? (<T>(body: () => T): T => body());
   pi.registerTool({
     name: "plan",
     label: "plan",
@@ -589,7 +602,7 @@ export default function planSidebarAddon(pi: ExtensionAPI): void {
 
       if (params.action === "update") {
         const update = normalizeUpdatePlanArgs(params);
-        const plan = saveSessionPlan(chatJid, updatePlanArgsToMarkdown(update));
+        const plan = await mutate(() => saveSessionPlan(chatJid, updatePlanArgsToMarkdown(update)));
         broadcastPlanUpdated(plan, "tool", "update");
         return {
           content: [{ type: "text", text: "Plan updated." }],
@@ -598,7 +611,7 @@ export default function planSidebarAddon(pi: ExtensionAPI): void {
       }
 
       if (params.action === "edit") {
-        const plan = editSessionPlan(chatJid, params.edits);
+        const plan = await mutate(() => editSessionPlan(chatJid, params.edits));
         broadcastPlanUpdated(plan, "tool", "edit");
         return {
           content: [{ type: "text", text: `Edited plan for ${plan.chat_jid}.` }],
@@ -607,7 +620,7 @@ export default function planSidebarAddon(pi: ExtensionAPI): void {
       }
 
       if (params.action === "patch") {
-        const plan = patchSessionPlan(chatJid, params.patches);
+        const plan = await mutate(() => patchSessionPlan(chatJid, params.patches));
         broadcastPlanUpdated(plan, "tool", "patch");
         return {
           content: [{ type: "text", text: `Patched plan for ${plan.chat_jid}.` }],
@@ -618,7 +631,7 @@ export default function planSidebarAddon(pi: ExtensionAPI): void {
       if (typeof params.markdown !== "string") {
         throw new Error("plan action=write requires a markdown string.");
       }
-      const plan = saveSessionPlan(chatJid, params.markdown);
+      const plan = await mutate(() => saveSessionPlan(chatJid, params.markdown));
       broadcastPlanUpdated(plan, "tool", "write");
       return {
         content: [{ type: "text", text: `Updated plan for ${plan.chat_jid}.` }],

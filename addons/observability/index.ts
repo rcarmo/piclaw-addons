@@ -83,7 +83,7 @@ function kv(): ExtensionStorage {
   return storage;
 }
 
-type ConfigurationPort = { assertCurrent(): void; read(): Partial<ObservabilityConfig> | null; write(config: ObservabilityConfig): void };
+type ConfigurationPort = { assertCurrent(): void; read(): Partial<ObservabilityConfig> | null; write(config: ObservabilityConfig): void | Promise<void> };
 let configurationPort: ConfigurationPort | undefined;
 /** Native host owns this one global configuration key, not the chat KV router. */
 export function bindObservabilityConfiguration(port: ConfigurationPort): () => void {
@@ -93,7 +93,7 @@ export function bindObservabilityConfiguration(port: ConfigurationPort): () => v
   configurationPort = {
     assertCurrent: check,
     read() { check(); const saved = port.read(); check(); return saved; },
-    write(config) { check(); port.write(config); check(); },
+    async write(config) { check(); await port.write(config); check(); },
   };
   return () => { active = false; }; // Keep the revoked port: never fall back to unscoped KV.
 }
@@ -107,8 +107,8 @@ function loadConfig(): ObservabilityConfig {
   return { ...DEFAULT_CONFIG };
 }
 
-function saveConfig(config: ObservabilityConfig): void {
-  if (configurationPort) { configurationPort.write(config); return; }
+async function saveConfig(config: ObservabilityConfig): Promise<void> {
+  if (configurationPort) { await configurationPort.write(config); return; }
   kv().set("config", config, "global");
 }
 
@@ -536,7 +536,7 @@ async function handleSetConfig(body: Partial<ObservabilityConfig>): Promise<{ ok
     usage_telemetry_interval_minutes: typeof body.usage_telemetry_interval_minutes === "number" ? Math.max(1, Math.min(60, Math.floor(body.usage_telemetry_interval_minutes))) : c.usage_telemetry_interval_minutes,
     graphite_render_url:         typeof body.graphite_render_url === "string" ? body.graphite_render_url.trim().replace(/\/$/, "") : c.graphite_render_url,
   };
-  saveConfig(next);
+  await saveConfig(next);
   await ensureProcessRuntimeConfig(next, { force: true, assertCurrent: configurationPort?.assertCurrent });
   return { ok: true, config: next };
 }

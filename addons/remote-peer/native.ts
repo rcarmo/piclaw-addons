@@ -96,7 +96,7 @@ export interface NativeRemotePeerInputPort {
     source: "remote_peer"; sourceId: string; text: string; queuedAt: string;
     principal: { id: string; revision: string }; target: NativeRemotePeerTarget;
     mode: "queue"; assertCurrent(): void;
-  }): { rowId: number; chatJid: string };
+  }): { rowId: number; chatJid: string } | Promise<{ rowId: number; chatJid: string }>;
 }
 
 /** Application startup factory. Transport handlers carry verified identity through
@@ -132,7 +132,7 @@ export async function bindNativeRemotePeer(options: Omit<PeerServiceOptions, "ru
       const principal = authority.verifiedPeer();
       if (input.mode !== "queue") throw Error("Native steering unavailable");
       const target = select({ target_chat_jid: input.chatJid });
-      const receipt = bundle.admitApplicationInput({ source: "remote_peer", sourceId: createHash("sha256").update(JSON.stringify(["remote_peer.work-result", principal.peer, principal.revision, input.chatJid, input.content])).digest("hex"),
+      const receipt = await bundle.admitApplicationInput({ source: "remote_peer", sourceId: createHash("sha256").update(JSON.stringify(["remote_peer.work-result", principal.peer, principal.revision, input.chatJid, input.content])).digest("hex"),
         text: input.content, queuedAt: new Date().toISOString(), principal: { id: principal.peer, revision: principal.revision }, target, mode: "queue", assertCurrent: authority.assertCurrent });
       return { status: "ok" as const, chat_jid: receipt.chatJid, row_id: receipt.rowId, thread_id: null, queued: "followup" as const, created: false };
     },

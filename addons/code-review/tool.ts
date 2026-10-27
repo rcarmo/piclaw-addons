@@ -29,7 +29,7 @@ export interface CodeReviewReadAuthority {
   identity: ReviewIdentity;
   workspaceRoot: string;
   assertCurrent(): void;
-  write?<T>(body: () => T): T;
+  write?<T>(body: () => T): T | Promise<T>;
 }
 export interface CodeReviewReadPolicy {
   resolve(): Promise<CodeReviewReadAuthority>;
@@ -61,7 +61,7 @@ export function createCodeReviewTool(policy?: CodeReviewReadPolicy) {
         if (authority.identity.kind !== "agent") throw Error("Code Review requires assigned agent authority.");
         if (writing) {
           if (!authority.write) throw Error("Code Review mutation authority unavailable.");
-          result = authority.write(() => {
+          result = await authority.write(() => {
             authority.assertCurrent();
             const value = runCodeReviewMutation(authority.service, authority.identity, params.action, params);
             authority.assertCurrent();

@@ -95,7 +95,7 @@
     {
       "slug": "code-review",
       "name": "@rcarmo/piclaw-addon-code-review",
-      "version": "0.1.9",
+      "version": "0.1.10",
       "type": "extension",
       "description": "Saved-source and Git-diff reviews with durable inline discussions and explicit queued agent work",
       "path": "addons/code-review",
@@ -108,9 +108,9 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-code-review-0.1.9.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-code-review-0.1.10.tgz"
       },
-      "updatedAt": "2026-10-25"
+      "updatedAt": "2026-10-26"
     },
     {
       "slug": "code-validator",
@@ -347,7 +347,7 @@
     {
       "slug": "goal",
       "name": "@rcarmo/piclaw-addon-goal",
-      "version": "0.1.49",
+      "version": "0.1.50",
       "type": "extension",
       "description": "Codex-style persisted thread goals with a hardened autonomous continuation loop and visible completion/stop summaries",
       "path": "addons/goal",
@@ -363,9 +363,9 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-goal-0.1.49.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-goal-0.1.50.tgz"
       },
-      "updatedAt": "2026-09-19"
+      "updatedAt": "2026-10-19"
     },
     {
       "slug": "image-processing",
@@ -455,7 +455,7 @@
     {
       "slug": "late-night-regrets",
       "name": "@rcarmo/piclaw-addon-late-night-regrets",
-      "version": "0.2.2",
+      "version": "0.2.3",
       "type": "extension",
       "description": "Budgeted nightly contextual feedback review with optional decision-model triage",
       "path": "addons/late-night-regrets",
@@ -471,9 +471,9 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-late-night-regrets-0.2.2.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-late-night-regrets-0.2.3.tgz"
       },
-      "updatedAt": "2026-10-13"
+      "updatedAt": "2026-10-20"
     },
     {
       "slug": "linkr",
@@ -587,7 +587,7 @@
     {
       "slug": "observability",
       "name": "@rcarmo/piclaw-addon-observability",
-      "version": "0.1.18",
+      "version": "0.1.19",
       "type": "extension",
       "description": "OpenTelemetry observability — trace errors and agent turns across piclaw instances to Azure Application Insights (with Live Metrics) and local Graphite",
       "path": "addons/observability",
@@ -608,9 +608,9 @@
       ],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-observability-0.1.18.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-observability-0.1.19.tgz"
       },
-      "updatedAt": "2026-09-19"
+      "updatedAt": "2026-10-19"
     },
     {
       "slug": "office-tools",
@@ -661,7 +661,7 @@
     {
       "slug": "plan-sidebar",
       "name": "@rcarmo/piclaw-addon-plan-sidebar",
-      "version": "0.1.25",
+      "version": "0.1.26",
       "type": "extension",
       "description": "Right-side session plan sidebar with canonical plan action=update and Markdown storage",
       "path": "addons/plan-sidebar",
@@ -676,7 +676,7 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-plan-sidebar-0.1.25.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-plan-sidebar-0.1.26.tgz"
       },
       "updatedAt": "2026-09-10"
     },
@@ -725,7 +725,7 @@
     {
       "slug": "remote-peer",
       "name": "@rcarmo/piclaw-addon-remote-peer",
-      "version": "0.3.7",
+      "version": "0.3.8",
       "type": "extension",
       "description": "Iroh-only client-ID peer chat with explicit pairing, default-off mDNS, durable delivery and files",
       "path": "addons/remote-peer",
@@ -741,9 +741,9 @@
       ],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-remote-peer-0.3.7.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-remote-peer-0.3.8.tgz"
       },
-      "updatedAt": "2026-10-13",
+      "updatedAt": "2026-10-20",
       "owner": {
         "login": "rcarmo",
         "url": "https://github.com/rcarmo"
