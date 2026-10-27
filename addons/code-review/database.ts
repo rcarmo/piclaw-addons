@@ -10,6 +10,7 @@ const SCHEMA = 1;
 export interface BorrowedReviewDatabase {
   database: Database;
   assertOwner(): void;
+  admitWrite?<T>(body: () => T): Promise<T>;
 }
 export type ReviewDatabaseSource = string | BorrowedReviewDatabase;
 export type ReviewTable =
@@ -34,6 +35,7 @@ export class ReviewDatabase {
     this.borrowed = typeof source === "string" ? null : Object.freeze({
       database: source.database,
       assertOwner: source.assertOwner.bind(source),
+      admitWrite: source.admitWrite?.bind(source),
     });
     if (this.borrowed) {
       this.borrowed.assertOwner();
@@ -123,6 +125,12 @@ export class ReviewDatabase {
       }
       this.db.exec(settingsSchema((name) => this.table(name)));
     });
+  }
+  async write<T>(body: () => T): Promise<T> {
+    this.assertOwner();
+    const result = await (this.borrowed?.admitWrite
+      ? this.borrowed.admitWrite(() => this.transaction(body)) : this.transaction(body));
+    this.assertOwner(); return result;
   }
   transaction<T>(fn: () => T): T {
     this.assertOwner();

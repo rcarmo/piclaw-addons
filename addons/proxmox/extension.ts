@@ -238,8 +238,8 @@ function handleGetProxmoxSettings(): ProxmoxSettingsConfig {
   return loadProxmoxSettingsConfig();
 }
 
-function handleSetProxmoxSettings(body: Partial<ProxmoxSettingsConfig>): { ok: true; config: ProxmoxSettingsConfig } {
-  return { ok: true, config: saveProxmoxSettingsConfig(body) };
+async function handleSetProxmoxSettings(body: Partial<ProxmoxSettingsConfig>): Promise<{ ok: true; config: ProxmoxSettingsConfig }> {
+  return { ok: true, config: await getStorage().write(() => saveProxmoxSettingsConfig(body)) };
 }
 
 type AddonConfigApiRegistrar = (
@@ -1275,11 +1275,14 @@ function createProxmoxDefinition() {
               api_token_keychain: typeof params.api_token_keychain === "string" ? params.api_token_keychain.trim() : (current?.api_token_keychain || ""),
               allow_insecure_tls: params.allow_insecure_tls ?? current?.allow_insecure_tls ?? true,
             })
-          : kvSetConfig(chatJid, {
-              base_url: typeof params.base_url === "string" ? params.base_url.trim() : (current?.base_url || ""),
-              username: typeof params.username === "string" ? params.username.trim() : (current?.username || ""),
-              api_token_keychain: typeof params.api_token_keychain === "string" ? params.api_token_keychain.trim() : (current?.api_token_keychain || ""),
-              allow_insecure_tls: params.allow_insecure_tls ?? current?.allow_insecure_tls ?? true,
+          : await getStorage().write(() => {
+              const current = kvGetConfig(chatJid);
+              return kvSetConfig(chatJid, {
+                base_url: typeof params.base_url === "string" ? params.base_url.trim() : (current?.base_url || ""),
+                username: typeof params.username === "string" ? params.username.trim() : (current?.username || ""),
+                api_token_keychain: typeof params.api_token_keychain === "string" ? params.api_token_keychain.trim() : (current?.api_token_keychain || ""),
+                allow_insecure_tls: params.allow_insecure_tls ?? current?.allow_insecure_tls ?? true,
+              });
             });
         const resolved = resolveProxmoxConfigState(chatJid, result.config);
         return {
@@ -1300,7 +1303,7 @@ function createProxmoxDefinition() {
       }
 
       if (params.action === "clear") {
-        const result = handlers ? await handlers.clear(chatJid) : kvClearConfig(chatJid);
+        const result = handlers ? await handlers.clear(chatJid) : await getStorage().write(() => kvClearConfig(chatJid));
         const resolved = resolveProxmoxConfigState(chatJid, null);
         return {
           content: [{

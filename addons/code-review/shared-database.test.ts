@@ -53,13 +53,17 @@ function fixture() {
   const db = new Database(join(dir, "root.db"), { strict: true });
   db.exec("PRAGMA foreign_keys=ON; PRAGMA user_version=1650; PRAGMA busy_timeout=123; PRAGMA journal_mode=DELETE; PRAGMA synchronous=NORMAL;");
   // Incompatible sentinel tables catch accidental unqualified queries and writes.
-  for (const table of [...tables, "tasks"]) {
-    db.exec(`CREATE TABLE ${table}(id TEXT PRIMARY KEY, marker TEXT NOT NULL)`);
-    db.query(`INSERT INTO ${table} VALUES(?,?)`).run("root-row", text);
-  }
-  for (const index of ["reviews_owner", "snapshot_files_order", "threads_review", "drafts_owner", "dispatch_by_thread", "events_review"])
-    db.exec(`CREATE INDEX ${index} ON tasks(marker)`);
-  db.exec("CREATE TRIGGER root_messages_guard BEFORE DELETE ON messages BEGIN SELECT RAISE(ABORT,'root rows are not reviews'); END");
+  // Prepare the unrelated root fixture in one commit; subject mutations below
+  // retain their original transactions, assertions and five-second deadlines.
+  db.transaction(() => {
+    for (const table of [...tables, "tasks"]) {
+      db.exec(`CREATE TABLE ${table}(id TEXT PRIMARY KEY, marker TEXT NOT NULL)`);
+      db.query(`INSERT INTO ${table} VALUES(?,?)`).run("root-row", text);
+    }
+    for (const index of ["reviews_owner", "snapshot_files_order", "threads_review", "drafts_owner", "dispatch_by_thread", "events_review"])
+      db.exec(`CREATE INDEX ${index} ON tasks(marker)`);
+    db.exec("CREATE TRIGGER root_messages_guard BEFORE DELETE ON messages BEGIN SELECT RAISE(ABORT,'root rows are not reviews'); END");
+  }).immediate();
   const before = rootSnapshot(db), config = pragmas(db);
   let active = true, checks = 0;
   const source: BorrowedReviewDatabase = {

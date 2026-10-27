@@ -95,7 +95,7 @@
     {
       "slug": "code-review",
       "name": "@rcarmo/piclaw-addon-code-review",
-      "version": "0.1.10",
+      "version": "0.1.11",
       "type": "extension",
       "description": "Saved-source and Git-diff reviews with durable inline discussions and explicit queued agent work",
       "path": "addons/code-review",
@@ -108,9 +108,9 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-code-review-0.1.10.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-code-review-0.1.11.tgz"
       },
-      "updatedAt": "2026-10-26"
+      "updatedAt": "2026-10-27"
     },
     {
       "slug": "code-validator",
@@ -157,7 +157,7 @@
     {
       "slug": "delegate",
       "name": "@rcarmo/piclaw-addon-delegate",
-      "version": "0.2.20",
+      "version": "0.2.21",
       "type": "extension",
       "description": "Delegate tasks to operator-approved child-Pi models with fail-closed enforcement",
       "path": "addons/delegate",
@@ -173,9 +173,9 @@
       ],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-delegate-0.2.20.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-delegate-0.2.21.tgz"
       },
-      "updatedAt": "2026-10-13"
+      "updatedAt": "2026-10-25"
     },
     {
       "slug": "dev-tools",
@@ -391,7 +391,7 @@
     {
       "slug": "imap",
       "name": "@rcarmo/piclaw-addon-imap",
-      "version": "0.1.12",
+      "version": "0.1.13",
       "type": "extension",
       "description": "IMAP email management tool — search/fetch, move/copy, flag, create drafts, file messages, and STARTTLS support",
       "path": "addons/imap",
@@ -405,9 +405,9 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-imap-0.1.12.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-imap-0.1.13.tgz"
       },
-      "updatedAt": "2026-09-19"
+      "updatedAt": "2026-10-19"
     },
     {
       "slug": "kanban-board-widget",
@@ -661,7 +661,7 @@
     {
       "slug": "plan-sidebar",
       "name": "@rcarmo/piclaw-addon-plan-sidebar",
-      "version": "0.1.26",
+      "version": "0.1.27",
       "type": "extension",
       "description": "Right-side session plan sidebar with canonical plan action=update and Markdown storage",
       "path": "addons/plan-sidebar",
@@ -676,14 +676,14 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-plan-sidebar-0.1.26.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-plan-sidebar-0.1.27.tgz"
       },
-      "updatedAt": "2026-09-10"
+      "updatedAt": "2026-10-27"
     },
     {
       "slug": "portainer",
       "name": "@rcarmo/piclaw-addon-portainer",
-      "version": "0.1.10",
+      "version": "0.1.11",
       "type": "extension",
       "description": "Portainer management tool — session-scoped API config, ad-hoc requests, and orchestration workflows for endpoints, stacks, containers, images, networks, and volumes",
       "path": "addons/portainer",
@@ -697,14 +697,14 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-portainer-0.1.10.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-portainer-0.1.11.tgz"
       },
-      "updatedAt": "2026-09-19"
+      "updatedAt": "2026-10-20"
     },
     {
       "slug": "proxmox",
       "name": "@rcarmo/piclaw-addon-proxmox",
-      "version": "0.1.11",
+      "version": "0.1.12",
       "type": "extension",
       "description": "Proxmox VE management tool — session-scoped API config, ad-hoc requests, and orchestration workflows for VMs, LXC containers, storage, tasks, and metrics",
       "path": "addons/proxmox",
@@ -718,9 +718,9 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-proxmox-0.1.11.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-proxmox-0.1.12.tgz"
       },
-      "updatedAt": "2026-09-19"
+      "updatedAt": "2026-10-20"
     },
     {
       "slug": "remote-peer",

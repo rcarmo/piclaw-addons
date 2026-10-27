@@ -462,7 +462,7 @@ if (typeof registerAddonConfigApi === "function") {
       const body = payload && typeof payload === "object" ? payload as Record<string, unknown> : {};
       const chatJid = readChatJidFromRequest(req, body);
       const isReset = body.action === "reset";
-      const plan = isReset ? resetSessionPlan(chatJid) : saveSessionPlan(chatJid, body.markdown);
+      const plan = await kv().write(() => isReset ? resetSessionPlan(chatJid) : saveSessionPlan(chatJid, body.markdown));
       broadcastPlanUpdated(plan, "api", isReset ? "reset" : "write");
       return { ok: true, plan: structuredPlanDetails(plan) };
     },

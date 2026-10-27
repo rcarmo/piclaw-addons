@@ -32,7 +32,7 @@ export function setReviewDatabaseSource(source: BorrowedReviewDatabase): () => v
   const owner = source.assertOwner.bind(source);
   owner();
   let revoked = false;
-  const binding = Object.freeze({ database: source.database, assertOwner() {
+  const binding = Object.freeze({ database: source.database, admitWrite: source.admitWrite?.bind(source), assertOwner() {
     if (revoked) throw new ReviewError("store_closed", "Review database binding is closed.");
     owner();
   } });
@@ -151,12 +151,17 @@ export function reviewService(): ReviewService {
   const dir = borrowedSource ? "root-owned" : runtime!.messaging!.getAddonDataDir("code-review");
   const existing = states.get(dir);
   if (existing) return existing.service;
+  if (borrowedSource?.admitWrite) throw new ReviewError("store_not_prepared", "Await native review preparation before use.");
   if (!borrowedSource) legacyServiceOpened = true;
   const service = new ReviewService(borrowedSource ?? join(dir, "reviews.db"));
   service.recoverInterrupted();
+  return attachReviewService(service, runtime, dir);
+}
+function attachReviewService(service: ReviewService, runtime: ReturnType<typeof getRuntime>, dir: string): ReviewService {
   const cleanup = () => {
-    try { const workspaceId = states.get(dir)?.workspaceId; if (workspaceId) service.cleanupConfiguredReviews(workspaceId); }
-    catch (error) { console.warn('[code-review] Retention cleanup failed', error instanceof Error ? error.name : 'Error'); }
+    const workspaceId = states.get(dir)?.workspaceId;
+    if (workspaceId) void service.database.write(() => service.cleanupConfiguredReviews(workspaceId))
+      .catch(error => console.warn('[code-review] Retention cleanup failed', error instanceof Error ? error.name : 'Error'));
   };
   const cleanupTimer = setInterval(cleanup, 60 * 60 * 1000);
   cleanupTimer.unref?.();
@@ -171,6 +176,29 @@ export function reviewService(): ReviewService {
   states.set(dir, { service, close, workspaceId: null });
   runtime?.lifecycle?.onShutdown(close);
   return service;
+}
+
+let preparingReview: { source: BorrowedReviewDatabase; promise: Promise<ReviewService> } | undefined;
+/** Native startup and UI reset prepare SQL under the host writer; timers attach after commit. */
+export async function prepareReviewService(): Promise<ReviewService> {
+  const source = borrowedSource;
+  if (!source?.admitWrite) return reviewService();
+  source.assertOwner();
+  const existing = states.get("root-owned");
+  if (existing) return existing.service;
+  if (preparingReview?.source === source) return preparingReview.promise;
+  const promise = (async () => {
+    const service = await source.admitWrite!(() => {
+      source.assertOwner(); const value = new ReviewService(source); value.recoverInterrupted(); source.assertOwner(); return value;
+    });
+    try {
+      source.assertOwner();
+      if (borrowedSource !== source) throw new ReviewError("store_closed", "Review source changed during preparation.");
+      return attachReviewService(service, getRuntime(), "root-owned");
+    } catch (error) { service.close(); throw error; }
+  })();
+  const attempt = { source, promise }; preparingReview = attempt;
+  try { return await promise; } finally { if (preparingReview === attempt) preparingReview = undefined; }
 }
 export function closeReviewServices() {
   for (const state of [...states.values()]) state.close();
@@ -348,7 +376,11 @@ export async function reviewAction(
   if (action === "replyReceipt") operator(who);
   // Flat fields are informational; the method revalidates the host-owned active scope on every action.
   await ctx.listTargets();
-  const service = providedService ?? reviewService();
+  const service = providedService ?? await prepareReviewService();
+  const mutate = <T>(body: () => T): Promise<T> => {
+    const store = (globalThis as { __piclawRuntimeInterop?: { getExtensionKvStore?(): { write?<T>(id: string, body: () => T): Promise<T> } } }).__piclawRuntimeInterop?.getExtensionKvStore?.();
+    return store?.write ? store.write("code-review", body) : service.database.write(body);
+  };
   for (const state of states.values()) if (state.service === service) state.workspaceId = ctx.workspaceId;
   await verifyAgentBinding(ctx);
   const agentScope = scopeForAction(who, service);
@@ -373,12 +405,12 @@ export async function reviewAction(
         includeUntracked: body.includeUntracked === true,
       });
       await recheck();
-      return service.createFromCapture(
+      return await mutate(() => service.createFromCapture(
         who,
         { title: body.title || body.path, focusPath: body.path, target },
         capture,
         mutation(body),
-      );
+      ));
     }
     case "review": {
       const review = service.getReview(who, body.reviewId);
@@ -390,26 +422,26 @@ export async function reviewAction(
     case "saveSettings":
       operator(who);
       if (body.retentionDays !== null && body.confirm !== true) throw new ReviewError('confirmation_required','Confirm automatic deletion.');
-      return service.saveSettings(who,body.retentionDays);
+      return await mutate(() => service.saveSettings(who,body.retentionDays));
     case "cleanup":
       operator(who);
-      return service.cleanupOldReviews(who);
+      return await mutate(() => service.cleanupOldReviews(who));
     case "deleteReview":
       if (body.confirm !== true) throw new ReviewError('confirmation_required','Confirm review deletion.');
-      return service.deleteReview(who, {
+      return await mutate(() => service.deleteReview(who, {
         reviewId: body.reviewId,
         expectedVersion: body.expectedVersion,
         requestId: body.requestId,
-      });
+      }));
     case "target": {
       const selected = await resolveHostTarget(ctx, body.target ?? {});
-      return service.setTarget(who, body.reviewId, selected, mutation(body));
+      return await mutate(() => service.setTarget(who, body.reviewId, selected, mutation(body)));
     }
     case "capture": {
       operator(who);
       const captured = await reader().capture(body.source as CaptureRequest);
       await recheck();
-      return service.capture(who, body.reviewId, captured, mutation(body));
+      return await mutate(() => service.capture(who, body.reviewId, captured, mutation(body)));
     }
     case "addFile": {
       operator(who);
@@ -418,13 +450,13 @@ export async function reviewAction(
         mode: "source",
       });
       await recheck();
-      return service.addFile(
+      return await mutate(() => service.addFile(
         who,
         body.reviewId,
         body.snapshotId,
         captured,
         mutation(body),
-      );
+      ));
     }
     case "snapshots":
       return service.listSnapshots(who, body.reviewId, body.limit);
@@ -483,14 +515,14 @@ export async function reviewAction(
     case "projection":
       assertScopedThread(agentScope, body.threadId);
       assertScopedFile(agentScope, body.fileId);
-      return service.project(who, body.threadId, body.fileId);
+      return await mutate(() => service.project(who, body.threadId, body.fileId));
     case "reanchor":
       if (body.confirm !== true)
         throw new ReviewError(
           "confirmation_required",
           "Confirm re-anchoring this concern.",
         );
-      return service.reanchor(
+      return await mutate(() => service.reanchor(
         who,
         body.threadId,
         {
@@ -500,9 +532,9 @@ export async function reviewAction(
           reopen: body.reopen === true,
         },
         mutation(body),
-      );
+      ));
     case "comment":
-      return service.createThread(
+      return await mutate(() => service.createThread(
         who,
         body.reviewId,
         {
@@ -512,35 +544,35 @@ export async function reviewAction(
           body: body.body,
         },
         mutation(body),
-      );
+      ));
     case "reply":
     case "edit":
     case "deleteMessage":
     case "resolve":
     case "work":
-      return runCodeReviewMutation(service, who, action, body);
+      return await mutate(() => runCodeReviewMutation(service, who, action, body));
     case "deleteThread":
       if (body.confirm !== true)
         throw new ReviewError(
           "confirmation_required",
           "Confirm deleting this discussion.",
         );
-      return service.deleteThread(who, body.threadId, mutation(body));
+      return await mutate(() => service.deleteThread(who, body.threadId, mutation(body)));
     case "reopen":
-      return service.reopen(who, body.threadId, mutation(body));
+      return await mutate(() => service.reopen(who, body.threadId, mutation(body)));
     case "reassign": {
       const selected = await resolveHostTarget(ctx, body.target ?? {});
-      return service.reassign(who, body.threadId, selected, mutation(body));
+      return await mutate(() => service.reassign(who, body.threadId, selected, mutation(body)));
     }
     case "drafts":
       return service.listDrafts(who, body.reviewId);
     case "deleteDraft":
-      return service.deleteDraft(
+      return await mutate(() => service.deleteDraft(
         who,
         body.reviewId,
         body.draftId,
         mutation(body),
-      );
+      ));
     case "anchor":
       return service.makeAnchor(
         who,
@@ -550,7 +582,7 @@ export async function reviewAction(
         body.range,
       );
     case "draft":
-      return service.saveDraft(
+      return await mutate(() => service.saveDraft(
         who,
         body.reviewId,
         {
@@ -568,7 +600,7 @@ export async function reviewAction(
           body: body.body,
         },
         mutation(body),
-      );
+      ));
     case "preview": {
       operator(who);
       const selected = await resolveHostTarget(ctx, body.target ?? {});
@@ -586,8 +618,9 @@ export async function reviewAction(
         items: body.items,
         summary: body.summary,
       };
-      const receipt = service.submit(who, body.reviewId, input, mutation(body));
+      const receipt = await mutate(() => service.submit(who, body.reviewId, input, mutation(body)));
       return service.deliver(who, receipt.dispatchId, {
+        write: mutate,
         enqueue: (request) =>
           ctx.enqueue({
             target: {
@@ -603,15 +636,16 @@ export async function reviewAction(
     case "replySend": {
       operator(who);
       const selected = await resolveHostTarget(ctx, body.target ?? {});
-      const receipt = service.replyAndSubmit(
+      const receipt = await mutate(() => service.replyAndSubmit(
         who,
         body.threadId,
         body.body,
         selected,
         mutation(body),
         body.reopen === true,
-      );
+      ));
       return service.deliver(who, receipt.dispatchId, {
+        write: mutate,
         enqueue: (request) =>
           ctx.enqueue({
             target: {
@@ -628,8 +662,9 @@ export async function reviewAction(
       operator(who);
       const current = service.inspectDispatch(who, body.dispatchId);
       await resolveHostTarget(ctx, current.target);
-      service.retry(who, body.dispatchId, mutation(body));
+      await mutate(() => service.retry(who, body.dispatchId, mutation(body)));
       return service.deliver(who, body.dispatchId, {
+        write: mutate,
         enqueue: (request) =>
           ctx.enqueue({
             target: {
@@ -648,7 +683,7 @@ export async function reviewAction(
           "confirmation_required",
           "Confirm evidence-based reconciliation.",
         );
-      return service.reconcile(
+      return await mutate(() => service.reconcile(
         who,
         body.dispatchId,
         {
@@ -658,7 +693,7 @@ export async function reviewAction(
           hostRowId: body.hostRowId,
         },
         mutation(body),
-      );
+      ));
     case "events":
       return service.events(who, body.reviewId, body.after, body.limit);
     default:

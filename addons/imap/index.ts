@@ -170,7 +170,7 @@ async function handleAccountsSet(input: Record<string, unknown>): Promise<Record
       const account = await getAccount(nextDefault);
       if (!account) throw new Error(`Account not found: ${nextDefault}`);
     }
-    setDefaultAccount(nextDefault);
+    await setDefaultAccount(nextDefault);
     return { ok: true, defaultAccount: getDefaultAccount() };
   }
 
@@ -196,7 +196,7 @@ async function handleSettingsRoute(_pi: ExtensionAPI, req: Request, pathname: st
     if (path === "/api/default" && req.method === "POST") {
       const body = await req.json().catch(() => ({}));
       const name = typeof body?.name === "string" && body.name.trim() ? body.name.trim() : null;
-      setDefaultAccount(name);
+      await setDefaultAccount(name);
       return json({ ok: true, defaultAccount: getDefaultAccount() });
     }
 
@@ -366,7 +366,7 @@ export function createImapTool(options: ImapToolOptions) {
 
         if (action === "set_default_account") {
           if (!params.account) throw new Error("account required");
-          setDefaultAccount(params.account, check);
+          await setDefaultAccount(params.account, check);
           check();
           return {
             content: [{ type: text, text: `Set default IMAP account to ${params.account}.` }],
