@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 460" font-family="-apple-system,'Segoe UI',Helvetica,sans-serif">
+  <style>
+    .bg   { fill:#f4f6fb }
+    .lane { fill:#fff; stroke:#c8d4e8; stroke-width:1 }
+    .lbl  { font-size:11px; font-weight:700; fill:#1a2a40; text-anchor:middle }
+    .sub  { font-size:9px; fill:#5070a0; text-anchor:middle }
+    .life { stroke:#c8d4e8; stroke-width:1.5; stroke-dasharray:5,4 }
+    .act2 { fill:#e0f2fe; stroke:#0284c7; stroke-width:1.5 }
+    .act3 { fill:#dcfce7; stroke:#16a34a; stroke-width:1.5 }
+    .act4 { fill:#fef3c7; stroke:#d97706; stroke-width:1.5 }
+    .act5 { fill:#ede9fe; stroke:#7c3aed; stroke-width:1.5 }
+    .msg  { font-size:9.5px; fill:#1a2a40 }
+    .note { font-size:9px; fill:#5070a0; font-style:italic }
+  </style>
+  <defs>
+    <marker id="a1" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,1 L6,3.5 L0,6z" fill="#3b82f6"/></marker>
+    <marker id="a2" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,1 L6,3.5 L0,6z" fill="#0284c7"/></marker>
+    <marker id="a3" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,1 L6,3.5 L0,6z" fill="#16a34a"/></marker>
+    <marker id="a4" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,1 L6,3.5 L0,6z" fill="#d97706"/></marker>
+    <marker id="a5" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,1 L6,3.5 L0,6z" fill="#7c3aed"/></marker>
+  </defs>
+
+  <rect class="bg" width="960" height="460"/>
+
+  <!-- Participants: Developer(70) addons(190) sync-catalog(330) catalog(470) build+deploy(620) gh-pages(790) -->
+  <rect x="20"  y="14" width="100" height="44" rx="8" class="lane"/>
+  <text x="70"  y="32" class="lbl">Developer</text><text x="70"  y="46" class="sub">/ owner</text>
+
+  <rect x="140" y="14" width="100" height="44" rx="8" class="lane"/>
+  <text x="190" y="32" class="lbl">addons/</text><text x="190" y="46" class="sub">source commit</text>
+
+  <rect x="280" y="14" width="100" height="44" rx="8" class="lane"/>
+  <text x="330" y="32" class="lbl">sync-catalog</text><text x="330" y="46" class="sub">workflow</text>
+
+  <rect x="420" y="14" width="100" height="44" rx="8" class="lane"/>
+  <text x="470" y="32" class="lbl">catalog.json</text><text x="470" y="46" class="sub">committed</text>
+
+  <rect x="560" y="14" width="120" height="44" rx="8" class="lane"/>
+  <text x="620" y="32" class="lbl">build + pack</text><text x="620" y="46" class="sub">+ deploy workflow</text>
+
+  <rect x="700" y="14" width="100" height="44" rx="8" class="lane"/>
+  <text x="750" y="32" class="lbl">gh-pages</text><text x="750" y="46" class="sub">docs + packages</text>
+
+  <!-- Lifelines -->
+  <line x1="70"  y1="58" x2="70"  y2="450" class="life"/>
+  <line x1="190" y1="58" x2="190" y2="450" class="life"/>
+  <line x1="330" y1="58" x2="330" y2="450" class="life"/>
+  <line x1="470" y1="58" x2="470" y2="450" class="life"/>
+  <line x1="620" y1="58" x2="620" y2="450" class="life"/>
+  <line x1="750" y1="58" x2="750" y2="450" class="life"/>
+
+  <!-- 1: dev pushes -->
+  <line x1="70" y1="95" x2="183" y2="95" stroke="#3b82f6" fill="none" stroke-width="1.5" marker-end="url(#a1)"/>
+  <text x="126" y="90" class="msg" text-anchor="middle">git push addons/&lt;slug&gt;</text>
+  <rect x="183" y="89" width="13" height="26" rx="2" class="act2"/>
+
+  <!-- 2: triggers sync-catalog -->
+  <line x1="190" y1="120" x2="323" y2="120" stroke="#0284c7" fill="none" stroke-width="1.5" marker-end="url(#a2)"/>
+  <text x="256" y="115" class="msg" text-anchor="middle">on: push paths: addons/**</text>
+  <rect x="323" y="114" width="13" height="44" rx="2" class="act2"/>
+
+  <!-- 3: sync writes catalog.json -->
+  <line x1="330" y1="144" x2="463" y2="144" stroke="#0284c7" fill="none" stroke-width="1.5" marker-end="url(#a2)"/>
+  <text x="396" y="139" class="msg" text-anchor="middle">bun sync:catalog → commit</text>
+  <rect x="463" y="138" width="13" height="26" rx="2" class="act2"/>
+
+  <!-- 4: catalog change triggers build -->
+  <line x1="470" y1="185" x2="613" y2="185" stroke="#16a34a" fill="none" stroke-width="1.5" marker-end="url(#a3)"/>
+  <text x="541" y="180" class="msg" text-anchor="middle">on: push paths: catalog.json</text>
+  <rect x="613" y="179" width="13" height="130" rx="2" class="act3"/>
+
+  <!-- 5: bun build.ts -->
+  <text x="636" y="210" class="note">bun build.ts</text>
+  <text x="636" y="222" class="note">→ docs/index.html</text>
+  <text x="636" y="234" class="note">→ docs/addons/*/</text>
+
+  <!-- 6: pack tarballs -->
+  <text x="636" y="255" class="note">tar czf per addon</text>
+  <text x="636" y="267" class="note">→ docs/packages/*.tgz</text>
+
+  <!-- divider -->
+  <line x1="620" y1="278" x2="660" y2="278" stroke="#16a34a" stroke-width="0.8" stroke-dasharray="3,2"/>
+
+  <!-- 7: deploy to gh-pages -->
+  <line x1="620" y1="295" x2="743" y2="295" stroke="#d97706" fill="none" stroke-width="1.5" marker-end="url(#a4)"/>
+  <text x="681" y="290" class="msg" text-anchor="middle">push docs/ → gh-pages</text>
+  <rect x="743" y="289" width="13" height="60" rx="2" class="act4"/>
+  <text x="766" y="310" class="note">docs/ live</text>
+  <text x="766" y="322" class="note">packages/ live</text>
+  <text x="766" y="334" class="note">~30s</text>
+
+  <!-- manual trigger -->
+  <rect x="20" y="370" width="190" height="36" rx="6" fill="#fef9c3" stroke="#d97706" stroke-width="1"/>
+  <text x="115" y="386" class="note" text-anchor="middle" font-style="normal" font-weight="700" fill="#92400e">workflow_dispatch</text>
+  <text x="115" y="400" class="note" text-anchor="middle" fill="#92400e">also triggers build directly</text>
+  <line x1="210" y1="386" x2="613" y2="386" stroke="#d97706" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#a4)"/>
+
+  <!-- install path annotation -->
+  <rect x="755" y="360" width="195" height="52" rx="6" fill="#ede9fe" stroke="#7c3aed" stroke-width="1"/>
+  <text x="852" y="376" class="sub" text-anchor="middle" font-weight="700" fill="#5b21b6">Install from terminal</text>
+  <text x="762" y="391" class="note" fill="#5b21b6">cd /workspace/.piclaw/addons</text>
+  <text x="762" y="404" class="note" fill="#5b21b6">bun add …/packages/*.tgz</text>
+</svg>
