@@ -41,6 +41,8 @@ The panel always uses two rows when enough sessions exist:
 - 760–1079 px: 3 columns, 6 sessions
 - 1080 px and above: 4 columns, 8 sessions
 
+Long session handles truncate with an ellipsis inside their tile, keeping activity status visible. Hover over a handle to see its full name.
+
 ## Refresh behaviour
 
 - full session/context refresh: every 15 seconds while open

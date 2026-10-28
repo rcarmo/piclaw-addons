@@ -284,6 +284,7 @@ export function installSessionDashboard() {
     const name = document.createElement("div");
     name.className = "session-dashboard-name";
     name.textContent = `@${session.agent_name || agentNameFromChatJid(session.chat_jid)}`;
+    name.title = name.textContent;
     const status = document.createElement("span");
     status.className = "session-dashboard-status";
     status.textContent = formatStatus(active);
@@ -875,7 +876,9 @@ function injectStyles() {
       margin: 0 auto;
     }
     .session-dashboard-tile {
+      min-width: 0;
       min-height: 126px;
+      grid-template-columns: minmax(0, 1fr);
       text-align: left;
       border: 1px solid var(--border-color, rgba(148,163,184,.25));
       border-radius: var(--radius-md, 8px);
@@ -891,9 +894,9 @@ function injectStyles() {
     .session-dashboard-tile:hover { border-color: var(--accent-color,#2563eb); color: var(--text-primary,#f8fafc); }
     .session-dashboard-tile.current { border-color: var(--accent-color,#2563eb); background: color-mix(in srgb, var(--accent-color,#2563eb) 8%, var(--bg-secondary,#111827)); }
     .session-dashboard-tile.active .session-dashboard-status::before { background: var(--success-color,#22c55e); }
-    .session-dashboard-tile-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-    .session-dashboard-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 650; font-size: 12px; }
-    .session-dashboard-status { display: inline-flex; align-items: center; gap: 6px; color: var(--text-secondary,#94a3b8); font-size: 10px; white-space: nowrap; }
+    .session-dashboard-tile-top { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .session-dashboard-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 650; font-size: 12px; }
+    .session-dashboard-status { flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px; color: var(--text-secondary,#94a3b8); font-size: 10px; white-space: nowrap; }
     .session-dashboard-status::before { content: ""; width: 7px; height: 7px; border-radius: 999px; background: var(--text-secondary,#64748b); opacity: .8; }
     .session-dashboard-meta { color: var(--text-secondary,#94a3b8); font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .session-dashboard-summary { color: var(--text-primary,#e5e7eb); font-size: 12px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
