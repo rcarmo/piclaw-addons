@@ -97,6 +97,18 @@ test("truncateSummary caps long text with an ellipsis", () => {
   expect(truncateSummary("abcdef", 4)).toBe("abc…");
 });
 
+test("backend nullable context stays unknown while measured zero stays zero", () => {
+  for (const value of [null, undefined]) {
+    const context = __sessionDashboardTest.normalizeContext({ percent: value, tokens: value, contextWindow: value });
+    expect(context).toEqual({ percent: null, tokens: null, contextWindow: null });
+    expect(__sessionDashboardTest.formatContext(context)).toBe("context unknown");
+  }
+  const zero = __sessionDashboardTest.normalizeContext({ percent: 0, tokens: 0, contextWindow: 100000 });
+  expect(zero).toEqual({ percent: 0, tokens: 0, contextWindow: 100000 });
+  expect(__sessionDashboardTest.formatContext(zero)).toBe("0% context");
+  expect(__sessionDashboardTest.formatContext(__sessionDashboardTest.normalizeContext({ percent: 80, tokens: 80000, contextWindow: 100000 }))).toBe("80% context");
+});
+
 test("web defaults to eight visible sessions and follows sidebar surface variables", () => {
   const source = readFileSync(join(import.meta.dir, "web", "index.ts"), "utf8");
 

@@ -518,9 +518,9 @@ function formatStatus(active) {
 
 function normalizeContext(context) {
   if (!context || typeof context !== "object") return null;
-  const percent = Number(context.percent);
-  const tokens = Number(context.tokens);
-  const contextWindow = Number(context.contextWindow);
+  const percent = Number(context.percent ?? NaN);
+  const tokens = Number(context.tokens ?? NaN);
+  const contextWindow = Number(context.contextWindow ?? NaN);
   return {
     percent: Number.isFinite(percent) ? percent : null,
     tokens: Number.isFinite(tokens) ? tokens : null,
