@@ -20,6 +20,8 @@ The dashboard shows:
 - context-window usage
 - a footer with visible capacity, active count, current chat, and update age
 
+Context percentages come from the backend. Null or omitted values display `context unknown`; a measured zero displays `0% context`. The dashboard adds no local token margin or percentage estimate.
+
 Click a tile to switch through Piclaw's in-app navigation. Ctrl/Cmd-click opens the session in a new tab.
 
 ## Live preview priority
