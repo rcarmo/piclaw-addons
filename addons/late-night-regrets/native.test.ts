@@ -33,3 +33,17 @@ test("single user denial and path escape fail closed", async () => {
   await expect(native.tool.execute("id", {})).rejects.toThrow("single user");
   await expect(native.setConfig({ exports_dir: "../outside" })).rejects.toThrow("escapes");
 });
+
+test('an unavailable saved decision model cannot block disabling or unrelated native settings', async () => {
+  let config = { enabled: true, decision_model: 'fixture/removed' };
+  let catalogues = 0, writes = 0;
+  const f = fixture({ config: { get: () => config, set(value) { writes++; config = value; } },
+    accountedDecision: { getAvailable() { catalogues++; return []; }, async complete() { throw Error('Settings must not execute'); } },
+  });
+  await f.native.setConfig({ enabled: false });
+  expect(config).toMatchObject({ enabled: false, decision_model: 'fixture/removed' });
+  await f.native.setConfig({ reflections_path: 'notes/changed.md' });
+  expect([writes, catalogues]).toEqual([2, 0]);
+  await expect(f.native.setConfig({ decision_model: 'fixture/another-removed' })).rejects.toThrow('available');
+  expect([writes, catalogues]).toEqual([2, 1]);
+});

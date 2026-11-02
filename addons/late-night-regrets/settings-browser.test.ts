@@ -4,17 +4,19 @@ import { join } from "node:path";
 
 /** Real component and direct config handlers, fake local-only model catalogue. No Piclaw service. */
 test("Settings model picker loads, saves, persists, disables and survives errors in Chromium/WebKit", async () => {
-  const { loadConfig, saveConfig } = await import("./config.js");
-  const { setConfig, availableModels } = await import("./index.js");
-  const previous = (globalThis as any).__piclawRuntimeInterop;
-  (globalThis as any).__piclawRuntimeInterop = {
-    getModelRegistry: () => ({
-      getAvailable: () => [
-        { provider: "fixture", id: "small", name: "Small model" },
-        { provider: "fixture", id: "large", name: "Large model" },
-      ],
-    }),
-  };
+  const { normaliseConfig } = await import("./config.js");
+  const { createLateNightRegrets } = await import("./native.js");
+  let config = normaliseConfig({});
+  const native = createLateNightRegrets({ chat: 'web:settings-fixture', cwd: '/fixture', assertCurrent() {}, assertSingleUser() {},
+    config: { get: () => config, set(value) { config = value; } },
+    async history() { throw Error('Settings must not access history'); }, async readFile() { throw Error('Settings must not read files'); },
+    async admitConversationInput() { throw Error('Settings must not admit input'); },
+    accountedDecision: { getAvailable: () => ['small', 'large'].map(id => ({ provider: 'fixture', id,
+      name: id === 'small' ? 'Small model' : 'Large model', api: 'openai-completions' as const,
+      baseUrl: 'https://fixture.invalid', input: ['text' as const], reasoning: false, maxTokens: 1024, contextWindow: 16000,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    })), async complete() { throw Error('Settings must not execute a model'); } },
+  });
   let failSave = false;
   const patches: unknown[] = [];
   const bundle = await Bun.build({
@@ -53,23 +55,23 @@ await import("/addon.js");</script></body></html>`;
       if (path === "/host.js")
         return new Response(hostJs, { headers: { "content-type": "application/javascript" } });
       if (path.endsWith("/models"))
-        return Response.json({ ok: true, models: availableModels() });
+        return Response.json(native.settings.models.get());
       if (path.endsWith("/config")) {
         if (req.method === "POST") {
           const patch = await req.json();
           patches.push(patch);
           if (failSave)
             return Response.json({ error: "fixture failure" }, { status: 500 });
-          return Response.json(setConfig(patch));
+          return Response.json(await native.settings.config.set(patch));
         }
-        return Response.json({ ok: true, config: loadConfig() });
+        return Response.json(native.settings.config.get());
       }
       return new Response("not found", { status: 404 });
     },
   });
   try {
     for (const engine of [chromium, webkit]) {
-      saveConfig({
+      config = normaliseConfig({
         enabled: true,
         decision_model: "",
         review_budget_tokens: 16000,
@@ -87,7 +89,7 @@ await import("/addon.js");</script></body></html>`;
         expect(await picker.inputValue()).toBe("");
         await picker.selectOption("fixture/small");
         await page.getByRole("status").filter({ hasText: "Saved" }).waitFor();
-        expect(loadConfig().decision_model).toBe("fixture/small");
+        expect(native.getConfig().decision_model).toBe("fixture/small");
         await page.reload();
         await picker.waitFor();
         expect(await picker.inputValue()).toBe("fixture/small");
@@ -97,11 +99,11 @@ await import("/addon.js");</script></body></html>`;
           .getByRole("status")
           .filter({ hasText: "Save failed" })
           .waitFor();
-        expect(loadConfig().decision_model).toBe("fixture/small");
+        expect(native.getConfig().decision_model).toBe("fixture/small");
         failSave = false;
         await picker.selectOption("");
         await page.getByRole("status").filter({ hasText: "Saved" }).waitFor();
-        expect(loadConfig().decision_model).toBe("");
+        expect(native.getConfig().decision_model).toBe("");
         expect(
           await page.evaluate(
             () => document.documentElement.scrollWidth <= innerWidth,
@@ -113,12 +115,9 @@ await import("/addon.js");</script></body></html>`;
       }
     }
     expect(patches.length).toBe(6);
-    expect(() =>
-      setConfig({ decision_model: "fixture/nonexistent" }),
-    ).toThrow();
+    await expect(native.setConfig({ decision_model: "fixture/nonexistent" })).rejects.toThrow();
   } finally {
     server.stop(true);
-    (globalThis as any).__piclawRuntimeInterop = previous;
-    saveConfig({ decision_model: "" });
+
   }
 }, 60000);

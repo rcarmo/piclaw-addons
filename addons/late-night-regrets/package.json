@@ -1,12 +1,12 @@
 {
   "name": "@rcarmo/piclaw-addon-late-night-regrets",
-  "version": "0.2.3",
+  "version": "0.3.0",
   "description": "Budgeted nightly contextual feedback review with optional decision-model triage",
   "type": "module",
   "main": "index.ts",
   "piclaw": {
     "type": "extension",
-    "compatibleVersions": ">=3.2.3",
+    "compatibleVersions": ">=3.3.4",
     "tags": [
       "self-improvement",
       "classifier",

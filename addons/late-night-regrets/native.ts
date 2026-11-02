@@ -24,6 +24,11 @@ export interface RegretsNativePorts {
 export const regretsResources = Object.freeze({
   skillPaths: [join(import.meta.dir, "skills/late-night-regrets/SKILL.md")],
 });
+export const regretsToolDeclaration = {
+  name: "regrets_review", label: "regrets_review",
+  description: "Build a budgeted recent human-exchange packet for nightly contextual reflection. Optional configured decision model annotates it; never writes notes or treats classifications as lessons.",
+  parameters: Type.Object({}),
+};
 export function createLateNightRegrets(ports: RegretsNativePorts) {
   const check = () => { ports.assertCurrent(); if (!ports.chat) throw Error("Current chat required"); };
   const config = () => { check(); return normaliseConfig(ports.config.get(), DEFAULT_CONFIG); };
@@ -36,9 +41,9 @@ export function createLateNightRegrets(ports: RegretsNativePorts) {
     resources: regretsResources,
     getConfig: config,
     async setConfig(patch: Partial<RegretsConfig>) {
-      const next = normaliseConfig(patch, config());
+      const current = config(), next = normaliseConfig(patch, current);
       file(next.exports_dir); file(next.reflections_path);
-      if (next.decision_model && !ports.accountedDecision.getAvailable().some(m => `${m.provider}/${m.id}` === next.decision_model))
+      if (next.decision_model !== current.decision_model && next.decision_model && !ports.accountedDecision.getAvailable().some(m => `${m.provider}/${m.id}` === next.decision_model))
         throw Error("Select an available provider/model from the model picker");
       check(); await ports.config.set(next); check(); return { ok: true, config: next };
     },
@@ -56,9 +61,7 @@ export function createLateNightRegrets(ports: RegretsNativePorts) {
       check(); const result = await ports.admitConversationInput(reflectionPrompt()); check(); return result;
     },
     tool: {
-      name: "regrets_review", label: "regrets_review",
-      description: "Build a budgeted recent human-exchange packet for contextual reflection.",
-      parameters: Type.Object({}),
+      ...regretsToolDeclaration,
       async execute(_id: string, _params: unknown, signal?: AbortSignal) {
         const reviewCheck = () => { check(); ports.assertSingleUser(); };
         const c = config();

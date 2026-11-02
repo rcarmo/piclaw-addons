@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { estimateTextTokens } from "@earendil-works/pi-ai/utils/estimate";
 import { Database } from "bun:sqlite";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -21,7 +22,7 @@ import {
   type DecisionRuntime,
 } from "./decision.js";
 import { reflectionPrompt } from "./reflection-prompt.js";
-import { assertSingleUser } from "./access.js";
+import { createLateNightRegrets } from "./native.js";
 import { loadRanker } from "./ranker.js";
 
 const window = {
@@ -45,21 +46,17 @@ const row = (
 const exchange = (id: number): Exchange => buildExchange(row(id), []);
 
 describe("budgeted daily input", () => {
-  test("unsupported access modes and malformed config fail closed", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "regrets-access-"));
-    try {
-      expect(() => assertSingleUser(dir)).not.toThrow();
-      await Bun.write(
-        join(dir, ".piclaw/config.json"),
-        JSON.stringify({ domains: { access: { mode: "family-shared" } } }),
-      );
-      expect(() => assertSingleUser(dir)).toThrow("single-user");
-      await Bun.write(join(dir, ".piclaw/config.json"), "bad json");
-      expect(() => assertSingleUser(dir)).toThrow();
-      expect(loadRanker(join(dir, "missing.json"))).toBeUndefined();
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
+  test("host access denial stops native history/model reads without an ambient config parser", async () => {
+    let reads = 0;
+    const native = createLateNightRegrets({ chat: window.chat_jid, cwd: '/fixture', assertCurrent() {},
+      assertSingleUser() { throw Error('single-user required by host'); }, config: { get: () => DEFAULT_CONFIG, set() {} },
+      async history() { reads++; throw Error('History forbidden'); }, async readFile() { reads++; throw Error('Files forbidden'); },
+      accountedDecision: { getAvailable() { reads++; return []; }, async complete() { reads++; throw Error('Model forbidden'); } },
+      async admitConversationInput() { throw Error('No input'); },
+    });
+    await expect(native.tool.execute('denied', {})).rejects.toThrow('single-user');
+    expect(reads).toBe(0);
+    expect(loadRanker('/fixture/missing.json')).toBeUndefined();
   });
   test("one short message is reviewed, ranker is never invoked below cutoff", () => {
     const packet = selectReview([exchange(1)], window, 16000, {}, () => {
@@ -126,7 +123,7 @@ describe("budgeted daily input", () => {
     expect(compact.exchanges.map((e) => e.context_ids)).toEqual([[1], [1]]);
     expect(compact.context_messages[0].chat_jid).toBe(window.chat_jid);
   });
-  test("overflow includes reproducible sample and fits the serialised byte budget", () => {
+  test("overflow includes reproducible sample and fits the SDK estimated-token budget", () => {
     const rows = Array.from({ length: 80 }, (_, i) =>
       buildExchange(row(i, "x ".repeat(120)), []),
     );
@@ -137,10 +134,9 @@ describe("budgeted daily input", () => {
     expect(a.coverage.sampled).toBeGreaterThan(0);
     expect(a.exchanges.some((e) => e.rowid === 0)).toBe(true);
     expect(a.coverage.omitted).toBeGreaterThan(0);
-    expect(
-      Buffer.byteLength(JSON.stringify(compactPacket(a))),
-    ).toBeLessThanOrEqual(6000);
+    expect(a.coverage.estimated_tokens).toBe(estimateTextTokens(JSON.stringify(compactPacket(a))));
     expect(a.coverage.estimated_tokens).toBeLessThanOrEqual(2000);
+    expect(a.exchanges).toEqual(rows.filter(row => a.exchanges.some(selected => selected.rowid === row.rowid)));
   });
   test("no fabricated clean day when all individual contexts exceed the cap", () => {
     const big = buildExchange(
@@ -362,4 +358,50 @@ describe("optional decision model", () => {
     expect(reflectionPrompt()).not.toContain("fewer than 3");
     expect(reflectionPrompt()).toContain("sample");
   });
+});
+
+// #1872: producer admission must not bypass malformed metadata or cancellation.
+test("decision refuses invalid nominal model limits before its capped output hint", async () => {
+  let calls = 0;
+  for (const maxTokens of [Infinity, NaN, -1, 4096.5]) {
+    const result = await decideReview(packet(), "fixture/model", {
+      getAvailable: () => [{ ...model, maxTokens }],
+      async complete() { calls++; throw Error("Invalid model must not execute"); },
+    });
+    expect(result.status).toBe("unavailable");
+  }
+  expect(calls).toBe(0);
+});
+
+test("cancellation wins an already-fulfilled decision while preserving returned usage", async () => {
+  const controller = new AbortController();
+  const pending = decideReview(packet(), "fixture/model", runtime(() => Promise.resolve({
+    role: "assistant", api: "openai-completions", provider: "fixture", model: "model", timestamp: 0,
+    stopReason: "stop", content: [{ type: "text", text: '{"decisions":[{"rowid":1,"choice":"routine"}]}' }], usage,
+  })), controller.signal);
+  controller.abort();
+  const result = await pending;
+  expect(result.status).toBe("unavailable");
+  expect(result.decisions).toEqual([]);
+  expect(result.usage).toEqual(usage);
+});
+
+test("irreducible packet metadata cannot silently exceed its token budget", () => {
+  expect(() => selectReview([], { ...window, chat_jid: "x".repeat(2000) }, 512)).toThrow("metadata");
+});
+
+test("genuine input overflow and the 200-exchange ceiling refuse before execution", async () => {
+  let calls = 0;
+  for (const [input, selected] of [
+    [packet(), { ...model, contextWindow: 100 }],
+    [selectReview(Array.from({ length: 201 }, (_, id) => exchange(id + 1)), window, 100000), model],
+  ] as const) {
+    const result = await decideReview(input, "fixture/model", {
+      getAvailable: () => [selected],
+      async complete() { calls++; throw Error("Oversized request must not execute"); },
+    });
+    expect(result.status).toBe("unavailable");
+    expect(result.decisions).toEqual([]);
+  }
+  expect(calls).toBe(0);
 });
