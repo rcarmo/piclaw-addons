@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { Database } from "bun:sqlite";
+import { estimateTextTokens } from "@earendil-works/pi-ai/utils/estimate";
 
 export interface MessageRow {
   rowid: number;
@@ -240,17 +241,24 @@ export function selectReview(
     },
     exchanges: [...exchanges],
   };
-  // UTF-8 bytes / 3 is a conservative sizing heuristic, not a tokenizer or billing cap.
-  const bytes = () => Buffer.byteLength(JSON.stringify(compactPacket(packet)));
-  const limit = budgetTokens * 3;
-  const finish = () => {
-    packet.exchanges.sort((a, b) => a.rowid - b.rowid);
+  // Packet selection uses public SDK text units, not a provider request-fit claim.
+  const tokens = () => {
     packet.coverage.selected = packet.exchanges.length;
     packet.coverage.omitted = exchanges.length - packet.exchanges.length;
-    packet.coverage.estimated_tokens = Math.ceil((bytes() + 16) / 3);
+    let previous: number;
+    do {
+      previous = packet.coverage.estimated_tokens;
+      packet.coverage.estimated_tokens = estimateTextTokens(JSON.stringify(compactPacket(packet)));
+    } while (previous !== packet.coverage.estimated_tokens);
+    return packet.coverage.estimated_tokens;
+  };
+  const limit = budgetTokens;
+  const finish = () => {
+    packet.exchanges.sort((a, b) => a.rowid - b.rowid);
+    if (tokens() > limit) throw new Error("Review packet metadata exceeds its estimated-token budget");
     return packet;
   };
-  if (bytes() + 32 <= limit) return finish();
+  if (tokens() <= limit) return finish();
   packet.coverage.mode = rank ? "ranked_sample" : "sample_only";
   packet.coverage.ranking = rank
     ? "frozen Bayes ordering; scores are not calibrated probabilities"
@@ -260,10 +268,12 @@ export function selectReview(
   const ordered = [...exchanges].sort(
     (a, b) => scores.get(b.rowid)! - scores.get(a.rowid)! || a.rowid - b.rowid,
   );
-  const append = (e: Exchange, cap: number) => {
+  const append = (e: Exchange, cap: number, sampled = false) => {
     packet.exchanges.push(e);
-    if (bytes() + 32 > cap) {
+    if (sampled) packet.coverage.sampled++;
+    if (tokens() > cap) {
       packet.exchanges.pop();
+      if (sampled) packet.coverage.sampled--;
       return false;
     }
     return true;
@@ -276,6 +286,6 @@ export function selectReview(
   const remainder = exchanges
     .filter((e) => !chosen.has(e.rowid))
     .sort((a, b) => key(a).localeCompare(key(b)));
-  for (const e of remainder) if (append(e, limit)) packet.coverage.sampled++;
+  for (const e of remainder) append(e, limit, true);
   return finish();
 }

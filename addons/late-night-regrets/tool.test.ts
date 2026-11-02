@@ -3,97 +3,41 @@ import { Database } from "bun:sqlite";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import addon from "./index.js";
-import { saveConfig } from "./config.js";
+import { createLateNightRegrets, readExchanges } from "./native.js";
+import { normaliseConfig } from "./config.js";
 
-test("registered tool reads current chat, calls selected model once and returns original packet plus usage", async () => {
-  const root = mkdtempSync(join(tmpdir(), "regrets-tool-")),
-    path = join(root, "messages.db");
-  const priorStore = process.env.PICLAW_STORE,
-    priorBridge = (globalThis as any).__piclawRuntimeInterop;
+test("native tool uses host-owned history/config/model ports once and preserves the original packet plus usage", async () => {
+  const root = mkdtempSync(join(tmpdir(), "regrets-tool-")), path = join(root, "fixture.db");
   const db = new Database(path);
-  db.run(
-    "CREATE TABLE messages(chat_jid TEXT,sender TEXT,sender_name TEXT,content TEXT,timestamp TEXT,is_bot_message INTEGER,content_blocks TEXT,thread_id INTEGER,content_erased INTEGER DEFAULT 0)",
-  );
+  db.run("CREATE TABLE messages(chat_jid TEXT,sender TEXT,sender_name TEXT,content TEXT,timestamp TEXT,is_bot_message INTEGER,content_blocks TEXT,thread_id INTEGER,content_erased INTEGER DEFAULT 0)");
   const timestamp = new Date(Date.now() - 5000).toISOString();
-  db.run(
-    "INSERT INTO messages VALUES('web:fixture','web-user','Human','plain English',?,0,NULL,NULL,0)",
-    [timestamp],
-  );
-  db.run(
-    "INSERT INTO messages VALUES('web:other','web-user','Human','private other chat',?,0,NULL,NULL,0)",
-    [timestamp],
-  );
+  for (const [chat, content] of [["web:fixture", "plain English"], ["web:other", "private other chat"]])
+    db.run("INSERT INTO messages VALUES(?,'web-user','Human',?, ?,0,NULL,NULL,0)", [chat!, content!, timestamp]);
   db.close();
-  process.env.PICLAW_STORE = root;
-  (globalThis as any).__piclawRuntimeInterop = {
-    getChatJid: () => "web:fixture",
-  };
+  let config = normaliseConfig({ enabled: true, decision_model: "fixture/small", review_scope: "current" });
+  let calls = 0, current = true;
+  const native = createLateNightRegrets({ chat: 'web:fixture', cwd: root,
+    assertCurrent() { if (!current) throw Error('Current chat authority revoked'); }, assertSingleUser() {},
+    config: { get: () => config, set(value) { config = value; } },
+    async history(window) { return readExchanges(path, window); }, async readFile() { return undefined; },
+    accountedDecision: { getAvailable: () => [{ provider: 'fixture', id: 'small', maxTokens: 4096, contextWindow: 32000 } as any],
+      async complete() { calls++; return { stopReason: 'stop', content: [{ type: 'text', text: '{"decisions":[{"rowid":1,"choice":"routine"}]}' }], usage: { input: 1, output: 1, totalTokens: 2 } } as any; } },
+    async admitConversationInput() { throw Error('Tool must not admit input'); },
+  });
   try {
-    let tool: any;
-    addon({
-      on() {},
-      registerCommand() {},
-      registerTool(t: any) {
-        tool = t;
-      },
-    } as any);
-    saveConfig({
-      enabled: true,
-      decision_model: "fixture/small",
-      review_scope: "current",
-    });
-    let calls = 0;
-    const result = await tool.execute("id", {}, undefined, undefined, {
-      cwd: root,
-      modelRegistry: {
-        getAvailable: () => [
-          {
-            provider: "fixture",
-            id: "small",
-            maxTokens: 4096,
-            contextWindow: 32000,
-          },
-        ],
-        complete: async () => {
-          calls++;
-          return {
-            stopReason: "stop",
-            content: [
-              {
-                type: "text",
-                text: '{"decisions":[{"rowid":1,"choice":"routine"}]}',
-              },
-            ],
-            usage: { input: 1, output: 1, totalTokens: 2 },
-          };
-        },
-      },
-    });
+    const result = await native.tool.execute('id', {});
     expect(calls).toBe(1);
-    expect(result.details.packet.exchanges).toHaveLength(1);
-    expect(result.details.packet.exchanges[0].target.content).toBe(
-      "plain English",
-    );
-    expect(result.details.decision.status).toBe("complete");
-    expect(result.usage.totalTokens).toBe(2);
-    expect(JSON.stringify(result)).not.toContain("private other chat");
-    saveConfig({ enabled: false });
-    expect(
-      (await tool.execute("id", {}, undefined, undefined, {})).details.disabled,
-    ).toBe(true);
-    saveConfig({ enabled: true });
-    (globalThis as any).__piclawRuntimeInterop = {};
-    await expect(
-      tool.execute("id", {}, undefined, undefined, {}),
-    ).rejects.toThrow("Current chat");
-  } finally {
-    saveConfig({ enabled: true, decision_model: "", review_scope: "all" });
-    if (priorStore === undefined) delete process.env.PICLAW_STORE;
-    else process.env.PICLAW_STORE = priorStore;
-    (globalThis as any).__piclawRuntimeInterop = priorBridge;
-    rmSync(root, { recursive: true, force: true });
-  }
+    expect(result.details).toHaveProperty('packet.exchanges.length', 1);
+    expect(result.details).toHaveProperty('packet.exchanges.0.target.content', 'plain English');
+    expect(result.details).toHaveProperty('decision.status', 'complete');
+    expect(result).toHaveProperty('usage.totalTokens', 2);
+    expect(JSON.stringify(result)).not.toContain('private other chat');
+    config = normaliseConfig({ enabled: false }, config);
+    expect((await native.tool.execute('id', {})).details).toEqual({ disabled: true });
+    current = false;
+    await expect(native.tool.execute('id', {})).rejects.toThrow('Current chat');
+    expect(calls).toBe(1);
+  } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
 test("setup migrates only the explicit chat's agent task, leaving internal and other-chat tasks alone", async () => {

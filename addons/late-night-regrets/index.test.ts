@@ -2,10 +2,9 @@ import { expect, test, describe } from "bun:test";
 import { join } from "node:path";
 
 describe("late-night-regrets", () => {
-  test("compat storage avoids runtime source imports", async () => {
-    const source = await Bun.file(join(import.meta.dir, "compat", "extension-kv.ts")).text();
-    expect(source).not.toContain("require(");
-    expect(source).not.toContain("piclaw/runtime/src");
+  test("discovery has no ambient storage, model execution or input-admission fallback", async () => {
+    const source = await Bun.file(join(import.meta.dir, "index.ts")).text();
+    for (const legacy of ["__piclawRuntimeInterop", "sendUserMessage", "loadConfig", "messages.db"]) expect(source).not.toContain(legacy);
   });
 
   test("train script exists and is valid TypeScript", async () => {
@@ -42,11 +41,10 @@ describe("late-night-regrets", () => {
     // Can't fully test without piclaw runtime, but verify the module shape
     const mod = await import("./index.ts");
     expect(typeof mod.default).toBe("function");
-    expect(typeof mod.getTrainScriptPath).toBe("function");
-    expect(typeof mod.getAttentionFilePath).toBe("function");
+    expect(Object.keys(mod)).toEqual(["default"]);
   });
 
-  test("/regrets starts the budgeted reflection through the agent", async () => {
+  test("unbound /regrets cannot bypass native durable input admission", async () => {
     const mod = await import("./index.ts");
     let handler: ((args: string, ctx: unknown) => Promise<void>) | undefined;
     const prompts: string[] = [];
@@ -62,16 +60,15 @@ describe("late-night-regrets", () => {
     const workingMessages: Array<string | undefined> = [];
     const notifications: string[] = [];
     expect(handler).toBeDefined();
-    await handler!("", {
+    await expect(handler!("", {
       ui: {
         setWorkingMessage: (message?: string) => workingMessages.push(message),
         notify: (message: string) => notifications.push(message),
       },
-    });
+    })).rejects.toThrow("native durable");
 
     expect(workingMessages).toEqual([]);
     expect(notifications).toEqual([]);
-    expect(prompts).toHaveLength(1);
-    expect(prompts[0]).toContain("Call regrets_review");
+    expect(prompts).toHaveLength(0);
   });
 });
