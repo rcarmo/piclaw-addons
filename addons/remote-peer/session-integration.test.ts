@@ -24,7 +24,7 @@ async function worker(root: string) {
   const { createAddonMessagingRuntimeHandlers } = await load("addons/runtime-messaging.ts");
   const { WebChannelRuntimePublicSurfaceService } = await load("channels/web/core/web-channel-runtime-public-surface-service.ts");
   const { readInputRequestAuthority } = await load("channels/web/messaging/input-request-authority.ts");
-  const { admitWebUserMessage } = await load("channels/web/messaging/message-store.ts");
+  const { admitWebMessage } = await load("channels/web/messaging/message-store.ts");
   const { QueuedFollowupLifecycleService } = await load("channels/web/runtime/queued-followup-lifecycle-service.ts");
   db.initDatabase();
   // Two agents, each with two persisted idle branches; first-agent fallback is wrong.
@@ -53,7 +53,7 @@ async function worker(root: string) {
           { contentBlocks: body.content_blocks, source: body.source, queuedBy: body.queued_by }], validate, req.signal);
         return Response.json({ status: "ok", chat_jid: jid, queued: "followup" });
       }
-      const row = await admitWebUserMessage({ broadcastEvent() {} },
+      const row = await admitWebMessage({ broadcastEvent() {} },
         { chatJid: jid, content: body.content, isBot: false, mediaIds: body.media_ids ?? [], agentId: "default", agentName: "Fixture" },
         { contentBlocks: body.content_blocks, threadId: body.thread_id }, validate, req.signal);
       return Response.json({ status: "ok", chat_jid: jid, user_message: row });
