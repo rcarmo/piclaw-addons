@@ -1,6 +1,10 @@
 import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { Database } from 'bun:sqlite';
+import { createServer } from 'node:net';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import observabilityExtension, {
   prepareObservabilityRuntime,
   bindObservabilityConfiguration,
@@ -30,6 +34,31 @@ for (const reject of [false, true]) test(`native settings await durable configur
     if (reject) await expect(pending).rejects.toThrow("write denied"); else expect(await pending).toHaveProperty("ok", true);
     expect(committed).toBe(!reject);
   } finally { release(); await pending.catch(() => {}); dispose(); globals.__piclaw_registerAddonConfigApi = original; }
+});
+
+test('usage collection failure stays inside its observer and does not deny process/request preparation', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'observer-failure-')), path = join(dir, 'messages.db');
+  const db = new Database(path); db.exec('CREATE TABLE unrelated (id INTEGER)'); db.close();
+  const previous = process.env.PICLAW_USAGE_TELEMETRY_DB; process.env.PICLAW_USAGE_TELEMETRY_DB = path;
+  const connected = Promise.withResolvers<void>();
+  const server = createServer(socket => { socket.on('data', () => {}); connected.resolve(); });
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  const native = await import(`./index.ts?observer-failure=${crypto.randomUUID()}`);
+  let enabled = true;
+  const dispose = native.bindObservabilityConfiguration({ assertCurrent() {},
+    read: () => ({ enabled, appinsights_enabled: false, graphite_enabled: enabled, graphite_host: '127.0.0.1',
+      graphite_port: (server.address() as { port: number }).port, usage_telemetry_enabled: true }), async write() {} });
+  try {
+    const handlers = new Map<string, Function>(); native.default({ on(name: string, handler: Function) { handlers.set(name, handler); } } as any);
+    await native.prepareObservabilityRuntime(); await connected.promise; await Bun.sleep(0);
+    expect(await handlers.get('before_agent_start')!({ systemPrompt: 'Allowed request' })).toHaveProperty('systemPrompt', expect.stringContaining('Allowed request'));
+    const read = new Database(path, { readonly: true });
+    expect(read.query("SELECT name FROM sqlite_master WHERE name='token_usage'").all()).toEqual([]); read.close();
+  } finally {
+    enabled = false; await native.prepareObservabilityRuntime(); dispose(); server.close();
+    if (previous === undefined) delete process.env.PICLAW_USAGE_TELEMETRY_DB; else process.env.PICLAW_USAGE_TELEMETRY_DB = previous;
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("native process preparation rejects revoked startup authority across its queued await", async () => {
@@ -73,6 +102,9 @@ test("buildRuntimeConfigKey changes only for backend runtime settings", () => {
     graphite_host: "",
     graphite_port: 2003,
     graphite_prefix: "piclaw",
+    usage_telemetry_enabled: true,
+    usage_telemetry_interval_minutes: 15,
+    graphite_render_url: "",
   };
   expect(buildRuntimeConfigKey({ ...base })).toBe(buildRuntimeConfigKey(base));
   expect(buildRuntimeConfigKey({ ...base, instance_name: "smith-2" })).not.toBe(buildRuntimeConfigKey(base));

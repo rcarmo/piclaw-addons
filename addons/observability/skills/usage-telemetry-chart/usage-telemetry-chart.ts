@@ -5,14 +5,17 @@ const args = parseArgs({ options: { "render-url": { type: "string" }, prefix: { 
 if (!args["render-url"]) throw new Error("--render-url is required");
 const days = Math.max(1, Math.min(90, Number(args.days) || 7));
 const prefix = args.prefix!;
-const target = `${prefix}.*.usage.*.*.${args.metric}`;
+const metric = args.metric!, cost = metric === 'cost.api_equivalent_usd.known_subtotal';
+if (!cost && !/^tokens\.(input|output|cache_read|cache_write|reasoning|total)$/.test(metric))
+  throw new Error(`Metric ${metric} is not additive with verified units; use a supported token count or cost.api_equivalent_usd.known_subtotal.`);
+const target = `${prefix}.*.usage.*.*.${metric}`;
 const url = new URL("render", args["render-url"]!.endsWith("/") ? args["render-url"] : `${args["render-url"]}/`);
 url.searchParams.set("target", target); url.searchParams.set("from", `-${days}days`); url.searchParams.set("format", "json");
 const response = await fetch(url); if (!response.ok) throw new Error(`Graphite returned ${response.status}`);
 const series = await response.json() as Array<{ target: string; datapoints: Array<[number | null, number]> }>;
 const filter = (target: string) => {
   const segments = target.split("."); const base = prefix.split(".").length;
-  return segments[base + 1] === "usage"
+  return segments[base + 1] === "usage" && segments.slice(base + 4).join('.') === metric
     && (!args.instance || segments[base] === args.instance)
     && (!args.provider || segments[base + 2] === args.provider)
     && (!args.model || segments[base + 3] === args.model);
@@ -20,14 +23,24 @@ const filter = (target: string) => {
 const byInstance = new Map<string, Map<string, number>>();
 for (const item of series.filter(item => filter(item.target))) {
   const instance = item.target.split(".")[prefix.split(".").length] || "unknown"; const data = byInstance.get(instance) || new Map<string, number>(); byInstance.set(instance, data);
-  for (const [value, epoch] of item.datapoints) { if (value == null) continue; const day = new Date(epoch * 1000).toISOString().slice(0, 10); data.set(day, (data.get(day) || 0) + value); }
+  for (const [value, epoch] of item.datapoints) { if (value == null || !Number.isFinite(value) || value < 0) continue; const day = new Date(epoch * 1000).toISOString().slice(0, 10); data.set(day, (data.get(day) || 0) + value); }
 }
 const allDays = Array.from({ length: days }, (_, i) => new Date(Date.now() - (days - i - 1) * 864e5).toISOString().slice(0, 10));
-const max = Math.max(1, ...allDays.map(day => [...byInstance.values()].reduce((sum, values) => sum + (values.get(day) || 0), 0)));
+const max = Math.max(cost ? 0 : 1, ...allDays.map(day => [...byInstance.values()].reduce((sum, values) => sum + (values.get(day) || 0), 0))) || 1;
+const metricLabel = cost ? 'API-equivalent known subtotal (USD)' : metric;
 const colors = ["#38bdf8", "#34d399", "#fbbf24", "#fb7185", "#a78bfa", "#22c55e"];
 const width = 960, height = 420, left = 64, top = 34, plotW = 860, plotH = 290, barW = Math.max(5, plotW / days - 10);
 const instances = [...byInstance.keys()].sort();
-const bars = allDays.map((day, index) => { let y = top + plotH; const x = left + index * plotW / days + (plotW / days - barW) / 2; return instances.map((name, colorIndex) => { const value = byInstance.get(name)?.get(day) || 0; const h = value / max * plotH; y -= h; return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${h.toFixed(1)}" fill="${colors[colorIndex % colors.length]}"/>`; }).join(""); }).join("");
-const legend = instances.map((name, i) => `<g transform="translate(${left + i * 145},${height - 36})"><rect width="10" height="10" fill="${colors[i % colors.length]}"/><text x="15" y="10">${name}</text></g>`).join("");
-const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><style>text{font:12px system-ui,sans-serif;fill:#94a3b8}.title{font-size:16px;fill:#e2e8f0;font-weight:600}.axis{stroke:#475569;stroke-width:1}</style><rect width="100%" height="100%" fill="#0f172a" rx="10"/><text class="title" x="${left}" y="22">Piclaw usage · ${args.metric} · ${days} days</text><line class="axis" x1="${left}" y1="${top + plotH}" x2="${left + plotW}" y2="${top + plotH}"/><text x="8" y="${top + 8}">${Math.round(max).toLocaleString()}</text><text x="8" y="${top + plotH}">0</text>${bars}${allDays.map((day,i) => i % Math.ceil(days / 7) === 0 ? `<text x="${left + i * plotW / days}" y="${top + plotH + 18}">${day.slice(5)}</text>` : "").join("")}${legend}</svg>`;
+const bars = allDays.map((day, index) => {
+  let y = top + plotH; const x = left + index * plotW / days + (plotW / days - barW) / 2;
+  return instances.map((name, colorIndex) => {
+    const values = byInstance.get(name); if (!values?.has(day)) return '';
+    const value = values.get(day)!, data = `data-instance="${Bun.escapeHTML(name)}" data-day="${day}" data-value="${value}"`;
+    if (value === 0) return `<circle ${data} cx="${(x + barW / 2).toFixed(1)}" cy="${y.toFixed(1)}" r="2" fill="${colors[colorIndex % colors.length]}"/>`;
+    const h = value / max * plotH; y -= h;
+    return `<rect ${data} x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${h.toFixed(1)}" fill="${colors[colorIndex % colors.length]}"/>`;
+  }).join('');
+}).join('');
+const legend = instances.map((name, i) => `<g transform="translate(${left + i * 145},${height - 36})"><rect width="10" height="10" fill="${colors[i % colors.length]}"/><text x="15" y="10">${Bun.escapeHTML(name)}</text></g>`).join("");
+const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img"><desc>Missing observations are unknown, not zero. Dots mark supplied zero. API-equivalent cost shows known USD subtotals only; partial valuations are not complete bills.</desc><style>text{font:12px system-ui,sans-serif;fill:#94a3b8}.title{font-size:16px;fill:#e2e8f0;font-weight:600}.axis{stroke:#475569;stroke-width:1}</style><rect width="100%" height="100%" fill="#0f172a" rx="10"/><text class="title" x="${left}" y="22">Piclaw usage · ${metricLabel} · ${days} days</text><line class="axis" x1="${left}" y1="${top + plotH}" x2="${left + plotW}" y2="${top + plotH}"/><text x="8" y="${top + 8}">${max.toLocaleString(undefined, { maximumFractionDigits: 6 })}</text><text x="8" y="${top + plotH}">0</text>${bars}${allDays.map((day,i) => i % Math.ceil(days / 7) === 0 ? `<text x="${left + i * plotW / days}" y="${top + plotH + 18}">${day.slice(5)}</text>` : "").join("")}${legend}</svg>`;
 if (args.output) writeFileSync(args.output, svg); else process.stdout.write(svg);
