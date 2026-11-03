@@ -383,7 +383,11 @@ piclaw.smith.dream.duration_ms 45000 1745828400
 
 # Durable usage (provider/model/metric)
 piclaw.smith.usage.github-copilot.gpt_5_6_sol.tokens.total 48000 1745828400
-piclaw.smith.usage.github-copilot.gpt_5_6_sol.cost.estimated_usd 0.24 1745828400
+# USD API-equivalent known subtotal; may contain partial valuations
+piclaw.smith.usage.github-copilot.gpt_5_6_sol.cost.api_equivalent_usd.known_subtotal 0.24 1745828400
+piclaw.smith.usage.github-copilot.gpt_5_6_sol.cost.api_equivalent_usd.partial_rows 1 1745828400
+# Latest supplied provider-native amount in this batch; currency unknown
+piclaw.smith.usage.github-copilot.gpt_5_6_sol.cost.provider_reported.currency_unknown.latest_known_amount 0 1745828400
 
 # Compaction (provider/model/method/execution/trigger/outcome/timeout-stage)
 piclaw.smith.compaction.local.fast-summary.selective.single_pass.manual.success.none.attempt.count 1 1745828400
@@ -405,6 +409,15 @@ piclaw.*.compaction.*.*.*.*.*.*.*.duration.ttft_ms  # TTFT across bounded compac
 ```
 
 Version 0.1.14 changed durable metrics from `piclaw.usage.<instance>...` and `piclaw.compaction.<instance>...` to the instance-first paths above. Existing Graphite history stays under the old paths. The exporters rewrite pending local retry-spool entries before sending them, but they do not dual-write or copy historical Graphite data.
+
+### Cost presence and units
+
+- `cost.api_equivalent_usd.known_subtotal` adds only non-negative, explicit USD microdollar valuations. `complete_rows`, `partial_rows` and `unknown_rows` describe their coverage. A partial subtotal omits unpriced categories; it does not establish a complete bill. Explicit documented-free valuations retain zero. Missing or unavailable valuations emit no subtotal.
+- `cost.provider_reported.currency_unknown.latest_known_amount` keeps the latest supplied non-negative provider amount in the exported batch, including zero. `latest_known_at` records its source time; `known_rows` and `unknown_rows` preserve presence. Core exposes no currency for this generic native amount. The valuation's `pricing_currency` does not establish its currency. These amounts must not be added across rows or treated as USD.
+- Older rows without provenance, or without the newer cost columns, retain `cost_total` as `cost.legacy_unclassified.currency_unknown.latest_stored_amount`, with a `rows` count. A stored zero remains zero; NULL emits no amount. No currency is inferred. The collector reads `token_usage` without financial-policy tables or database writes.
+- `cost.estimated_usd` is retired because it mixed provider amounts and catalogue estimates. Already queued points retain their numeric value and timestamp under `cost.legacy_unclassified.currency_unknown.stored_batch_value`. Existing Graphite history and canonical database rows are unchanged. No duplicate old/new cost points are emitted.
+
+The chart accepts only the six token-count metrics and `cost.api_equivalent_usd.known_subtotal`. It rejects provider-native, legacy and old ambiguous costs before querying Graphite. Missing observations leave gaps; dots mark supplied zero. Fractional USD values retain their scale.
 
 ### Azure Application Insights views
 

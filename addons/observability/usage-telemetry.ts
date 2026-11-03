@@ -79,31 +79,74 @@ export function saveCheckpoint(checkpoint: Checkpoint, dbPath = messagesDbPath()
 interface UsageRow {
   id: number; run_at: string; provider: string | null; model: string | null;
   input_tokens: number; output_tokens: number; cache_read_tokens: number; cache_write_tokens: number;
-  reasoning_tokens: number; total_tokens: number; cost_total: number;
+  reasoning_tokens: number; total_tokens: number; cost_total: number | null;
+  provider_cost_total: number | null; cost_provenance: string | null;
+  api_equivalent_cost_microusd: number | null; api_equivalent_cost_known: number | null;
+  api_equivalent_known_subtotal_microusd: number | null;
+  pricing_currency: string | null; valuation_provenance: string | null;
+}
+
+function nonNegative(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0;
 }
 
 export function collectUsage(config: UsageTelemetryConfig, checkpoint: Checkpoint, now = new Date(), dbPath = messagesDbPath()): PendingBatch | null {
   if (!existsSync(dbPath)) return null;
   const db = new Database(dbPath, { readonly: true, create: false });
   try {
+    const columns = new Set((db.query('PRAGMA table_info(token_usage)').all() as { name: string }[]).map(column => column.name));
+    const costColumns = ['provider_cost_total', 'cost_provenance', 'api_equivalent_cost_microusd', 'api_equivalent_cost_known',
+      'api_equivalent_known_subtotal_microusd', 'pricing_currency', 'valuation_provenance'];
     const rows = db.query(`
       SELECT id, run_at, provider, model,
         coalesce(input_tokens, 0) AS input_tokens, coalesce(output_tokens, 0) AS output_tokens,
         coalesce(cache_read_tokens, 0) AS cache_read_tokens, coalesce(cache_write_tokens, 0) AS cache_write_tokens,
         coalesce(reasoning_tokens, 0) AS reasoning_tokens, coalesce(total_tokens, 0) AS total_tokens,
-        coalesce(cost_total, 0) AS cost_total
+        cost_total, ${costColumns.map(column => columns.has(column) ? column : `NULL AS ${column}`).join(', ')}
       FROM token_usage
       WHERE run_at > $runAt OR (run_at = $runAt AND id > $id)
       ORDER BY run_at, id
     `).all({ $runAt: checkpoint.runAt, $id: checkpoint.id }) as UsageRow[];
     if (!rows.length) return null;
-    const aggregate = new Map<string, UsageRow>();
+    const aggregate = new Map<string, UsageRow & { costs: Record<string, number> }>();
     for (const row of rows) {
       const key = `${graphiteSegment(row.provider)}\0${graphiteSegment(row.model)}`;
-      const found = aggregate.get(key);
+      let found = aggregate.get(key);
       if (found) {
-        for (const field of ["input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens", "reasoning_tokens", "total_tokens", "cost_total"] as const) found[field] += row[field];
-      } else aggregate.set(key, { ...row });
+        for (const field of ["input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens", "reasoning_tokens", "total_tokens"] as const) found[field] += row[field];
+      } else {
+        found = { ...row, costs: {
+          'cost.provider_reported.currency_unknown.known_rows': 0, 'cost.provider_reported.currency_unknown.unknown_rows': 0,
+          'cost.api_equivalent_usd.complete_rows': 0, 'cost.api_equivalent_usd.partial_rows': 0, 'cost.api_equivalent_usd.unknown_rows': 0,
+          'cost.legacy_unclassified.currency_unknown.rows': 0,
+        } };
+        aggregate.set(key, found);
+      }
+      const costs = found.costs;
+      // Core's generic native amount has no currency field. Keep a single
+      // observed amount with its source time; summing unknown units is invalid.
+      if (nonNegative(row.provider_cost_total)) {
+        costs['cost.provider_reported.currency_unknown.known_rows']++;
+        costs['cost.provider_reported.currency_unknown.latest_known_amount'] = row.provider_cost_total;
+        const at = Date.parse(row.run_at) / 1000;
+        if (Number.isFinite(at)) costs['cost.provider_reported.currency_unknown.latest_known_at'] = at;
+        else delete costs['cost.provider_reported.currency_unknown.latest_known_at'];
+      } else costs['cost.provider_reported.currency_unknown.unknown_rows']++;
+      const total = row.api_equivalent_cost_microusd, subtotal = row.api_equivalent_known_subtotal_microusd;
+      const complete = row.pricing_currency === 'USD' && row.api_equivalent_cost_known === 1 && nonNegative(total)
+        && Number.isSafeInteger(total) && (total > 0 || row.valuation_provenance === 'documented_free')
+        && (subtotal === null || subtotal === total);
+      const partial = !complete && row.pricing_currency === 'USD' && nonNegative(subtotal)
+        && Number.isSafeInteger(subtotal) && subtotal > 0;
+      if (complete || partial) {
+        costs['cost.api_equivalent_usd.known_subtotal'] = (costs['cost.api_equivalent_usd.known_subtotal'] ?? 0) + (complete ? total! : subtotal!) / 1_000_000;
+        costs[complete ? 'cost.api_equivalent_usd.complete_rows' : 'cost.api_equivalent_usd.partial_rows']++;
+      } else costs['cost.api_equivalent_usd.unknown_rows']++;
+      if (row.provider_cost_total === null && (row.cost_provenance === null
+        || !columns.has('provider_cost_total') || !columns.has('api_equivalent_cost_known'))) {
+        costs['cost.legacy_unclassified.currency_unknown.rows']++;
+        if (nonNegative(row.cost_total)) costs['cost.legacy_unclassified.currency_unknown.latest_stored_amount'] = row.cost_total;
+      }
     }
     const prefix = instanceFirstMetricPrefix(config.graphite_prefix, instanceId(config), "usage");
     const timestamp = Math.floor(now.getTime() / 1000);
@@ -114,7 +157,7 @@ export function collectUsage(config: UsageTelemetryConfig, checkpoint: Checkpoin
         "tokens.input": row.input_tokens, "tokens.output": row.output_tokens,
         "tokens.cache_read": row.cache_read_tokens, "tokens.cache_write": row.cache_write_tokens,
         "tokens.reasoning": row.reasoning_tokens, "tokens.total": row.total_tokens,
-        "cost.estimated_usd": row.cost_total,
+        ...row.costs,
       };
       for (const [metric, value] of Object.entries(values)) points.push({ path: `${base}.${metric}`, value, timestamp });
     }
@@ -161,10 +204,13 @@ export async function flushSpool(config: UsageTelemetryConfig, dbPath = messages
   const batches = loadSpool(dbPath);
   let sent = 0;
   while (batches.length) {
-    const points = batches[0].points.map(point => ({
-      ...point,
-      path: migrateLegacyCategoryMetricPath(point.path, config.graphite_prefix, "usage"),
-    }));
+    const points = batches[0].points.map(point => {
+      const path = migrateLegacyCategoryMetricPath(point.path, config.graphite_prefix, "usage");
+      // Old queued totals mixed provenance and unknown units. Preserve the
+      // stored value/time without presenting it as a newly verified USD bill.
+      return { ...point, path: path.endsWith('.cost.estimated_usd')
+        ? path.slice(0, -'cost.estimated_usd'.length) + 'cost.legacy_unclassified.currency_unknown.stored_batch_value' : path };
+    });
     await sendCarbon(config.graphite_host, config.graphite_port, points);
     batches.shift(); sent += 1;
     saveSpool(batches, dbPath);
