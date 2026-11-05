@@ -1,9 +1,12 @@
 # Add-on Settings input audit — 19 September 2026
 
-All 14 registered first-party Settings panes are covered by `settings-inputs.test.ts`.
-The inventory is checked against `registerSettingsPane` entries so a new pane
-cannot silently escape this audit. File viewers, editors and toolbar widgets are
-not Settings panes and are outside this change.
+The original audit covered the fourteen panes listed in `settings-inputs.test.ts`.
+After A2A retirement, thirteen of those panes remain. Current registration discovery
+also finds Code Review, Late Night Regrets and Restic, which the original list
+omitted. Reconstructing the check at the pre-retirement revision produces the same
+three omissions. Their coverage needs a separate follow-up; this dated report does
+not qualify every currently registered pane. File viewers, editors and toolbar
+widgets are outside this audit.
 
 ## Findings and releases
 
@@ -26,7 +29,6 @@ they are verified without a new release. Eleven panes needed changes:
   side-effect `component` registration and add a named SVG navigation icon.
   Old standalone fixture used `render`, hiding the real host mismatch. The
   phone test now navigates from General through the visible Linkr tab.
-- A2A 0.4.1: shared URL/JSON control shells, retaining multiline/monospace roles;
   JSON parsing, reviewed-enable confirmation, explicit disable and grants unchanged.
 
 Every migrated package contains its own `web/settings-fields.ts`, imported with
@@ -56,7 +58,7 @@ No production settings are saved merely by loading or inspecting a pane.
   unrelated integration fixtures. No blanket claim of running every optional test.
 - Compatibility suite: **213 passed, 8 explicit integrations skipped**.
 - Existing Sample/Delegate/Remote Peer browser regressions: **22 passed**.
-- Strict compatibility, A2A and Linkr typechecks; catalogue sync, whitespace and
+- Strict compatibility and Linkr typechecks; catalogue sync, whitespace and
   all eleven package dry-runs passed.
 
 An initial broad run failed because the isolated worktree lacked Observability's
