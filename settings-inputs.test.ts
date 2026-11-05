@@ -3,7 +3,7 @@ import { readFileSync, readdirSync, existsSync, mkdirSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
 import { settingsBrowserEnabled, settingsPaneFixture } from './scripts/lib/settings-pane-browser.js';
 
-export const panes = ['a2a','cheapskate','delegate','goal','imap','linkr','observability','portainer','proxmox','remote-peer','sample-addon','telegram','vent','whatsapp'];
+export const panes = ['cheapskate','delegate','goal','imap','linkr','observability','portainer','proxmox','remote-peer','sample-addon','telegram','vent','whatsapp'];
 const textControls='input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]):not([type="range"]):not([type="color"]),textarea,select';
 const browserTest=settingsBrowserEnabled?test:test.skip;
 const fixtures=new Map<string,Awaited<ReturnType<typeof settingsPaneFixture>>>();
@@ -38,7 +38,6 @@ browserTest('Linkr is reachable from General via a visible named Classic phone n
 
 function dataFor(slug:string):any {
  switch(slug){
- case 'a2a':return {enabled:false,inbound:false,outbound:false,publicBaseUrl:'',principals:[],agents:[],endpoints:[]};
  case 'cheapskate':return {ok:true,config:{enabled:false,providers:{},models:{},priority:[]},candidates:[{ref:'fixture/free-model',provider:'fixture',provider_name:'Fixture',name:'Free fixture',model_enabled:false,configured:true,in_scope:true,state:'eligible',health:{state:'healthy'},inputs:['text']}],excluded_costs:{positive:0,unknown_or_malformed:0,recursive:0}};
  case 'delegate':return {config:{searchable_providers:[],excluded_providers:['fixture'],excluded_models:[]},providers:[{provider:'fixture',modelCount:1}],candidates:[]};
  case 'goal':return {goal:{objective:'Fixture',tokenBudget:1000,status:'paused',tokensUsed:0},remainingTokens:1000};
@@ -70,7 +69,6 @@ async function open(slug:string,skin:string,width:number,theme:'light'|'dark'='l
   if(slug==='sample-addon') {if(post)data={...data,...body};return route.fulfill({json:{ok:true,config:data}});}
   if(slug==='delegate')return route.fulfill({json:data});
   if(slug==='goal'){if(post)data={...data,goal:{...data.goal,...body}};return route.fulfill({json:data});}
-  if(slug==='a2a'&&!url.pathname.endsWith('/config'))return route.fulfill({json:{enabled:false}});
   if(post)data={...data,...body};
   return route.fulfill({json:post?{ok:true,config:data}:data});
  });
@@ -128,7 +126,7 @@ for(const slug of ['portainer','proxmox','observability','vent'])browserTest(`${
  }finally{await f.page.close();}
 });
 
-for(const slug of ['telegram','whatsapp','linkr','a2a','goal','imap'])browserTest(`${slug} explicit save and confirmation boundaries stay unchanged`,async()=>{
+for(const slug of ['telegram','whatsapp','linkr','goal','imap'])browserTest(`${slug} explicit save and confirmation boundaries stay unchanged`,async()=>{
  const f=await open(slug,'classic',820);try{
   if(slug==='telegram'){
    await f.content.getByLabel('Bot Token',{exact:true}).fill('fixture-token');
@@ -149,13 +147,6 @@ for(const slug of ['telegram','whatsapp','linkr','a2a','goal','imap'])browserTes
    f.page.once('dialog',(dialog:any)=>dialog.accept());
    await f.content.getByRole('button',{name:'Save',exact:true}).click();await f.page.waitForTimeout(150);
    expect(f.requests[0].body.profiles[0]).toEqual({...dataFor('linkr').profiles[0],label:'Changed fixture'});
-  }else if(slug==='a2a'){
-   await f.content.getByRole('checkbox',{name:'Enable A2A',exact:true}).check();
-   await f.content.getByRole('button',{name:'Save A2A settings'}).click();await f.content.getByRole('alert').waitFor();
-   expect(f.requests).toEqual([]);
-   await f.content.getByRole('checkbox',{name:'I reviewed grants and credentials'}).check();
-   await f.content.getByRole('button',{name:'Save A2A settings'}).click();await f.page.waitForTimeout(150);
-   expect(f.requests[0].body.enabled).toBe(true);expect(f.requests[0].body.principals).toEqual([]);
   }else if(slug==='goal'){
    await f.content.getByLabel('Objective',{exact:true}).fill('Fixture only');await f.content.getByLabel('Token budget',{exact:true}).fill('2000');
    await f.content.getByRole('button',{name:'Save / Replace + Run'}).click();await f.page.waitForTimeout(150);

@@ -13,12 +13,11 @@
     "sync:catalog": "bun scripts/sync-catalog.ts --write",
     "check:catalog": "bun scripts/sync-catalog.ts --check",
     "check:vendor-inventory": "bun scripts/vendor-inventory.ts --check",
-    "typecheck:earendil-compat": "tsc --noEmit -p tsconfig.earendil-compat.json && tsc --noEmit -p addons/m365/tsconfig.json && tsc --noEmit -p addons/remote-peer/tsconfig.json && tsc --noEmit -p addons/linkr/tsconfig.json && tsc --noEmit -p addons/a2a/tsconfig.json",
-    "test:earendil-compat": "bun test addons/cheapskate/index.test.ts addons/codex-conversion/index.test.ts addons/delegate/index.test.ts addons/delegate/auth-failure.test.ts addons/delegate/qualification-160.test.ts addons/delegate/descendant-cleanup.test.ts addons/delegate/gpt61-sol.test.ts addons/delegate/earendil-0871.test.ts addons/delegate/cli-0871.test.ts addons/delegate/cli-manifest.test.ts addons/delegate/cli-host.test.ts addons/delegate/cli-100.test.ts addons/delegate/cli-103.test.ts scripts/qualification/delegate-auth-100.test.ts scripts/qualification/delegate-auth-101.test.ts scripts/qualification/delegate-auth-103.test.ts addons/m365/tests/*.test.ts addons/skill-model-effort/index.test.ts addons/smart-compaction/index.test.ts addons/autoresearch/supervisor.test.ts addons/linkr/linkr.test.ts addons/a2a",
+    "typecheck:earendil-compat": "tsc --noEmit -p tsconfig.earendil-compat.json && tsc --noEmit -p addons/m365/tsconfig.json && tsc --noEmit -p addons/remote-peer/tsconfig.json && tsc --noEmit -p addons/linkr/tsconfig.json",
+    "test:earendil-compat": "bun test addons/cheapskate/index.test.ts addons/codex-conversion/index.test.ts addons/delegate/index.test.ts addons/delegate/auth-failure.test.ts addons/delegate/qualification-160.test.ts addons/delegate/descendant-cleanup.test.ts addons/delegate/gpt61-sol.test.ts addons/delegate/earendil-0871.test.ts addons/delegate/cli-0871.test.ts addons/delegate/cli-manifest.test.ts addons/delegate/cli-host.test.ts addons/delegate/cli-100.test.ts addons/delegate/cli-103.test.ts scripts/qualification/delegate-auth-100.test.ts scripts/qualification/delegate-auth-101.test.ts scripts/qualification/delegate-auth-103.test.ts addons/m365/tests/*.test.ts addons/skill-model-effort/index.test.ts addons/smart-compaction/index.test.ts addons/autoresearch/supervisor.test.ts addons/linkr/linkr.test.ts",
     "addon:e2e": "cd tests/addon-e2e && bun run test -- --project=desktop-chrome",
     "addon:e2e:all": "cd tests/addon-e2e && PICLAW_ADDON=all bun run test -- --project=desktop-chrome",
     "addon:e2e:report": "cd tests/addon-e2e && bun run report",
-    "typecheck:a2a": "tsc --noEmit -p addons/a2a/tsconfig.json",
     "typecheck:goal": "tsc --noEmit -p addons/goal/tsconfig.json"
   },
   "homepage": "https://github.com/rcarmo/piclaw-addons",
@@ -27,7 +26,6 @@
   },
   "pi": {
     "extensions": [
-      "addons/a2a/index.ts",
       "addons/ast-grep-tool/index.ts",
       "addons/autoresearch/index.ts",
       "addons/cheapskate/index.ts",
@@ -76,13 +74,11 @@
     ],
     "runtime": {
       "entries": [
-        "addons/a2a/runtime.ts",
         "addons/autoresearch/runtime.ts",
         "addons/remote-peer/runtime.ts"
       ]
     },
     "skills": [
-      "addons/a2a/skills",
       "addons/autoresearch/skills",
       "addons/delegate/skills",
       "addons/editable-table/skills",
@@ -96,10 +92,6 @@
   },
   "agents": {
     "skills": [
-      {
-        "name": "a2a",
-        "path": "./addons/a2a/skills/a2a/SKILL.md"
-      },
       {
         "name": "autoresearch-create",
         "path": "./addons/autoresearch/skills/autoresearch-create"
@@ -233,7 +225,6 @@
     "@earendil-works/pi-tui": "1.4.0"
   },
   "devDependencies": {
-    "@a2a-js/sdk": "1.3.0",
     "@earendil-works/pi-agent-core": "1.4.0",
     "@earendil-works/pi-ai": "1.4.0",
     "@earendil-works/pi-coding-agent": "1.4.0",
@@ -243,7 +234,6 @@
     "bun-types": "1.4.4",
     "cron-parser": "5.10.2",
     "htm": "3.1.1",
-    "jose": "6.2.12",
     "marked": "^18.1.0",
     "playwright": "1.64.0",
     "preact": "11.0.1",

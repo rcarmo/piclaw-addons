@@ -118,7 +118,7 @@ They do not imply implementation approval or require another checklist interview
    identity tombstones preserve reply order and prevent resurrection. Edited/deleted
    text already delivered to an agent cannot be recalled; show that fact.
 5. **Single-operator workspace v1:** server-derived local ownership and selected
-   session scope. No public review links, remote peer/A2A reviewers or family-user
+   session scope. No public review links, remote reviewers or family-user
    exposure without a separately verified identity/authorisation integration.
 
 Deleting a message retains its replies under a "Comment deleted" tombstone;
