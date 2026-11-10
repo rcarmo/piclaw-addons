@@ -686,3 +686,7 @@ Use `buildObservabilitySystemPrompt()` from the native SDK request hook. Both re
 the bound configuration, as do the existing Settings handlers. Registration has
 no process effects. Legacy hosts initialise through their real `session_start`.
 The host retains static skill discovery from the package metadata.
+
+### Explicit provider-cost currency
+
+When Core supplies `provider_cost_currency` with a provider-reported amount, the collector emits separate `cost.provider_reported.<currency>.total` and `known_rows` metrics for three-letter currency codes (for example `usd` and `eur`). Totals are additive only within that exact currency path. A supplied zero remains a known observation. Older rows without this field, unknown units and unclassified amounts retain the existing `currency_unknown.latest_known_amount`/coverage behaviour and are never summed or relabelled as USD. `pricing_currency` continues to describe API-equivalent valuation, not the provider-native amount. No financial tables are consulted and reporting cannot gate work.
