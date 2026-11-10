@@ -4,6 +4,8 @@ const event=(usage:unknown,id:string)=>JSON.stringify({type:'message_end',messag
 for(const [name,usage,expected]of [
  ['absent',undefined,{cost:null,costProvenance:'unavailable',providerCostTotal:null,catalogueCostTotal:null,unknownCostCount:1}],
  ['SDKplaceholder',{cost:{total:0}},{cost:null,costProvenance:'unavailable',providerCostTotal:null}],
+ ['SDKplaceholderExplicitFalse',{cost:{total:0,totalFromProvider:false}},{cost:null,costProvenance:'unavailable',providerCostTotal:null}],
+ ['documentedFreeEstimate',{cost:{total:0},documentedFree:true},{cost:0,costCurrency:'USD',costProvenance:'catalogue_estimate',catalogueCostTotal:0}],
  ['billedZero',{cost:{total:0,totalFromProvider:true}},{cost:0,costCurrency:'USD',costProvenance:'provider_reported',providerCostTotal:0}],
  ['billedPositive',{cost:{total:2,totalFromProvider:true}},{cost:2,costCurrency:'USD',costProvenance:'provider_reported',providerCostTotal:2}],
  ['estimate',{cost:{total:3}},{cost:3,costCurrency:'USD',costProvenance:'catalogue_estimate',catalogueCostTotal:3}],
