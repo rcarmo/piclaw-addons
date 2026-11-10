@@ -1838,7 +1838,13 @@ export interface DelegateUsageSummary {
   cacheWrite: number;
   reasoning: number;
   totalTokens: number;
-  cost: number;
+  /** SDK amounts are USD; unknown/mixed-source values are never a provider bill. */
+  cost: number | null;
+  costCurrency: "USD" | null;
+  costProvenance: "provider_reported" | "catalogue_estimate" | "mixed" | "unavailable";
+  providerCostTotal: number | null;
+  catalogueCostTotal: number | null;
+  unknownCostCount: number;
 }
 
 export interface DelegateProcessProgress {
@@ -1876,7 +1882,7 @@ const MAX_STDERR_CHARS = 64_000;
 const MAX_PROGRESS_EVENTS = 128;
 
 function emptyDelegateUsage(): DelegateUsageSummary {
-  return { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0, totalTokens: 0, cost: 0 };
+  return { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0, totalTokens: 0, cost: null, costCurrency:null, costProvenance:"unavailable", providerCostTotal:null, catalogueCostTotal:null, unknownCostCount:0 };
 }
 
 function numeric(value: unknown): number {
@@ -1951,8 +1957,17 @@ class DelegateJsonAccumulator {
       this.usage.cacheWrite += numeric(usage.cacheWrite);
       this.usage.reasoning += numeric(usage.reasoning);
       this.usage.totalTokens += numeric(usage.totalTokens);
-      this.usage.cost += numeric(usage.cost?.total);
+
     }
+    const amount=usage?.cost?.total,known=typeof amount==='number'&&Number.isFinite(amount)&&amount>=0;
+    if(known&&usage.cost.totalFromProvider===true)this.usage.providerCostTotal=(this.usage.providerCostTotal??0)+amount;
+    else if(known&&(amount>0||usage.documentedFree===true))this.usage.catalogueCostTotal=(this.usage.catalogueCostTotal??0)+amount;
+    else this.usage.unknownCostCount++;
+    const actual=this.usage.providerCostTotal,estimate=this.usage.catalogueCostTotal;
+    this.usage.cost=this.usage.unknownCostCount?null:(actual??0)+(estimate??0);
+    this.usage.costCurrency=actual!==null||estimate!==null?'USD':null;
+    this.usage.costProvenance=this.usage.unknownCostCount?'unavailable':actual!==null&&estimate!==null?'mixed':actual!==null?'provider_reported':'catalogue_estimate';
+
   }
 
   consumeLine(line: string): void {

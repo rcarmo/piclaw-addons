@@ -25,12 +25,13 @@ function fixture() {
   db.exec(`CREATE TABLE token_usage (id INTEGER PRIMARY KEY, run_at TEXT NOT NULL, provider TEXT, model TEXT, input_tokens INTEGER, output_tokens INTEGER, cache_read_tokens INTEGER, cache_write_tokens INTEGER, reasoning_tokens INTEGER, total_tokens INTEGER, cost_total REAL);`);
   db.query(`INSERT INTO token_usage VALUES (1,'2026-08-01T00:00:00.000Z','OpenAI/Codex','GPT 5.4',2,3,4,5,6,20,0.12),(2,'2026-08-01T00:01:00.000Z','OpenAI/Codex','GPT 5.4',1,2,3,4,5,15,0.08);`).run(); db.close(); return path;
 }
-function modernFixture(rows: Array<{ actual?: number | null; cost?: number | null; total?: number | null; subtotal?: number | null; known?: number; currency?: string | null; valuation?: string; tokens?: number; provider?: string; model?: string }>) {
+function modernFixture(rows: Array<{ actual?: number | null; actualCurrency?:string|null; cost?: number | null; total?: number | null; subtotal?: number | null; known?: number; currency?: string | null; valuation?: string; tokens?: number; provider?: string; model?: string }>) {
   const path = fixture(), db = new Database(path);
   // Build this owned schema/row fixture in one commit, not nine fsynced ALTERs.
   db.transaction(() => {
   db.exec(`DELETE FROM token_usage;
     ALTER TABLE token_usage ADD COLUMN provider_cost_total REAL;
+    ALTER TABLE token_usage ADD COLUMN provider_cost_currency TEXT;
     ALTER TABLE token_usage ADD COLUMN catalogue_cost_total REAL;
     ALTER TABLE token_usage ADD COLUMN cost_provenance TEXT;
     ALTER TABLE token_usage ADD COLUMN api_equivalent_cost_microusd INTEGER;
@@ -44,6 +45,7 @@ function modernFixture(rows: Array<{ actual?: number | null; cost?: number | nul
     VALUES (?,?,?,?,?,0,0,0,0,?,?,?,?,?,?,?,?,?,?)`).run(i + 1, '2026-08-01T00:00:00.000Z', row.provider ?? 'provider', row.model ?? 'model', row.tokens ?? 2, row.tokens ?? 2, row.cost ?? 0,
       row.actual ?? null, row.total == null ? null : row.total / 1e6, row.actual != null ? 'provider_reported' : 'unavailable',
       row.total ?? null, row.known ?? 0, row.subtotal ?? null, row.currency ?? null, row.valuation ?? 'unavailable');
+  for(const [i,row] of rows.entries())db.query('UPDATE token_usage SET provider_cost_currency=? WHERE id=?').run(row.actualCurrency??null,i+1);
   }).immediate();
   db.close(); return path;
 }
@@ -210,4 +212,13 @@ test("flushes the durable spool to Carbon", async () => {
   expect(received.join("")).toContain("piclaw.smith.usage.openai.gpt.tokens.total 42 1");
   expect(received.join("")).not.toContain("piclaw.usage.smith");
   server.close();
+});
+
+
+test('provider currency totals keep USD, EUR and unknown observations separate, including supplied zero',()=>{
+ const points=values(modernFixture([{actual:0,actualCurrency:'USD'},{actual:2,actualCurrency:'USD'},{actual:3,actualCurrency:'EUR'},{actual:99},{actual:1}]));
+ expect(points.get('cost.provider_reported.usd.total')).toBe(2);expect(points.get('cost.provider_reported.usd.known_rows')).toBe(2);
+ expect(points.get('cost.provider_reported.eur.total')).toBe(3);expect(points.get('cost.provider_reported.eur.known_rows')).toBe(1);
+ expect(points.get('cost.provider_reported.currency_unknown.latest_known_amount')).toBe(1);expect(points.get('cost.provider_reported.currency_unknown.known_rows')).toBe(2);
+ expect(points.has('cost.estimated_usd')).toBe(false);
 });
