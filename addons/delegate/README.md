@@ -205,3 +205,7 @@ parameter was found. OpenCode's workspace update is an administrator operation.
 The public documentation does not establish an exact Privacy navigation path or
 a supported API for third-party management, so this integration links to the
 console without inventing one.
+
+### Usage cost observations
+
+CLI results retain `usage.cost` only when every observed assistant cost is known. Missing costs and SDK zero-rate placeholders produce `null`, not a free invocation. An explicit SDK `cost.totalFromProvider: true` retains a billed zero. `costProvenance` distinguishes `provider_reported`, `catalogue_estimate`, `mixed` and `unavailable`; only the provider subtotal is a reported bill. `providerCostTotal` and `catalogueCostTotal` keep known USD subtotals separately when another observation is missing, and `unknownCostCount` records incomplete coverage. Duplicate assistant events do not count twice. This reporting never decides execution or retries. Core's native Delegate records original SDK child outcomes through its own passive usage observer instead of invoking this CLI transport.

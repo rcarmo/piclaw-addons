@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { delegateCliDiagnostics, getExecutableCatalog, invalidateExecutableCatalog, resolveDelegateCliCommand, resolveRunningPiclawCli, getDelegateWorkspaceRoot, resolvePiPackageCli } from './delegate.ts';
@@ -9,7 +9,7 @@ test('installed 1.4.0 published CLI resolves and reports its version with an emp
   const manifestPath = join(packageRoot, 'package.json');
   expect(JSON.parse(readFileSync(manifestPath, 'utf8')).version).toBe('1.4.0');
   const cli = resolvePiPackageCli(manifestPath);
-  expect(cli).toBe(join(packageRoot, 'dist/bundle/cli.js'));
+  expect(cli).toBe(join(realpathSync(packageRoot), 'dist/bundle/cli.js'));
   const scratch = mkdtempSync(join(getDelegateWorkspaceRoot(), 'sdk140-cli-'));
   try {
     const home = join(scratch, 'home'), profile = join(scratch, 'profile');
