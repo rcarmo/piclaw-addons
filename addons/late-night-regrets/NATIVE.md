@@ -1,39 +1,29 @@
 # Native Regrets wiring
 
-Regrets0.3 requires the native durable host. `index.ts` registers SDK declarations and resources only. Its unbound tool and command reject execution. Ambient KV storage, direct history discovery, SDK model-registry fallback, `sendUserMessage` admission and legacy prompt injection have been removed.
+Regrets requires the native durable host. `index.ts` registers declarations and resources only; unbound execution rejects. The host supplies invocation-local ports through `createLateNightRegrets` from `native.ts`.
 
-Import `native.ts` for `createLateNightRegrets`, `regretsToolDeclaration`, `regretsResources` and `readExchanges`. The factory exposes tool, command, prompt and settings methods through invocation-local ports. It does not register global handlers or construct an SDK extension context.
+## Host bindings
 
-## Host ownership
+`createHostRegretsBindings` receives the application's active Root database for configuration, an owned history handle, workspace-scoped file access, current chat/source/owner checks, access mode and explicit permission for all-chat history. Configuration mutation shares the host's checked SQL transaction. No independent configuration store is created.
 
-Supply the active Root database, an owned history handle, cwd, current chat, current source/owner checks, access mode and explicit all-chat permission. File reads must remain workspace-scoped. Configuration writes must share a transaction with their authority checks. No independent configuration store is created.
+`createHostRegretsTool` captures the actual SDK tool source and binds those ports for that invocation. Discovery-time bindings cannot authorise execution. Use `createHostRegretsPromptExtension` for per-request section rendering and `createHostRegretsSettings` for each authenticated settings action.
 
-Use the existing host adapters:
+The `accountedDecision` port name is retained for API compatibility. It supplies current provider/model approval, cancellation/source checks and passive usage reporting. It has no financial admission or settlement authority. The old ledger-based decision helper is removed. Missing model capability prevents a nested model request; it does not prevent disabling or changing unrelated settings.
 
-- `createHostRegretsBindings` supplies fenced RootKV, history, file, input and model ports.
-- `createHostRegretsTool` captures actual tool source and creates operation authority. Its `bind(captured, authority, call)` callback composes the bindings for that invocation. Pass the exact SDK tool scope/checkpoint to the existing accounted model transport; discovery-time bindings are insufficient.
-- `createHostRegretsAccountedDecision` owns reserve/dispatch/settle/abandon through the existing host ledger. If the parent already owns accounting, pass that port directly instead. Never double-wrap it.
-- `createHostRegretsPromptExtension` binds fresh configuration for each native section render.
-- `createHostRegretsSettings` rebinds the current authenticated request for each settings action.
+## Inputs, prompts and settings
 
-The removed `createBoundHostRegretsTool` and command-forwarding helper are unnecessary layers. Use the same direct binding and native command path as the production factory.
+For `/regrets`, derive chat and authority from the host's accepted command. `admitConversationInput` returns the existing normal-input admission result. Do not construct another SDK session/context, call `sendUserMessage`, invent another operation or discard the admission result.
 
-## Commands and prompts
+Bind prompt sections through public `render(PromptInput, Context)` with current conversation/configuration checks. Disabling Regrets removes the section on the next request, including recovery. No legacy prompt-injection fallback is installed.
 
-For `/regrets`, derive genuine chat and authority from the host's accepted command, then call `createLateNightRegrets(bindings).command()`. Its `admitConversationInput` port must return the existing normal source admission result. Do not call `sendUserMessage`, create another operation or discard the admission result.
+Authenticated `/config` and `/models` actions use current native settings bindings. Model catalogues come from the host's ModelRuntime snapshot. Loading settings does not require history access or model execution; new model selections still require current availability and approval.
 
-Public pi-durable1.4 renders prompt sections with `render(PromptInput, Context)`. Bind the actual conversation and current owner/configuration on every render. Disabling configuration removes the section on the next request, including recovery. No legacy `before_agent_start` lifecycle binding remains.
+## Observation and recovery
 
-Register authenticated `/config` and `/models` actions using the native settings methods. Model catalogues come from the host's native `ModelRuntime` snapshot. History and model execution are never needed to load settings. An unavailable saved decision model must not prevent disabling or changing unrelated settings; new selections still require an available model.
+Model/token/price/provider-cost observations are passive. Old caps, reservations, uncertain monetary records and unavailable valuation cannot admit or deny Regrets work. There is no reserve/dispatch/charge lifecycle, financial readiness test or unaccounted fallback.
 
-## Accounting and recovery
+Keep genuine access, history scope, source/owner, SQL, cancellation, deadline and resource-cleanup checks. Reopening historical SDK results must preserve their identities without another provider/tool call. An uncertain old action is not resubmitted to repair an observation. Historical monetary records remain opaque and unchanged.
 
-`actualRoot` must be the application's active `getDb()` connection. A separate SQLite ledger is not a substitute: admission and settlement must refer to the same owner. History may use another owned read handle. Erased rows and cross-chat context remain excluded.
+## Qualification boundary
 
-The accounted decision port must retain failed/uncertain cost evidence, observe cancellation and source revocation, and settle original terminal facts. Exact recovered terminals return through the existing recovery path without another preview, authentication or provider request. Unknown pricing/output metadata is not permission for an unaccounted fallback. Expense-policy retirement belongs to its separate host workstream; token, price and provider-cost observations remain.
-
-## Qualification
-
-Focused tests cover native tool/settings/prompt/command ports, owned SQLite history, source revocation, atomic settings rollback, real default-factory execution, exact settlement, cancellation and reopen without replay. Offline provided-fetch tests exercise actual SDK payloads. Chromium and WebKit settings tests use the native settings methods.
-
-The installed-source gate must pin the exact0.3 source before evaluation. Older execution paths are rejected rather than kept as a compatibility mode. Test source copies and dependency graphs must be isolated; never mutate frozen fixture provenance, the installed profile or a live database to obtain qualification.
+Native binding, tool, prompt, settings and real default-factory tests cover current authority, atomic configuration writes, cancellation, errors, close/reopen and no replay. Settings browser tests use the same native methods. Source copies and dependency graphs must be isolated; never mutate frozen fixture provenance, installed profiles or live databases for qualification. Full delivered-source qualification belongs to the coordinating Core change.
