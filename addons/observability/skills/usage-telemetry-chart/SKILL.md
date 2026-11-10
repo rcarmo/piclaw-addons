@@ -24,6 +24,6 @@ bun ./usage-telemetry-chart.ts --render-url http://graphite:8080 --metric cost.a
 
 Only `tokens.input`, `tokens.output`, `tokens.cache_read`, `tokens.cache_write`, `tokens.reasoning`, `tokens.total` and `cost.api_equivalent_usd.known_subtotal` are additive chart metrics. USD known subtotals may omit unpriced categories; consult the exporter's `complete_rows`, `partial_rows` and `unknown_rows` for coverage. They do not establish a complete provider bill.
 
-Missing observations leave gaps; dots mark supplied zero. Provider-native amounts have unknown currency and must not be summed. Legacy stored costs and the retired ambiguous `cost.estimated_usd` metric are also rejected before any query. Existing Graphite history is unchanged.
+Missing observations leave gaps; dots mark supplied zero. The exporter keeps provider totals separate for each explicit currency and retains unlabelled native amounts as individual unknown-unit observations. This chart CLI accepts only the token metrics and USD API-equivalent subtotal listed above; provider-native, legacy and retired ambiguous `cost.estimated_usd` metric names are rejected before any query. Never relabel unknown units or combine different currencies. Existing Graphite history is unchanged.
 
 The exporter add-on must be configured and have sent metrics before this chart has data.

@@ -80,7 +80,7 @@ interface UsageRow {
   id: number; run_at: string; provider: string | null; model: string | null;
   input_tokens: number; output_tokens: number; cache_read_tokens: number; cache_write_tokens: number;
   reasoning_tokens: number; total_tokens: number; cost_total: number | null;
-  provider_cost_total: number | null; cost_provenance: string | null;
+  provider_cost_total: number | null; provider_cost_currency:string|null; cost_provenance: string | null;
   api_equivalent_cost_microusd: number | null; api_equivalent_cost_known: number | null;
   api_equivalent_known_subtotal_microusd: number | null;
   pricing_currency: string | null; valuation_provenance: string | null;
@@ -95,7 +95,7 @@ export function collectUsage(config: UsageTelemetryConfig, checkpoint: Checkpoin
   const db = new Database(dbPath, { readonly: true, create: false });
   try {
     const columns = new Set((db.query('PRAGMA table_info(token_usage)').all() as { name: string }[]).map(column => column.name));
-    const costColumns = ['provider_cost_total', 'cost_provenance', 'api_equivalent_cost_microusd', 'api_equivalent_cost_known',
+    const costColumns = ['provider_cost_total', 'provider_cost_currency', 'cost_provenance', 'api_equivalent_cost_microusd', 'api_equivalent_cost_known',
       'api_equivalent_known_subtotal_microusd', 'pricing_currency', 'valuation_provenance'];
     const rows = db.query(`
       SELECT id, run_at, provider, model,
@@ -123,9 +123,14 @@ export function collectUsage(config: UsageTelemetryConfig, checkpoint: Checkpoin
         aggregate.set(key, found);
       }
       const costs = found.costs;
-      // Core's generic native amount has no currency field. Keep a single
-      // observed amount with its source time; summing unknown units is invalid.
-      if (nonNegative(row.provider_cost_total)) {
+      const currency=typeof row.provider_cost_currency==='string'?row.provider_cost_currency.trim().toUpperCase():'';
+      // Aggregate only amounts explicitly reported in the same currency. Older
+      // generic observations keep their original unknown-unit latest value.
+      if(nonNegative(row.provider_cost_total)&&/^[A-Z]{3}$/.test(currency)&&row.cost_provenance==='provider_reported'){
+        const metric=`cost.provider_reported.${currency.toLowerCase()}`;
+        costs[metric+'.total']=(costs[metric+'.total']??0)+row.provider_cost_total;
+        costs[metric+'.known_rows']=(costs[metric+'.known_rows']??0)+1;
+      } else if (nonNegative(row.provider_cost_total)) {
         costs['cost.provider_reported.currency_unknown.known_rows']++;
         costs['cost.provider_reported.currency_unknown.latest_known_amount'] = row.provider_cost_total;
         const at = Date.parse(row.run_at) / 1000;
