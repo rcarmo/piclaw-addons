@@ -1,7 +1,7 @@
 import { afterEach, expect, test } from "bun:test";
-import { cpSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const repoDir = import.meta.dir;
@@ -18,7 +18,11 @@ async function importStandaloneAddon(slug: "restic" | "autoresearch" | "cheapska
   tempDirs.push(tempRoot);
 
   const packageDir = join(tempRoot, `piclaw-addon-${slug}`);
-  cpSync(join(repoDir, "addons", slug), packageDir, { recursive: true });
+  cpSync(join(repoDir, "addons", slug), packageDir, {
+    recursive: true,
+    filter: (source) => basename(source) !== "node_modules",
+  });
+  expect(existsSync(join(packageDir, "node_modules"))).toBe(false);
 
   const manifestPath = join(packageDir, "package.json");
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
