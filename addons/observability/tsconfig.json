@@ -1,0 +1,5 @@
+{
+  "extends": "../../tsconfig.earendil-compat.json",
+  "include": ["*.ts", "compat/*.ts"],
+  "exclude": ["*.test.ts", "node_modules"]
+}

@@ -78,6 +78,12 @@ jobs:
       - name: Test Earendil compatibility surface
         run: bun run test:earendil-compat
 
+      - name: Test Observability with its frozen production dependencies
+        run: |
+          bun install --cwd addons/observability --production --frozen-lockfile --omit=peer --ignore-scripts
+          bun run typecheck:observability
+          bun test --isolate addons/observability
+
       - name: Test standalone add-on imports
         run: bun test standalone-import.test.ts
       - name: Test Iroh-only Remote Peer on isolated loopback

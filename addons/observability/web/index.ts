@@ -57,7 +57,11 @@ function ObservabilitySettings() {
   const load = useCallback(async () => {
     try {
       const r = await fetch(`${API}/config`);
-      if (r.ok) setCfg(await r.json());
+      const data = await r.json().catch(() => null);
+      if (!r.ok || !data || data.error) {
+        setMsg(typeof data?.error === "string" ? data.error : "Failed to load configuration (HTTP " + r.status + "). Reload the settings pane to try again."); return;
+      }
+      setCfg(data);
     } catch {
       setMsg("Failed to load config");
     }
@@ -78,11 +82,12 @@ function ObservabilitySettings() {
       const j = await r.json();
       if (j.ok) {
         setCfg(j.config);
-        setMsg("Saved");
-        setTimeout(() => setMsg(""), 2000);
+        setMsg(j.warning || "Saved");
+
       } else {
         setMsg(j.error || "Save failed");
       }
+      return j;
     } catch {
       setMsg("Save failed");
     } finally {
@@ -99,15 +104,14 @@ function ObservabilitySettings() {
     if (ok) {
       setHasKey(true);
       setKeyInput("");
-      await save({ appinsights_keychain: KEYCHAIN_ENTRY });
-      setMsg("Connection string saved to keychain. Restart required.");
-      setTimeout(() => setMsg(""), 5000);
+      const result = await save({ appinsights_keychain: KEYCHAIN_ENTRY });
+      if (result?.ok && !result.warning) setMsg("Connection string saved to keychain and configuration applied.");
     } else {
       setMsg("Failed to save connection string.");
     }
   }, [keyInput, save]);
 
-  if (!cfg) return html`<div style="padding:1rem;color:var(--text-secondary)">Loading…</div>`;
+  if (!cfg) return html`<div style="padding:1rem;color:var(--text-secondary)" role=${msg ? "alert" : undefined}>${msg || "Loading…"}</div>`;
 
   const S = { display: "flex", alignItems: "center", gap: "0.5rem", margin: "0.4rem 0" };
   const L = { minWidth: "180px", color: "var(--text-secondary)", fontSize: "0.85rem" };
@@ -159,7 +163,7 @@ function ObservabilitySettings() {
         }
         </div>
       </div>
-      ${hint("Saved to keychain as " + KEYCHAIN_ENTRY + ". Restart required after changing.")}
+      ${hint("Saved to keychain as " + KEYCHAIN_ENTRY + ". The status message reports whether the backend activated.")}
       ${check("Live Metrics Stream", "appinsights_live_metrics")}
       ${hint("Real-time telemetry in the Azure portal (QuickPulse).")}
       ${check("Standard metrics", "appinsights_standard_metrics")}

@@ -86,3 +86,13 @@ test("export rewrites queued legacy compaction paths before Carbon delivery", as
 test("checkpoint defaults to zero", () => {
   expect(loadCompactionCheckpoint(dbPath())).toEqual({ id: 0 });
 });
+
+test('same-batch compactions do not overwrite each others count at Carbon timestamp resolution', () => {
+  const path = dbPath(), db = createSchema(path);
+  for (const [generation, duration] of [['one',100],['two',200]] as const) db.run(`INSERT INTO compaction_telemetry VALUES (NULL, ?, '2026-08-30T00:00:00Z', 'manual', 'selective', 'single_pass', 'success', 'local', 'model', NULL, 400, ?, 20, 10, 70, 1, NULL, NULL, 0)`, generation, duration);
+  db.close();
+  const batch = collectCompactionTelemetry(config, {id:0}, new Date(), path)!;
+  const stored = new Map(batch.points.map(point => [`${point.path} ${point.timestamp}`, point.value]));
+  expect([...stored].find(([key]) => key.includes('.attempt.count '))?.[1]).toBe(2);
+  expect(batch.points).toHaveLength(stored.size);
+});

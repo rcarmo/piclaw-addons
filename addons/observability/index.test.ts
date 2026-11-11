@@ -1,4 +1,7 @@
 import { expect, test } from "bun:test";
+// Resolve the real production backend as fixture setup; the tests below verify
+// activation/error behaviour, not cold filesystem import performance.
+import "@azure/monitor-opentelemetry";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Database } from 'bun:sqlite';
@@ -107,6 +110,7 @@ test("buildRuntimeConfigKey changes only for backend runtime settings", () => {
     graphite_render_url: "",
   };
   expect(buildRuntimeConfigKey({ ...base })).toBe(buildRuntimeConfigKey(base));
+  expect(buildRuntimeConfigKey({ ...base, graphite_render_url: "https://graphite.invalid/render" })).toBe(buildRuntimeConfigKey(base));
   expect(buildRuntimeConfigKey({ ...base, instance_name: "smith-2" })).not.toBe(buildRuntimeConfigKey(base));
   expect(buildRuntimeConfigKey({ ...base, graphite_enabled: true, graphite_host: "graphite.local" })).not.toBe(buildRuntimeConfigKey(base));
 });
@@ -185,7 +189,7 @@ test("buildAppInsightsActorAttributes maps chat and session into App Insights us
 test("native configuration reads preserve persisted settings and never mask revoked authority as defaults", () => {
   let denied = false;
   const release = bindObservabilityConfiguration({ assertCurrent() {}, read() { if (denied) throw Error("Configuration read denied"); return { enabled: true, instance_name: "owned-native-instance", appinsights_live_metrics: false }; }, write() { throw Error("No write expected"); } });
-  expect(buildObservabilitySystemPrompt()).toContain("OTel tracing active. Instance: owned-native-instance");
+  expect(buildObservabilitySystemPrompt()).toContain("OTel tracing inactive. Instance: owned-native-instance");
   expect(buildObservabilitySystemPrompt()).not.toContain("Live Metrics enabled.");
   denied = true;
   expect(() => buildObservabilitySystemPrompt()).toThrow("Configuration read denied");
@@ -198,4 +202,55 @@ test("modelDependencyTarget prefers the provider prefix and falls back to llm", 
   expect(modelDependencyTarget("gpt-5")).toBe("gpt-5");
   expect(modelDependencyTarget("")).toBe("llm");
   expect(modelDependencyTarget(null)).toBe("llm");
+});
+
+test('invalid settings are rejected before durable configuration writes', async () => {
+  const globals=globalThis as any, original=globals.__piclaw_registerAddonConfigApi;
+  let handlers:any,writes=0;
+  globals.__piclaw_registerAddonConfigApi=(_id:string,_action:string,api:unknown)=>{handlers=api;};
+  const native=await import(`./index.ts?validation=${crypto.randomUUID()}`);globals.__piclaw_registerAddonConfigApi=original;
+  const release=native.bindObservabilityConfiguration({assertCurrent(){},read:()=>({enabled:false}),write(){writes++;}});
+  try {
+    for(const patch of [{enabled:'false'},{graphite_port:65536},{graphite_port:NaN},{graphite_port:2.5},{appinsights_sampling_ratio:NaN},{appinsights_sampling_ratio:2},{usage_telemetry_interval_minutes:0},{usage_telemetry_interval_minutes:Infinity},{graphite_host:42}]){
+      const result=await handlers.set(patch);expect(result.ok).toBe(false);expect(result.error).toBeString();
+    }
+    expect(writes).toBe(0);
+  }finally{release();globals.__piclaw_registerAddonConfigApi=original;}
+});
+
+test('saved settings warn when no backend starts and failed startup is not cached', async () => {
+  const globals=globalThis as any,original=globals.__piclaw_registerAddonConfigApi;
+  let handlers:any,saved:any={enabled:false};
+  globals.__piclaw_registerAddonConfigApi=(_id:string,_action:string,api:unknown)=>{handlers=api;};
+  const native=await import(`./index.ts?failed-cache=${crypto.randomUUID()}`);globals.__piclaw_registerAddonConfigApi=original;
+  const release=native.bindObservabilityConfiguration({assertCurrent(){},read:()=>saved,write(value){saved=value;}});
+  const info=console.log;let skips=0;console.log=(...args:unknown[])=>{if(String(args[1]).includes('No backends configured'))skips++;};
+  try {
+    const result=await handlers.set({enabled:true,appinsights_enabled:false,graphite_enabled:false});
+    expect(result.ok).toBe(true);expect(result.warning).toContain('inactive');expect(saved.enabled).toBe(true);
+    await native.prepareObservabilityRuntime();expect(skips).toBe(2);expect(native.isActive()).toBe(false);
+  }finally{console.log=info;release();globals.__piclaw_registerAddonConfigApi=original;}
+});
+
+test('disabling a just-started Graphite connection cannot dereference a cleared configuration', async () => {
+  const native=await import(`./index.ts?graphite-toggle=${crypto.randomUUID()}`);
+  const server=createServer(socket=>socket.on('error',()=>{}));await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
+  let enabled=true;
+  const release=native.bindObservabilityConfiguration({assertCurrent(){},read:()=>({enabled,appinsights_enabled:false,graphite_enabled:enabled,graphite_host:'127.0.0.1',graphite_port:(server.address() as any).port}),write(){}});
+  try {await native.prepareObservabilityRuntime();enabled=false;await native.prepareObservabilityRuntime();await Bun.sleep(20);expect(native.isActive()).toBe(false);}
+  finally{release();server.close();}
+});
+
+test('real Azure initialization failure is passive, truthful and redacts its connection secret', async()=>{
+ const globals=globalThis as any,previous=globals.__piclawRuntimeInterop;
+ const secret='SYNTHETIC-SENSITIVE-KEY';
+ globals.__piclawRuntimeInterop={getKeychainEntry:async()=>({name:'fixture/invalid',type:'secret',secret:'InstrumentationKey='+secret})};
+ const native=await import(`./index.ts?invalid-azure=${crypto.randomUUID()}`);
+ const release=native.bindObservabilityConfiguration({assertCurrent(){},read:()=>({enabled:true,appinsights_enabled:true,appinsights_keychain:'fixture/invalid',appinsights_live_metrics:false,appinsights_standard_metrics:false,graphite_enabled:false}),write(){}});
+ const original=console.error;const errors:string[]=[];console.error=(...args:unknown[])=>errors.push(args.map(String).join(' '));
+ try{
+  await expect(native.prepareObservabilityRuntime()).resolves.toBeUndefined();
+  expect(native.isActive()).toBe(false);expect(native.buildObservabilitySystemPrompt()).toContain('inactive');
+  expect(errors.join('\n')).toContain('Failed to start Azure Monitor');expect(errors.join('\n')).not.toContain(secret);
+ }finally{console.error=original;await native.shutdownObservabilityRuntime();release();globals.__piclawRuntimeInterop=previous;}
 });

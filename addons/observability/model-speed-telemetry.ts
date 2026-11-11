@@ -29,7 +29,7 @@ export interface ModelSpeedTelemetry {
 function finiteNumber(record: Record<string, unknown>, keys: string[]): number | null {
   for (const key of keys) {
     const value = record[key];
-    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (typeof value === "number" && Number.isFinite(value) && value >= 0) return value;
   }
   return null;
 }
@@ -63,13 +63,14 @@ export function readModelUsage(usage: unknown): ModelUsageFields {
 
 function tokensPerSecond(tokens: number | null, durationMs: number | null): number | null {
   if (tokens == null || tokens < 0 || durationMs == null || durationMs <= 0) return null;
-  return tokens * 1000 / durationMs;
+  const rate = tokens * 1000 / durationMs;
+  return Number.isFinite(rate) ? rate : null;
 }
 
 export function deriveModelSpeedTelemetry(record: Record<string, unknown>): ModelSpeedTelemetry {
   const timing = readModelTiming(record);
   const usage = readModelUsage(record.usage);
-  const nonReasoningTokens = usage.outputTokens != null && usage.reasoningTokens != null
+  const nonReasoningTokens = usage.outputTokens != null && usage.reasoningTokens != null && usage.reasoningTokens <= usage.outputTokens
     ? Math.max(0, usage.outputTokens - usage.reasoningTokens)
     : null;
   return {
