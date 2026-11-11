@@ -152,17 +152,6 @@ function formatError(err: unknown): string {
   return String(err);
 }
 
-async function createOtelResource(attributes: Record<string, string>) {
-  const resources = await import("@opentelemetry/resources");
-  if (typeof (resources as any).resourceFromAttributes === "function") {
-    return (resources as any).resourceFromAttributes(attributes);
-  }
-  if (typeof (resources as any).Resource === "function") {
-    return new (resources as any).Resource(attributes);
-  }
-  return { attributes } as any;
-}
-
 async function startOtel(config: ObservabilityConfig, assertCurrent?: () => void): Promise<boolean> {
   assertCurrent?.();
   if (otelActive) await stopOtel();
@@ -181,7 +170,8 @@ async function startOtel(config: ObservabilityConfig, assertCurrent?: () => void
   if (connectionString) {
     try {
       const { useAzureMonitor, shutdownAzureMonitor } = await import("@azure/monitor-opentelemetry");
-      const resource = await createOtelResource({
+      const { resourceFromAttributes } = await import("@opentelemetry/resources");
+      const resource = resourceFromAttributes({
         "service.name": "piclaw",
         "service.instance.id": instanceName(config),
         "service.version": process.env.npm_package_version || "unknown",
