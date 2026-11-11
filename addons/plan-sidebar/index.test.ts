@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import planSidebarAddon, { applyPlanEdits, applyPlanPatches, buildPlanSystemPrompt, buildPlanTurnMessage, getStructuredSessionPlan, loadSessionPlan, normalizeStoredPlanMarkdown, normalizeUpdatePlanArgs, parsePlanMarkdown, resetPlanSidebarAddonForTests, resetSessionPlan, saveSessionPlan, updatePlanArgsToMarkdown } from "./index";
-import { beginPlanRequest, canApplyPlanResponse, invalidatePlanRequests, isCurrentPlanRequest } from "./web/index";
+import { beginPlanRequest, canApplyPlanResponse, invalidatePlanRequests, isCurrentPlanRequest, resolvePlanShellInset } from "./web/index";
 
 const addonDir = import.meta.dir;
 
@@ -467,4 +467,11 @@ test("programmatic editor updates do not become dirty user edits", () => {
   expect(source).toContain("state.applyingEditorValue = true;");
   expect(source).toContain("if (!update.docChanged || state.applyingEditorValue) return;");
   expect(source).toContain("state.applyingEditorValue = false;");
+});
+
+test("docked plan reserves its edge tab and open width on the host shell", () => {
+  expect(resolvePlanShellInset({ docked: false, open: true, width: 380 })).toBe(0);
+  expect(resolvePlanShellInset({ docked: true, open: false, width: 380 })).toBe(20);
+  expect(resolvePlanShellInset({ docked: true, open: true, width: 380 })).toBe(400);
+  expect(resolvePlanShellInset({ docked: true, open: true, width: "bad" })).toBe(20);
 });

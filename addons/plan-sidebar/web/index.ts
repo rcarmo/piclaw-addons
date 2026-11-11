@@ -5,6 +5,17 @@ const STORAGE_OPEN = "piclaw:plan-sidebar:open";
 const STORAGE_WIDTH = "piclaw:plan-sidebar:width";
 const DEFAULT_CHAT_JID = "web:default";
 
+// PiClaw Classic's three-pane layout reserves this much space on the right of
+// its shell, so the docked panel and its edge tab do not cover the workspace.
+// Hosts without the variable ignore it; the panel then overlays as before.
+export const SHELL_INSET_VARIABLE = "--piclaw-shell-inset-right";
+export const DOCKED_LAYOUT_QUERY = "(min-width: 1024px) and (orientation: landscape)";
+
+export function resolvePlanShellInset({ docked, open, width, tabWidth = 20 }) {
+  if (!docked) return 0;
+  return Math.max(0, Math.round((open ? Number(width) || 0 : 0) + tabWidth));
+}
+
 export function beginPlanRequest(state) {
   return { epoch: ++state.requestEpoch, chatJid: state.chatJid, editRevision: state.editRevision };
 }
@@ -108,6 +119,13 @@ function installPlanSidebar() {
   const submitButton = root.querySelector(".plan-sidebar-submit");
   const resizer = root.querySelector(".plan-sidebar-resizer");
 
+  const dockedQuery = typeof window.matchMedia === "function" ? window.matchMedia(DOCKED_LAYOUT_QUERY) : null;
+  function applyShellInset() {
+    const inset = resolvePlanShellInset({ docked: Boolean(dockedQuery?.matches), open: state.open, width: state.width });
+    document.documentElement.style.setProperty(SHELL_INSET_VARIABLE, `${inset}px`);
+  }
+  dockedQuery?.addEventListener?.("change", applyShellInset);
+
   function renderChrome() {
     const currentMarkdown = state.editorView ? state.editorView.state.doc.toString() : state.fallbackTextarea?.value || state.markdown || "";
     const currentProgress = getPlanProgress(currentMarkdown);
@@ -115,6 +133,7 @@ function installPlanSidebar() {
     root.classList.toggle("has-checklist", currentProgress.total > 0);
     root.style.setProperty("--plan-sidebar-width", `${state.width}px`);
     panel.style.width = `${state.width}px`;
+    applyShellInset();
     toggle.title = state.open ? "Hide plan" : `Show plan • ${formatProgressText(currentProgress)}`;
     toggle.setAttribute("aria-label", state.open ? "Hide plan" : `Show plan. ${formatProgressText(currentProgress)}.`);
     toggle.classList.toggle("open", state.open);
