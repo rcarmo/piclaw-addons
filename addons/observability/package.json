@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-observability",
-  "version": "0.1.23",
+  "version": "0.1.24",
   "description": "OpenTelemetry observability — trace errors and agent turns across piclaw instances to Azure Application Insights (with Live Metrics) and local Graphite",
   "type": "module",
   "main": "index.ts",
@@ -41,12 +41,13 @@
     }
   },
   "dependencies": {
-    "@azure/monitor-opentelemetry": "^1.19",
-    "@opentelemetry/api": "^1.9",
-    "@opentelemetry/resources": "^3.1.0"
+    "@azure/monitor-opentelemetry": "1.21.0",
+    "@opentelemetry/api": "1.9.1",
+    "@opentelemetry/resources": "2.12.1"
   },
   "peerDependencies": {
-    "@earendil-works/pi-coding-agent": "*"
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-telemetry": "*"
   },
   "keywords": [
     "observability",
@@ -56,5 +57,25 @@
     "piclaw-addon"
   ],
   "license": "MIT",
-  "homepage": "https://rcarmo.github.io/piclaw-addons/addons/observability/"
+  "homepage": "https://rcarmo.github.io/piclaw-addons/addons/observability/",
+  "peerDependenciesMeta": {
+    "@earendil-works/pi-telemetry": {
+      "optional": true
+    }
+  },
+  "files": [
+    "index.ts",
+    "native-telemetry.ts",
+    "usage-telemetry.ts",
+    "model-speed-telemetry.ts",
+    "compaction-telemetry.ts",
+    "compat",
+    "web/index.ts",
+    "web/settings-fields.ts",
+    "skills/usage-telemetry-chart/SKILL.md",
+    "skills/usage-telemetry-chart/usage-telemetry-chart.ts",
+    "assets",
+    "azure-app-insights-live-metrics.jpg",
+    "README.md"
+  ]
 }

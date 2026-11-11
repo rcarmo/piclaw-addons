@@ -16,14 +16,14 @@ import { createConnection, type Socket } from "node:net";
 import { hostname } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { trace, context, SpanKind, SpanStatusCode, type Tracer, type Span } from "@opentelemetry/api";
+import { trace, context, metrics, SpanKind, SpanStatusCode, type Tracer, type Span } from "@opentelemetry/api";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 import { addLogSink, removeLogSink, type LogSink as RuntimeLogSink, type LogRecord } from "./compat/log-sink.js";
 
 import { createExtensionStorage, type ExtensionStorage } from "./compat/extension-kv.js";
 import { createLogger } from "./compat/logger.js";
-import { exportUsage } from "./usage-telemetry.js";
+import { graphiteSegment, exportUsage } from "./usage-telemetry.js";
 import { exportCompactionTelemetry } from "./compaction-telemetry.js";
 import {
   buildModelSpeedGraphiteMetrics,
@@ -31,6 +31,8 @@ import {
   deriveModelSpeedTelemetry,
   type ModelSpeedTelemetry,
 } from "./model-speed-telemetry.js";
+
+import { createOtelTelemetryContext } from "./native-telemetry.js";
 
 const EXTENSION_ID = "observability";
 const baseDir = dirname(fileURLToPath(import.meta.url));
@@ -147,9 +149,10 @@ let otelActive = false;
 let piclawTracer: Tracer | null = null;
 let shutdownFn: (() => Promise<void>) | null = null;
 
-function formatError(err: unknown): string {
-  if (err instanceof Error) return err.stack || err.message;
-  return String(err);
+function formatError(err: unknown, secrets: readonly string[] = []): string {
+  let message = err instanceof Error ? err.message : String(err);
+  for (const secret of secrets) if (secret) message = message.replaceAll(secret, "[REDACTED]");
+  return message.slice(0, 2048);
 }
 
 async function startOtel(config: ObservabilityConfig, assertCurrent?: () => void): Promise<boolean> {
@@ -198,7 +201,7 @@ async function startOtel(config: ObservabilityConfig, assertCurrent?: () => void
     } catch (err) {
       log.error("Failed to start Azure Monitor OTel", {
         operation: "otel.start.appinsights",
-        error: formatError(err),
+        error: formatError(err, [connectionString, ...connectionString.split(";").map(part => part.slice(part.indexOf("=") + 1)).filter(Boolean)]),
       });
       return false;
     }
@@ -206,7 +209,7 @@ async function startOtel(config: ObservabilityConfig, assertCurrent?: () => void
 
   piclawTracer = trace.getTracer("piclaw", process.env.npm_package_version || "0.0.0");
   otelActive = true;
-  return true;
+  return !config.appinsights_enabled || shutdownFn !== null;
 }
 
 async function stopOtel(): Promise<void> {
@@ -225,6 +228,11 @@ export function getTracer(): Tracer {
 }
 
 export function isActive(): boolean { return otelActive; }
+
+/** Public SDK tracing/metrics adapter; the SDK remains the execution owner. */
+export function createNativeTelemetryContext() {
+  return createOtelTelemetryContext(getTracer, () => metrics.getMeter("piclaw.native"), () => shutdownFn !== null);
+}
 
 // ── Span helpers ─────────────────────────────────────────────────
 
@@ -338,8 +346,7 @@ export function recordToolCall(chatJid: string, toolName: string, durationMs: nu
       toolName,
       "tool",
     ),
-    ...(opts?.parentSpan ? { context: trace.setSpan(context.active(), opts.parentSpan) } : {}),
-  });
+  }, opts?.parentSpan ? trace.setSpan(context.active(), opts.parentSpan) : undefined);
   if (opts?.error) {
     span.setStatus({ code: SpanStatusCode.ERROR, message: opts.error });
     setSyntheticResultCode(span, 400);
@@ -376,25 +383,37 @@ let graphiteCfg: { host: string; port: number; prefix: string } | null = null;
 
 function ensureGraphite(): void {
   if (!graphiteCfg?.host || graphiteSocket) return;
+  const target = graphiteCfg;
   try {
-    graphiteSocket = createConnection({ host: graphiteCfg.host, port: graphiteCfg.port }, () =>
-      log.info("Graphite connected", { host: graphiteCfg!.host }));
-    graphiteSocket!.on("error", () => { graphiteSocket = null; scheduleReconnect(); });
-    graphiteSocket!.on("close", () => { graphiteSocket = null; scheduleReconnect(); });
-  } catch { graphiteSocket = null; }
+    const socket = createConnection({ host: target.host, port: target.port }, () => {
+      if (graphiteSocket === socket) log.info("Graphite connected", { host: target.host });
+    });
+    graphiteSocket = socket;
+    const closed = () => {
+      if (graphiteSocket !== socket) return;
+      graphiteSocket = null;
+      socket.destroy();
+      scheduleReconnect();
+    };
+    socket.on("error", closed);
+    socket.on("close", closed);
+  } catch { graphiteSocket = null; scheduleReconnect(); }
 }
 function scheduleReconnect(): void {
   if (graphiteTimer || !graphiteCfg?.host) return;
   graphiteTimer = setTimeout(() => { graphiteTimer = null; ensureGraphite(); }, 30_000);
 }
 function teardownGraphite(): void {
-  if (graphiteSocket) { try { graphiteSocket.end(); } catch {} graphiteSocket = null; }
-  if (graphiteTimer) { clearTimeout(graphiteTimer); graphiteTimer = null; }
   graphiteCfg = null;
+  const socket = graphiteSocket;
+  graphiteSocket = null;
+  socket?.destroy();
+  if (graphiteTimer) { clearTimeout(graphiteTimer); graphiteTimer = null; }
 }
 
 let usageTelemetryTimer: ReturnType<typeof setInterval> | null = null;
 let usageTelemetryRunning = false;
+let usageTelemetryPending: Promise<void> | null = null;
 
 function scheduleUsageTelemetry(config: ObservabilityConfig): void {
   if (usageTelemetryTimer) { clearInterval(usageTelemetryTimer); usageTelemetryTimer = null; }
@@ -419,8 +438,14 @@ function scheduleUsageTelemetry(config: ObservabilityConfig): void {
       log.warn("Compaction telemetry export failed; pending data remains spooled", { operation: "compaction_telemetry.export", error: formatError(error) });
     } finally { usageTelemetryRunning = false; }
   };
-  void run();
-  usageTelemetryTimer = setInterval(() => void run(), Math.max(1, Math.min(60, config.usage_telemetry_interval_minutes)) * 60_000);
+  const tick = () => {
+    if (usageTelemetryRunning) return;
+    const pending = run();
+    usageTelemetryPending = pending;
+    void pending.finally(() => { if (usageTelemetryPending === pending) usageTelemetryPending = null; });
+  };
+  tick();
+  usageTelemetryTimer = setInterval(tick, Math.max(1, Math.min(60, config.usage_telemetry_interval_minutes)) * 60_000);
 }
 
 export function recordMetric(name: string, value: number, timestampSec?: number): void {
@@ -428,7 +453,7 @@ export function recordMetric(name: string, value: number, timestampSec?: number)
   ensureGraphite();
   if (!graphiteSocket) return;
   const ts = timestampSec ?? Math.floor(Date.now() / 1000);
-  const i = inst().replace(/[.\s]/g, "_");
+  const i = graphiteSegment(inst());
   try { graphiteSocket.write(`${graphiteCfg.prefix}.${i}.${name} ${value} ${ts}\n`); } catch {}
 }
 
@@ -449,14 +474,13 @@ export function buildRuntimeConfigKey(config: ObservabilityConfig): string {
     graphite_prefix: "piclaw",
     usage_telemetry_enabled: Boolean(config.usage_telemetry_enabled),
     usage_telemetry_interval_minutes: Math.max(1, Math.min(60, Number(config.usage_telemetry_interval_minutes) || 15)),
-    graphite_render_url: config.graphite_render_url?.trim() || "",
   });
 }
 
 let appliedRuntimeConfigKey: string | null = null;
 let runtimeApplyChain: Promise<void> = Promise.resolve();
 
-async function applyRuntimeConfig(config: ObservabilityConfig, assertCurrent?: () => void): Promise<void> {
+async function applyRuntimeConfig(config: ObservabilityConfig, assertCurrent?: () => void): Promise<boolean> {
   assertCurrent?.();
   if (!config.enabled) {
     removeLogSinkBridge();
@@ -464,10 +488,10 @@ async function applyRuntimeConfig(config: ObservabilityConfig, assertCurrent?: (
     assertCurrent?.();
     teardownGraphite();
     scheduleUsageTelemetry(config);
-    return;
+    return true;
   }
 
-  await startOtel(config, assertCurrent);
+  const started = await startOtel(config, assertCurrent);
   assertCurrent?.();
 
   if (config.graphite_enabled && config.graphite_host) {
@@ -478,39 +502,59 @@ async function applyRuntimeConfig(config: ObservabilityConfig, assertCurrent?: (
     teardownGraphite();
   }
 
+  otelActive ||= Boolean(config.graphite_enabled && config.graphite_host);
   installLogSinkBridge();
   scheduleUsageTelemetry(config);
+  return started;
 }
 
-async function ensureProcessRuntimeConfig(config: ObservabilityConfig, options: { force?: boolean; assertCurrent?: () => void } = {}): Promise<void> {
+async function ensureProcessRuntimeConfig(config: ObservabilityConfig, options: { force?: boolean; assertCurrent?: () => void } = {}): Promise<boolean> {
   options.assertCurrent?.();
   const nextKey = buildRuntimeConfigKey(config);
-  if (!options.force && nextKey === appliedRuntimeConfigKey) return;
+  if (!options.force && nextKey === appliedRuntimeConfigKey) {
+      if (config.enabled) installLogSinkBridge();
+      return true;
+    }
 
   const run = async () => {
     options.assertCurrent?.();
-    if (!options.force && nextKey === appliedRuntimeConfigKey) return;
-    await applyRuntimeConfig(config, options.assertCurrent);
+    if (!options.force && nextKey === appliedRuntimeConfigKey) {
+      if (config.enabled) installLogSinkBridge();
+      return true;
+    }
+    appliedRuntimeConfigKey = null;
+    const applied = await applyRuntimeConfig(config, options.assertCurrent);
     options.assertCurrent?.();
-    appliedRuntimeConfigKey = nextKey;
+    if (applied) appliedRuntimeConfigKey = nextKey;
+    return applied;
   };
 
   const pending = runtimeApplyChain.then(run, run);
-  runtimeApplyChain = pending.catch((err) => {
+  runtimeApplyChain = pending.then(() => undefined, (err) => {
     log.error("Failed to apply observability runtime config", {
       operation: "observability.runtime.apply",
       error: formatError(err),
     });
   });
-  await pending;
+  return await pending;
 }
 
 // ── Settings API ─────────────────────────────────────────────────
 
 function handleGetConfig(): ObservabilityConfig { return loadConfig(); }
 
-async function handleSetConfig(body: Partial<ObservabilityConfig>): Promise<{ ok: boolean; config: ObservabilityConfig }> {
+async function handleSetConfig(body: Partial<ObservabilityConfig>): Promise<{ ok: boolean; config?: ObservabilityConfig; warning?: string; error?: string }> {
   const c = loadConfig();
+  for (const key of ["enabled", "appinsights_enabled", "appinsights_live_metrics", "appinsights_standard_metrics", "graphite_enabled", "usage_telemetry_enabled"] as const)
+    if (body[key] !== undefined && typeof body[key] !== "boolean") return { ok: false, error: key + " must be a boolean." };
+  for (const key of ["instance_name", "appinsights_keychain", "graphite_host", "graphite_render_url"] as const)
+    if (body[key] !== undefined && typeof body[key] !== "string") return { ok: false, error: key + " must be text." };
+  if (body.graphite_port !== undefined && (!Number.isSafeInteger(body.graphite_port) || body.graphite_port < 1 || body.graphite_port > 65535))
+    return { ok: false, error: "Graphite port must be an integer between 1 and 65535." };
+  if (body.appinsights_sampling_ratio !== undefined && (!Number.isFinite(body.appinsights_sampling_ratio) || body.appinsights_sampling_ratio < 0 || body.appinsights_sampling_ratio > 1))
+    return { ok: false, error: "Sampling ratio must be a finite number between 0 and 1." };
+  if (body.usage_telemetry_interval_minutes !== undefined && (!Number.isSafeInteger(body.usage_telemetry_interval_minutes) || body.usage_telemetry_interval_minutes < 1 || body.usage_telemetry_interval_minutes > 60))
+    return { ok: false, error: "Export interval must be an integer between 1 and 60 minutes." };
   const next: ObservabilityConfig = {
     enabled:                     body.enabled ?? c.enabled,
     instance_name:               typeof body.instance_name === "string" ? body.instance_name.trim() : c.instance_name,
@@ -527,8 +571,8 @@ async function handleSetConfig(body: Partial<ObservabilityConfig>): Promise<{ ok
     graphite_render_url:         typeof body.graphite_render_url === "string" ? body.graphite_render_url.trim().replace(/\/$/, "") : c.graphite_render_url,
   };
   await saveConfig(next);
-  await ensureProcessRuntimeConfig(next, { force: true, assertCurrent: configurationPort?.assertCurrent });
-  return { ok: true, config: next };
+  const applied = await ensureProcessRuntimeConfig(next, { force: Object.hasOwn(body, "appinsights_keychain"), assertCurrent: configurationPort?.assertCurrent });
+  return { ok: true, config: next, ...(!applied && next.enabled ? { warning: "Settings saved, but a requested telemetry backend is inactive. Check the backend configuration and keychain reference; normal model execution is unaffected." } : {}) };
 }
 
 type AddonConfigApiRegistrar = (
@@ -555,10 +599,25 @@ export async function prepareObservabilityRuntime(assertCurrent?: () => void): P
   assertCurrent?.();
 }
 
+/** Drain only observer transport/export work, after the SDK has closed. */
+export async function shutdownObservabilityRuntime(): Promise<void> {
+  const stop = async () => {
+    if (usageTelemetryTimer) { clearInterval(usageTelemetryTimer); usageTelemetryTimer = null; }
+    await usageTelemetryPending;
+    removeLogSinkBridge();
+    teardownGraphite();
+    await stopOtel();
+    appliedRuntimeConfigKey = null;
+  };
+  const pending = runtimeApplyChain.then(stop, stop);
+  runtimeApplyChain = pending.catch(() => undefined);
+  await pending;
+}
+
 /** Request-only context shared by legacy and native hosts. */
 export function buildObservabilitySystemPrompt(): string {
   const config = loadConfig();
-  return `## Observability\nOTel tracing ${config.enabled ? "active" : "disabled"}. Instance: ${instanceName(config)} (${DEPLOYMENT_MODE}).${config.appinsights_live_metrics ? " Live Metrics enabled." : ""}`;
+  return `## Observability\nOTel tracing ${!config.enabled ? "disabled" : shutdownFn ? "active" : "inactive"}. Instance: ${instanceName(config)} (${DEPLOYMENT_MODE}).${shutdownFn && config.appinsights_live_metrics ? " Live Metrics enabled." : ""}${otelActive && config.graphite_enabled ? " Graphite metrics active." : ""}`;
 }
 
 export default function observabilityExtension(pi: ExtensionAPI): void {
@@ -581,7 +640,7 @@ export default function observabilityExtension(pi: ExtensionAPI): void {
 
 let activeSink: RuntimeLogSink | null = null;
 
-type InflightTurnEntry = { span: Span; startedAt: number; turnKey: string; nextModelSequence: number; activeModelKey: string | null };
+type InflightTurnEntry = { span: Span; turnKey: string; nextModelSequence: number; activeModelKey: string | null };
 type InflightChildSpanEntry = { span: Span; turnKey: string };
 
 /** In-flight turn tracking for pairing prompt start → complete/error. */
@@ -606,7 +665,7 @@ function readRecordNumber(record: LogRecord, ...keys: string[]): number | null {
 }
 
 function getTurnKey(record: LogRecord, chatJid: string): string {
-  return readRecordString(record, "turnId", "turn_id") || chatJid;
+  return JSON.stringify([chatJid, readRecordString(record, "turnId", "turn_id")]);
 }
 
 export function buildAppInsightsActorAttributes(chatJid: string, sessionLeafId: string | null | undefined, instance: string): Record<string, string> {
@@ -670,12 +729,7 @@ function clearInflightChildrenForTurn(turnKey: string, reason: string): void {
 }
 
 function toolSpanKey(record: LogRecord, chatJid: string, toolName: string): string {
-  return readRecordString(record, "toolCallId", "tool_call_id") || `${getTurnKey(record, chatJid)}:${toolName}`;
-}
-
-function modelResponseKey(record: LogRecord, chatJid: string): string {
-  const sequence = readRecordNumber(record, "sequence");
-  return sequence == null ? getTurnKey(record, chatJid) : `${getTurnKey(record, chatJid)}:${sequence}`;
+  return `${getTurnKey(record, chatJid)}:${readRecordString(record, "toolCallId", "tool_call_id") || toolName}`;
 }
 
 function startModelCallSpan(turnEntry: InflightTurnEntry, sharedAttrs: Record<string, string | number | boolean>, model: string | null, reason?: string | null, explicitSequence?: number | null): void {
@@ -752,8 +806,7 @@ function stampUsageAttributes(span: Span, usage: unknown): void {
 
 function installLogSinkBridge(): void {
   if (activeSink) return;
-  activeSink = bridgeSink;
-  addLogSink(activeSink);
+  if (addLogSink(bridgeSink)) activeSink = bridgeSink;
 }
 
 function removeLogSinkBridge(): void {
@@ -800,7 +853,6 @@ function bridgeSink(record: LogRecord): void {
     });
     const turnEntry: InflightTurnEntry = {
       span,
-      startedAt: Date.now(),
       turnKey,
       nextModelSequence: 1,
       activeModelKey: null,
@@ -925,8 +977,7 @@ function bridgeSink(record: LogRecord): void {
         "piclaw.tool.name": toolName,
         ...(readRecordString(record, "toolCallId", "tool_call_id") ? { "piclaw.tool.call_id": readRecordString(record, "toolCallId", "tool_call_id")! } : {}),
       }, "/tool/call", toolName, "tool"),
-      ...(parentEntry ? { context: trace.setSpan(context.active(), parentEntry.span) } : {}),
-    });
+    }, parentEntry ? trace.setSpan(context.active(), parentEntry.span) : undefined);
     inflightToolCalls.set(toolSpanKey(record, chatJid, toolName), { span, turnKey });
     return;
   }
@@ -944,8 +995,7 @@ function bridgeSink(record: LogRecord): void {
         ...sharedAttrs,
         "piclaw.tool.name": toolName,
       }, "/tool/call", toolName, "tool"),
-      ...(parentEntry ? { context: trace.setSpan(context.active(), parentEntry.span) } : {}),
-    });
+    }, parentEntry ? trace.setSpan(context.active(), parentEntry.span) : undefined);
     span.setAttribute("piclaw.tool.duration_ms", durationMs);
     if (isError) {
       span.setStatus({ code: SpanStatusCode.ERROR, message: `${toolName} failed` });
@@ -974,8 +1024,7 @@ function bridgeSink(record: LogRecord): void {
         "piclaw.error.classifier": classifier,
         ...(record.model ? { "piclaw.model": String(record.model) } : {}),
       },
-      ...(parentEntry ? { context: trace.setSpan(context.active(), parentEntry.span) } : {}),
-    });
+    }, parentEntry ? trace.setSpan(context.active(), parentEntry.span) : undefined);
     const errText = typeof record.errorText === "string" ? record.errorText : classifier;
     span.setStatus({ code: SpanStatusCode.ERROR, message: errText });
     setSyntheticResultCode(span, syntheticResultCodeForLevel(record.level));

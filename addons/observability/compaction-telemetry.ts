@@ -67,7 +67,8 @@ export function collectCompactionTelemetry(
     if (!rows.length) return null;
     const timestamp = Math.floor(now.getTime() / 1000);
     const prefix = instanceFirstMetricPrefix(config.graphite_prefix, instance(config), "compaction");
-    const points: MetricPoint[] = [];
+    const points = new Map<string, MetricPoint>();
+    const counters = new Set(["attempt.count", "provider.request_count", "settlement.timeout"]);
     for (const row of rows) {
       const dimensions = [row.provider, row.model, row.method, row.execution, row.trigger, row.outcome, row.timeout_stage || "none"].map(graphiteSegment).join(".");
       const base = `${prefix}.${dimensions}`;
@@ -83,9 +84,13 @@ export function collectCompactionTelemetry(
         "chunks.total": row.total_chunk_count,
         "settlement.timeout": row.settlement_timed_out,
       };
-      for (const [metric, value] of Object.entries(values)) if (value != null && Number.isFinite(value)) points.push({ path: `${base}.${metric}`, value, timestamp });
+      for (const [metric, value] of Object.entries(values)) if (value != null && Number.isFinite(value)) {
+        const path = `${base}.${metric}`;
+        const previous = points.get(path);
+        points.set(path, { path, value: counters.has(metric) ? (previous?.value ?? 0) + value : value, timestamp });
+      }
     }
-    return { createdAt: now.toISOString(), checkpoint: { id: rows.at(-1)!.id }, points };
+    return { createdAt: now.toISOString(), checkpoint: { id: rows.at(-1)!.id }, points: [...points.values()] };
   } finally { db.close(); }
 }
 

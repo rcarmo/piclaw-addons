@@ -6,7 +6,7 @@ Requires Piclaw `>=2.0.0`.
 
 ![Azure App Insights Live Metrics example](./azure-app-insights-live-metrics.jpg)
 
-Uses the runtime's structured log-sink contract. The runtime never imports OTel — it just logs structured records. This addon subscribes to those records and creates OTel spans, exceptions, and Graphite metrics from them.
+The native runtime supplies the public SDK telemetry context exported by this add-on. The SDK owns task/submission spans and metrics; this add-on adapts them to OpenTelemetry. Legacy structured-log hosts retain the existing log-sink bridge. Core does not import Azure Monitor or OpenTelemetry internals.
 
 The add-on keeps **one telemetry/exporter runtime per Piclaw process** and multiplexes all chat/session activity through shared tracer state keyed by `chatJid`, `turnId`, and `sessionLeafId`. A single session shutting down does not tear down telemetry for other active sessions.
 
@@ -14,7 +14,7 @@ The add-on keeps **one telemetry/exporter runtime per Piclaw process** and multi
 
 ### 1. Install
 
-Open **Settings → Add-Ons** and install **observability** from the catalog.
+Open **Settings → Add-Ons** and install **observability** from the catalog. On a native Core release with source-pinned add-ons, use the version approved by that Core release. Version0.1.24 requires its coordinated Core source-profile and native-telemetry update; do not hot-upgrade a running Core pinned to0.1.22.
 
 ### 2. Configure via Settings → Observability
 
@@ -47,7 +47,7 @@ The pane loads/saves non-secret settings through the direct backend add-on confi
 | All other settings | **Runtime database** — extension KV store (SQLite, global scope, extension ID `observability`) |
 | App Insights actor/session identity | **Derived on the backend** from Piclaw log records (`chatJid`, `sessionLeafId`, `turnId`) |
 
-No config files are written to disk. When token usage export is enabled, bounded retry spools are written beside the messages database (`usage-telemetry/` and `compaction-telemetry/`): each is limited to 7 days or 10 MB and is used only when Carbon delivery fails.
+No configuration files are written. Usage/compaction export durably queues observations before Carbon delivery; failed deliveries remain in bounded spools beside the messages database (`usage-telemetry/` and `compaction-telemetry/`). Each spool is limited to7days or10MB. Usage advances by monotonically committed row ID in batches of at most2,000rows; event timestamps remain metadata, so a slow request arriving after a newer request is not silently skipped. Database rows are read-only and are never repaired or replayed by the exporter.
 
 ### 3. Deploy to other instances
 
@@ -57,6 +57,18 @@ Each piclaw instance needs:
 - `instance_name` set to a unique value in Settings → Observability
 
 ---
+
+## Native runtime and dependency contract
+
+Version0.1.24 pins Azure Monitor1.21.0, OpenTelemetry API1.9.1 and Resources2.12.1, with a frozen qualification graph in this repository. Azure Monitor's SDK2.x components require API below1.10; mixing Resources3.x/API1.10 with that SDK violates its peer contract.
+
+The native adapter exports content-free `pi.durable.submit` and `pi.durable.phase` spans, SDK metrics, parent/link correlation and opaque trace-parent propagation. It does not forward prompts, responses, tool arguments, reasoning/signatures or raw exception messages. Exporter failures cannot fail or replay an SDK callback. Native shutdown drains observer work only after SDK execution has closed.
+
+Legacy `model.call`/`tool.call` logs retain their existing bridge. The JSON-only model-transport boundary still does not forward private SDK telemetry callbacks across dependency islands. The host transport receives a separate, qualified host-owned context for its SDK request spans; private task and host request trace roots remain distinct. Native phase duration is not provider TTFT; detailed legacy model-speed fields are exported only when their original records exist. Canonical token/cost telemetry remains in the durable usage exporter, including unknown provenance/currency and supplied zero.
+
+Settings acknowledgements distinguish saved configuration from backend activation. Inactive requested backends produce a persistent warning, and failed startup is not cached as applied. The model prompt reports actual active tracing rather than merely the saved Enabled checkbox. Invalid booleans, ports, sampling ratios and export intervals are rejected before writes.
+
+Compaction counts are coalesced within an export batch so Carbon's path/timestamp resolution cannot overwrite attempts, provider requests or timeout counts. Other measurements remain last-observation gauges for matching dimensions in that batch.
 
 ## Architecture
 

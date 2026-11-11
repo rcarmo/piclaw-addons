@@ -104,9 +104,9 @@ export function collectUsage(config: UsageTelemetryConfig, checkpoint: Checkpoin
         coalesce(reasoning_tokens, 0) AS reasoning_tokens, coalesce(total_tokens, 0) AS total_tokens,
         cost_total, ${costColumns.map(column => columns.has(column) ? column : `NULL AS ${column}`).join(', ')}
       FROM token_usage
-      WHERE run_at > $runAt OR (run_at = $runAt AND id > $id)
-      ORDER BY run_at, id
-    `).all({ $runAt: checkpoint.runAt, $id: checkpoint.id }) as UsageRow[];
+      WHERE id > $id
+      ORDER BY id LIMIT 2000
+    `).all({ $id: checkpoint.id }) as UsageRow[];
     if (!rows.length) return null;
     const aggregate = new Map<string, UsageRow & { costs: Record<string, number> }>();
     for (const row of rows) {

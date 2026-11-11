@@ -18,7 +18,8 @@
     "addon:e2e": "cd tests/addon-e2e && bun run test -- --project=desktop-chrome",
     "addon:e2e:all": "cd tests/addon-e2e && PICLAW_ADDON=all bun run test -- --project=desktop-chrome",
     "addon:e2e:report": "cd tests/addon-e2e && bun run report",
-    "typecheck:goal": "tsc --noEmit -p addons/goal/tsconfig.json"
+    "typecheck:goal": "tsc --noEmit -p addons/goal/tsconfig.json",
+    "typecheck:observability": "tsc --noEmit -p addons/observability/tsconfig.json"
   },
   "homepage": "https://github.com/rcarmo/piclaw-addons",
   "bugs": {
@@ -228,6 +229,7 @@
     "@earendil-works/pi-agent-core": "1.5.2",
     "@earendil-works/pi-ai": "1.5.2",
     "@earendil-works/pi-coding-agent": "1.5.2",
+    "@earendil-works/pi-telemetry": "1.5.2",
     "@earendil-works/pi-tui": "1.5.2",
     "@number0/iroh": "1.2.0",
     "bonjour-service": "1.4.4",

@@ -222,3 +222,17 @@ test('provider currency totals keep USD, EUR and unknown observations separate, 
  expect(points.get('cost.provider_reported.currency_unknown.latest_known_amount')).toBe(1);expect(points.get('cost.provider_reported.currency_unknown.known_rows')).toBe(2);
  expect(points.has('cost.estimated_usd')).toBe(false);
 });
+
+test('late usage committed after a newer model timestamp is not skipped', () => {
+  const path = fixture();
+  const first = collectUsage(CONFIG, loadCheckpoint(path), new Date(), path)!;
+  saveCheckpoint(first.checkpoint, path);
+  const db = new Database(path);
+  db.query('INSERT INTO token_usage(id,run_at,provider,model,input_tokens,output_tokens,cache_read_tokens,cache_write_tokens,reasoning_tokens,total_tokens,cost_total) VALUES(3,?,?,?,?,?,?,?,?,?,?)')
+    .run('2026-07-31T23:59:00Z','slow-provider','slow-model',7,0,0,0,0,7,null);
+  db.close();
+  const late = collectUsage(CONFIG, loadCheckpoint(path), new Date(), path);
+  expect(late).not.toBeNull();
+  expect(late!.checkpoint.id).toBe(3);
+  expect(late!.points.find(point => point.path.endsWith('tokens.total'))?.value).toBe(7);
+});

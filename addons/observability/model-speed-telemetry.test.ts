@@ -71,3 +71,10 @@ test("builds provider/model-dimensional Graphite metrics", () => {
     { name: "model.github-copilot.gpt-5_6-sol.throughput.non_reasoning_output_tokens_per_second", value: 37.5 },
   ]));
 });
+
+test('invalid numeric observations never become plausible throughput or Graphite infinities',()=>{
+  const negative=deriveModelSpeedTelemetry({durationMs:-1,usage:{output:-1}});
+  expect(negative.outputTokensPerSecond).toBeNull();expect(negative.usage.outputTokens).toBeNull();
+  expect(deriveModelSpeedTelemetry({durationMs:1000,usage:{output:1,reasoning:2}}).nonReasoningOutputTokensPerSecond).toBeNull();
+  expect(deriveModelSpeedTelemetry({durationMs:1e-310,usage:{output:10}}).outputTokensPerSecond).toBeNull();
+});
