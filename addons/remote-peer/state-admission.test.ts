@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test';
+import { expect, spyOn, test } from 'bun:test';
 import Database from 'bun:sqlite';
 import { mkdtempSync, rmSync, renameSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -41,6 +41,18 @@ for (const mode of ['abort', 'revoke', 'close'] as const) test(`pending peer SQL
     if (mode === 'close') f.state.close();
     expect(await observed).toBeInstanceOf(Error); expect(calls).toBe(0); expect(blocker.inTransaction).toBe(true);
   } finally { blocker.exec('ROLLBACK'); blocker.close(); f.close(); }
+});
+
+test('a lock becoming available after the acquisition deadline cannot admit a late body', async () => {
+  const f = fixture(), blocker = new Database(f.path); blocker.exec('BEGIN IMMEDIATE');
+  let now = 0, calls = 0;
+  const clock = spyOn(performance, 'now').mockImplementation(() => now);
+  try {
+    const pending = f.state.write(() => { calls++; }, { timeoutMs: 100 });
+    const observed = pending.then(() => undefined, error => error);
+    await Bun.sleep(5); now = 101; blocker.exec('ROLLBACK');
+    expect(await observed).toHaveProperty('code', 'PEER_STATE_BUSY'); expect(calls).toBe(0);
+  } finally { clock.mockRestore(); if (blocker.inTransaction) blocker.exec('ROLLBACK'); blocker.close(); f.close(); }
 });
 
 test('entered peer SQL callbacks are rolled back but never retried, even when they throw BUSY', async () => {

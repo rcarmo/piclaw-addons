@@ -133,6 +133,9 @@ export class PeerState {
     const timeout = options.timeoutMs ?? 5000;
     if (!Number.isFinite(timeout) || timeout <= 0) throw Error('Peer storage timeout must be finite and positive.');
     const deadline = performance.now() + timeout;
+    const checkBudget = () => {
+      if (performance.now() >= deadline) throw Object.assign(new Error('Peer state storage acquisition timed out.'), { code: 'PEER_STATE_BUSY', certainty: 'not_applied', retryable: true });
+    };
     const check = (authority = true) => {
       signal.throwIfAborted(); if (authority) this.assertWriteCurrent?.();
       const file = lstatSync(this.path), moved = new Int32Array(2);
@@ -141,11 +144,11 @@ export class PeerState {
         throw Error('Peer database identity changed.');
     };
     while (true) {
-      check();
+      check(); checkBudget();
       try { this.db.exec('BEGIN IMMEDIATE'); }
       catch (error) {
         if (!['SQLITE_BUSY', 'SQLITE_LOCKED'].includes(String((error as { code?: string }).code))) throw error;
-        if (performance.now() >= deadline) throw Object.assign(new Error('Peer state storage acquisition timed out.'), { code: 'PEER_STATE_BUSY', certainty: 'not_applied', retryable: true });
+        checkBudget();
         await new Promise<void>((resolve, reject) => {
           const aborted = () => { clearTimeout(timer); reject(signal.reason); };
           const timer = setTimeout(() => { signal.removeEventListener('abort', aborted); resolve(); }, Math.min(25, Math.max(0, deadline - performance.now())));
@@ -154,7 +157,7 @@ export class PeerState {
         continue;
       }
       try {
-        check(); const value = body();
+        check(); checkBudget(); const value = body();
         if (value && typeof (value as { then?: unknown }).then === 'function') throw Error('Peer SQL mutation must be synchronous.');
         // An authorised revocation may invalidate its own peer grant. Keep the
         // lifetime/file fence, but do not undo that effect by re-admitting it.
