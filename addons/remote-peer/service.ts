@@ -77,7 +77,7 @@ export class PeerService {
   }
   constructor(private options: PeerServiceOptions) {
     if (options.authority) options.runtime = options.authority.guard(options.runtime);
-    this.authorizationState = new PeerState(options.dataDir, (peerId) => this.cancelAdmissions(peerId));
+    this.authorizationState = new PeerState(options.dataDir, (peerId) => this.cancelAdmissions(peerId), options.authority?.assertCurrent);
     this.state = this.guard(this.authorizationState);
     try {
       this.transport = this.createTransport();
@@ -146,12 +146,12 @@ export class PeerService {
       this.discovery = null;
       await this.transport.close();
       try {
-        this.state.saveConfig(next);
+        await this.state.write(() => this.state.saveConfig(next));
         this.transport = this.createTransport();
         await this.startUnlocked();
         return next;
       } catch (error) {
-        this.state.saveConfig(previous);
+        await this.state.write(() => this.state.saveConfig(previous));
         this.transport = this.createTransport();
         await this.startUnlocked().catch(() => undefined);
         throw error;
@@ -173,11 +173,11 @@ export class PeerService {
       }));
       await this.discovery.start();
     } catch (error) {
-      this.state.audit(
+      await this.state.write(() => this.state.audit(
         "mdns-error",
         null,
         "Local discovery unavailable; manual pairing remains available.",
-      );
+      ));
     }
   }
   async close() {
@@ -250,8 +250,9 @@ export class PeerService {
     );
   }
   async pair(input: { clientId: string; alias?: string; ticket?: string }) {
-    this.enabled();
     const target = endpointId(input.clientId);
+    const peer = await this.state.write(() => {
+    this.enabled();
     if (target === this.transport.id)
       throw new Error("Cannot pair with this client.");
     const prior = this.state.peer(target);
@@ -288,6 +289,8 @@ export class PeerService {
       );
     if (input.ticket) peer.ticket = input.ticket;
     this.state.put(peer);
+    return peer;
+    });
     await this.transport.start();
     const candidate = this.discovery?.candidates().find((c) => c.id === target);
     const addresses = candidate?.addresses.map((a) =>
@@ -307,6 +310,8 @@ export class PeerService {
       peer.ticket ?? undefined,
       addresses,
     );
+    await this.state.write(() => {
+    this.enabled();
     const latest = this.state.peer(target);
     if (
       !latest ||
@@ -315,7 +320,7 @@ export class PeerService {
       latest.epoch !== peer.epoch
     )
       throw new Error("Pairing was cancelled while the request was in flight.");
-    peer.status = latest.status;
+    Object.assign(peer, latest);
     peer.name = text(reply.body.name ?? "", 63);
     if (reply.body.ticket) {
       const ticket = text(reply.body.ticket, 8192);
@@ -331,6 +336,7 @@ export class PeerService {
     }
     this.state.put(peer);
     this.state.audit("pair-outgoing", target, "Awaiting remote approval");
+    });
     return { status: "outgoing", clientId: clientId(target) };
   }
   async accept(reference: string, confirmation: string) {
@@ -352,6 +358,8 @@ export class PeerService {
       new Uint8Array(),
       peer.ticket ?? undefined,
     );
+    await this.state.write(() => {
+    this.enabled();
     const latest = this.state.peer(peer.id);
     if (
       !latest ||
@@ -360,12 +368,15 @@ export class PeerService {
       latest.epoch !== peer.epoch
     )
       throw new Error("Pairing was cancelled while approval was in flight.");
+    Object.assign(peer, latest);
     peer.status = "paired";
     peer.lastSeen = Date.now();
     this.state.put(peer);
     this.state.audit("pair-accepted", peer.id, "Explicit approval");
+    });
   }
   deny(reference: string) {
+    return this.state.write(() => {
     const peer = this.peer(reference);
     if (!["incoming", "outgoing"].includes(peer.status))
       throw new Error("No pending request.");
@@ -373,8 +384,11 @@ export class PeerService {
     peer.epoch = id();
     this.state.put(peer);
     this.state.db.query("DELETE FROM replies WHERE peer=?").run(peer.id);
+
+    });
   }
   async revoke(reference: string, confirmation: string) {
+    const { peer, oldEpoch } = await this.state.write(() => {
     const peer = this.paired(reference);
     if (endpointId(confirmation) !== peer.id)
       throw new Error("Confirm the full client ID before revoking.");
@@ -384,6 +398,8 @@ export class PeerService {
     peer.epoch = id();
     this.state.put(peer);
     this.state.db.query("DELETE FROM replies WHERE peer=?").run(peer.id);
+    return { peer, oldEpoch };
+    });
     try {
       await this.transport.request(
         peer.id,
@@ -393,25 +409,26 @@ export class PeerService {
         peer.ticket ?? undefined,
       );
     } catch {}
-    this.state.audit("revoked", peer.id, "Operator revoked");
+    await this.state.write(() => this.state.audit("revoked", peer.id, "Operator revoked"));
   }
   forget(reference: string, confirmation: string) {
+    return this.state.write(() => {
     const peer = this.peer(reference);
     if (peer.status !== "revoked" || endpointId(confirmation) !== peer.id)
       throw new Error(
         "Revoke first, then confirm the full client ID to remove the record.",
       );
-    this.state.db
-      .transaction(() => {
+    {
         this.state.db.query("DELETE FROM replies WHERE peer=?").run(peer.id);
         this.state.db.query("DELETE FROM peers WHERE id=?").run(peer.id);
-      })
-      .immediate();
+      };
     this.state.audit(
       "peer-removed",
       peer.id,
       "Operator removed block; new approval required",
     );
+
+    });
   }
   async rotateIdentity(confirmation: string) {
     return this.transition(async () => {
@@ -428,7 +445,7 @@ export class PeerService {
       this.discovery = null;
       await this.transport.close();
       try {
-        this.state.rotateIdentity();
+        await this.state.rotateIdentity();
       } finally {
         // Recreate from the durable key (old or new) after any rotation fault.
         this.transport = this.createTransport();
@@ -438,9 +455,10 @@ export class PeerService {
     });
   }
   setPolicy(reference: string, input: any) {
+    return this.state.write(() => {
     // Compare and write under the same SQLite lock. Polling/read-before-write
     // cannot protect drafts from another Settings client or a re-pairing.
-    this.state.db.transaction(() => {
+    {
       const peer = this.paired(reference);
       // Optional for legacy operator callers; the Settings editor always sends both.
       if (input.expected_policy !== undefined || input.expected_epoch !== undefined) {
@@ -485,29 +503,37 @@ export class PeerService {
         ...(input.sessions !== undefined || peer.sessions !== undefined ? { sessions: validatedSessions } : {}),
         files: input.files === true,
       });
-    }).immediate();
+    };
+
+    });
   }
   setAlias(reference: string, value: string) {
+    return this.state.write(() => {
     const p = this.peer(reference);
     p.alias = alias(value);
     this.state.put(p);
+
+    });
   }
   async advertise(local: string, name: string, allowed: Mode[]) {
     const list = await this.options.runtime.messaging!.listAdvertisableAgents();
     if (!list.some((a) => a.agent_name === local))
       throw new Error("Local agent is not advertisable.");
     this.invalidateGeneration();
-    this.state.db
+    await this.state.write(() => this.state.db
       .query("INSERT OR REPLACE INTO advertised VALUES (?,?,?)")
-      .run(alias(name), local, JSON.stringify(modes(allowed)));
+      .run(alias(name), local, JSON.stringify(modes(allowed))));
   }
   unadvertise(name: string) {
+    return this.state.write(() => {
     this.invalidateGeneration();
-    this.state.db.transaction(() => {
+    {
       this.state.db.query("DELETE FROM advertised WHERE alias=?").run(name);
       const rows = this.state.db.query("SELECT session_alias FROM advertised_sessions WHERE agent=?").all(name) as { session_alias: string }[];
       for (const row of rows) this.removeSession(name, row.session_alias);
-    }).immediate();
+    };
+
+    });
   }
   private requireSessionContext(context?: AddonLocalContext | null) {
     if (context?.version !== 1 || context.accessMode !== "single-user" || context.kind !== "operator")
@@ -524,7 +550,7 @@ export class PeerService {
     if (!target || !authorized || authorized.agentName !== target.agentName) throw new Error("Session lifetime is stale or unavailable.");
     this.invalidateGeneration();
     // active means streaming, not targetability: idle branches remain valid.
-    this.state.db.transaction(() => {
+    await this.state.write(() => {
       const advertised = this.state.db.query("SELECT local_agent FROM advertised WHERE alias=?").get(agent) as { local_agent: string } | null;
       if (!advertised || advertised.local_agent !== target.agentName)
         throw new Error("Session agent is not advertised.");
@@ -532,7 +558,7 @@ export class PeerService {
       if (previous) this.removeSession(agent, session); // Every advertisement requires fresh selection and consent.
       this.state.db.query("INSERT OR REPLACE INTO advertised_sessions (agent,session_alias,local_agent,chat_jid,incarnation,modes,revision) VALUES (?,?,?,?,?,?,?)")
         .run(agent, session, target.agentName, target.chatJid, target.incarnation, JSON.stringify(allowed), id());
-    }).immediate();
+    });
   }
   private removeSession(agent: string, session: string) {
     this.state.db.query("DELETE FROM advertised_sessions WHERE agent=? AND session_alias=?").run(agent, session);
@@ -541,9 +567,12 @@ export class PeerService {
         this.state.put({ ...peer, sessions: peer.sessions.filter((g) => g.agent !== agent || g.session_alias !== session) });
   }
   sessionUnadvertise(agent: string, session: string, context?: AddonLocalContext | null) {
+    return this.state.write(() => {
     this.requireSessionContext(context);
     this.invalidateGeneration();
-    this.state.db.transaction(() => this.removeSession(alias(agent), alias(session))).immediate();
+    this.removeSession(alias(agent), alias(session));
+
+    });
   }
   private async sessionTargets() {
     const messaging = this.options.runtime.messaging;
@@ -760,6 +789,9 @@ export class PeerService {
       sourceAgent: request.source_agent_name ?? null,
       sourceDisplay: request.source_agent_display_name ?? null,
     };
+    const row = await this.state.write(() => {
+    this.enabled();
+    if (this.paired(peer.id).epoch !== peer.epoch) throw Error('Peer authorization changed before send.');
     let row = existingId
       ? (this.state.db
           .query("SELECT * FROM outbound WHERE id=? AND peer=?")
@@ -775,12 +807,7 @@ export class PeerService {
         JSON.stringify(semantic)
       )
         throw new Error("Idempotency key used with different content.");
-      if (row.status === "delivered")
-        return {
-          relayed: true,
-          receipt: JSON.parse(row.receipt),
-          message_id: row.id,
-        };
+      if (row.status === "delivered") return row;
       if (row.status === "sending")
         throw new Error("Delivery already in progress.");
     } else {
@@ -825,6 +852,9 @@ export class PeerService {
     this.state.db
       .query("UPDATE outbound SET status='sending',error=NULL WHERE id=?")
       .run(row.id);
+    return row;
+    });
+    if (row.status === 'delivered') return { relayed: true, receipt: JSON.parse(row.receipt), message_id: row.id };
     try {
       const response = await this.call(
         peer,
@@ -837,11 +867,11 @@ export class PeerService {
         response.body.status !== "queued"
       )
         throw new Error("Invalid delivery receipt.");
-      this.state.db
+      await this.state.write(() => this.state.db
         .query(
           "UPDATE outbound SET status='delivered',receipt=?,bytes=NULL WHERE id=?",
         )
-        .run(JSON.stringify(response.body), row.id);
+        .run(JSON.stringify(response.body), row.id));
       return {
         relayed: true,
         message_id: row.id,
@@ -850,9 +880,9 @@ export class PeerService {
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      this.state.db
+      await this.state.write(() => this.state.db
         .query("UPDATE outbound SET status='failed',error=? WHERE id=?")
-        .run(message.slice(0, 500), row.id);
+        .run(message.slice(0, 500), row.id));
       throw error;
     }
   }
@@ -925,6 +955,7 @@ export class PeerService {
     packet: Packet,
     bytes: Uint8Array,
   ): Promise<Reply> {
+    const action = await this.state.write(() => {
     this.enabled();
     const body = packet.body;
     if (!body || typeof body !== "object" || Array.isArray(body))
@@ -941,13 +972,13 @@ export class PeerService {
         peer.request === body.request &&
         peer.epoch === body.epoch
       )
-        return {
+        return () => ({
           body: {
             ok: true,
             name: this.state.config().instanceName,
             ticket: this.transport.ticket(),
           },
-        };
+        });
       if (peer) throw new Error("Another pairing request is pending.");
       if (this.state.peers().length >= 256)
         throw new Error("Peer limit reached.");
@@ -988,13 +1019,13 @@ export class PeerService {
         lastSeen: Date.now(),
       };
       this.state.put(peer);
-      return {
+      return () => ({
         body: {
           ok: true,
           name: this.state.config().instanceName,
           ticket: this.transport.ticket(),
         },
-      };
+      });
     }
     if (packet.op === "confirm") {
       if (
@@ -1009,28 +1040,31 @@ export class PeerService {
       peer.name = text(body.name ?? "", 63);
       peer.lastSeen = Date.now();
       this.state.put(peer);
-      return { body: { ok: true } };
+      return () => ({ body: { ok: true } });
     }
     if (!peer || peer.status !== "paired" || body.epoch !== peer.epoch)
       throw new Error("Peer not paired or stale authorization epoch.");
     peer.lastSeen = Date.now();
     this.state.put(peer);
     if (packet.op === "ping")
-      return { body: { ok: true, clientId: this.transport.clientId } };
-    if (packet.op === "roster") return { body: await this.roster(peer) };
+      return () => ({ body: { ok: true, clientId: this.transport.clientId } });
+    if (packet.op === "roster") return async () => ({ body: await this.roster(peer) });
     if (packet.op === "revoke") {
       peer.status = "revoked";
       peer.epoch = id();
-      this.state.put(peer);
       this.state.db.query("DELETE FROM replies WHERE peer=?").run(peer.id);
-      return { body: { ok: true } };
+      this.state.put(peer);
+      return () => ({ body: { ok: true } });
     }
     if (packet.op === "message")
-      return { body: await this.receiveMessage(peer, body, bytes) };
-    if (packet.op === "work") return { body: this.receiveWork(peer, body) };
+      return async () => ({ body: await this.receiveMessage(peer, body, bytes) });
+    if (packet.op === "work") return async () => ({ body: await this.receiveWork(peer, body) });
     if (packet.op === "work-result")
-      return { body: await this.receiveWorkResult(peer, body) };
+      return async () => ({ body: await this.receiveWorkResult(peer, body) });
     throw new Error("Unknown Iroh operation.");
+
+    });
+    return action();
   }
   private async receiveMessage(peer: Peer, body: any, bytes: Uint8Array) {
     const s = body.semantic;
@@ -1107,8 +1141,9 @@ export class PeerService {
     });
     if (offset !== bytes.length || (!content && !attachments.length))
       throw new Error("Invalid payload size/content.");
-    const digest = hash(JSON.stringify(s) + hash(bytes)),
-      previous = this.state.db
+    const digest = hash(JSON.stringify(s) + hash(bytes));
+    const priorReceipt = await this.state.write(() => {
+      const previous = this.state.db
         .query("SELECT * FROM inbound WHERE peer=? AND id=?")
         .get(peer.id, messageId) as any;
     if (previous) {
@@ -1126,6 +1161,9 @@ export class PeerService {
     this.state.db
       .query("INSERT INTO inbound VALUES (?,?,?,'delivering',NULL)")
       .run(peer.id, messageId, digest);
+    return undefined;
+    });
+    if (priorReceipt) return priorReceipt;
     const reply =
       typeof body.reply === "string" &&
       /^reply\.[A-Za-z0-9_-]{32}$/.test(body.reply)
@@ -1168,14 +1206,15 @@ export class PeerService {
       rowId: result.row_id ?? null,
       receivedAt: Date.now(),
     };
-    this.state.db
+    await this.state.write(() => this.state.db
       .query(
         "UPDATE inbound SET status='queued',receipt=? WHERE peer=? AND id=?",
       )
-      .run(JSON.stringify(receipt), peer.id, messageId);
+      .run(JSON.stringify(receipt), peer.id, messageId));
     return receipt;
   }
   private receiveWork(peer: Peer, body: any) {
+    return this.state.write(() => {
     if (peer.scope === "none")
       throw new Error("Remote work disabled for this peer.");
     const workId = text(body.id, 80);
@@ -1222,6 +1261,8 @@ export class PeerService {
       }),
     );
     return { ok: true };
+
+    });
   }
   async workSend(
     reference: string,
@@ -1243,9 +1284,11 @@ export class PeerService {
       throw new Error("Invalid work request.");
     capabilities.forEach((c) => text(c, 128));
     const data = { prompt, type, capabilities, chat };
-    this.state.db
-      .query("INSERT INTO work VALUES (?,?,?,?,?)")
-      .run(workId, peer.id, "outbound", "pending", JSON.stringify(data));
+    await this.state.write(() => {
+      this.enabled();
+      if (this.paired(peer.id).epoch !== peer.epoch) throw Error('Peer authorization changed before work submission.');
+      this.state.db.query("INSERT INTO work VALUES (?,?,?,?,?)").run(workId, peer.id, "outbound", "pending", JSON.stringify(data));
+    });
     await this.call(peer, "work", { id: workId, prompt, type, capabilities });
     return { id: workId, status: "pending" };
   }
@@ -1255,6 +1298,7 @@ export class PeerService {
     allowed: string[],
     approve: boolean,
   ) {
+    const { row, data, reply } = await this.state.write(() => {
     const row = this.state.db
       .query("SELECT * FROM work WHERE id=? AND direction='inbound'")
       .get(workId) as any;
@@ -1273,14 +1317,19 @@ export class PeerService {
     this.state.db
       .query("UPDATE work SET status='response-pending',data=? WHERE id=?")
       .run(JSON.stringify({ ...data, reply }), workId);
+    return { row, data, reply };
+    });
     await this.call(this.paired(row.peer), "work-result", reply);
-    this.state.db
-      .query("UPDATE work SET status=?,data=? WHERE id=?")
-      .run(reply.status, JSON.stringify({ ...data, reply }), workId);
+    await this.state.write(() => {
+      const changed = this.state.db.query("UPDATE work SET status=?,data=? WHERE id=? AND status='response-pending' AND data=?")
+        .run(reply.status, JSON.stringify({ ...data, reply }), workId, JSON.stringify({ ...data, reply }));
+      if (changed.changes !== 1) throw Error('Work response changed while delivery was in flight.');
+    });
     return reply;
   }
   private async receiveWorkResult(peer: Peer, body: any) {
     const workId = text(body.id, 80);
+    const prepared = await this.state.write(() => {
     const row = this.state.db
       .query(
         "SELECT * FROM work WHERE id=? AND peer=? AND direction='outbound'",
@@ -1311,12 +1360,12 @@ export class PeerService {
     )
       throw new Error("Conflicting terminal work result.");
     if (row.status === "completed" || row.status === "rejected")
-      return { ok: true };
+      return null;
 
     // Store the exact terminal payload before performing the local side effect.
-    // A failed enqueue returns to notification-pending for retry. A process
-    // crash after enqueue is deliberately left notification-delivering and is
-    // never replayed blindly because enqueue has no idempotency contract.
+    // Only an unentered enqueue may return to notification-pending. An entered
+    // failure or crash is unknown and cannot be replayed blindly: enqueue has
+    // no idempotency contract.
     if (
       row.status === "notification-delivering" ||
       row.status === "notification-unknown"
@@ -1334,11 +1383,17 @@ export class PeerService {
       .run(row.id);
     if (claim.changes !== 1)
       throw new Error("Work notification delivery is already in progress.");
+    return { row, data, result };
+    });
+    if (!prepared) return { ok: true };
+    const { row, data, result } = prepared;
+    let enqueueEntered = false;
     try {
       if (data.chat) {
         const enqueue = this.options.runtime.enqueueAgentMessage;
         if (!enqueue)
           throw new Error("Piclaw agent-message enqueue API is unavailable.");
+        enqueueEntered = true;
         await enqueue({
           chatJid: data.chat,
           content: `Remote work ${row.id}: ${body.status}\n${result}`,
@@ -1347,22 +1402,20 @@ export class PeerService {
         });
       }
     } catch (error) {
-      this.state.db
-        .query(
-          "UPDATE work SET status='notification-pending' WHERE id=? AND status='notification-delivering'",
-        )
-        .run(row.id);
+      await this.state.write(() => this.state.db
+        .query("UPDATE work SET status=? WHERE id=? AND status='notification-delivering'")
+        .run(enqueueEntered ? 'notification-unknown' : 'notification-pending', row.id));
       throw error;
     }
-    this.state.db
+    await this.state.write(() => this.state.db
       .query(
         "UPDATE work SET status=?,data=? WHERE id=? AND status='notification-delivering'",
       )
       .run(
         body.status,
-        JSON.stringify({ ...data, terminal, notificationDelivered: true }),
+        JSON.stringify({ ...data, terminal: { status: body.status, result, capabilities: body.capabilities }, notificationDelivered: true }),
         row.id,
-      );
+      ));
     return { ok: true };
   }
   async ping(reference: string) {

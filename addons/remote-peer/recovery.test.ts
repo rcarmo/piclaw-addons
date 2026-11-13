@@ -16,18 +16,12 @@ function runtime(enqueue?: (request: any) => Promise<any>) {
   } as any;
 }
 
-test("failed work notification retries the same terminal result exactly once and rejects conflicts", async () => {
+test("work notification retries only a provably unentered enqueue and rejects conflicting results", async () => {
   const root = mkdtempSync(join(tmpdir(), "iroh-work-recovery-"));
   let attempts = 0,
     delivered = 0;
-  const service = new PeerService({
-    dataDir: root,
-    runtime: runtime(async () => {
-      attempts++;
-      if (attempts === 1) throw new Error("queue unavailable");
-      delivered++;
-    }),
-  });
+  const host = runtime();
+  const service = new PeerService({ dataDir: root, runtime: host });
   try {
     const peer = "22".repeat(32),
       id = "work-result";
@@ -51,7 +45,7 @@ test("failed work notification retries the same terminal result exactly once and
     };
     await expect(
       (service as any).receiveWorkResult({ id: peer }, body),
-    ).rejects.toThrow("queue unavailable");
+    ).rejects.toThrow("enqueue API is unavailable");
     expect(
       service.state.db.query("SELECT status FROM work WHERE id=?").get(id),
     ).toEqual({ status: "notification-pending" });
@@ -61,9 +55,10 @@ test("failed work notification retries the same terminal result exactly once and
         { ...body, result: "different" },
       ),
     ).rejects.toThrow("Conflicting");
+    host.enqueueAgentMessage = async () => { attempts++; delivered++; };
     await (service as any).receiveWorkResult({ id: peer }, body);
     await (service as any).receiveWorkResult({ id: peer }, body);
-    expect(attempts).toBe(2);
+    expect(attempts).toBe(1);
     expect(delivered).toBe(1);
     expect(
       service.state.db.query("SELECT status FROM work WHERE id=?").get(id),
@@ -78,6 +73,25 @@ test("failed work notification retries the same terminal result exactly once and
     await service.close();
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test("entered enqueue failure is retained as unknown across reopen and never blindly repeated", async () => {
+  const root = mkdtempSync(join(tmpdir(), 'iroh-work-entered-'));
+  let calls = 0;
+  const host = runtime(async () => { calls++; throw Error('acknowledgement lost after entry'); });
+  let service = new PeerService({ dataDir: root, runtime: host });
+  const peer = '55'.repeat(32), body = { id: 'entered', status: 'completed', result: 'retained', capabilities: [] };
+  try {
+    service.state.db.query('INSERT INTO work VALUES (?,?,?,?,?)').run('entered', peer, 'outbound', 'pending', JSON.stringify({ capabilities: [], chat: 'web:fixture' }));
+    await expect((service as any).receiveWorkResult({ id: peer }, body)).rejects.toThrow('acknowledgement lost');
+    expect(service.state.db.query("SELECT status FROM work WHERE id='entered'").get()).toEqual({ status: 'notification-unknown' });
+    await expect((service as any).receiveWorkResult({ id: peer }, body)).rejects.toThrow('outcome is unknown');
+    expect(calls).toBe(1);
+    await service.close(); service = new PeerService({ dataDir: root, runtime: host });
+    await expect((service as any).receiveWorkResult({ id: peer }, body)).rejects.toThrow('outcome is unknown');
+    expect(calls).toBe(1);
+    expect(JSON.parse((service.state.db.query("SELECT data FROM work WHERE id='entered'").get() as any).data).terminal).toEqual({ status: 'completed', result: 'retained', capabilities: [] });
+  } finally { await service.close(); rmSync(root, { recursive: true, force: true }); }
 });
 
 test("terminal work result remains visible without an origin chat", async () => {

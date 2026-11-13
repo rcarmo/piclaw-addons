@@ -33,6 +33,12 @@ New pairings start with inbox-only, queue-only access and files disabled. Broade
 
 Address lookup and mDNS are separate controls. Both default off. Without internet lookup, exchange an endpoint ticket using the advanced field, or opt into nearby discovery. A bare public key contains no routable address.
 
+## Peer-state storage
+
+Version0.3.9 keeps the existing separate `peers.db`, trust records and message identities. Runtime SQL mutations acquire their existing transaction cooperatively with zero SQLite busy wait and the same five-second default acquisition budget. The body enters once; callback or commit errors never trigger a repeated transport operation. Cancellation, native owner revocation, close and descriptor/path replacement deny unentered writes. Startup schema/recovery opens fail promptly on contention rather than blocking the shared turn loop or inventing default permissions.
+
+Settings and management actions await persistence. A `PEER_STATE_BUSY` acquisition error means no body entered; release the competing writer and explicitly retry the action. Failed readback can still follow a successful commit. Unknown delivery and notification outcomes remain unknown across reopen, with no automatic resend. No Core-private database modules or additional transport scheduler/ledger are used.
+
 ## Optional mDNS
 
 **Enable mDNS on this network** is off by default. Disabled means no multicast socket, advertisement, browser query or discovery timer. Enabling advertises minimal public ID/version hints and displays nearby, untrusted candidates. Selecting a candidate fills the pairing ID; it never grants trust.
@@ -54,7 +60,7 @@ Files are sent as raw bytes inside bounded Iroh frames: four files maximum, 16 M
 
 If the receiver crashes between calling Piclaw delivery and recording the receipt, its record remains `delivering`. Retries report an unknown outcome rather than risking duplicate tool-triggering messages. Inspect that record before taking further action; exactly-once delivery across that crash boundary is not claimed.
 
-Work requests remain operator-mediated. Neither a pairing nor an `execute` request grants tool execution. Reviewed results may be returned from Settings or the management tool.
+Work requests remain operator-mediated. Neither a pairing nor an `execute` request grants tool execution. Reviewed results may be returned from Settings or the management tool. A missing enqueue API is provably unentered and may be retried after repair. Once an enqueue is entered, a thrown error has an unknown outcome: retain `notification-unknown` and inspect the origin chat instead of automatically submitting it again.
 
 ### Exact session targets
 

@@ -1,4 +1,4 @@
-import Database from "bun:sqlite";
+import Database, { constants } from "bun:sqlite";
 import {
   mkdirSync,
   lstatSync,
@@ -12,6 +12,7 @@ import {
   closeSync,
   renameSync,
   rmSync,
+  statSync,
 } from "node:fs";
 import { join } from "node:path";
 import { randomBytes, randomUUID } from "node:crypto";
@@ -52,7 +53,10 @@ export class PeerState {
   readonly db: Database;
   readonly dir: string;
   keyBytes: number[];
-  constructor(base: string, private onAuthorizationChange?: (peerId: string) => void) {
+  private readonly lifetime = new AbortController();
+  private readonly path: string;
+  private identity!: string;
+  constructor(base: string, private onAuthorizationChange?: (peerId: string) => void, private assertWriteCurrent?: () => void) {
     // Intentionally never reads the old identity.json, state.db or migration ledger.
     this.dir = join(base, "iroh-v1");
     mkdirSync(this.dir, { recursive: true, mode: 0o700 });
@@ -68,13 +72,12 @@ export class PeerState {
       throw new Error("Invalid Iroh key length; refusing identity reset.");
     chmodSync(key, 0o600);
     this.keyBytes = Array.from(bytes);
-    const path = join(this.dir, "peers.db");
+    const path = this.path = join(this.dir, "peers.db");
     if (existsSync(path) && lstatSync(path).isSymbolicLink())
       throw new Error("Peer database must not be a symlink.");
     this.db = new Database(path, { create: true });
-    this.db.exec(
-      "PRAGMA journal_mode=WAL;PRAGMA foreign_keys=ON;PRAGMA busy_timeout=5000;",
-    );
+    try {
+    this.db.exec("PRAGMA busy_timeout=0; PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;");
     this.db
       .exec(`CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY,value TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS peers(id TEXT PRIMARY KEY,alias TEXT NOT NULL UNIQUE,data TEXT NOT NULL);
@@ -120,6 +123,44 @@ export class PeerState {
         "UPDATE work SET status='notification-unknown' WHERE direction='outbound' AND status='notification-delivering'",
       )
       .run();
+    const file = statSync(path); this.identity = `${file.dev}:${file.ino}`;
+    } catch (error) { this.db.close(); throw error; }
+  }
+  /** Retry only BEGIN acquisition. A synchronous SQL body is entered at most
+   * once; errors/commit uncertainty never replay it or a transport operation. */
+  async write<T>(body: () => T, options: { signal?: AbortSignal; timeoutMs?: number } = {}): Promise<T> {
+    const signal = options.signal ? AbortSignal.any([options.signal, this.lifetime.signal]) : this.lifetime.signal;
+    const timeout = options.timeoutMs ?? 5000;
+    if (!Number.isFinite(timeout) || timeout <= 0) throw Error('Peer storage timeout must be finite and positive.');
+    const deadline = performance.now() + timeout;
+    const check = (authority = true) => {
+      signal.throwIfAborted(); if (authority) this.assertWriteCurrent?.();
+      const file = lstatSync(this.path), moved = new Int32Array(2);
+      if (!file.isFile() || file.isSymbolicLink() || file.nlink !== 1 || `${file.dev}:${file.ino}` !== this.identity ||
+          this.db.fileControl('main', constants.SQLITE_FCNTL_HAS_MOVED, moved) !== 0 || moved[0] !== 0)
+        throw Error('Peer database identity changed.');
+    };
+    while (true) {
+      check();
+      try { this.db.exec('BEGIN IMMEDIATE'); }
+      catch (error) {
+        if (!['SQLITE_BUSY', 'SQLITE_LOCKED'].includes(String((error as { code?: string }).code))) throw error;
+        if (performance.now() >= deadline) throw Object.assign(new Error('Peer state storage acquisition timed out.'), { code: 'PEER_STATE_BUSY', certainty: 'not_applied', retryable: true });
+        await new Promise<void>((resolve, reject) => {
+          const aborted = () => { clearTimeout(timer); reject(signal.reason); };
+          const timer = setTimeout(() => { signal.removeEventListener('abort', aborted); resolve(); }, Math.min(25, Math.max(0, deadline - performance.now())));
+          signal.addEventListener('abort', aborted, { once: true });
+        });
+        continue;
+      }
+      try {
+        check(); const value = body();
+        if (value && typeof (value as { then?: unknown }).then === 'function') throw Error('Peer SQL mutation must be synchronous.');
+        // An authorised revocation may invalidate its own peer grant. Keep the
+        // lifetime/file fence, but do not undo that effect by re-admitting it.
+        check(false); this.db.exec('COMMIT'); return value;
+      } catch (error) { if (this.db.inTransaction) this.db.exec('ROLLBACK'); throw error; }
+    }
   }
   config(): RemotePeerConfig {
     const row = this.db
@@ -169,8 +210,7 @@ export class PeerState {
         "Revoke every peer and cancel every pending request before rotating identity.",
       );
   }
-  rotateIdentity(): number[] {
-    this.assertIdentityRotationAllowed();
+  async rotateIdentity(): Promise<number[]> {
     const keyPath = join(this.dir, "secret-key.bin"),
       temporary = join(
         this.dir,
@@ -180,8 +220,8 @@ export class PeerState {
     // Clear all authorization and delivery state before publishing the new key.
     // A crash before rename keeps the old identity with empty trust; a crash
     // after rename leaves the new identity with empty trust.
-    this.db
-      .transaction(() => {
+    await this.write(() => {
+        this.assertIdentityRotationAllowed();
         for (const table of [
           "peers",
           "advertised",
@@ -199,8 +239,7 @@ export class PeerState {
             "identity-rotation-started",
             "Fresh trust and queue state cleared before key replacement",
           );
-      })
-      .immediate();
+      });
     this.db.exec("PRAGMA wal_checkpoint(FULL)");
     let fd: number | undefined;
     try {
@@ -229,13 +268,13 @@ export class PeerState {
       throw error;
     }
     try {
-      this.db
+      await this.write(() => this.db
         .query("INSERT INTO audit(at,kind,peer,detail) VALUES (?,?,NULL,?)")
         .run(
           Date.now(),
           "identity-rotated",
           "Fresh Iroh key installed; explicit new pairing required",
-        );
+        ));
     } catch {
       // Key and cleared authorization state are already durable. Audit failure
       // must not roll in-memory identity back to a stale key.
@@ -248,6 +287,7 @@ export class PeerState {
       .run(Date.now(), kind, peer, detail.slice(0, 1000));
   }
   close() {
+    this.lifetime.abort(new Error('Peer state closed.'));
     this.db.close();
   }
 }
