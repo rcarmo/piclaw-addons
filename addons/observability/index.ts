@@ -23,8 +23,8 @@ import { addLogSink, removeLogSink, type LogSink as RuntimeLogSink, type LogReco
 
 import { createExtensionStorage, type ExtensionStorage } from "./compat/extension-kv.js";
 import { createLogger } from "./compat/logger.js";
-import { graphiteSegment, exportUsage } from "./usage-telemetry.js";
-import { exportCompactionTelemetry } from "./compaction-telemetry.js";
+import { graphiteSegment } from "./usage-telemetry.js";
+import { exportTelemetryOffThread } from "./usage-telemetry-job.js";
 import {
   buildModelSpeedGraphiteMetrics,
   buildModelSpeedSpanAttributes,
@@ -428,14 +428,11 @@ function scheduleUsageTelemetry(config: ObservabilityConfig): void {
       instance_name: config.instance_name,
     };
     try {
-      await exportUsage(exportConfig);
+      for (const failure of await exportTelemetryOffThread(exportConfig)) {
+        log.warn("Telemetry export failed; pending data remains spooled", { operation: `${failure.kind}_telemetry.export`, error: failure.message });
+      }
     } catch (error) {
-      log.warn("Usage telemetry export failed; pending data remains spooled", { operation: "usage_telemetry.export", error: formatError(error) });
-    }
-    try {
-      await exportCompactionTelemetry(exportConfig);
-    } catch (error) {
-      log.warn("Compaction telemetry export failed; pending data remains spooled", { operation: "compaction_telemetry.export", error: formatError(error) });
+      log.warn("Telemetry worker failed; pending data remains spooled", { operation: "usage_telemetry.worker", error: formatError(error) });
     } finally { usageTelemetryRunning = false; }
   };
   const tick = () => {

@@ -26,7 +26,7 @@ export async function runAction(
       );
       break;
     case "deny":
-      service.deny(String(input.peer ?? ""));
+      await service.deny(String(input.peer ?? ""));
       break;
     case "revoke":
       await service.revoke(
@@ -41,16 +41,16 @@ export async function runAction(
         ),
       };
     case "forget":
-      service.forget(
+      await service.forget(
         String(input.peer ?? ""),
         String(input.confirmation ?? ""),
       );
       break;
     case "alias":
-      service.setAlias(String(input.peer ?? ""), String(input.alias ?? ""));
+      await service.setAlias(String(input.peer ?? ""), String(input.alias ?? ""));
       break;
     case "policy":
-      service.setPolicy(String(input.peer ?? ""), input);
+      await service.setPolicy(String(input.peer ?? ""), input);
       break;
     case "remote_permissions":
       return service.remotePermissions(String(input.peer ?? ""));
@@ -62,7 +62,7 @@ export async function runAction(
       );
       break;
     case "unadvertise":
-      service.unadvertise(String(input.alias ?? ""));
+      await service.unadvertise(String(input.alias ?? ""));
       break;
     case "session_targets":
       return service.localSessions(context);
@@ -70,7 +70,7 @@ export async function runAction(
       await service.sessionAdvertise({ agent: String(input.agent ?? ""), session_alias: String(input.session_alias ?? ""), chat_jid: String(input.chat_jid ?? ""), incarnation: String(input.incarnation ?? ""), modes: input.modes ?? ["queue"] }, context);
       break;
     case "session_unadvertise":
-      service.sessionUnadvertise(String(input.agent ?? ""), String(input.session_alias ?? ""), context);
+      await service.sessionUnadvertise(String(input.agent ?? ""), String(input.session_alias ?? ""), context);
       break;
     case "ping":
       return service.ping(String(input.peer ?? ""));

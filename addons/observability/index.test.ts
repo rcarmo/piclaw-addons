@@ -119,7 +119,11 @@ test("observability consumes bounded durable compaction telemetry without a seco
   const source = readFileSync(join(import.meta.dir, "index.ts"), "utf8");
   expect(source).toContain('op === "compaction.telemetry"');
   expect(source).toContain('getTracer().startSpan("compaction"');
-  expect(source).toContain("exportCompactionTelemetry(exportConfig)");
+  expect(source).toContain("exportTelemetryOffThread(exportConfig)");
+  expect(source).not.toContain("await exportCompactionTelemetry(");
+  const worker = readFileSync(join(import.meta.dir, "usage-telemetry-worker.ts"), "utf8");
+  expect(worker).toContain('["compaction", exportCompactionTelemetry]');
+  expect(worker).toContain('self.postMessage({ type: "complete", failures })');
   const block = source.slice(source.indexOf('if (op === "compaction.telemetry")'), source.indexOf('if (op === "get_or_create.create_main_session")'));
   expect(block).not.toContain("errorMessage");
   expect(block).not.toContain("chat_jid");

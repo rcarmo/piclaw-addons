@@ -1,5 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
-import { createConnection } from "node:net";
+import { existsSync, readFileSync } from "node:fs";
 import { hostname } from "node:os";
 import { dirname, join } from "node:path";
 import { Database } from "bun:sqlite";
@@ -8,7 +7,8 @@ import {
   instanceFirstMetricPrefix,
   messagesDbPath,
   migrateLegacyCategoryMetricPath,
-  type MetricPoint,
+  atomicWrite, readTelemetrySpool, writeTelemetrySpool, sendCarbon,
+  type TelemetryBatch, type MetricPoint,
 } from "./usage-telemetry.js";
 
 export interface CompactionTelemetryConfig {
@@ -27,21 +27,12 @@ interface CompactionRow {
 }
 
 interface CompactionCheckpoint { id: number; }
-interface CompactionBatch { createdAt: string; checkpoint: CompactionCheckpoint; points: MetricPoint[]; }
-const MAX_SPOOL_BYTES = 10 * 1024 * 1024;
-const MAX_SPOOL_AGE_MS = 7 * 24 * 60 * 60_000;
+type CompactionBatch = TelemetryBatch<CompactionCheckpoint>;
 
 const instance = (config: CompactionTelemetryConfig) => config.instance_name.trim() || hostname();
 const root = (dbPath: string) => join(dirname(dbPath), "compaction-telemetry");
 const checkpointPath = (dbPath: string) => join(root(dbPath), "state.json");
 const spoolPath = (dbPath: string) => join(root(dbPath), "spool.jsonl");
-
-function atomicWrite(path: string, value: string): void {
-  mkdirSync(dirname(path), { recursive: true });
-  const tmp = `${path}.tmp`;
-  writeFileSync(tmp, value, "utf8");
-  renameSync(tmp, path);
-}
 
 export function loadCompactionCheckpoint(dbPath = messagesDbPath()): CompactionCheckpoint {
   try { const value = JSON.parse(readFileSync(checkpointPath(dbPath), "utf8")); if (Number.isInteger(value?.id)) return { id: value.id }; } catch {}
@@ -94,41 +85,20 @@ export function collectCompactionTelemetry(
   } finally { db.close(); }
 }
 
-function loadSpool(dbPath: string): CompactionBatch[] {
-  try { return readFileSync(spoolPath(dbPath), "utf8").split("\n").filter(Boolean).flatMap(line => { try { const item = JSON.parse(line); return item?.points?.length ? [item] : []; } catch { return []; } }); } catch { return []; }
-}
-function saveSpool(batches: CompactionBatch[], dbPath: string): void {
-  const cutoff = Date.now() - MAX_SPOOL_AGE_MS;
-  let retained = batches.filter(batch => Date.parse(batch.createdAt) >= cutoff);
-  while (retained.length && Buffer.byteLength(retained.map((batch) => JSON.stringify(batch)).join("\n"), "utf8") > MAX_SPOOL_BYTES) retained = retained.slice(1);
-  const path = spoolPath(dbPath);
-  if (!retained.length) { try { unlinkSync(path); } catch {} return; }
-  atomicWrite(path, `${retained.map((batch) => JSON.stringify(batch)).join("\n")}\n`);
-}
-async function send(host: string, port: number, points: MetricPoint[]): Promise<void> {
-  const payload = points.map(point => `${point.path} ${point.value} ${point.timestamp}`).join("\n") + "\n";
-  await new Promise<void>((resolve, reject) => {
-    const socket = createConnection({ host, port }); socket.setTimeout(5_000);
-    socket.once("connect", () => socket.end(payload)); socket.once("error", reject);
-    socket.once("timeout", () => { socket.destroy(); reject(new Error("Carbon connection timed out.")); });
-    socket.once("close", hadError => hadError ? undefined : resolve());
-  });
-}
-
 export async function exportCompactionTelemetry(config: CompactionTelemetryConfig, now = new Date(), dbPath = messagesDbPath()): Promise<{ batches: number; points: number }> {
   if (!config.graphite_host.trim()) return { batches: 0, points: 0 };
   const checkpoint = loadCompactionCheckpoint(dbPath);
   const batch = collectCompactionTelemetry(config, checkpoint, now, dbPath);
-  const batches = loadSpool(dbPath);
-  if (batch) { batches.push(batch); saveSpool(batches, dbPath); saveCheckpoint(batch.checkpoint, dbPath); }
+  const batches = readTelemetrySpool<CompactionCheckpoint>(spoolPath(dbPath));
+  if (batch) { batches.push(batch); writeTelemetrySpool(spoolPath(dbPath), batches); saveCheckpoint(batch.checkpoint, dbPath); }
   let sent = 0;
   while (batches.length) {
     const points = batches[0].points.map(point => ({
       ...point,
       path: migrateLegacyCategoryMetricPath(point.path, config.graphite_prefix, "compaction"),
     }));
-    await send(config.graphite_host, config.graphite_port, points);
-    batches.shift(); sent += 1; saveSpool(batches, dbPath);
+    await sendCarbon(config.graphite_host, config.graphite_port, points);
+    batches.shift(); sent += 1; writeTelemetrySpool(spoolPath(dbPath), batches);
   }
   return { batches: sent, points: batch?.points.length ?? 0 };
 }

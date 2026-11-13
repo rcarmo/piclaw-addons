@@ -13,7 +13,8 @@ export interface UsageTelemetryConfig {
 
 export interface Checkpoint { runAt: string; id: number; }
 export interface MetricPoint { path: string; value: number; timestamp: number; }
-export interface PendingBatch { createdAt: string; checkpoint: Checkpoint; points: MetricPoint[]; }
+export interface TelemetryBatch<C> { createdAt: string; checkpoint: C; points: MetricPoint[]; }
+export type PendingBatch = TelemetryBatch<Checkpoint>;
 
 const MAX_SPOOL_BYTES = 10 * 1024 * 1024;
 const MAX_SPOOL_AGE_MS = 7 * 24 * 60 * 60_000;
@@ -57,7 +58,7 @@ function stateDir(dbPath: string): string { return join(dirname(dbPath), "usage-
 function statePath(dbPath: string): string { return join(stateDir(dbPath), "state.json"); }
 function spoolPath(dbPath: string): string { return join(stateDir(dbPath), "spool.jsonl"); }
 
-function atomicWrite(path: string, value: string): void {
+export function atomicWrite(path: string, value: string): void {
   mkdirSync(dirname(path), { recursive: true });
   const tmp = `${path}.tmp`;
   writeFileSync(tmp, value, "utf8");
@@ -171,25 +172,24 @@ export function collectUsage(config: UsageTelemetryConfig, checkpoint: Checkpoin
   } finally { db.close(); }
 }
 
-function loadSpool(dbPath: string): PendingBatch[] {
+export function readTelemetrySpool<C>(path: string): TelemetryBatch<C>[] {
   try {
-    return readFileSync(spoolPath(dbPath), "utf8").split("\n").filter(Boolean).flatMap(line => {
-      try { const record = JSON.parse(line) as PendingBatch; return record?.points?.length ? [record] : []; } catch { return []; }
+    return readFileSync(path, "utf8").split("\n").filter(Boolean).flatMap(line => {
+      try { const record = JSON.parse(line) as TelemetryBatch<C>; return record?.points?.length ? [record] : []; } catch { return []; }
     });
   } catch { return []; }
 }
 
-function saveSpool(batches: PendingBatch[], dbPath: string): void {
+export function writeTelemetrySpool<C>(path: string, batches: TelemetryBatch<C>[]): void {
   const cutoff = Date.now() - MAX_SPOOL_AGE_MS;
   let retained = batches.filter(batch => Date.parse(batch.createdAt) >= cutoff);
   while (retained.length && Buffer.byteLength(retained.map(item => JSON.stringify(item)).join("\n"), "utf8") > MAX_SPOOL_BYTES) retained = retained.slice(1);
-  const path = spoolPath(dbPath);
   if (!retained.length) { try { unlinkSync(path); } catch {} return; }
   atomicWrite(path, `${retained.map(item => JSON.stringify(item)).join("\n")}\n`);
 }
 
 export function enqueue(batch: PendingBatch, dbPath = messagesDbPath()): void {
-  const batches = loadSpool(dbPath); batches.push(batch); saveSpool(batches, dbPath);
+  const batches = readTelemetrySpool<Checkpoint>(spoolPath(dbPath)); batches.push(batch); writeTelemetrySpool(spoolPath(dbPath), batches);
 }
 
 export async function sendCarbon(host: string, port: number, points: MetricPoint[]): Promise<void> {
@@ -206,7 +206,7 @@ export async function sendCarbon(host: string, port: number, points: MetricPoint
 }
 
 export async function flushSpool(config: UsageTelemetryConfig, dbPath = messagesDbPath()): Promise<number> {
-  const batches = loadSpool(dbPath);
+  const batches = readTelemetrySpool<Checkpoint>(spoolPath(dbPath));
   let sent = 0;
   while (batches.length) {
     const points = batches[0].points.map(point => {
@@ -218,7 +218,7 @@ export async function flushSpool(config: UsageTelemetryConfig, dbPath = messages
     });
     await sendCarbon(config.graphite_host, config.graphite_port, points);
     batches.shift(); sent += 1;
-    saveSpool(batches, dbPath);
+    writeTelemetrySpool(spoolPath(dbPath), batches);
   }
   return sent;
 }
