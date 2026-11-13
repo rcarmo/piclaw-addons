@@ -34,15 +34,16 @@ function handleRoute(req: Request, pathname: string): Response | null {
     return new Response("Method Not Allowed", { status: 405 });
   }
 
-  let relative = pathname.replace(/^\/mindmap-vendor\/?/, "");
-  const qIdx = relative.indexOf("?");
-  if (qIdx >= 0) relative = relative.substring(0, qIdx);
+  // Keep this name distinct from node:path relative(), used for containment below.
+  let assetPath = pathname.replace(/^\/mindmap-vendor\/?/, "");
+  const qIdx = assetPath.indexOf("?");
+  if (qIdx >= 0) assetPath = assetPath.substring(0, qIdx);
 
-  if (!relative || relative.includes("..") || relative.startsWith("/")) {
+  if (!assetPath || assetPath.includes("..") || assetPath.startsWith("/")) {
     return new Response("Not Found", { status: 404 });
   }
 
-  const filePath = resolve(VENDOR_DIR, relative);
+  const filePath = resolve(VENDOR_DIR, assetPath);
   let realPath: string;
   try {
     realPath = realpathSync(filePath);
