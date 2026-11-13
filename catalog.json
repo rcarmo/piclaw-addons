@@ -429,7 +429,7 @@
     {
       "slug": "late-night-regrets",
       "name": "@rcarmo/piclaw-addon-late-night-regrets",
-      "version": "0.3.1",
+      "version": "0.3.2",
       "type": "extension",
       "description": "Budgeted nightly contextual feedback review with optional decision-model triage",
       "path": "addons/late-night-regrets",
@@ -445,9 +445,9 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-late-night-regrets-0.3.1.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-late-night-regrets-0.3.2.tgz"
       },
-      "updatedAt": "2026-11-02"
+      "updatedAt": "2026-11-10"
     },
     {
       "slug": "linkr",
@@ -540,7 +540,7 @@
     {
       "slug": "mindmap",
       "name": "@rcarmo/piclaw-addon-mindmap",
-      "version": "0.1.4",
+      "version": "0.1.5",
       "type": "extension",
       "description": "D3-based mindmap editor pane for .mindmap.yaml files in Piclaw",
       "path": "addons/mindmap",
@@ -554,9 +554,9 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-mindmap-0.1.4.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-mindmap-0.1.5.tgz"
       },
-      "updatedAt": "2026-09-10"
+      "updatedAt": "2026-10-20"
     },
     {
       "slug": "observability",
