@@ -12,6 +12,7 @@ interface AddonPackage {
   name?: string;
   version?: string;
   description?: string;
+  deprecated?: string;
   homepage?: string;
   keywords?: string[];
   main?: string;
@@ -177,6 +178,9 @@ async function buildMetadata() {
     }
 
     await validateCorePeerDependencies(addonRoot, slug, pkg);
+    // Retain deprecated package sources/artifacts for existing installations,
+    // but do not offer them for new installs or aggregate auto-loading.
+    if (pkg.deprecated) continue;
 
     for (const ext of (pkg.pi?.extensions ?? [])) {
       const rel = join('addons', slug, ext).replaceAll('\\', '/');

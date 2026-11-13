@@ -1,10 +1,12 @@
 # Session Dashboard
 
-A roll-down dashboard for recent Piclaw sessions. Requires Piclaw `>=2.0.0`.
+**Deprecated.** Use the built-in Workbench **Sessions** view. Session Dashboard is no longer offered in the Settings install catalogue or the monorepo's aggregate extension loader.
 
-## Install
+Existing package source and installed data are retained for compatibility; this deprecation does not uninstall anything or rewrite history. The separate dashboard-widget tooling is unchanged.
 
-Open **Settings → Add-Ons** and install **session-dashboard** from the catalog, then reload Piclaw.
+## Existing installations
+
+The behaviour below documents existing installations only. Remove the add-on through Settings → Add-Ons if it is still installed; no replacement plug-in or data migration is required.
 
 ## Use
 

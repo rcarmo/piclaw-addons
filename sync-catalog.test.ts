@@ -58,6 +58,23 @@ test('synced metadata checks without writes; generation is deterministic and pre
   } finally { rmSync(f.dir, { recursive: true, force: true }); }
 });
 
+test('deprecated packages remain on disk but are excluded from the install catalogue and aggregate loader', () => {
+  const f = fixture();
+  try {
+    const path = join(f.dir, 'addons/example/package.json');
+    const pkg = JSON.parse(readFileSync(path, 'utf8'));
+    pkg.deprecated = 'Use the built-in Workbench Sessions view.';
+    writeFileSync(path, JSON.stringify(pkg));
+    expect(f.run('--write').exitCode).toBe(0);
+    const [catalog, rootPackage] = f.metadata().map(value => JSON.parse(value));
+    expect(catalog.addons).toEqual([]); expect(rootPackage.pi.extensions).toEqual([]);
+    expect(readFileSync(join(f.dir, 'addons/example/index.ts'), 'utf8')).toContain('export default');
+    expect(JSON.parse(readFileSync(path, 'utf8')).deprecated).toBe(pkg.deprecated);
+    expect(f.run('--check').exitCode).toBe(0);
+    expect(f.run('--write').stdout.toString()).toContain('already in sync');
+  } finally { rmSync(f.dir, { recursive: true, force: true }); }
+});
+
 test('stale metadata fails read-only checks until explicitly regenerated', () => {
   const f = fixture();
   try {
