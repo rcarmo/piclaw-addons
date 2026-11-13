@@ -1,4 +1,4 @@
-import { lateNightRegretsIcon } from './icon';
+import { lateNightRegretsIcon } from './icon.ts';
 
 type ModelOption = { id: string; name: string };
 interface Config {
