@@ -2,6 +2,7 @@
   "name": "@rcarmo/piclaw-addon-session-dashboard",
   "version": "0.2.6",
   "description": "Roll-down active session dashboard with recent work summaries and context indicators",
+  "deprecated": "Use the built-in Workbench Sessions view. Session Dashboard is retained only for existing installations and is no longer offered in the catalogue.",
   "type": "module",
   "main": "index.ts",
   "piclaw": {
@@ -11,8 +12,7 @@
       "session",
       "dashboard",
       "navigation",
-      "ui",
-      "core"
+      "ui"
     ]
   },
   "pi": {

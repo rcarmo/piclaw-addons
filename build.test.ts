@@ -52,11 +52,14 @@ test("only the selected core add-ons carry the core tag", () => {
     const manifest = JSON.parse(readFileSync(join(repoRoot, path), "utf8"));
     return manifest.piclaw?.tags?.includes("core") ? [path.split("/")[1]] : [];
   });
-  expect(coreSlugs).toEqual(["code-review", "delegate", "goal", "observability", "plan-sidebar", "restic", "session-dashboard"]);
+  expect(coreSlugs).toEqual(["code-review", "delegate", "goal", "observability", "plan-sidebar", "restic"]);
+  const dashboard = JSON.parse(readFileSync(join(repoRoot, 'addons/session-dashboard/package.json'), 'utf8'));
+  expect(dashboard.deprecated).toContain('Workbench Sessions');
 
   const catalog = JSON.parse(readFileSync(join(repoRoot, "catalog.json"), "utf8"));
   const catalogCoreSlugs = catalog.addons.filter((addon: any) => addon.tags?.includes("core")).map((addon: any) => addon.slug).sort();
   expect(catalogCoreSlugs).toEqual(coreSlugs);
+  expect(catalog.addons.some((addon: any) => addon.slug === 'session-dashboard')).toBe(false);
   const manifestVersions = Object.fromEntries(coreSlugs.map((slug) => [slug, JSON.parse(readFileSync(join(repoRoot, "addons", slug!, "package.json"), "utf8")).version]));
   expect(Object.fromEntries(catalog.addons.filter((addon: any) => catalogCoreSlugs.includes(addon.slug)).map((addon: any) => [addon.slug, addon.version]))).toEqual(manifestVersions);
 });
