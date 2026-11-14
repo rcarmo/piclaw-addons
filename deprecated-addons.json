@@ -2,6 +2,13 @@
   "session-dashboard": {
     "reason": "Use the built-in Workbench Sessions view. Session Dashboard is retained only for existing installations and is no longer offered in the catalogue.",
     "version": "0.2.6",
-    "sourceSha256": "cf0349871b7f07f56bad854e8a33f5f69f3c3bbf9fd60b631b8e054fb3ec7f5a"
+    "sourceSha256": "cf0349871b7f07f56bad854e8a33f5f69f3c3bbf9fd60b631b8e054fb3ec7f5a",
+    "archiveSha256": "ffc1ebce17a5657138bf3f3d620b076a92d464da132972ee5c068c56e0d7ac21"
+  },
+  "plan-sidebar": {
+    "reason": "Plan is built into Piclaw Core v4: use the Workbench Plan tab and native plan tool. This package is retained unchanged for older installations and is no longer offered in the catalogue.",
+    "version": "0.1.28",
+    "sourceSha256": "9544865f1beb42bebefd7db7136cb6252ab967fa9b5bb016663a49f5631682ed",
+    "archiveSha256": "d504f4e0dbe58ba2ef3728d6bad50db64d5a82937cc26eafb84a5fb1cd76f19d"
   }
 }

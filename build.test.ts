@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { packAddon } from "./scripts/lib/pack-addon.js";
-import { addonSourceDigest, deprecatedArchives, readDeprecatedAddons } from "./scripts/lib/deprecated-addons.ts";
+import { addonSourceDigest, deprecatedArchives, readDeprecatedAddons, downloadDeprecatedArchive } from "./scripts/lib/deprecated-addons.ts";
 import { join } from "node:path";
 
 const repoRoot = new URL(".", import.meta.url).pathname;
@@ -54,7 +54,7 @@ test("only the selected core add-ons carry the core tag", () => {
     const manifest = JSON.parse(readFileSync(join(repoRoot, path), "utf8"));
     return manifest.piclaw?.tags?.includes("core") ? [path.split("/")[1]] : [];
   });
-  expect(coreSlugs).toEqual(["code-review", "delegate", "goal", "observability", "plan-sidebar", "restic"]);
+  expect(coreSlugs).toEqual(["code-review", "delegate", "goal", "observability", "restic"]);
   const dashboard = JSON.parse(readFileSync(join(repoRoot, 'addons/session-dashboard/package.json'), 'utf8'));
   expect(dashboard.deprecated).toBeUndefined();
   expect(deprecated["session-dashboard"]?.reason).toContain('Workbench Sessions');
@@ -69,13 +69,14 @@ test("only the selected core add-ons carry the core tag", () => {
 
 test("deprecated add-ons keep their exact published sources and versioned archives", () => {
   const deprecated = readDeprecatedAddons(repoRoot);
-  expect(Object.keys(deprecated)).toEqual(["session-dashboard"]);
+  expect(Object.keys(deprecated).sort()).toEqual(["plan-sidebar", "session-dashboard"]);
+  expect(deprecated["plan-sidebar"]).toMatchObject({version:"0.1.28",sourceSha256:addonSourceDigest(join(repoRoot,"addons/plan-sidebar"))});
   const dashboard = join(repoRoot, "addons/session-dashboard");
   expect(deprecated["session-dashboard"]).toMatchObject({ version: "0.2.6", sourceSha256: addonSourceDigest(dashboard) });
   // The manifest bytes installed sites already hold and Piclaw pins for 0.2.6.
   const manifest = readFileSync(join(dashboard, "package.json"));
   expect(new Bun.CryptoHasher("sha256").update(manifest).digest("hex")).toBe("9daa053e17a8b56713de452b300de7df86c036c9100ad2857d52a6f3c1a7b964");
-  expect(deprecatedArchives(repoRoot)).toEqual([{ dir: dashboard, file: "piclaw-addon-session-dashboard-0.2.6.tgz" }]);
+  expect(deprecatedArchives(repoRoot)).toEqual([{ dir: dashboard, file: "piclaw-addon-session-dashboard-0.2.6.tgz", sha256: deprecated["session-dashboard"]!.archiveSha256 }, {dir:join(repoRoot,"addons/plan-sidebar"),file:"piclaw-addon-plan-sidebar-0.1.28.tgz",sha256:deprecated["plan-sidebar"]!.archiveSha256}]);
   expect(buildSource).toContain("for (const archive of deprecatedArchives(ROOT))");
   const root = mkdtempSync(join(tmpdir(), "deprecated-archive-"));
   try {
@@ -84,4 +85,14 @@ test("deprecated add-ons keep their exact published sources and versioned archiv
     const extracted = Bun.spawnSync(["tar", "-xOzf", archive, "package/package.json"], { stdout: "pipe" }).stdout;
     expect(Buffer.from(extracted).equals(manifest)).toBe(true);
   } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("deprecated archives retain exact bytes and reject HTTP failure or changed gzip metadata", async () => {
+  const bytes = new TextEncoder().encode("published archive bytes");
+  const hash = new Bun.CryptoHasher("sha256").update(bytes).digest("hex");
+  const fake = ((async () => new Response(bytes)) as unknown) as typeof fetch;
+  expect(await downloadDeprecatedArchive("https://fixture/archive.tgz", hash, fake)).toEqual(bytes);
+  await expect(downloadDeprecatedArchive("https://fixture/archive.tgz", "a".repeat(64), fake)).rejects.toThrow("checksum mismatch");
+  const missing = ((async () => new Response(null, { status: 404 })) as unknown) as typeof fetch;
+  await expect(downloadDeprecatedArchive("https://fixture/archive.tgz", hash, missing)).rejects.toThrow("unavailable: 404");
 });

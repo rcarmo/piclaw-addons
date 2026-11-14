@@ -53,7 +53,6 @@
       "addons/observability/index.ts",
       "addons/office-tools/index.ts",
       "addons/office-viewer/index.ts",
-      "addons/plan-sidebar/index.ts",
       "addons/portainer/index.ts",
       "addons/proxmox/index.ts",
       "addons/remote-peer/index.ts",
