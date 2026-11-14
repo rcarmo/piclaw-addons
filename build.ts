@@ -1,6 +1,6 @@
 /**
  * build.ts — generates index.html + per-addon pages for piclaw-addons
- * Data source: catalog.json only (no external API calls)
+ * Data source: catalog.json; deprecated archive bytes are hash-pinned public assets
  * Run: bun run build.ts
  */
 
@@ -8,7 +8,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, copyFi
 import { join, dirname, normalize } from "path";
 import { marked } from "marked";
 import { packAddon } from './scripts/lib/pack-addon.js';
-import { deprecatedArchives } from './scripts/lib/deprecated-addons.ts';
+import { deprecatedArchives, downloadDeprecatedArchive } from './scripts/lib/deprecated-addons.ts';
 
 const ROOT    = dirname(Bun.main);
 const CATALOG = join(ROOT, "catalog.json");
@@ -769,7 +769,7 @@ for (const addon of addons) {
 // Deprecated releases leave the catalogue but keep their archives, so
 // existing installations and lockfiles still resolve.
 for (const archive of deprecatedArchives(ROOT)) {
-  packAddon(archive.dir, join(OUT, "packages", archive.file));
+  writeFileSync(join(OUT, "packages", archive.file), await downloadDeprecatedArchive(`${SITE_URL}/packages/${archive.file}`, archive.sha256));
   console.log(`✓ retained deprecated ${archive.file}`);
 }
 

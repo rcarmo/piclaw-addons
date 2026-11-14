@@ -67,7 +67,7 @@ test('deprecated packages keep their published bytes but leave the install catal
     const bytes = readFileSync(path);
     const metadata = join(f.dir, 'deprecated-addons.json');
     writeFileSync(metadata, JSON.stringify({ example: { reason: 'Use the built-in Workbench Sessions view.', version: '1.0.0',
-      sourceSha256: addonSourceDigest(join(f.dir, 'addons/example')) } }));
+      archiveSha256: 'a'.repeat(64), sourceSha256: addonSourceDigest(join(f.dir, 'addons/example')) } }));
     expect(f.run('--write').exitCode).toBe(0);
     const [catalog, rootPackage] = f.metadata().map(value => JSON.parse(value));
     expect(catalog.addons).toEqual([]); expect(rootPackage.pi.extensions).toEqual([]);
@@ -81,7 +81,7 @@ test('deprecated packages keep their published bytes but leave the install catal
     expect(changed.exitCode).not.toBe(0);
     expect(changed.stderr.toString()).toContain('deprecated add-on example changed');
     writeFileSync(join(f.dir, 'addons/example/index.ts'), 'export default function () {}\n');
-    writeFileSync(metadata, JSON.stringify({ example: { reason: 'x', version: '2.0.0', sourceSha256: addonSourceDigest(join(f.dir, 'addons/example')) } }));
+    writeFileSync(metadata, JSON.stringify({ example: { reason: 'x', version: '2.0.0', archiveSha256: 'a'.repeat(64), sourceSha256: addonSourceDigest(join(f.dir, 'addons/example')) } }));
     expect(f.run('--check').stderr.toString()).toContain('deprecated add-on example is 1.0.0, not 2.0.0');
   } finally { rmSync(f.dir, { recursive: true, force: true }); }
 });
