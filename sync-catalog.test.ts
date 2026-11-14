@@ -2,12 +2,14 @@ import { expect, test } from 'bun:test';
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { addonSourceDigest } from './scripts/lib/deprecated-addons.ts';
 
 const root = import.meta.dir;
 
 function fixture() {
   const dir = mkdtempSync(join(tmpdir(), 'catalog-sync-'));
-  mkdirSync(join(dir, 'scripts'));
+  mkdirSync(join(dir, 'scripts/lib'), { recursive: true });
+  copyFileSync(join(root, 'scripts/lib/deprecated-addons.ts'), join(dir, 'scripts/lib/deprecated-addons.ts'));
   mkdirSync(join(dir, 'addons/example'), { recursive: true });
   copyFileSync(join(root, 'scripts/sync-catalog.ts'), join(dir, 'scripts/sync-catalog.ts'));
   writeFileSync(join(dir, 'addons/example/index.ts'), 'export default function () {}\n');
@@ -58,20 +60,29 @@ test('synced metadata checks without writes; generation is deterministic and pre
   } finally { rmSync(f.dir, { recursive: true, force: true }); }
 });
 
-test('deprecated packages remain on disk but are excluded from the install catalogue and aggregate loader', () => {
+test('deprecated packages keep their published bytes but leave the install catalogue and aggregate loader', () => {
   const f = fixture();
   try {
     const path = join(f.dir, 'addons/example/package.json');
-    const pkg = JSON.parse(readFileSync(path, 'utf8'));
-    pkg.deprecated = 'Use the built-in Workbench Sessions view.';
-    writeFileSync(path, JSON.stringify(pkg));
+    const bytes = readFileSync(path);
+    const metadata = join(f.dir, 'deprecated-addons.json');
+    writeFileSync(metadata, JSON.stringify({ example: { reason: 'Use the built-in Workbench Sessions view.', version: '1.0.0',
+      sourceSha256: addonSourceDigest(join(f.dir, 'addons/example')) } }));
     expect(f.run('--write').exitCode).toBe(0);
     const [catalog, rootPackage] = f.metadata().map(value => JSON.parse(value));
     expect(catalog.addons).toEqual([]); expect(rootPackage.pi.extensions).toEqual([]);
-    expect(readFileSync(join(f.dir, 'addons/example/index.ts'), 'utf8')).toContain('export default');
-    expect(JSON.parse(readFileSync(path, 'utf8')).deprecated).toBe(pkg.deprecated);
+    expect(readFileSync(path).equals(bytes)).toBe(true);
     expect(f.run('--check').exitCode).toBe(0);
     expect(f.run('--write').stdout.toString()).toContain('already in sync');
+
+    // A deprecated release is frozen: editing it, or changing its version, fails every catalogue run.
+    writeFileSync(join(f.dir, 'addons/example/index.ts'), 'export default function () { return 1; }\n');
+    const changed = f.run('--check');
+    expect(changed.exitCode).not.toBe(0);
+    expect(changed.stderr.toString()).toContain('deprecated add-on example changed');
+    writeFileSync(join(f.dir, 'addons/example/index.ts'), 'export default function () {}\n');
+    writeFileSync(metadata, JSON.stringify({ example: { reason: 'x', version: '2.0.0', sourceSha256: addonSourceDigest(join(f.dir, 'addons/example')) } }));
+    expect(f.run('--check').stderr.toString()).toContain('deprecated add-on example is 1.0.0, not 2.0.0');
   } finally { rmSync(f.dir, { recursive: true, force: true }); }
 });
 

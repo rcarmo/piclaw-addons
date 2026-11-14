@@ -335,6 +335,8 @@ Add `owner` and `contributors` to your new entry in `catalog.json` — these fie
 - For screenshot capture runs, use the microVM as a clean fixture: prefer overlayfs, expose the target add-on only, keep `cheapskate` out of the actual screenshot, then reinstall or restore `cheapskate` afterward
 - Skills go in `skills/<name>/SKILL.md`
 - Bump version for every functional change
+- Never change the files of a published version. Piclaw pins installed add-on bytes per version, so in-place edits break existing installations; publish a new version instead
+- Deprecate an add-on in `deprecated-addons.json` (reason, last version and `sourceSha256` from `addonSourceDigest`), never in its `package.json`. Deprecated add-ons leave the catalogue and aggregate loader but keep their versioned archive; catalogue checks fail if their files change
 - Run `sync:catalog` after every `package.json` edit
 - Catalog install entries for first-party add-ons must stay `kind: "tarball"` with public `https://rcarmo.github.io/piclaw-addons/packages/...tgz` URLs
 

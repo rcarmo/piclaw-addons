@@ -2,6 +2,7 @@
 import { existsSync } from 'node:fs';
 import { readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join, relative, resolve } from 'node:path';
+import { readDeprecatedAddons } from './lib/deprecated-addons.ts';
 
 interface AgentSkillEntry {
   name?: string;
@@ -12,7 +13,6 @@ interface AddonPackage {
   name?: string;
   version?: string;
   description?: string;
-  deprecated?: string;
   homepage?: string;
   keywords?: string[];
   main?: string;
@@ -163,6 +163,7 @@ async function buildMetadata() {
     } catch { /* ignore */ }
   }
 
+  const deprecated = readDeprecatedAddons(repoRoot);
   for (const slug of slugs) {
     const addonRoot = join(addonsDir, slug);
     const pkgPath = join(addonRoot, 'package.json');
@@ -180,7 +181,7 @@ async function buildMetadata() {
     await validateCorePeerDependencies(addonRoot, slug, pkg);
     // Retain deprecated package sources/artifacts for existing installations,
     // but do not offer them for new installs or aggregate auto-loading.
-    if (pkg.deprecated) continue;
+    if (slug in deprecated) continue;
 
     for (const ext of (pkg.pi?.extensions ?? [])) {
       const rel = join('addons', slug, ext).replaceAll('\\', '/');

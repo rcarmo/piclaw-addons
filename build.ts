@@ -8,6 +8,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, copyFi
 import { join, dirname, normalize } from "path";
 import { marked } from "marked";
 import { packAddon } from './scripts/lib/pack-addon.js';
+import { deprecatedArchives } from './scripts/lib/deprecated-addons.ts';
 
 const ROOT    = dirname(Bun.main);
 const CATALOG = join(ROOT, "catalog.json");
@@ -764,6 +765,12 @@ for (const addon of addons) {
   const outPath  = join(OUT, "packages", `${baseName}-${addon.version}.tgz`);
   packAddon(addonDir, outPath);
   console.log(`✓ packed ${addon.name}@${addon.version}`);
+}
+// Deprecated releases leave the catalogue but keep their archives, so
+// existing installations and lockfiles still resolve.
+for (const archive of deprecatedArchives(ROOT)) {
+  packAddon(archive.dir, join(OUT, "packages", archive.file));
+  console.log(`✓ retained deprecated ${archive.file}`);
 }
 
 // ── Packages index page ───────────────────────────────────────────────────────
