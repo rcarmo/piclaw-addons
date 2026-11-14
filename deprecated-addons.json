@@ -1,0 +1,7 @@
+{
+  "session-dashboard": {
+    "reason": "Use the built-in Workbench Sessions view. Session Dashboard is retained only for existing installations and is no longer offered in the catalogue.",
+    "version": "0.2.6",
+    "sourceSha256": "cf0349871b7f07f56bad854e8a33f5f69f3c3bbf9fd60b631b8e054fb3ec7f5a"
+  }
+}
