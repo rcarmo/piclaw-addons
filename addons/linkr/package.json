@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-linkr",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Radxa Linkr KVM screenshots, bounded HID and firmware-entry jobs, with BIOS, boot and OS installation skills.",
   "type": "module",
   "main": "index.ts",

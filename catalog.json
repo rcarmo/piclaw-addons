@@ -47,7 +47,7 @@
     {
       "slug": "cheapskate",
       "name": "@rcarmo/piclaw-addon-cheapskate",
-      "version": "0.5.2",
+      "version": "0.5.3",
       "type": "extension",
       "description": "Catalogue-backed zero-cost model routing through one virtual cheapskate/auto model, with request-local failover and a free-only Settings pane",
       "path": "addons/cheapskate",
@@ -62,14 +62,14 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-cheapskate-0.5.2.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-cheapskate-0.5.3.tgz"
       },
-      "updatedAt": "2026-09-19"
+      "updatedAt": "2026-10-12"
     },
     {
       "slug": "code-review",
       "name": "@rcarmo/piclaw-addon-code-review",
-      "version": "0.1.11",
+      "version": "0.1.12",
       "type": "extension",
       "description": "Saved-source and Git-diff reviews with durable inline discussions and explicit queued agent work",
       "path": "addons/code-review",
@@ -82,7 +82,7 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-code-review-0.1.11.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-code-review-0.1.12.tgz"
       },
       "updatedAt": "2026-10-27"
     },
@@ -131,7 +131,7 @@
     {
       "slug": "delegate",
       "name": "@rcarmo/piclaw-addon-delegate",
-      "version": "0.2.22",
+      "version": "0.2.23",
       "type": "extension",
       "description": "Delegate tasks to operator-approved child-Pi models with fail-closed enforcement",
       "path": "addons/delegate",
@@ -147,9 +147,9 @@
       ],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-delegate-0.2.22.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-delegate-0.2.23.tgz"
       },
-      "updatedAt": "2026-11-05"
+      "updatedAt": "2026-11-10"
     },
     {
       "slug": "dev-tools",
@@ -321,7 +321,7 @@
     {
       "slug": "goal",
       "name": "@rcarmo/piclaw-addon-goal",
-      "version": "0.1.50",
+      "version": "0.1.51",
       "type": "extension",
       "description": "Codex-style persisted thread goals with a hardened autonomous continuation loop and visible completion/stop summaries",
       "path": "addons/goal",
@@ -337,9 +337,9 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-goal-0.1.50.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-goal-0.1.51.tgz"
       },
-      "updatedAt": "2026-10-19"
+      "updatedAt": "2026-10-27"
     },
     {
       "slug": "image-processing",
@@ -365,7 +365,7 @@
     {
       "slug": "imap",
       "name": "@rcarmo/piclaw-addon-imap",
-      "version": "0.1.13",
+      "version": "0.1.14",
       "type": "extension",
       "description": "IMAP email management tool — search/fetch, move/copy, flag, create drafts, file messages, and STARTTLS support",
       "path": "addons/imap",
@@ -379,9 +379,9 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-imap-0.1.13.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-imap-0.1.14.tgz"
       },
-      "updatedAt": "2026-10-19"
+      "updatedAt": "2026-10-27"
     },
     {
       "slug": "kanban-board-widget",
@@ -429,7 +429,7 @@
     {
       "slug": "late-night-regrets",
       "name": "@rcarmo/piclaw-addon-late-night-regrets",
-      "version": "0.3.2",
+      "version": "0.3.3",
       "type": "extension",
       "description": "Budgeted nightly contextual feedback review with optional decision-model triage",
       "path": "addons/late-night-regrets",
@@ -445,14 +445,14 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-late-night-regrets-0.3.2.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-late-night-regrets-0.3.3.tgz"
       },
-      "updatedAt": "2026-11-10"
+      "updatedAt": "2026-11-13"
     },
     {
       "slug": "linkr",
       "name": "@rcarmo/piclaw-addon-linkr",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "type": "extension",
       "description": "Radxa Linkr KVM screenshots, bounded HID and firmware-entry jobs, with BIOS, boot and OS installation skills.",
       "path": "addons/linkr",
@@ -473,9 +473,9 @@
       ],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-linkr-0.1.1.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-linkr-0.1.2.tgz"
       },
-      "updatedAt": "2026-09-19"
+      "updatedAt": "2026-10-12"
     },
     {
       "slug": "lite-term",
@@ -561,7 +561,7 @@
     {
       "slug": "observability",
       "name": "@rcarmo/piclaw-addon-observability",
-      "version": "0.1.25",
+      "version": "0.1.26",
       "type": "extension",
       "description": "OpenTelemetry observability — trace errors and agent turns across piclaw instances to Azure Application Insights (with Live Metrics) and local Graphite",
       "path": "addons/observability",
@@ -582,9 +582,9 @@
       ],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-observability-0.1.25.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-observability-0.1.26.tgz"
       },
-      "updatedAt": "2026-11-11"
+      "updatedAt": "2026-11-13"
     },
     {
       "slug": "office-tools",
@@ -635,7 +635,7 @@
     {
       "slug": "portainer",
       "name": "@rcarmo/piclaw-addon-portainer",
-      "version": "0.1.11",
+      "version": "0.1.12",
       "type": "extension",
       "description": "Portainer management tool — session-scoped API config, ad-hoc requests, and orchestration workflows for endpoints, stacks, containers, images, networks, and volumes",
       "path": "addons/portainer",
@@ -649,14 +649,14 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-portainer-0.1.11.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-portainer-0.1.12.tgz"
       },
-      "updatedAt": "2026-10-20"
+      "updatedAt": "2026-10-27"
     },
     {
       "slug": "proxmox",
       "name": "@rcarmo/piclaw-addon-proxmox",
-      "version": "0.1.12",
+      "version": "0.1.13",
       "type": "extension",
       "description": "Proxmox VE management tool — session-scoped API config, ad-hoc requests, and orchestration workflows for VMs, LXC containers, storage, tasks, and metrics",
       "path": "addons/proxmox",
@@ -670,9 +670,9 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-proxmox-0.1.12.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-proxmox-0.1.13.tgz"
       },
-      "updatedAt": "2026-10-20"
+      "updatedAt": "2026-10-27"
     },
     {
       "slug": "remote-peer",
@@ -730,7 +730,7 @@
     {
       "slug": "sample-addon",
       "name": "@rcarmo/piclaw-addon-sample-addon",
-      "version": "0.1.11",
+      "version": "0.1.12",
       "type": "extension",
       "description": "Sample add-on — starter template showing a settings pane, keychain secret, SQLite KV config, and a test endpoint",
       "path": "addons/sample-addon",
@@ -743,7 +743,7 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-sample-addon-0.1.11.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-sample-addon-0.1.12.tgz"
       },
       "updatedAt": "2026-09-18"
     },
@@ -859,7 +859,7 @@
     {
       "slug": "telegram",
       "name": "@rcarmo/piclaw-addon-telegram",
-      "version": "0.3.1",
+      "version": "0.3.2",
       "type": "extension",
       "description": "Telegram Bot channel for PiClaw. Long-polls the Bot API at startup for local notices. Inbound agent access is currently unavailable.",
       "path": "addons/telegram",
@@ -872,14 +872,14 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-telegram-0.3.1.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-telegram-0.3.2.tgz"
       },
-      "updatedAt": "2026-10-12"
+      "updatedAt": "2026-10-13"
     },
     {
       "slug": "vent",
       "name": "@rcarmo/piclaw-addon-vent",
-      "version": "0.1.4",
+      "version": "0.1.5",
       "type": "extension",
       "description": "Workspace vent log add-on, adapted from pi-vent by Igor Warzocha, with a configurable output file",
       "path": "addons/vent",
@@ -894,7 +894,7 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-vent-0.1.4.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-vent-0.1.5.tgz"
       },
       "updatedAt": "2026-09-19"
     },
@@ -945,7 +945,7 @@
     {
       "slug": "whatsapp",
       "name": "@rcarmo/piclaw-addon-whatsapp",
-      "version": "0.1.4",
+      "version": "0.1.5",
       "type": "extension",
       "description": "WhatsApp channel for PiClaw via Baileys. Connects to WhatsApp Web, receives/sends messages, and routes them through the agent.",
       "path": "addons/whatsapp",
@@ -958,7 +958,7 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-whatsapp-0.1.4.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-whatsapp-0.1.5.tgz"
       },
       "updatedAt": "2026-09-19"
     },

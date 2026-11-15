@@ -1,6 +1,6 @@
 import { action, requestId, escapeText } from "./api.ts";
 import { reviewPane } from "./pane.ts";
-import { styles, actionStyles } from "./styles.ts";
+import { styles, actionStyles, settingsStyles } from "./styles.ts";
 const runtime = (globalThis as Record<string, any>).__piclaw_web;
 const prefix = "piclaw://addon/code-review/";
 let installed = false;
@@ -79,12 +79,12 @@ function ReviewSettings() {
     const api = (name: string, data: Record<string, unknown> = {}) => action(name, data, abort.signal);
     const render = () => {
       if (abort.signal.aborted) return;
-      node.innerHTML = `<h3>Reviews</h3><p>Open saved reviews even when the source file is gone. Deleting a review removes its discussions, drafts and saved versions, never source files.</p>
-      <div class="cr-retention"><label><input id="cr-retention-enabled" type="checkbox" ${days !== null ? 'checked' : ''} title="Automatically delete inactive reviews after the configured age."> Automatically delete reviews older than</label><input id="cr-retention-days" type="number" min="1" max="3650" value="${days ?? 30}" aria-label="Review retention days" title="Days since the last review activity." ${days === null ? 'disabled' : ''}> days <button data-settings-action="save" title="Save the automatic deletion policy; source files are never deleted." ${busy ? 'disabled' : ''}>Save</button></div>
-      <small>Off by default. Checks hourly while Piclaw is running and when this page refreshes. Queued, running and uncertain work is skipped.</small>
-      <div role="status">${escapeText(status)}</div><div><button data-settings-action="refresh" title="Refresh saved reviews and apply the enabled cleanup policy." ${busy ? 'disabled' : ''}>Refresh</button></div>
-      <div class="cr-review-list">${rows.length ? rows.map(r => `<article><div class="cr-review-description"><strong>${escapeText(r.title)}</strong><small>${escapeText(r.focus_path)}</small><small>Last activity: ${escapeText(r.updated_at)}</small></div><button data-settings-action="open" data-review="${escapeText(r.id)}" title="Open stored review snapshots without requiring the original file." ${busy ? 'disabled' : ''}>Open</button><button data-settings-action="delete" data-review="${escapeText(r.id)}" title="Permanently delete this review, its messages, drafts and saved versions." data-settings-button="danger" ${busy ? 'disabled' : ''}>Delete</button></article>`).join('') : '<p>No saved reviews.</p>'}</div>
-      ${more ? '<button data-settings-action="more" title="Load more saved reviews.">More reviews</button>' : ''}`;
+      node.innerHTML = `<h3 class="settings-addon-heading">Reviews</h3><p class="settings-addon-help">Open saved reviews even when the source file is gone. Deleting a review removes its discussions, drafts and saved versions, never source files.</p>
+      <div class="cr-retention settings-addon-control-group"><label class="settings-addon-check"><input id="cr-retention-enabled" type="checkbox" ${days !== null ? 'checked' : ''} title="Automatically delete inactive reviews after the configured age."> Automatically delete reviews older than</label><span class="cr-retention-days"><input id="cr-retention-days" class="settings-addon-control" type="number" min="1" max="3650" value="${days ?? 30}" aria-label="Review retention days" title="Days since the last review activity." ${days === null ? 'disabled' : ''}> days</span> <button type="button" data-settings-action="save" title="Save the automatic deletion policy; source files are never deleted." ${busy ? 'disabled' : ''}>Save</button></div>
+      <p class="settings-addon-help">Off by default. Checks hourly while Piclaw is running and when this page refreshes. Queued, running and uncertain work is skipped.</p>
+      <p class="settings-addon-status" role="status">${escapeText(status)}</p><div class="settings-addon-actions"><button type="button" data-settings-action="refresh" title="Refresh saved reviews and apply the enabled cleanup policy." ${busy ? 'disabled' : ''}>Refresh</button></div>
+      <div class="cr-review-list">${rows.length ? rows.map(r => `<article><div class="cr-review-description"><strong>${escapeText(r.title)}</strong><small class="settings-addon-help">${escapeText(r.focus_path)}</small><small class="settings-addon-help">Last activity: ${escapeText(r.updated_at)}</small></div><button type="button" data-settings-action="open" data-review="${escapeText(r.id)}" title="Open stored review snapshots without requiring the original file." ${busy ? 'disabled' : ''}>Open</button><button type="button" data-settings-action="delete" data-review="${escapeText(r.id)}" title="Permanently delete this review, its messages, drafts and saved versions." data-settings-button="danger" ${busy ? 'disabled' : ''}>Delete</button></article>`).join('') : '<p class="settings-addon-status">No saved reviews.</p>'}</div>
+      ${more ? '<button type="button" data-settings-action="more" title="Load more saved reviews.">More reviews</button>' : ''}`;
     };
     const load = async () => {
       const settings = await api('getSettings'); days = settings.retentionDays;
@@ -129,7 +129,7 @@ function ReviewSettings() {
     render();void load().catch(error=>{if(!abort.signal.aborted){status=error.message;render();}});
     return () => {abort.abort();node.removeEventListener('click',click);node.removeEventListener('change',change);};
   }, []);
-  return html`<section ref=${ref} class="cr-reviews-settings" aria-label="Code Review settings"></section>`;
+  return html`<div><style>${settingsStyles}</style><section ref=${ref} class="cr-reviews-settings settings-addon-section" data-settings-addon="code-review" aria-label="Code Review settings"></section></div>`;
 }
 const settingsRegistry = (globalThis as any).__piclaw_web;
 settingsRegistry?.registerSettingsPane?.({

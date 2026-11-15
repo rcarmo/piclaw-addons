@@ -9,9 +9,13 @@ export const settingsStyles = `
   .sample-addon-settings .settings-addon-control { box-sizing: border-box; min-width: 0; max-width: 100%; width: 280px; padding: 4px 8px; background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px; font-size: .85rem; }
   .sample-addon-settings .settings-addon-control-group, .sample-addon-settings .settings-addon-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
   .sample-addon-settings .settings-addon-control-group > .settings-addon-control { flex: 1 1 160px; }
-  .sample-addon-settings .settings-addon-help { font-size: .73rem; color: var(--text-secondary); line-height: 1.4; overflow-wrap: anywhere; }
-  .sample-addon-settings .settings-addon-error { color: var(--danger-color, #dc2626); overflow-wrap: anywhere; }
+  .sample-addon-settings .settings-addon-help { font-size: max(12px, .73rem); color: var(--text-secondary); line-height: 1.4; overflow-wrap: anywhere; }
+  .sample-addon-settings .settings-addon-error { color: var(--danger-color); overflow-wrap: anywhere; }
   .sample-addon-settings .settings-addon-status { color: var(--text-secondary); overflow-wrap: anywhere; }
+  .sample-addon-settings .settings-addon-badge { display: inline-block; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--border-color); color: var(--tone, var(--text-secondary)); font-size: max(12px, .82em); font-weight: 600; white-space: nowrap; }
+  .sample-addon-settings .settings-addon-mono { font-family: var(--font-mono, ui-monospace, monospace); }
+  .sample-addon-settings [data-tone="success"] { --tone: var(--success-color); }
+  .sample-addon-settings [data-tone="danger"] { --tone: var(--danger-color); }
   .sample-addon-settings button { padding: 4px 10px; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg-secondary); color: var(--text-primary); cursor: pointer; font-size: .82rem; }
   .sample-addon-settings :is(button, input):focus-visible { outline: 2px solid var(--accent-color); outline-offset: 2px; }
   .sample-addon-settings :is(button, input):disabled { opacity: .5; }

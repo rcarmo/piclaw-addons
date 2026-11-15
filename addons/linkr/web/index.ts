@@ -64,13 +64,13 @@ export default function register(api: any) {
     };
     return html`<section class="settings-section" data-settings-addon="linkr">
       <style>${settingsFieldStyles}</style>
-      <h3>Linkr KVM</h3>
-      <p>
+      <h3 class="settings-addon-heading">Linkr KVM</h3>
+      <p class="settings-addon-help">
         Profiles identify both the KVM and the attached computer. HID is
         disabled by default. Store tokens in Settings → Keychain; enter only the
         keychain entry name here.
       </p>
-      <p>
+      <p class="settings-addon-help">
         HTTP sends tokens and screen contents unencrypted: use a trusted LAN/VPN
         or verified HTTPS. Power, virtual media and appliance reboot are
         unsupported in this version.
@@ -80,7 +80,7 @@ export default function register(api: any) {
        html`<fieldset
          key=${i}
          disabled=${busy}
-         style="margin:1em 0;padding:1em;min-width:0"
+         class="linkr-profile"
        >
          <legend>${p.label || "New Linkr device"}</legend>
          ${[
@@ -98,7 +98,7 @@ export default function register(api: any) {
             onInput=${(e: any) => update(i, key, e.currentTarget.value)}
         /></label>`,
     )}
-         <label
+         <label class="settings-addon-check"
            ><input
              type="checkbox"
              checked=${p.inputEnabled === true}
@@ -106,23 +106,29 @@ export default function register(api: any) {
            />
            Allow keyboard and mouse input to this computer</label
          >
-         <button
-           type="button"
-           onClick=${() => setProfiles((a: any[]) => a.filter((_: any, n: number) => n !== i))}
-         >
-           Remove profile
-         </button>
+         <div class="settings-addon-actions">
+           <button
+             type="button"
+             data-settings-button="danger"
+             onClick=${() => setProfiles((a: any[]) => a.filter((_: any, n: number) => n !== i))}
+           >
+             Remove profile
+           </button>
+         </div>
        </fieldset>`,
    )}
+      <div class="settings-addon-actions">
       <button
+        type="button"
         disabled=${busy || profiles.length >= 32}
         onClick=${() => setProfiles((a: any[]) => [...a, { id: "", label: "", origin: "", targetIdentity: "", tokenKeychain: "linkr/device-token", inputEnabled: false }])}
       >
         Add device
       </button>
-      <button disabled=${busy} onClick=${save}>Save</button>
-      <p role="status">${message}</p>
-      <p>
+      <button type="button" data-settings-button="primary" disabled=${busy} onClick=${save}>Save</button>
+      </div>
+      <p class="settings-addon-status" role="status">${message}</p>
+      <p class="settings-addon-help">
         Use linkr job.status / job.cancel for bounded jobs. Profiles do not
         provide machine identity attestation; re-confirm the attached computer
         after moving cables.

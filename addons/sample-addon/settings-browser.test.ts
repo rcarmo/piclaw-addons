@@ -1,12 +1,12 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
-import { settingsBrowserEnabled, settingsPaneFixture } from "../../scripts/lib/settings-pane-browser.js";
+import { availableSkins, settingsBrowserEnabled, settingsPaneFixture } from "../../scripts/lib/settings-pane-browser.js";
 
 const browserTest = settingsBrowserEnabled ? test : test.skip;
 let fixture: Awaited<ReturnType<typeof settingsPaneFixture>>;
 beforeAll(async () => { if (settingsBrowserEnabled) fixture = await settingsPaneFixture(new URL("./web/index.ts", import.meta.url).pathname); });
 afterAll(async () => { await fixture?.close(); });
 
-for (const skin of ["classic", "visual", "legacy"]) {
+for (const skin of availableSkins(["classic", "visual", "legacy"])) {
   browserTest(`Sample ${skin}: UI-only persistence and keychain save, errors, labels and fallback`, async () => {
     const { page, errors, url } = await fixture.page(skin);
     let cfg = { enabled: false, greeting: "Hello", secret_keychain: "sample-addon/api-key" };
@@ -42,7 +42,7 @@ for (const skin of ["classic", "visual", "legacy"]) {
       const secret = page.getByLabel("API key", { exact: true });
       await secret.fill("fixture-only-test-secret");
       await page.getByRole("button", { name: "Save", exact: true }).click();
-      await page.getByTitle("Key in keychain").waitFor();
+      await page.getByText("Stored", { exact: true }).waitFor();
       expect(secretWrites).toEqual([{ name: cfg.secret_keychain, secret: "fixture-only-test-secret", type: "token" }]);
       expect(await secret.inputValue()).toBe("");
       expect(JSON.stringify(configWrites)).not.toContain("fixture-only-test-secret");

@@ -1,11 +1,21 @@
 /** Disposable component fixture. Core owns actual Settings-host integration. */
 import { createRequire } from "node:module";
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, extname, join, resolve } from "node:path";
 
 export const settingsBrowserEnabled = process.env.PICLAW_E2E_DISPOSABLE === "1"
   && !!process.env.PICLAW_SETTINGS_CORE_SOURCE;
+
+const visualSettingsPanel = "runtime/web/static/visual/frontend/src/panels/SettingsPanel.tsx";
+/** Core removed the Visual shell (piclaw #1990); older companion cores still ship it. */
+const visualSkinAvailable = settingsBrowserEnabled
+  && existsSync(join(process.env.PICLAW_SETTINGS_CORE_SOURCE!, visualSettingsPanel));
+
+/** Filters a skin matrix down to the shells the companion core actually provides. */
+export function availableSkins<T extends string>(skins: readonly T[]): T[] {
+  return skins.filter((skin) => skin !== "visual" || visualSkinAvailable);
+}
 
 export async function settingsPaneFixture(entry: string, options: { realHost?: boolean } = {}) {
   const core = process.env.PICLAW_SETTINGS_CORE_SOURCE!;
@@ -37,7 +47,7 @@ export async function settingsPaneFixture(entry: string, options: { realHost?: b
         await import('/addon/index.ts');
         requestOpenSettingsDialog({section:registry.getRegisteredSettingsPanes()[0].id});
         vendor.render(vendor.h(SettingsDialogContent,{onClose:()=>{}}),root);
-      } else if (${options.realHost === true} && skin==='visual') {
+${visualSkinAvailable ? `      } else if (${options.realHost === true && visualSkinAvailable} && skin==='visual') {
         const registry=await import(${JSON.stringify(join(core, "runtime/web/static/visual/frontend/src/panels/settings/pane-registry.ts"))});
         const {SettingsPanel}=await import(${JSON.stringify(join(core, "runtime/web/static/visual/frontend/src/panels/SettingsPanel.tsx"))});
         globalThis.__piclawPreactHtm={html:htm.bind(h),...hooks};
@@ -46,7 +56,7 @@ export async function settingsPaneFixture(entry: string, options: { realHost?: b
         await import('/addon/index.ts');
         localStorage.setItem('piclaw-settings-category',registry.getRegisteredPanes().find(p=>p.source==='addon').id);
         render(h(SettingsPanel),root);
-      } else {
+` : ""}      } else {
         globalThis.__piclawPreactHtm={html:htm.bind(h),...hooks};
         globalThis.__piclawSettingsPaneRegistry={registerSettingsPane:({component})=>render(h(component),root),notifySettingsPanesChanged:()=>{}};
         globalThis.__piclaw_web=globalThis.__piclawSettingsPaneRegistry;

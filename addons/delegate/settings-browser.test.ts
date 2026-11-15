@@ -1,12 +1,12 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
-import { settingsBrowserEnabled, settingsPaneFixture } from "../../scripts/lib/settings-pane-browser.js";
+import { availableSkins, settingsBrowserEnabled, settingsPaneFixture } from "../../scripts/lib/settings-pane-browser.js";
 
 const browserTest = settingsBrowserEnabled ? test : test.skip;
 let fixture: Awaited<ReturnType<typeof settingsPaneFixture>>;
 beforeAll(async () => { if (settingsBrowserEnabled) fixture = await settingsPaneFixture(new URL("./web/index.ts", import.meta.url).pathname); });
 afterAll(async () => { await fixture?.close(); });
 
-for (const skin of ["classic", "visual", "legacy"]) {
+for (const skin of availableSkins(["classic", "visual", "legacy"])) {
   browserTest(`Delegate ${skin}: unchanged approval/exclusion requests, rollback and bounded layout`, async () => {
     const { page, errors, url } = await fixture.page(skin);
     let config = { searchable_providers: [] as string[], excluded_providers: ["alpha", "beta"], excluded_models: [] as string[] };

@@ -1,9 +1,9 @@
 import { afterAll, expect, test } from 'bun:test';
 import { readFileSync, readdirSync, existsSync, mkdirSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
-import { settingsBrowserEnabled, settingsPaneFixture } from './scripts/lib/settings-pane-browser.js';
+import { availableSkins, settingsBrowserEnabled, settingsPaneFixture } from './scripts/lib/settings-pane-browser.js';
 
-export const panes = ['cheapskate','delegate','goal','imap','linkr','observability','portainer','proxmox','remote-peer','sample-addon','telegram','vent','whatsapp'];
+export const panes = ['cheapskate','code-review','delegate','goal','imap','late-night-regrets','linkr','observability','portainer','proxmox','remote-peer','restic','sample-addon','telegram','vent','whatsapp'];
 const textControls='input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]):not([type="range"]):not([type="color"]),textarea,select';
 const browserTest=settingsBrowserEnabled?test:test.skip;
 const fixtures=new Map<string,Awaited<ReturnType<typeof settingsPaneFixture>>>();
@@ -22,6 +22,21 @@ test('new package-local styling imports use exact browser asset filenames',()=>{
   const source=readFileSync(join(p,'index.ts'),'utf8');
   for(const match of source.matchAll(/from ["'](\.\/[^"']+)["']/g))expect(existsSync(join(p,match[1]))).toBe(true);
  }
+});
+
+test('Settings panes use the shared kit instead of inline styles and fixed colours',()=>{
+ // Theme tokens own colour; kit classes own layout. Code Review's diff view keeps its own palette,
+ // so only its exported Settings rules are checked.
+ const offenders:string[]=[];
+ for(const slug of panes){
+  const dir=join(import.meta.dir,'addons',slug,'web');
+  for(const name of readdirSync(dir).filter(n=>n.endsWith('.ts'))){
+   let source=readFileSync(join(dir,name),'utf8');
+   if(slug==='code-review'&&name==='styles.ts')source=/export const settingsStyles = `([^`]*)`/.exec(source)?.[1]??'';
+   for(const match of source.matchAll(/\bstyle=|#[0-9a-fA-F]{3,8}\b/g))offenders.push(`${slug}/web/${name}: ${match[0]}`);
+  }
+ }
+ expect(offenders).toEqual([]);
 });
 
 browserTest('Linkr is reachable from General via a visible named Classic phone navigation button',async()=>{
@@ -51,6 +66,9 @@ function dataFor(slug:string):any {
  case 'telegram':return {enabled:false,botTokenConfigured:false,pollingTimeout:30};
  case 'whatsapp':return {enabled:false,phoneNumber:'123456789'};
  case 'vent':return {output_path:'VENT.md'};
+ case 'code-review':return {retentionDays:30,rows:[]};
+ case 'late-night-regrets':return {config:{enabled:false,review_scope:'all',review_budget_tokens:4096,decision_model:'',recent_hours_for_reflection:24},models:[]};
+ case 'restic':return {config:{enabled:false,repository:{backend:'local',path:'/mnt/fixture/restic',expectedMount:'/mnt/fixture'},passwordRef:'restic/fixture-password',retention:{enabled:false,hourly:0,daily:7,weekly:4,monthly:6},binary:'managed',excludes:[],schedule:{enabled:false,hours:[2],minute:0,timezone:'UTC'}},paths:null,binary:null};
  }
 }
 async function open(slug:string,skin:string,width:number,theme:'light'|'dark'='light'){
@@ -62,12 +80,17 @@ async function open(slug:string,skin:string,width:number,theme:'light'|'dark'='l
  await f.page.route('**/agent/**',async(route:any)=>{
   const url=new URL(route.request().url()),post=route.request().method()==='POST';const body=post?route.request().postDataJSON():null;
   if(url.pathname==='/agent/client-perf')return route.fulfill({json:{ok:true}});
-  if(post)requests.push({path:url.pathname,body});
+  // Code Review loads through read-only POST actions; record only mutations.
+  const read=slug==='code-review'&&['getSettings','cleanup','list'].includes(body?.action);
+  if(post&&!read)requests.push({path:url.pathname,body});
   if(url.pathname==='/agent/keychain')return route.fulfill({json:{ok:true,entries:[]}});
   if(url.pathname==='/agent/settings-data')return route.fulfill({json:{}});
   if(!url.pathname.startsWith(`/agent/addons/api/${slug}/`))throw Error('Unexpected fixture API '+url.pathname);
   if(slug==='sample-addon') {if(post)data={...data,...body};return route.fulfill({json:{ok:true,config:data}});}
   if(slug==='delegate')return route.fulfill({json:data});
+  if(slug==='code-review'){if(!read)throw Error('Unexpected code-review mutation');return route.fulfill({json:{ok:true,result:body.action==='getSettings'?{retentionDays:data.retentionDays}:body.action==='list'?data.rows:{}}});}
+  if(slug==='late-night-regrets'&&!post)return route.fulfill({json:url.pathname.endsWith('/models')?{ok:true,models:data.models}:{ok:true,config:data.config}});
+  if(slug==='restic'&&!post)return route.fulfill({json:url.pathname.endsWith('/status')?{ok:true,state:null}:{ok:true,...data}});
   if(slug==='goal'){if(post)data={...data,goal:{...data.goal,...body}};return route.fulfill({json:data});}
   if(post)data={...data,...body};
   return route.fulfill({json:post?{ok:true,config:data}:data});
@@ -75,10 +98,11 @@ async function open(slug:string,skin:string,width:number,theme:'light'|'dark'='l
  await f.page.goto(f.url);
  const content=f.page.locator(skin==='legacy'?'#app':'.settings-addon-pane');
  await content.locator(textControls).first().waitFor();
+ if(slug==='code-review')await content.getByText('No saved reviews.',{exact:true}).waitFor();
  if(slug==='remote-peer')await content.getByText('Optional endpoint ticket',{exact:true}).click();
  return {...f,content,requests};
 }
-for(const slug of panes)for(const skin of ['classic','visual','legacy'])for(const width of [1366,820,520,390])for(const theme of ['light','dark'] as const){
+for(const slug of panes)for(const skin of availableSkins(['classic','visual','legacy']))for(const width of [1366,820,520,390])for(const theme of ['light','dark'] as const){
  browserTest(`${slug} ${skin}/${width}/${theme}: all text controls match core shape and remain labelled/bounded`,async()=>{
   const f=await open(slug,skin,width,theme);try{
    const measurements=await f.content.locator(textControls).evaluateAll((nodes:HTMLElement[])=>nodes.filter(el=>el.getBoundingClientRect().height>0).map(el=>{
@@ -96,9 +120,9 @@ for(const slug of panes)for(const skin of ['classic','visual','legacy'])for(cons
    }
    expect(await f.content.evaluate((el:HTMLElement)=>el.scrollWidth<=el.clientWidth+1)).toBe(true);
    const out=process.env.PICLAW_SETTINGS_AUDIT_SCREENSHOTS;
-   if(out&&slug==='proxmox'&&skin!=='legacy'&&theme==='light'&&width===390){
+   if(out&&skin==='classic'&&(width===820||width===390)){
     if(!isAbsolute(out))throw Error('Explicit absolute screenshot directory required');mkdirSync(out,{recursive:true});
-    await f.content.screenshot({path:join(out,`${slug}-${skin}-${width}.png`)});
+    await f.page.screenshot({path:join(out,`${slug}-${skin}-${width}-${theme}.png`),fullPage:true,animations:'disabled'});
    }
    if(skin!=='legacy'){
     // Compare against an unmodified core General input in this actual Settings host.
@@ -134,7 +158,7 @@ for(const slug of ['telegram','whatsapp','linkr','goal','imap'])browserTest(`${s
    await f.content.getByRole('button',{name:'Save',exact:true}).click();
    await f.page.waitForTimeout(150);
    expect(f.requests.map(r=>r.path)).toEqual(['/agent/keychain','/agent/addons/api/telegram/config']);
-   expect(f.requests[1].body).toEqual({enabled:false,pollingTimeout:40});
+   expect(f.requests[1].body).toEqual({enabled:false,allowedUserIds:'',targetChatJid:'',targetIncarnation:'',pollingTimeout:40});
    expect(await f.content.getByLabel('Bot Token',{exact:true}).inputValue()).toBe('');
   }else if(slug==='whatsapp'){
    await f.content.getByLabel('Phone',{exact:true}).fill('987654321');
@@ -170,7 +194,7 @@ for(const slug of ['portainer','proxmox','observability'])browserTest(`${slug} p
  }finally{await f.page.close();}
 });
 
-for(const slug of panes)for(const skin of ['classic','visual'])browserTest(`${slug} ${skin}: text focus/disabled/readonly/invalid states follow host without writes`,async()=>{
+for(const slug of panes)for(const skin of availableSkins(['classic','visual']))browserTest(`${slug} ${skin}: text focus/disabled/readonly/invalid states follow host without writes`,async()=>{
  const f=await open(slug,skin,820);try{
   const field=f.content.locator('input.settings-addon-control:not([type=checkbox]):not([type=radio]),textarea.settings-addon-control').first();
   await field.waitFor();

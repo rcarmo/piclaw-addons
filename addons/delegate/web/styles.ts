@@ -7,11 +7,15 @@ export const settingsStyles = `
   .delegate-settings .settings-addon-field { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; margin-bottom: 12px; }
   .delegate-settings .settings-addon-label { font-size: .84rem; font-weight: 500; color: var(--text-secondary); }
   .delegate-settings .settings-addon-control { box-sizing: border-box; width: 280px; min-width: 0; max-width: 100%; padding: 6px 10px; background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 6px; font-size: .84rem; }
-  .delegate-settings .settings-addon-help { font-size: .78rem; color: var(--text-secondary); line-height: 1.45; overflow-wrap: anywhere; }
+  .delegate-settings .settings-addon-help { font-size: max(12px, .78rem); color: var(--text-secondary); line-height: 1.45; overflow-wrap: anywhere; }
   .delegate-settings .settings-addon-control-group, .delegate-settings .settings-addon-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
   .delegate-settings .settings-addon-control-group > .settings-addon-control { flex: 1 1 160px; }
   .delegate-settings .settings-addon-error { color: var(--danger-color); overflow-wrap: anywhere; }
   .delegate-settings .settings-addon-status { color: var(--text-secondary); overflow-wrap: anywhere; }
+  .delegate-settings .settings-addon-badge { display: inline-block; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--border-color); color: var(--tone, var(--text-secondary)); font-size: max(12px, .82em); font-weight: 600; white-space: nowrap; }
+  .delegate-settings .settings-addon-mono { font-family: var(--font-mono, ui-monospace, monospace); }
+  .delegate-settings [data-tone="success"] { --tone: var(--success-color); }
+  .delegate-settings [data-tone="danger"] { --tone: var(--danger-color); }
   .delegate-settings button { padding: 4px 10px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-secondary); color: var(--text-primary); cursor: pointer; font-size: .82rem; }
   .delegate-settings :is(button, input, textarea):focus-visible { outline: 2px solid var(--accent-color); outline-offset: 2px; }
   .delegate-settings :is(button, input, textarea):disabled { opacity: .5; }
@@ -27,7 +31,8 @@ export const settingsStyles = `
 .delegate-settings .delegate-provider-row { display: flex; flex-wrap: wrap; align-items: center; gap: .65rem; margin: .45rem 0; min-width: 0; }
 .delegate-settings .delegate-radio { display: inline-flex; align-items: center; gap: .25rem; }
 .delegate-settings .delegate-provider-name { font-family: var(--font-mono, monospace); overflow-wrap: anywhere; }
-.delegate-settings .delegate-scroll { overflow: auto; border: 1px solid var(--border-color); border-radius: 6px; overflow-wrap: anywhere; }
+.delegate-settings .delegate-scroll { max-height: 180px; overflow: auto; border: 1px solid var(--border-color); border-radius: 6px; overflow-wrap: anywhere; }
+.delegate-settings .delegate-scroll-rejections { max-height: 190px; }
 .delegate-settings .delegate-candidate { display: grid; grid-template-columns: 3rem minmax(0, 1fr); gap: .5rem; padding: .4rem .5rem; border-bottom: 1px solid var(--border-color); }
 .delegate-settings .delegate-rejection { padding: .35rem .5rem; border-bottom: 1px solid var(--border-color); }
 `;

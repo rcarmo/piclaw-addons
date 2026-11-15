@@ -1,15 +1,30 @@
-export const styles = `
-.cr-author{display:inline-flex;align-items:center;gap:6px;min-width:0;max-width:100%}
-.cr-avatar{position:relative;display:inline-grid;place-items:center;flex:0 0 24px;width:24px;height:24px;border-radius:50%;overflow:hidden;background:var(--bg-hover);color:var(--text-primary);font-size:11px}
-.cr-avatar img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:var(--bg-secondary)}
-.cr-author-name{overflow-wrap:anywhere}
+/** Settings pane rules; rendered with the pane so they apply without the review host. */
+export const settingsStyles = `
 .cr-reviews-settings{font:inherit;color:var(--text-primary);display:flex;flex-direction:column;gap:12px}
 .cr-reviews-settings .cr-review-list{display:flex;flex-direction:column;gap:8px}
 .cr-review-list article{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px;border:1px solid var(--border-color);border-radius:6px}
 .cr-review-list .cr-review-description{flex:1;min-width:160px;overflow-wrap:anywhere}
 .cr-review-description small{display:block;color:var(--text-secondary)}
+@layer code-review-settings-fallback{
+:where(.cr-reviews-settings) .settings-addon-heading{margin:0;font-size:1.1em;font-weight:600}
+:where(.cr-reviews-settings) .settings-addon-help{margin:0;color:var(--text-secondary);font-size:max(12px,.84em);overflow-wrap:anywhere}
+:where(.cr-reviews-settings) .settings-addon-status{margin:0;color:var(--text-secondary);overflow-wrap:anywhere}
+:where(.cr-reviews-settings) .settings-addon-check{display:inline-flex;align-items:center;gap:8px}
+:where(.cr-reviews-settings) .settings-addon-control-group,:where(.cr-reviews-settings) .settings-addon-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px;min-width:0}
+:where(.cr-reviews-settings) .settings-addon-control{box-sizing:border-box;min-width:0;max-width:100%;padding:6px 10px;border:1px solid var(--border-color);border-radius:6px;background:var(--bg-primary);color:var(--text-primary);font:inherit}
+:where(.cr-reviews-settings) .settings-addon-control:focus-visible{outline:2px solid var(--accent-color);outline-offset:2px}
+:where(.cr-reviews-settings) .settings-addon-control:disabled{opacity:.5}
+}
 .cr-retention{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .cr-retention input[type=number]{max-width:90px}
+.cr-retention-days{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+`;
+
+export const styles = settingsStyles + `
+.cr-author{display:inline-flex;align-items:center;gap:6px;min-width:0;max-width:100%}
+.cr-avatar{position:relative;display:inline-grid;place-items:center;flex:0 0 24px;width:24px;height:24px;border-radius:50%;overflow:hidden;background:var(--bg-hover);color:var(--text-primary);font-size:11px}
+.cr-avatar img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:var(--bg-secondary)}
+.cr-author-name{overflow-wrap:anywhere}
 .cr-pane{
   --green:var(--success-color);
   --green-bg:color-mix(in srgb,#2da44e 14%,var(--bg-code,var(--bg-primary)));

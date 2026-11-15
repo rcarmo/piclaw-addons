@@ -237,54 +237,54 @@ function ImapPane() {
     }
   }
 
-  if (loading) return html`<div class="settings-loading">Loading IMAP accounts…</div>`;
+  if (loading) return html`<p class="settings-addon-status" role="status">Loading IMAP accounts…</p>`;
 
   return html`
-    <div class="imap-settings" data-settings-addon="imap" style="display:flex;flex-direction:column;gap:16px;min-width:0">
+    <div class="imap-settings" data-settings-addon="imap">
       <style>${settingsFieldStyles}</style>
-      <div class="settings-section">
-        <h3>Accounts</h3>
-        <div class="settings-hint" style="margin:0 0 12px;">
+      <section class="settings-addon-section">
+        <h3 class="settings-addon-heading">Accounts</h3>
+        <p class="settings-addon-help">
           Passwords live in keychain. Connection settings and defaults live in the SQLite KV store.
+        </p>
+        <div class="settings-addon-actions">
+          <button type="button" onClick=${() => { setMessage(''); setSelected(''); setDraft(emptyDraft()); }}>New account</button>
         </div>
-        <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
-          <button onClick=${() => { setMessage(''); setSelected(''); setDraft(emptyDraft()); }}>New account</button>
-        </div>
-        ${accounts.length === 0 ? html`<div class="settings-hint">No IMAP accounts yet.</div>` : html`
+        ${accounts.length === 0 ? html`<p class="settings-addon-status">No IMAP accounts yet.</p>` : html`
           <table class="settings-table">
             <thead>
               <tr>
                 <th>Account</th>
                 <th>Server</th>
                 <th>Security</th>
-                <th style="width:90px;">Default</th>
+                <th>Default</th>
               </tr>
             </thead>
             <tbody>
               ${accounts.map((account) => html`
                 <tr>
                   <td>
-                    <button onClick=${() => selectAccount(account)} style=${`text-align:left;background:none;border:none;padding:0;color:inherit;font:inherit;cursor:pointer;${selected===account.name ? 'font-weight:600;' : ''}`}>
+                    <button type="button" class="imap-account-link" data-settings-button="unstyled" aria-current=${selected === account.name ? 'true' : undefined} onClick=${() => selectAccount(account)}>
                       ${account.name}
                     </button>
                   </td>
                   <td>${account.user}@${account.host}:${account.port}</td>
                   <td>
                     ${account.tls ? 'TLS' : account.starttls ? 'STARTTLS' : 'Plain'}
-                    ${account.allowInsecureTls ? html`<div class="settings-hint" style="margin-top:4px;">Accepts untrusted certs</div>` : null}
+                    ${account.allowInsecureTls ? html`<span class="settings-addon-badge" data-tone="warning">Accepts untrusted certs</span>` : null}
                   </td>
-                  <td>${account.name === defaultAccount ? '★' : ''}</td>
+                  <td>${account.name === defaultAccount ? html`<span class="settings-addon-badge" data-tone="info">Default</span>` : ''}</td>
                 </tr>
               `)}
             </tbody>
           </table>
         `}
-      </div>
+      </section>
 
-      <div class="settings-section">
-        <h3>${selected ? `Edit account: ${selected}` : 'New account'}</h3>
-        ${error ? html`<div style="color:var(--danger-color,#ff8080);margin-bottom:12px;">${error}</div>` : null}
-        ${message ? html`<div style="color:var(--success-color,#4ade80);margin-bottom:12px;">${message}</div>` : null}
+      <section class="settings-addon-section">
+        <h3 class="settings-addon-heading">${selected ? `Edit account: ${selected}` : 'New account'}</h3>
+        ${error ? html`<p class="settings-addon-error" role="alert">${error}</p>` : null}
+        ${message ? html`<p class="settings-addon-status" role="status">${message}</p>` : null}
 
         <div class="settings-addon-field">
           <label class="settings-addon-label" for="imap-name">Name</label>
@@ -307,44 +307,44 @@ function ImapPane() {
           <div class="settings-addon-control-group">
             <input class="settings-addon-control" id="imap-password" type="password" value=${draft.password} onInput=${(e) => patch('password', e.currentTarget.value)} placeholder=${selectedMeta?.hasPassword ? 'Leave blank to keep existing password' : 'Required for new accounts'} />
             ${selectedMeta?.hasPassword
-              ? html`<span style="font-size:0.72rem;color:var(--accent-color,#2563eb);font-weight:600;white-space:nowrap;" title=${`Stored as ${passwordKeychainName(selectedMeta.name)}`}>✓ keychain</span>`
-              : html`<span style="font-size:0.72rem;color:var(--danger-color,#dc2626);font-weight:600;white-space:nowrap;" title="No password in keychain">✗ missing</span>`}
+              ? html`<span class="settings-addon-badge" data-tone="success" title=${`Stored as ${passwordKeychainName(selectedMeta.name)}`}>In keychain</span>`
+              : html`<span class="settings-addon-badge" data-tone="danger">Missing</span>`}
           </div>
         </div>
         <div class="settings-addon-field">
           <label class="settings-addon-label" for="imap-from">From</label>
           <input type="text" class="settings-addon-control" id="imap-from" value=${draft.from} onInput=${(e) => patch('from', e.currentTarget.value)} placeholder="Me <me@example.com>" />
         </div>
-        <div class="settings-row">
-          <label>Implicit TLS</label>
+        <label class="settings-addon-check">
           <input type="checkbox" checked=${!!draft.tls} onChange=${(e) => patch('tls', e.currentTarget.checked)} />
+          Implicit TLS
+        </label>
+        <div class="settings-addon-field">
+          <label class="settings-addon-check">
+            <input type="checkbox" checked=${!!draft.starttls} onChange=${(e) => patch('starttls', e.currentTarget.checked)} disabled=${!!draft.tls} aria-describedby="imap-starttls-help" />
+            STARTTLS
+          </label>
+          <span class="settings-addon-help" id="imap-starttls-help">Disabled when implicit TLS is enabled.</span>
         </div>
-        <div class="settings-row">
-          <label>STARTTLS</label>
-          <div style="display:flex;align-items:center;gap:10px;">
-            <input type="checkbox" checked=${!!draft.starttls} onChange=${(e) => patch('starttls', e.currentTarget.checked)} disabled=${!!draft.tls} />
-            <span class="settings-hint" style="margin:0;">Disabled when implicit TLS is enabled.</span>
-          </div>
-        </div>
-        <div class="settings-row">
-          <label>Accept untrusted TLS certs</label>
+        <label class="settings-addon-check">
           <input type="checkbox" checked=${!!draft.allowInsecureTls} onChange=${(e) => patch('allowInsecureTls', e.currentTarget.checked)} />
-        </div>
-        <div class="settings-row">
-          <label>Make default</label>
+          Accept untrusted TLS certs
+        </label>
+        <label class="settings-addon-check">
           <input type="checkbox" checked=${!!draft.setDefault} onChange=${(e) => patch('setDefault', e.currentTarget.checked)} />
-        </div>
+          Make default
+        </label>
 
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
-          <button onClick=${saveCurrent} disabled=${saving}>${saving ? 'Saving…' : 'Save account'}</button>
-          ${selected ? html`<button onClick=${removeCurrent} disabled=${saving}>Delete</button>` : null}
-          ${selected && selected !== defaultAccount ? html`<button onClick=${() => setDefault(selected)} disabled=${saving}>Set default</button>` : null}
-          ${defaultAccount ? html`<button onClick=${() => setDefault('')} disabled=${saving}>Clear default</button>` : null}
+        <div class="settings-addon-actions">
+          <button type="button" data-settings-button="primary" onClick=${saveCurrent} disabled=${saving}>${saving ? 'Saving…' : 'Save account'}</button>
+          ${selected ? html`<button type="button" data-settings-button="danger" onClick=${removeCurrent} disabled=${saving}>Delete</button>` : null}
+          ${selected && selected !== defaultAccount ? html`<button type="button" onClick=${() => setDefault(selected)} disabled=${saving}>Set default</button>` : null}
+          ${defaultAccount ? html`<button type="button" onClick=${() => setDefault('')} disabled=${saving}>Clear default</button>` : null}
         </div>
-        <div class="settings-hint" style="margin-top:12px;">
+        <p class="settings-addon-help">
           Use port 993 with implicit TLS, or port 143 with STARTTLS.
-        </div>
-      </div>
+        </p>
+      </section>
     </div>
   `;
 }

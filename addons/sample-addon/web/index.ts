@@ -150,7 +150,7 @@ function SampleAddonSettings() {
       <div class="settings-addon-field">
         <label class="settings-addon-label" for="sample-addon-api-key">API key</label>
         <div class="settings-addon-control-group">
-        <input id="sample-addon-api-key" class="settings-addon-control" aria-describedby="sample-addon-api-key-help" key=${hasKey ? "api-key-stored" : "api-key-empty"} type="password" defaultValue="" style="font-family:var(--font-mono, monospace)"
+        <input id="sample-addon-api-key" class="settings-addon-control settings-addon-mono" aria-describedby="sample-addon-api-key-help" key=${hasKey ? "api-key-stored" : "api-key-empty"} type="password" defaultValue=""
           placeholder=${hasKey ? "••••••• (stored in keychain)" : "paste secret here"}
           onInput=${(e) => setKeyInput(e.target.value)}
           onChange=${(e) => setKeyInput(e.target.value)}
@@ -159,8 +159,8 @@ function SampleAddonSettings() {
         <button type="button"
           onClick=${(e) => saveSecret(e.currentTarget?.parentElement?.querySelector?.('input[type="password"]')?.value ?? keyInput)} disabled=${saving}>Save</button>
         ${hasKey
-          ? html`<span style="font-size:0.72rem;color:var(--accent-color,#2563eb);font-weight:600" title="Key in keychain">✓</span>`
-          : html`<span style="font-size:0.72rem;color:var(--danger-color,#dc2626);font-weight:600" title="No key">✗</span>`
+          ? html`<span class="settings-addon-badge" data-tone="success">Stored</span>`
+          : html`<span class="settings-addon-badge" data-tone="danger">Not set</span>`
         }
         </div>
         <span id="sample-addon-api-key-help" class="settings-addon-help">Saved to keychain as ${cfg.secret_keychain || DEFAULT_KEYCHAIN_ENTRY}. Restart required after changing.</span>

@@ -88,17 +88,17 @@ function TelegramSettings() {
   }, [botToken, config.botTokenConfigured, enabled, allowedUserIds, targetChatJid, targetIncarnation, pollingTimeout, loadConfig]);
 
   return html`
-    <section data-settings-addon="telegram">
+    <section data-settings-addon="telegram" class="settings-addon-section">
       <style>${settingsFieldStyles}</style>
-      <h3 style="margin: 0 0 12px 0; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-primary, #e7e9ea); border-bottom: 1px solid var(--border, #2f3336); padding-bottom: 6px;">
-        Telegram Bot Channel
-      </h3>
+      <h3 class="settings-addon-heading">Telegram bot channel</h3>
 
-      <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 14px;">
-        <label style="font-size: 13px; color: var(--text-secondary, #71767b); min-width: 120px; text-align: right;">Enabled</label>
-        <input type="checkbox" checked=${enabled} onChange=${(e: any) => setEnabled(e.target.checked)} />
-        <span style="font-size: 12px; color: var(--text-secondary, #71767b);">
-          ${config.connected ? "✅ Connected" : "⏸ Disconnected"}${config.status ? ` — ${config.status}` : ""}
+      <div class="settings-addon-control-group">
+        <label class="settings-addon-check">
+          <input type="checkbox" checked=${enabled} onChange=${(e: any) => setEnabled(e.target.checked)} />
+          Enabled
+        </label>
+        <span class="settings-addon-badge" role="status" data-tone=${config.connected ? "success" : undefined}>
+          ${config.connected ? "Connected" : "Disconnected"}${config.status ? ` — ${config.status}` : ""}
         </span>
       </div>
 
@@ -146,23 +146,19 @@ function TelegramSettings() {
           max="120"
           onInput=${(e: any) => setPollingTimeout(Number(e.target.value) || 30)}
         />
-        <span style="font-size: 12px; color: var(--text-secondary, #71767b);">seconds</span>
+        <span class="settings-addon-help">Seconds (5–120).</span>
       </div>
 
-      <div style="display: flex; justify-content: flex-end; margin-top: 16px;">
-        <button
-          onClick=${saveConfig}
-          disabled=${saving}
-          style="padding: 6px 16px; border-radius: 4px; border: 1px solid var(--border, #2f3336); background: var(--bg-elevated, #1a1a2e); color: var(--text-primary, #e7e9ea); cursor: pointer; font-size: 13px;"
-        >
+      <div class="settings-addon-actions">
+        <button type="button" data-settings-button="primary" onClick=${saveConfig} disabled=${saving}>
           ${saving ? "Saving…" : "Save"}
         </button>
       </div>
 
-      <p class="settings-addon-help" role="status">${error}</p>
+      <p class=${error ? "settings-addon-error" : "settings-addon-status"} role=${error ? "alert" : "status"}>${error}</p>
 
-      <p style="font-size: 11px; color: var(--text-secondary, #71767b); margin-top: 12px;">
-        Create a bot via <a href="https://t.me/BotFather" target="_blank" style="color: var(--accent, #1d9bf0);">@BotFather</a> on Telegram. The token is stored in keychain entry <code>${BOT_TOKEN_KEYCHAIN}</code>. Saving applies the settings immediately.
+      <p class="settings-addon-help">
+        Create a bot via <a href="https://t.me/BotFather" target="_blank" rel="noopener noreferrer">@BotFather</a> on Telegram. The token is stored in keychain entry <code>${BOT_TOKEN_KEYCHAIN}</code>. Saving applies the settings immediately.
         Inbound agent access is disabled until Piclaw supports unattended host-bound dispatch; /start reports that agent access is unavailable.
         If PICLAW_TELEGRAM_ENABLED=1 enables Telegram through the environment, Settings disable is rejected; unset that override first.
       </p>
