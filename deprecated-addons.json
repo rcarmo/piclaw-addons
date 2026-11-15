@@ -10,5 +10,11 @@
     "version": "0.1.28",
     "sourceSha256": "9544865f1beb42bebefd7db7136cb6252ab967fa9b5bb016663a49f5631682ed",
     "archiveSha256": "d504f4e0dbe58ba2ef3728d6bad50db64d5a82937cc26eafb84a5fb1cd76f19d"
+  },
+  "delegate": {
+    "reason": "Delegate is built into Piclaw Core v4: use its native tool and Core Delegate Settings. This package is retained unchanged for older installations and is no longer offered in the catalogue.",
+    "version": "0.2.22",
+    "sourceSha256": "6b808e9b2694cee0330382e4b73e7ac22d6bb5acd978b1689b96aed0cb46b9be",
+    "archiveSha256": "23c76339162a2f1a06e64f8cdb69e270e13ce7e20646aeaf863348377ce462bb"
   }
 }

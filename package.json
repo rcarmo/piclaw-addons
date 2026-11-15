@@ -33,7 +33,6 @@
       "addons/code-review/index.ts",
       "addons/code-validator/index.ts",
       "addons/codex-conversion/src/index.ts",
-      "addons/delegate/index.ts",
       "addons/dev-tools/index.ts",
       "addons/drawio-editor/index.ts",
       "addons/editable-table/index.ts",
@@ -79,7 +78,6 @@
     },
     "skills": [
       "addons/autoresearch/skills",
-      "addons/delegate/skills",
       "addons/editable-table/skills",
       "addons/linkr/skills",
       "addons/m365/skills",
@@ -94,10 +92,6 @@
       {
         "name": "autoresearch-create",
         "path": "./addons/autoresearch/skills/autoresearch-create"
-      },
-      {
-        "name": "delegate",
-        "path": "./addons/delegate/skills/delegate"
       },
       {
         "name": "editable-table",
