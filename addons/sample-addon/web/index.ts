@@ -159,8 +159,8 @@ function SampleAddonSettings() {
         <button type="button"
           onClick=${(e) => saveSecret(e.currentTarget?.parentElement?.querySelector?.('input[type="password"]')?.value ?? keyInput)} disabled=${saving}>Save</button>
         ${hasKey
-          ? html`<span class="settings-addon-badge" data-tone="success">Stored</span>`
-          : html`<span class="settings-addon-badge" data-tone="danger">Not set</span>`
+          ? html`<span class="settings-addon-badge" data-tone="success" title="Key in keychain">Stored</span>`
+          : html`<span class="settings-addon-badge" data-tone="danger" title="No key">Not set</span>`
         }
         </div>
         <span id="sample-addon-api-key-help" class="settings-addon-help">Saved to keychain as ${cfg.secret_keychain || DEFAULT_KEYCHAIN_ENTRY}. Restart required after changing.</span>

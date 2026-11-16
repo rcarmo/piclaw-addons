@@ -42,7 +42,7 @@ for (const skin of availableSkins(["classic", "visual", "legacy"])) {
       const secret = page.getByLabel("API key", { exact: true });
       await secret.fill("fixture-only-test-secret");
       await page.getByRole("button", { name: "Save", exact: true }).click();
-      await page.getByText("Stored", { exact: true }).waitFor();
+      await page.getByTitle("Key in keychain").waitFor();
       expect(secretWrites).toEqual([{ name: cfg.secret_keychain, secret: "fixture-only-test-secret", type: "token" }]);
       expect(await secret.inputValue()).toBe("");
       expect(JSON.stringify(configWrites)).not.toContain("fixture-only-test-secret");
