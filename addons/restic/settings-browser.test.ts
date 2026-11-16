@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
-import { settingsBrowserEnabled, settingsPaneFixture } from "../../scripts/lib/settings-pane-browser.js";
+import { availableSkins, settingsBrowserEnabled, settingsPaneFixture } from "../../scripts/lib/settings-pane-browser.js";
 import { validateJobConfig } from './job-config.ts';
 
 const browserTest = settingsBrowserEnabled ? test : test.skip;
@@ -24,7 +24,7 @@ const initialConfig = () => ({
   migrationAcknowledged: false,
 });
 
-for (const skin of ["classic", "visual"] as const) {
+for (const skin of availableSkins(["classic", "visual"] as const)) {
   for (const colorScheme of ["light", "dark"] as const) {
     for (const width of [390, 1280]) {
       browserTest(`Restic ${skin} ${colorScheme} ${width}px: same-skin settings fixture`, async () => {

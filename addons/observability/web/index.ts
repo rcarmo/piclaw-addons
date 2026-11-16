@@ -111,16 +111,16 @@ function ObservabilitySettings() {
     }
   }, [keyInput, save]);
 
-  if (!cfg) return html`<div style="padding:1rem;color:var(--text-secondary)" role=${msg ? "alert" : undefined}>${msg || "Loading…"}</div>`;
+  if (!cfg) return msg
+    ? html`<p class="settings-addon-error" role="alert">${msg}</p>`
+    : html`<p class="settings-addon-status" role="status">Loading…</p>`;
 
-  const S = { display: "flex", alignItems: "center", gap: "0.5rem", margin: "0.4rem 0" };
-  const L = { minWidth: "180px", color: "var(--text-secondary)", fontSize: "0.85rem" };
-  const H = { margin: "1.2rem 0 0.4rem", fontSize: "0.9rem", color: "var(--text-primary)", borderBottom: "1px solid var(--border-color)", paddingBottom: "0.3rem" };
-  const hint = (t) => html`<div style=${{ fontSize: "0.73rem", color: "var(--text-secondary)", margin: "0 0 12px" }}>${t}</div>`;
+  const hint = (t) => html`<p class="settings-addon-help">${t}</p>`;
 
   const check = (label, key) => html`
-    <label style=${S}><span style=${L}>${label}</span>
+    <label class="settings-addon-check">
       <input type="checkbox" checked=${cfg[key]} onChange=${(e) => save({ [key]: e.target.checked })} disabled=${saving} />
+      ${label}
     </label>`;
 
   const text = (label, key, placeholder) => html`
@@ -138,28 +138,27 @@ function ObservabilitySettings() {
     </label>`;
 
   return html`
-    <div data-settings-addon="observability" style="padding:0.5rem 0;min-width:0">
+    <div data-settings-addon="observability" class="settings-addon-section">
       <style>${settingsFieldStyles}</style>
-      <h4 style=${H}>General</h4>
+      <h4 class="settings-addon-heading">General</h4>
       ${check("Enabled", "enabled")}
       ${text("Instance name", "instance_name", hostname())}
       ${hint("Identifies this piclaw instance in App Insights (cloud_RoleInstance). Blank = hostname.")}
 
-      <h4 style=${H}>Azure Application Insights</h4>
+      <h4 class="settings-addon-heading">Azure Application Insights</h4>
       ${check("App Insights enabled", "appinsights_enabled")}
       <div class="settings-addon-field">
         <label class="settings-addon-label" for="observability-secret">Connection string</label>
         <div class="settings-addon-control-group">
-        <input id="observability-secret" class="settings-addon-control" type="password" value=${keyInput} style="font-family:var(--font-mono, monospace)"
+        <input id="observability-secret" class="settings-addon-control settings-addon-mono" type="password" value=${keyInput}
           placeholder=${hasKey ? "••••••• (stored in keychain)" : "InstrumentationKey=...;IngestionEndpoint=..."}
           onInput=${(e) => setKeyInput(e.target.value)}
           onKeyDown=${(e) => { if (e.key === "Enter") saveConnectionString(); }}
           disabled=${saving} />
-        <button style="padding:4px 10px;border:1px solid var(--border-color);border-radius:4px;background:var(--bg-secondary);color:var(--text-primary);cursor:pointer;font-size:0.82rem"
-          onClick=${saveConnectionString} disabled=${!keyInput.trim() || saving}>Save</button>
+        <button type="button" onClick=${saveConnectionString} disabled=${!keyInput.trim() || saving}>Save</button>
         ${hasKey
-          ? html`<span style="font-size:0.72rem;color:var(--accent-color,#2563eb);font-weight:600" title="Key in keychain">✓</span>`
-          : html`<span style="font-size:0.72rem;color:var(--danger-color,#dc2626);font-weight:600" title="No key">✗</span>`
+          ? html`<span class="settings-addon-badge" data-tone="success">Stored</span>`
+          : html`<span class="settings-addon-badge" data-tone="danger">Not set</span>`
         }
         </div>
       </div>
@@ -170,20 +169,22 @@ function ObservabilitySettings() {
       ${num("Sampling ratio", "appinsights_sampling_ratio", "1")}
       ${hint("0–1. 1 = send all traces. 0.5 = sample 50%.")}
 
-      <h4 style=${H}>Graphite (Carbon plaintext)</h4>
+      <h4 class="settings-addon-heading">Graphite (Carbon plaintext)</h4>
       ${check("Graphite enabled", "graphite_enabled")}
       ${text("Host", "graphite_host", "192.168.1.250")}
       ${num("Port", "graphite_port", "2003")}
-      <div style=${{ fontSize: "0.73rem", color: "var(--text-secondary)", margin: "0 0 12px" }}>Metrics use the fixed <code>piclaw</code> prefix.</div>
+      <p class="settings-addon-help">Metrics use the fixed <code>piclaw</code> prefix.</p>
 
-      <h4 style=${H}>Usage and compaction telemetry</h4>
+      <h4 class="settings-addon-heading">Usage and compaction telemetry</h4>
       ${check("Export usage and compaction telemetry", "usage_telemetry_enabled")}
       ${hint("Exports local token usage plus bounded compaction timing/outcome metrics by instance and model. Failed exports are retained in bounded local spools.")}
       ${num("Export interval (minutes)", "usage_telemetry_interval_minutes", "15")}
       ${text("Graphite render URL", "graphite_render_url", "http://192.168.1.250:8086")}
       ${hint("Optional; used by the bundled usage-telemetry-chart skill to render SVG charts.")}
 
-      ${msg && html`<div style=${{ marginTop: "0.75rem", fontSize: "0.8rem", color: msg.includes("failed") || msg.includes("Failed") ? "var(--danger-color)" : "var(--accent-color)" }}>${msg}</div>`}
+      ${msg && (/failed/i.test(msg)
+        ? html`<p class="settings-addon-error" role="alert">${msg}</p>`
+        : html`<p class="settings-addon-status" role="status">${msg}</p>`)}
     </div>`;
 }
 

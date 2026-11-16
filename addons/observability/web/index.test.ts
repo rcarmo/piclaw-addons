@@ -23,5 +23,6 @@ test('settings preserve backend warnings and do not overwrite a failed config wr
  expect(source).toContain('setMsg(j.warning || "Saved")');
  expect(source).toContain('if (result?.ok && !result.warning)');
  expect(source).not.toContain('setTimeout(() => setMsg("")');
- expect(source).toContain('msg || "Loading…"');
+ // A load failure replaces the loading status with an alert.
+ expect(source).toContain('if (!cfg) return msg\n    ? html`<p class="settings-addon-error" role="alert">${msg}</p>`');
 });

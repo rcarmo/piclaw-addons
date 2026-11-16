@@ -79,11 +79,12 @@ function stateLabel(candidate: CheapskateCandidateDto): string {
   return labels[candidate.state];
 }
 
-function stateColour(candidate: CheapskateCandidateDto): string {
-  if (candidate.state === "eligible") return "var(--success-color,#16a34a)";
-  if (candidate.state === "needs_credentials" || candidate.state === "excluded_by_scope") return "var(--warning-color,#d97706)";
-  if (candidate.state === "unhealthy") return "var(--danger-color,#dc2626)";
-  return "var(--text-secondary)";
+/** Semantic tone for a candidate state; colours come from the host theme. */
+function stateTone(candidate: CheapskateCandidateDto): string | undefined {
+  if (candidate.state === "eligible") return "success";
+  if (candidate.state === "needs_credentials" || candidate.state === "excluded_by_scope") return "warning";
+  if (candidate.state === "unhealthy") return "danger";
+  return undefined;
 }
 
 function CheapskateSettings(): unknown {
@@ -118,7 +119,7 @@ function CheapskateSettings(): unknown {
     }
   }, []);
 
-  if (!status) return html`<div style="padding:1rem;color:var(--text-secondary)">${message || "Loading…"}</div>`;
+  if (!status) return html`<p class="settings-addon-status" role="status">${message || "Loading…"}</p>`;
   const providers = [...new Map(status.candidates.map((candidate) => [candidate.provider, candidate.provider_name])).entries()];
   const visible = status.candidates.filter((candidate) => includesQuery(candidate, query, providerFilter));
   const orderedRefs = status.config.priority.filter((ref) => status.candidates.some((candidate) => candidate.ref === ref));
@@ -133,32 +134,30 @@ function CheapskateSettings(): unknown {
     void save({ priority: order });
   };
 
-  const rowStyle = { border: "1px solid var(--border-color)", borderRadius: "8px", padding: "0.75rem", margin: "0.55rem 0", background: "var(--bg-secondary)" };
-  const controlStyle = { padding: "5px 8px", border: "1px solid var(--border-color)", borderRadius: "5px", color: "var(--text-primary)", background: "var(--bg-primary)" };
   const groups = ["eligible", "needs_credentials", "disabled", "excluded_by_scope", "unhealthy"] as const;
 
-  return html`<div style="padding:0.5rem 0;min-width:0" data-testid="cheapskate-settings" data-settings-addon="cheapskate">
+  return html`<div class="settings-addon-section" data-testid="cheapskate-settings" data-settings-addon="cheapskate">
     <style>${settingsFieldStyles}</style>
-    <div style="display:flex;gap:0.65rem;align-items:center;flex-wrap:wrap;margin-bottom:0.8rem">
-      <label style="display:flex;gap:0.4rem;align-items:center">
+    <div class="settings-addon-control-group">
+      <label class="settings-addon-check">
         <input type="checkbox" checked=${status.config.enabled} disabled=${saving} onChange=${(event: Event) => void save({ enabled: (event.target as HTMLInputElement).checked })} />
         <strong>Enable Cheapskate</strong>
       </label>
-      <span style="font-size:0.78rem;color:${status.virtual_model_registered ? "var(--success-color,#16a34a)" : "var(--warning-color,#d97706)"}">
+      <span class="settings-addon-badge" data-tone=${status.virtual_model_registered ? "success" : "warning"}>
         ${status.virtual_model_registered ? "cheapskate/auto registered" : "virtual model unavailable"}
       </span>
-      ${status.active_ref ? html`<code style="font-size:0.75rem">active: ${status.active_ref}</code>` : null}
+      ${status.active_ref ? html`<code class="settings-addon-help settings-addon-mono">active: ${status.active_ref}</code>` : null}
     </div>
 
-    <p style="margin:0 0 0.8rem;color:var(--text-secondary);font-size:0.82rem">
+    <p class="settings-addon-help">
       Only effective catalogue models with exact zero base and tiered token prices are selectable. Paid and unknown-cost models are excluded before this pane is rendered.
     </p>
-    ${status.empty_reason ? html`<div role="status" style="padding:0.6rem;border:1px solid var(--warning-color,#d97706);border-radius:6px;margin-bottom:0.8rem">${status.empty_reason}</div>` : null}
+    ${status.empty_reason ? html`<div class="settings-addon-callout" data-tone="warning" role="status">${status.empty_reason}</div>` : null}
 
-    ${providers.length ? html`<div style="display:flex;gap:0.65rem;flex-wrap:wrap;margin-bottom:0.75rem" aria-label="Zero-cost providers">
+    ${providers.length ? html`<div class="settings-addon-actions cheapskate-providers" role="group" aria-label="Zero-cost providers">
       ${providers.map(([id, name]) => {
         const enabled = status.config.providers[id]?.enabled !== false;
-        return html`<label style="display:flex;gap:0.3rem;align-items:center;font-size:0.78rem">
+        return html`<label class="settings-addon-check">
           <input aria-label=${`Enable provider ${id}`} type="checkbox" checked=${enabled} disabled=${saving}
             onChange=${(event: Event) => void save({ providers: { [id]: { enabled: (event.target as HTMLInputElement).checked } } })} />
           ${name}
@@ -166,7 +165,7 @@ function CheapskateSettings(): unknown {
       })}
     </div>` : null}
 
-    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.75rem">
+    <div class="settings-addon-actions cheapskate-filters">
       <label class="settings-addon-field"><span class="settings-addon-label">Filter free models</span><input class="settings-addon-control" aria-label="Filter free models" type="search" value=${query} placeholder="Filter free models" onInput=${(event: Event) => setQuery((event.target as HTMLInputElement).value)} /></label>
       <label class="settings-addon-field"><span class="settings-addon-label">Filter provider</span><select class="settings-addon-control" aria-label="Filter provider" value=${providerFilter} onChange=${(event: Event) => setProviderFilter((event.target as HTMLSelectElement).value)}>
         <option value="">All zero-cost providers</option>
@@ -178,19 +177,19 @@ function CheapskateSettings(): unknown {
       const rows = visible.filter((candidate) => candidate.state === group);
       if (rows.length === 0) return null;
       return html`<section data-state=${group}>
-        <h4 style="margin:1rem 0 0.35rem;font-size:0.88rem">${stateLabel(rows[0])} (${rows.length})</h4>
+        <h4 class="settings-addon-heading">${stateLabel(rows[0])} (${rows.length})</h4>
         ${rows.map((candidate) => {
           const enabled = candidate.model_enabled;
           const canEnable = candidate.configured && candidate.in_scope && candidate.health.state !== "cost_violation";
           const position = currentOrder.indexOf(candidate.ref);
-          return html`<div style=${rowStyle} data-model-ref=${candidate.ref}>
-            <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
+          return html`<div class="cheapskate-candidate" data-model-ref=${candidate.ref}>
+            <div class="cheapskate-candidate-head">
               <input aria-label=${`Enable ${candidate.ref}`} type="checkbox" checked=${enabled} disabled=${saving || (!enabled && !canEnable)} onChange=${(event: Event) => void save({ models: { [candidate.ref]: { enabled: (event.target as HTMLInputElement).checked } } })} />
               <strong>${candidate.name}</strong>
-              <code style="font-size:0.72rem">${candidate.ref}</code>
-              <span style="margin-left:auto;font-size:0.72rem;color:${stateColour(candidate)}">${stateLabel(candidate)}</span>
+              <code class="settings-addon-mono">${candidate.ref}</code>
+              <span class="settings-addon-badge cheapskate-state" data-tone=${stateTone(candidate)}>${stateLabel(candidate)}</span>
             </div>
-            <div style="margin-top:0.4rem;display:flex;gap:0.7rem;flex-wrap:wrap;color:var(--text-secondary);font-size:0.75rem">
+            <div class="settings-addon-help cheapskate-facts">
               <span>context ${formatTokens(candidate.context_window)}</span>
               <span>output ${formatTokens(candidate.max_tokens)}</span>
               <span>${candidate.reasoning ? "reasoning" : "no reasoning"}</span>
@@ -198,21 +197,23 @@ function CheapskateSettings(): unknown {
               ${candidate.health.cooldown_until ? html`<span>retry after ${candidate.health.cooldown_until}</span>` : null}
               ${candidate.health.last_error ? html`<span title=${candidate.health.last_error}>${candidate.health.last_error}</span>` : null}
             </div>
-            ${enabled ? html`<div style="margin-top:0.45rem;display:flex;gap:0.35rem;align-items:center">
-              <span style="font-size:0.72rem;color:var(--text-secondary)">priority ${position >= 0 ? position + 1 : "unranked"}</span>
-              <button aria-label=${`Raise priority ${candidate.ref}`} disabled=${saving || position <= 0} style=${controlStyle} onClick=${() => move(candidate, -1)}>↑</button>
-              <button aria-label=${`Lower priority ${candidate.ref}`} disabled=${saving || position < 0 || position >= currentOrder.length - 1} style=${controlStyle} onClick=${() => move(candidate, 1)}>↓</button>
+            ${enabled ? html`<div class="settings-addon-actions">
+              <span class="settings-addon-help">priority ${position >= 0 ? position + 1 : "unranked"}</span>
+              <button type="button" aria-label=${`Raise priority ${candidate.ref}`} disabled=${saving || position <= 0} onClick=${() => move(candidate, -1)}>↑</button>
+              <button type="button" aria-label=${`Lower priority ${candidate.ref}`} disabled=${saving || position < 0 || position >= currentOrder.length - 1} onClick=${() => move(candidate, 1)}>↓</button>
             </div>` : null}
           </div>`;
         })}
       </section>`;
     })}
 
-    ${visible.length === 0 ? html`<div style="padding:1rem;color:var(--text-secondary)">No zero-cost catalogue models match this filter.</div>` : null}
-    <div style="margin-top:0.8rem;font-size:0.74rem;color:var(--text-secondary)">
+    ${visible.length === 0 ? html`<p class="settings-addon-status">No zero-cost catalogue models match this filter.</p>` : null}
+    <p class="settings-addon-help">
       Excluded from selection: ${status.excluded_costs.positive} positive-price, ${status.excluded_costs.unknown_or_malformed} unknown/malformed-cost and ${status.excluded_costs.recursive} recursive model entries.
-    </div>
-    ${message ? html`<div role="status" style="margin-top:0.7rem;color:${message.startsWith("Save failed") || message.startsWith("Failed") ? "var(--danger-color,#dc2626)" : "var(--accent-color,#2563eb)"}">${message}</div>` : null}
+    </p>
+    ${message ? (message.startsWith("Save failed") || message.startsWith("Failed")
+      ? html`<p class="settings-addon-error" role="alert">${message}</p>`
+      : html`<p class="settings-addon-status" role="status">${message}</p>`) : null}
   </div>`;
 }
 

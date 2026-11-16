@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-cheapskate",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "description": "Catalogue-backed zero-cost model routing through one virtual cheapskate/auto model, with request-local failover and a free-only Settings pane",
   "type": "module",
   "main": "index.ts",

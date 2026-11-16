@@ -1,12 +1,12 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
-import { settingsBrowserEnabled, settingsPaneFixture } from "../../scripts/lib/settings-pane-browser.js";
+import { availableSkins, settingsBrowserEnabled, settingsPaneFixture } from "../../scripts/lib/settings-pane-browser.js";
 
 const browserTest = settingsBrowserEnabled ? test : test.skip;
 let fixture: Awaited<ReturnType<typeof settingsPaneFixture>>;
 beforeAll(async () => { if (settingsBrowserEnabled) fixture = await settingsPaneFixture(new URL("./web/index.ts", import.meta.url).pathname); });
 afterAll(async () => { await fixture?.close(); });
 
-for (const skin of ["classic", "visual", "legacy"]) {
+for (const skin of availableSkins(["classic", "visual", "legacy"])) {
   browserTest(`Sample ${skin}: UI-only persistence and keychain save, errors, labels and fallback`, async () => {
     const { page, errors, url } = await fixture.page(skin);
     let cfg = { enabled: false, greeting: "Hello", secret_keychain: "sample-addon/api-key" };

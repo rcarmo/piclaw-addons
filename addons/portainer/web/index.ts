@@ -109,59 +109,58 @@ function PortainerSettings() {
     }
   }, [currentKeychain, keyInput, save]);
 
-  if (!cfg) return html`<div style="padding:1rem;color:var(--text-secondary)">Loading…</div>`;
+  if (!cfg) return html`<p class="settings-addon-status" role="status">Loading…</p>`;
 
-  const S = { display: "flex", alignItems: "center", gap: "0.5rem", margin: "0.4rem 0" };
-  const L = { minWidth: "180px", color: "var(--text-secondary)", fontSize: "0.85rem" };
-  const H = { margin: "1.2rem 0 0.4rem", fontSize: "0.9rem", color: "var(--text-primary)", borderBottom: "1px solid var(--border-color)", paddingBottom: "0.3rem" };
-  const hint = (t) => html`<div style=${{ fontSize: "0.73rem", color: "var(--text-secondary)", margin: "0 0 12px" }}>${t}</div>`;
+  const hint = (t) => html`<p class="settings-addon-help">${t}</p>`;
 
   const checkbox = (label, key) => html`
-    <label style=${S}><span style=${L}>${label}</span>
+    <label class="settings-addon-check">
       <input type="checkbox" checked=${cfg[key]} onChange=${(e) => save({ [key]: e.target.checked })} disabled=${saving} />
+      ${label}
     </label>`;
 
-  const textField = (label, key, placeholder, extra = {}) => html`
+  const textField = (label, key, placeholder, mono = false) => html`
     <label class="settings-addon-field"><span class="settings-addon-label">${label}</span>
-      <input class="settings-addon-control" type="text" value=${cfg[key] ?? ""} style=${extra} placeholder=${placeholder || ""}
+      <input class=${`settings-addon-control${mono ? " settings-addon-mono" : ""}`} type="text" value=${cfg[key] ?? ""} placeholder=${placeholder || ""}
         onBlur=${(e) => { if (e.target.value !== (cfg[key] ?? "")) save({ [key]: e.target.value }); }}
         onKeyDown=${(e) => { if (e.key === "Enter") e.target.blur(); }}
         disabled=${saving} />
     </label>`;
 
   return html`
-    <div data-settings-addon="portainer" style="padding:0.5rem 0;min-width:0">
+    <div data-settings-addon="portainer" class="settings-addon-section">
       <style>${settingsFieldStyles}</style>
-      <h4 style=${H}>Connection</h4>
+      <h4 class="settings-addon-heading">Connection</h4>
       ${textField("Host / IP", "host", "relay.local or 192.168.1.20")}
       ${hint("You can enter a hostname, IP, or full URL. The addon normalizes bare hosts to https://host:9443.")}
       ${checkbox("Allow insecure TLS", "allow_insecure_tls")}
       ${hint("Keep this enabled for self-signed lab certificates.")}
 
-      <h4 style=${H}>Token secret</h4>
-      ${textField("Keychain entry", "api_token_keychain", DEFAULT_KEYCHAIN, { fontFamily: "var(--font-mono, monospace)" })}
+      <h4 class="settings-addon-heading">Token secret</h4>
+      ${textField("Keychain entry", "api_token_keychain", DEFAULT_KEYCHAIN, true)}
       <div class="settings-addon-field">
         <label class="settings-addon-label" for="portainer-secret">API token</label>
         <div class="settings-addon-control-group">
-        <input id="portainer-secret" class="settings-addon-control" type="password" value=${keyInput} style="font-family:var(--font-mono, monospace)"
+        <input id="portainer-secret" class="settings-addon-control settings-addon-mono" type="password" value=${keyInput}
           placeholder=${hasKey ? "••••••• (stored in keychain)" : "paste Portainer API token"}
           onInput=${(e) => setKeyInput(e.target.value)}
           onKeyDown=${(e) => { if (e.key === "Enter") saveToken(); }}
           disabled=${saving} />
-        <button style="padding:4px 10px;border:1px solid var(--border-color);border-radius:4px;background:var(--bg-secondary);color:var(--text-primary);cursor:pointer;font-size:0.82rem"
-          onClick=${saveToken} disabled=${!keyInput.trim() || saving}>Save</button>
+        <button type="button" onClick=${saveToken} disabled=${!keyInput.trim() || saving}>Save</button>
         ${hasKey
-          ? html`<span style="font-size:0.72rem;color:var(--accent-color,#2563eb);font-weight:600" title="Key in keychain">✓</span>`
-          : html`<span style="font-size:0.72rem;color:var(--danger-color,#dc2626);font-weight:600" title="No key">✗</span>`}
+          ? html`<span class="settings-addon-badge" data-tone="success">Stored</span>`
+          : html`<span class="settings-addon-badge" data-tone="danger">Not set</span>`}
         </div>
       </div>
       ${hint(`Saved to keychain as ${currentKeychain}.`) }
 
-      ${cfg.base_url && html`<div style=${{ marginTop: "0.9rem", fontSize: "0.78rem", color: "var(--text-secondary)" }}>
-        Normalized base URL: <code style="font-family:var(--font-mono, monospace)">${cfg.base_url}</code>
-      </div>`}
+      ${cfg.base_url && html`<p class="settings-addon-help">
+        Normalized base URL: <code class="settings-addon-mono">${cfg.base_url}</code>
+      </p>`}
 
-      ${msg && html`<div style=${{ marginTop: "0.75rem", fontSize: "0.8rem", color: msg.includes("failed") || msg.includes("Failed") ? "var(--danger-color)" : "var(--accent-color)" }}>${msg}</div>`}
+      ${msg && (/failed/i.test(msg)
+        ? html`<p class="settings-addon-error" role="alert">${msg}</p>`
+        : html`<p class="settings-addon-status" role="status">${msg}</p>`)}
     </div>`;
 }
 

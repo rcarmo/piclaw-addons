@@ -57,18 +57,16 @@ function WhatsAppSettings() {
   }, [phone, enabled]);
 
   return html`
-    <section data-settings-addon="whatsapp">
+    <section data-settings-addon="whatsapp" class="settings-addon-section">
       <style>${settingsFieldStyles}</style>
-      <h3 style="margin: 0 0 12px 0; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-primary, #e7e9ea); border-bottom: 1px solid var(--border, #2f3336); padding-bottom: 6px;">
-        WhatsApp Channel
-      </h3>
+      <h3 class="settings-addon-heading">WhatsApp channel</h3>
 
-      <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 14px;">
-        <label style="font-size: 13px; color: var(--text-secondary, #71767b); min-width: 120px; text-align: right;">Enabled</label>
-        <input type="checkbox" checked=${enabled} onChange=${(e: any) => setEnabled(e.target.checked)} />
-        <span style="font-size: 12px; color: var(--text-secondary, #71767b);">
-          ${config.connected ? "✅ Connected" : "⏸ Disconnected"}
-        </span>
+      <div class="settings-addon-control-group">
+        <label class="settings-addon-check">
+          <input type="checkbox" checked=${enabled} onChange=${(e: any) => setEnabled(e.target.checked)} />
+          Enabled
+        </label>
+        <span class="settings-addon-badge" role="status" data-tone=${config.connected ? "success" : undefined}>${config.connected ? "Connected" : "Disconnected"}</span>
       </div>
 
       <div class="settings-addon-field">
@@ -82,23 +80,19 @@ function WhatsAppSettings() {
       </div>
 
       ${config.pairingCode && html`
-        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 14px;">
-          <label style="font-size: 13px; color: var(--text-secondary, #71767b); min-width: 120px; text-align: right;">Pairing Code</label>
-          <code style="font-size: 16px; font-weight: bold; letter-spacing: 2px; color: var(--accent, #1d9bf0);">${config.pairingCode}</code>
+        <div class="settings-addon-field">
+          <span class="settings-addon-label" id="whatsapp-pairing-label">Pairing code</span>
+          <code class="settings-addon-callout" data-tone="info" aria-labelledby="whatsapp-pairing-label">${config.pairingCode}</code>
         </div>
       `}
 
-      <div style="display: flex; justify-content: flex-end; margin-top: 16px;">
-        <button
-          onClick=${saveConfig}
-          disabled=${saving}
-          style="padding: 6px 16px; border-radius: 4px; border: 1px solid var(--border, #2f3336); background: var(--bg-elevated, #1a1a2e); color: var(--text-primary, #e7e9ea); cursor: pointer; font-size: 13px;"
-        >
+      <div class="settings-addon-actions">
+        <button type="button" data-settings-button="primary" onClick=${saveConfig} disabled=${saving}>
           ${saving ? "Saving…" : "Save"}
         </button>
       </div>
 
-      <p style="font-size: 11px; color: var(--text-secondary, #71767b); margin-top: 12px;">
+      <p class="settings-addon-help">
         After saving, restart PiClaw for changes to take effect. The pairing code appears on first connection — enter it in your WhatsApp app under Linked Devices.
       </p>
     </section>

@@ -63,17 +63,14 @@ function VentSettings() {
     setSaving(false);
   }, []);
 
-  if (!cfg) return html`<div style="padding:1rem;color:var(--text-secondary)">Loading…</div>`;
+  if (!cfg) return html`<p class="settings-addon-status" role="status">Loading…</p>`;
 
-  const S = { display: "flex", alignItems: "center", gap: "0.5rem", margin: "0.4rem 0" };
-  const L = { minWidth: "160px", color: "var(--text-secondary)", fontSize: "0.85rem" };
-  const H = { margin: "1.2rem 0 0.4rem", fontSize: "0.9rem", color: "var(--text-primary)", borderBottom: "1px solid var(--border-color)", paddingBottom: "0.3rem" };
-  const hint = (t) => html`<div style=${{ fontSize: "0.73rem", color: "var(--text-secondary)", margin: "0 0 12px" }}>${t}</div>`;
+  const hint = (t) => html`<p class="settings-addon-help">${t}</p>`;
 
   return html`
-    <div data-settings-addon="vent" style="padding:0.5rem 0;min-width:0">
+    <div data-settings-addon="vent" class="settings-addon-section">
       <style>${settingsFieldStyles}</style>
-      <h4 style=${H}>Output</h4>
+      <h4 class="settings-addon-heading">Output</h4>
       <label class="settings-addon-field">
         <span class="settings-addon-label">Output file</span>
         <input class="settings-addon-control"
@@ -91,14 +88,15 @@ function VentSettings() {
       </label>
       ${hint("Relative to the current workspace. Nested paths are allowed and missing directories are created automatically.")}
 
-      <h4 style=${H}>Attribution</h4>
-      <div style=${{ fontSize: "0.84rem", color: "var(--text-secondary)", lineHeight: 1.5 }}>
-        <span>Adapted from </span>
-        <a href="https://github.com/IgorWarzocha/pi-vent" target="_blank" rel="noreferrer">pi-vent</a>
-        <span> by Igor Warzocha (MIT). This add-on keeps the same major-issue vent workflow, but lets you choose the output file.</span>
-      </div>
+      <h4 class="settings-addon-heading">Attribution</h4>
+      <p class="settings-addon-help">
+        Adapted from <a href="https://github.com/IgorWarzocha/pi-vent" target="_blank" rel="noreferrer">pi-vent</a>
+        by Igor Warzocha (MIT). This add-on keeps the same major-issue vent workflow, but lets you choose the output file.
+      </p>
 
-      ${msg && html`<div style=${{ marginTop: "0.75rem", fontSize: "0.8rem", color: msg.includes("failed") || msg.includes("Failed") ? "var(--danger-color)" : "var(--accent-color)" }}>${msg}</div>`}
+      ${msg && (/failed/i.test(msg)
+        ? html`<p class="settings-addon-error" role="alert">${msg}</p>`
+        : html`<p class="settings-addon-status" role="status">${msg}</p>`)}
     </div>`;
 }
 

@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { mkdirSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
-import { settingsBrowserEnabled, settingsPaneFixture } from "../../scripts/lib/settings-pane-browser.js";
+import { availableSkins, settingsBrowserEnabled, settingsPaneFixture } from "../../scripts/lib/settings-pane-browser.js";
 const browserTest = settingsBrowserEnabled ? test : test.skip;
 let fixture: Awaited<ReturnType<typeof settingsPaneFixture>>;
 beforeAll(async () => { if (settingsBrowserEnabled) fixture = await settingsPaneFixture(new URL("./web/index.ts", import.meta.url).pathname, { realHost: true }); }, 30000);
@@ -78,7 +78,7 @@ async function setup(skin: string, width: number, options: { long?: boolean; ses
   return { ...f, card, data, writes, failure };
 }
 
-for (const skin of ["classic", "visual", "legacy"]) for (const width of [1366, 820, 520, 390]) {
+for (const skin of availableSkins(["classic", "visual", "legacy"])) for (const width of [1366, 820, 520, 390]) {
   browserTest(`Remote Peer ${skin}/${width} incoming file-only Apply/Cancel/Revert and outgoing ownership`, async () => {
     const f = await setup(skin, width), { page, card } = f;
     try {
@@ -218,7 +218,7 @@ for (const race of ["narrow", "re-pair"]) browserTest(`Apply rejects ${race} bet
   } finally { await page.close(); }
 }, 15000);
 
-for (const skin of ["classic", "visual", "legacy"]) browserTest(`Remote Peer ${skin} explicit session grants, consent, revocation and outgoing status`, async () => {
+for (const skin of availableSkins(["classic", "visual", "legacy"])) browserTest(`Remote Peer ${skin} explicit session grants, consent, revocation and outgoing status`, async () => {
   const f = await setup(skin, 390, { sessions: true }), { page, card } = f;
   try {
     await card.getByRole("button", { name: "Edit incoming permissions" }).click();
@@ -263,7 +263,7 @@ for (const skin of ["classic", "visual", "legacy"]) browserTest(`Remote Peer ${s
   } finally { await page.close(); }
 }, 20000);
 
-for (const skin of ["classic", "visual"]) browserTest(`Remote Peer ${skin} keyboard session consent and file-only preservation`, async () => {
+for (const skin of availableSkins(["classic", "visual"])) browserTest(`Remote Peer ${skin} keyboard session consent and file-only preservation`, async () => {
   const f = await setup(skin, 390, { sessions: true }), { page, card } = f;
   try {
     f.data.peers[0].scope = "inbox-only"; f.data.peers[0].modes = ["queue"];
@@ -314,7 +314,7 @@ browserTest("Session grant drafts retain failed edits and detect concurrent revo
   } finally { await page.close(); }
 }, 15000);
 
-for (const skin of ["classic", "visual", "legacy"]) browserTest(`Remote Peer ${skin} explicit idle advertisement and old-host unavailable`, async () => {
+for (const skin of availableSkins(["classic", "visual", "legacy"])) browserTest(`Remote Peer ${skin} explicit idle advertisement and old-host unavailable`, async () => {
   const f = await setup(skin, 390, { sessions: true }), { page } = f;
   try {
     const region = page.getByRole("region", { name: "Session advertisements" });
@@ -347,7 +347,7 @@ for (const skin of ["classic", "visual", "legacy"]) browserTest(`Remote Peer ${s
   } finally { await page.close(); }
 }, 20000);
 
-for (const skin of ["classic", "visual", "legacy"]) for (const timing of ["poll", "write"]) browserTest(`Remote Peer ${skin} rejects stale no-grants session consent at ${timing} and requires fresh selection`, async () => {
+for (const skin of availableSkins(["classic", "visual", "legacy"])) for (const timing of ["poll", "write"]) browserTest(`Remote Peer ${skin} rejects stale no-grants session consent at ${timing} and requires fresh selection`, async () => {
   const f = await setup(skin, 390, { sessions: true }), { page, card } = f;
   try {
     f.data.peers[0].scope = "inbox-only"; f.data.peers[0].modes = ["queue"];
@@ -394,7 +394,7 @@ for (const skin of ["classic", "visual", "legacy"]) for (const timing of ["poll"
   } finally { await page.close(); }
 }, 20000);
 
-for (const skin of ["classic", "visual", "legacy"]) for (const lifecycle of ["hide-and-readvertise", "readvertise"]) browserTest(`Remote Peer ${skin} ${lifecycle} invalidates typed consent for the same lifetime`, async () => {
+for (const skin of availableSkins(["classic", "visual", "legacy"])) for (const lifecycle of ["hide-and-readvertise", "readvertise"]) browserTest(`Remote Peer ${skin} ${lifecycle} invalidates typed consent for the same lifetime`, async () => {
   const f = await setup(skin, 390, { sessions: true }), { page, card } = f;
   try {
     f.data.peers[0].scope = "inbox-only"; f.data.peers[0].modes = ["queue"];
@@ -448,7 +448,7 @@ for (const skin of ["classic", "visual", "legacy"]) for (const lifecycle of ["hi
   } finally { await page.close(); }
 }, 20000);
 
-for (const skin of ['classic','visual']) for (const colorScheme of ['light','dark'] as const) for (const width of [1366,820,390]) {
+for (const skin of availableSkins(['classic','visual'])) for (const colorScheme of ['light','dark'] as const) for (const width of [1366,820,390]) {
   browserTest(`Remote Peer ${skin}/${colorScheme}/${width} long content fits the actual Settings pane`, async()=>{
     const f=await setup(skin,width,{long:true,colorScheme});
     try {

@@ -1,4 +1,5 @@
 import { lateNightRegretsIcon } from './icon.ts';
+import { settingsFieldStyles } from './settings-fields.ts';
 
 type ModelOption = { id: string; name: string };
 interface Config {
@@ -76,17 +77,18 @@ export function RegretsSettings() {
       setSaving(false);
     }
   };
-  if (!config) return html`<p role="status">${message || "Loading…"}</p>`;
+  if (!config) return html`<p class=${message ? "settings-addon-error" : "settings-addon-status"} role="status">${message || "Loading…"}</p>`;
   return html`<section
     data-settings-addon="late-night-regrets"
-    style="max-width:42rem;padding:0.5rem;line-height:1.5"
+    class="settings-addon-section"
   >
-    <h3 style="margin-top:0">Late Night Regrets</h3>
-    <p>
+    <style>${settingsFieldStyles}</style>
+    <h3 class="settings-addon-heading">Late Night Regrets</h3>
+    <p class="settings-addon-help">
       Review all human exchanges when they fit. On busy days, use Bayes ordering
       plus a sample from the remainder. Short messages stay eligible.
     </p>
-    <label style="display:block;margin:1rem 0"
+    <label class="settings-addon-check"
       ><input
         type="checkbox"
         checked=${config.enabled}
@@ -95,9 +97,10 @@ export function RegretsSettings() {
       />
       Enable reflection</label
     >
-    <label style="display:block;margin:1rem 0"
-      >Review scope
+    <label class="settings-addon-field"
+      ><span class="settings-addon-label">Review scope</span>
       <select
+        class="settings-addon-control"
         aria-label="Review scope"
         value=${config.review_scope}
         disabled=${saving}
@@ -107,11 +110,11 @@ export function RegretsSettings() {
         <option value="current">Current chat only</option>
       </select>
     </label>
-    <label style="display:block;margin:1rem 0"
-      >Review budget (estimated input tokens)
+    <label class="settings-addon-field"
+      ><span class="settings-addon-label">Review budget (estimated input tokens)</span>
       <input
+        class="settings-addon-control"
         aria-label="Review budget"
-        style="display:block;max-width:100%"
         type="number"
         min="512"
         max="100000"
@@ -124,14 +127,14 @@ export function RegretsSettings() {
         }}
       />
     </label>
-    <p style="color:var(--text-secondary)">
+    <p class="settings-addon-help">
       This bounds the input packet, not billed tokens or later context lookups.
     </p>
-    <label style="display:block;margin:1rem 0"
-      >Decision model (optional)
+    <label class="settings-addon-field"
+      ><span class="settings-addon-label">Decision model (optional)</span>
       <select
+        class="settings-addon-control"
         aria-label="Decision model"
-        style="display:block;width:100%;max-width:100%;background:var(--bg-primary);color:var(--text-primary)"
         value=${config.decision_model}
         disabled=${saving}
         onChange=${(e: Event) => void save({ decision_model: (e.target as HTMLSelectElement).value })}
@@ -141,18 +144,18 @@ export function RegretsSettings() {
         ${models.map((m) => html`<option value=${m.id}>${m.name} — ${m.id}</option>`)}
       </select>
     </label>
-    <p style="color:var(--text-secondary)">
+    <p class="settings-addon-help">
       Selecting a model permits one bounded call per review using your
       configured provider. It receives the same redacted excerpts and suggests
       review, routine or uncertain. It cannot write notes. Failed calls fall
       back to the nightly reviewer; no model is substituted.
     </p>
-    <p>
+    <p class="settings-addon-help">
       Window: ${config.recent_hours_for_reflection} hours. Existing scheduled
       tasks must use the new reflection prompt; saving these settings does not
       create or reschedule tasks.
     </p>
-    <p role="status">${message}</p>
+    <p class=${/fail/i.test(message) ? "settings-addon-error" : "settings-addon-status"} role="status">${message}</p>
   </section>`;
 }
 let registered = false;

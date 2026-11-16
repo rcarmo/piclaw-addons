@@ -182,20 +182,15 @@ function GoalSettingsPane() {
     }
   }, [chatJid]);
 
-  const S = { display: "flex", alignItems: "center", gap: "0.5rem", margin: "0.45rem 0" };
-  const L = { minWidth: "130px", color: "var(--text-secondary)", fontSize: "0.85rem", alignSelf: "flex-start", paddingTop: "0.35rem" };
-  const H = { margin: "1.15rem 0 0.45rem", fontSize: "0.9rem", color: "var(--text-primary)", borderBottom: "1px solid var(--border-color)", paddingBottom: "0.3rem" };
-  const hint = (text) => html`<div style=${{ fontSize: "0.73rem", color: "var(--text-secondary)", margin: "0 0 12px" }}>${text}</div>`;
+  const hint = (text) => html`<p class="settings-addon-help">${text}</p>`;
 
   return html`
-    <div data-settings-addon="goal" style="padding:0.5rem 0;min-width:0">
+    <div data-settings-addon="goal" class="settings-addon-section">
       <style>${settingsFieldStyles}</style>
-      <h4 style=${H}>Codex-style thread goal</h4>
-      <div style=${{ fontSize: "0.78rem", color: "var(--text-secondary)", marginBottom: "0.75rem" }}>
-        Chat: <code style="font-family:var(--font-mono, monospace)">${chatJid}</code>
-      </div>
+      <h4 class="settings-addon-heading">Codex-style thread goal</h4>
+      <p class="settings-addon-help">Chat: <code class="settings-addon-mono">${chatJid}</code></p>
 
-      <div style=${{ padding: "0.6rem", border: "1px solid var(--border-color)", borderRadius: "8px", background: "var(--bg-secondary)" }}>
+      <div class="settings-addon-callout" role="status">
         <div><strong>Status:</strong> ${statusLabel(goal?.status)}</div>
         <div><strong>Tokens:</strong> ${formatTokenCount(goal?.tokensUsed || 0)}${goal?.tokenBudget == null ? " / no budget" : ` / ${formatTokenCount(goal.tokenBudget)} (${formatTokenCount(remaining || 0)} remaining)`}</div>
         <div><strong>Time:</strong> ${goal?.timeUsedSeconds || 0}s</div>
@@ -203,7 +198,7 @@ function GoalSettingsPane() {
 
       <label class="settings-addon-field">
         <span class="settings-addon-label">Objective</span>
-        <textarea class="settings-addon-control" style="min-height:96px" value=${draftObjective}
+        <textarea class="settings-addon-control" rows="4" value=${draftObjective}
           placeholder="Describe the full goal objective. This replaces the current thread goal."
           onInput=${(e) => setDraftObjective(e.target.value)}
           disabled=${saving}></textarea>
@@ -219,22 +214,24 @@ function GoalSettingsPane() {
       </label>
       ${hint("Empty means no token budget. Budget exhaustion marks the goal budget_limited and emits a wrap-up prompt.")}
 
-      <div style=${{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "0.5rem" }}>
-        <button onClick=${() => save({ objective: draftObjective, token_budget: positiveOrEmpty(draftBudget) }, "Saved/replaced goal.")} disabled=${saving || !draftObjective.trim()}>Save / Replace + Run</button>
-        <button onClick=${() => save({ status: "active", token_budget: positiveOrEmpty(draftBudget) }, "Goal resumed.")} disabled=${saving || !goal}>Resume + Run</button>
-        <button onClick=${() => save({ status: "paused", token_budget: positiveOrEmpty(draftBudget) }, "Goal paused.")} disabled=${saving || !goal}>Pause</button>
-        <button onClick=${() => save({ status: "blocked", token_budget: positiveOrEmpty(draftBudget) }, "Goal marked blocked.")} disabled=${saving || !goal}>Blocked</button>
-        <button onClick=${() => save({ status: "complete", token_budget: positiveOrEmpty(draftBudget) }, "Goal marked complete.")} disabled=${saving || !goal}>Complete</button>
-        <button onClick=${() => clear()} disabled=${saving || !goal}>Clear</button>
-        <button onClick=${() => load()} disabled=${saving}>Refresh</button>
+      <div class="settings-addon-actions">
+        <button type="button" data-settings-button="primary" onClick=${() => save({ objective: draftObjective, token_budget: positiveOrEmpty(draftBudget) }, "Saved/replaced goal.")} disabled=${saving || !draftObjective.trim()}>Save / Replace + Run</button>
+        <button type="button" onClick=${() => save({ status: "active", token_budget: positiveOrEmpty(draftBudget) }, "Goal resumed.")} disabled=${saving || !goal}>Resume + Run</button>
+        <button type="button" onClick=${() => save({ status: "paused", token_budget: positiveOrEmpty(draftBudget) }, "Goal paused.")} disabled=${saving || !goal}>Pause</button>
+        <button type="button" onClick=${() => save({ status: "blocked", token_budget: positiveOrEmpty(draftBudget) }, "Goal marked blocked.")} disabled=${saving || !goal}>Blocked</button>
+        <button type="button" onClick=${() => save({ status: "complete", token_budget: positiveOrEmpty(draftBudget) }, "Goal marked complete.")} disabled=${saving || !goal}>Complete</button>
+        <button type="button" data-settings-button="danger" onClick=${() => clear()} disabled=${saving || !goal}>Clear</button>
+        <button type="button" onClick=${() => load()} disabled=${saving}>Refresh</button>
       </div>
 
-      <h4 style=${H}>Model tools</h4>
-      <div style=${{ fontSize: "0.78rem", color: "var(--text-secondary)", lineHeight: 1.45 }}>
+      <h4 class="settings-addon-heading">Model tools</h4>
+      <p class="settings-addon-help">
         The add-on exposes Codex-style <code>get_goal</code>, <code>create_goal</code>, <code>goal_complete</code>, <code>goal_stop</code>, and <code>update_goal</code>. Prefer <code>goal_complete</code> for verified completion when available, but <code>update_goal(status=&quot;complete&quot;)</code> remains the Codex-compatible completion path. These tools update goal state without early-terminating the Piclaw turn, so agents can still send a final user-visible answer. Use <code>goal_stop</code> to stop the loop without marking complete.
-      </div>
+      </p>
 
-      ${message ? html`<div style=${{ marginTop: "0.75rem", fontSize: "0.8rem", color: /failed|error/i.test(message) ? "var(--danger-color,#dc2626)" : "var(--accent-color,#2563eb)" }}>${message}</div>` : null}
+      ${message ? (/failed|error/i.test(message)
+        ? html`<p class="settings-addon-error" role="alert">${message}</p>`
+        : html`<p class="settings-addon-status" role="status">${message}</p>`) : null}
     </div>`;
 }
 
