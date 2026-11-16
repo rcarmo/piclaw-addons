@@ -191,18 +191,29 @@ jobs:
             true:success|false:skipped) ;;
             *) echo "Missing or unsuccessful required publication gate" >&2; exit 1 ;;
           esac
+      - name: Checkout published archive baseline
+        if: success() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: actions/checkout@v7
+        with:
+          ref: gh-pages
+          path: .published-site
+          persist-credentials: false
       - name: Build site and package tarballs
         if: success() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-        run: bun run build.ts
+        run: |
+          git -C .published-site rev-parse HEAD > publication-packages-source.txt
+          bun run build.ts
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
+          PICLAW_PUBLISHED_PACKAGES_DIR: ${{ github.workspace }}/.published-site/packages
       - name: Copy assets into docs
         if: success() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         run: |
           mkdir -p docs/assets
           cp -r assets/* docs/assets/
           cp publication-source.txt docs/publication-source.txt
+          cp publication-packages-source.txt docs/publication-packages-source.txt
       - name: Deploy to GitHub Pages
         if: success() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         uses: peaceiris/actions-gh-pages@v4

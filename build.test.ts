@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
-import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { packAddon } from "./scripts/lib/pack-addon.js";
+import { packAddon, preservePublishedArchives, verifyPublishedArchives } from "./scripts/lib/pack-addon.js";
 import { addonSourceDigest, deprecatedArchives, readDeprecatedAddons, downloadDeprecatedArchive } from "./scripts/lib/deprecated-addons.ts";
 import { join } from "node:path";
 
@@ -44,6 +44,63 @@ test("public tarballs honour production files and preserve legacy exclusions", (
     expect(entries()).toContain('./index.ts');
     expect(entries().some((entry) => entry.includes('node_modules') || entry.includes('.tmp'))).toBe(false);
     expect(() => packAddon(pkg, join(root, 'missing', 'no.tgz'))).toThrow('Packing fixture-addon failed');
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test('new tarballs exclude generated reports for legacy and allowlisted packages', () => {
+  const root = mkdtempSync(join(tmpdir(), 'addon-reports-'));
+  try {
+    const pkg = join(root, 'addon');
+    mkdirSync(join(pkg, 'tests/reports'), { recursive: true });
+    writeFileSync(join(pkg, 'index.ts'), '// production');
+    writeFileSync(join(pkg, 'tests/reports/results.json'), '{"generated":true}');
+    writeFileSync(join(pkg, 'tests/reports/report.pdf'), 'generated PDF');
+    for (const files of [undefined, ['index.ts', 'tests']]) {
+      writeFileSync(join(pkg, 'package.json'), JSON.stringify({ name: 'fixture-addon', version: '2.0.0', ...(files ? { files } : {}) }));
+      const archive = join(root, 'addon.tgz');
+      packAddon(pkg, archive);
+      const entries = Bun.spawnSync(['tar', '-tzf', archive], { stdout: 'pipe' }).stdout.toString();
+      expect(entries).toContain('index.ts');
+      expect(entries).not.toContain('tests/reports');
+      expect(readFileSync(join(pkg, 'tests/reports/results.json'), 'utf8')).toBe('{"generated":true}');
+    }
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test('published versions and historical URLs retain their exact bytes across builds', () => {
+  const root = mkdtempSync(join(tmpdir(), 'published-archives-'));
+  try {
+    const prior = join(root, 'prior'), output = join(root, 'output');
+    mkdirSync(prior); mkdirSync(output);
+    const files = ['fixture-1.0.0.tgz', 'historical-0.1.0.tgz'];
+    for (const file of files) writeFileSync(join(prior, file), `original gzip metadata and payload: ${file}`);
+    writeFileSync(join(output, files[0]), 'stale tracked output');
+    const published = preservePublishedArchives(prior, output);
+    expect([...published].sort()).toEqual([...files].sort());
+    for (const file of files) expect(readFileSync(join(output, file))).toEqual(readFileSync(join(prior, file)));
+    writeFileSync(join(output, 'new-2.0.0.tgz'), 'new release');
+    verifyPublishedArchives(prior, output, published);
+    writeFileSync(join(output, files[0]), 'accidental repack');
+    expect(() => verifyPublishedArchives(prior, output, published)).toThrow(`Published archive changed: ${files[0]}`);
+    preservePublishedArchives(prior, output);
+    verifyPublishedArchives(prior, output, published);
+    rmSync(join(output, files[1]));
+    expect(() => verifyPublishedArchives(prior, output, published)).toThrow();
+    expect(buildSource).toContain('if (published.has(`${baseName}-${addon.version}.tgz`))');
+    expect(buildSource.indexOf('verifyPublishedArchives(PUBLISHED_PACKAGES')).toBeGreaterThan(buildSource.indexOf('for (const archive of deprecatedArchives(ROOT))'));
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test('publication refuses missing, aliased and non-file archive baselines', () => {
+  const root = mkdtempSync(join(tmpdir(), 'published-baseline-'));
+  try {
+    expect(() => preservePublishedArchives(join(root, 'missing'), join(root, 'out'))).toThrow();
+    expect(() => preservePublishedArchives(root, root)).toThrow('separate from output');
+    expect(() => preservePublishedArchives(root, join(root, 'out'))).toThrow('contains no archives');
+    writeFileSync(join(root, 'original'), 'archive');
+    symlinkSync(join(root, 'original'), join(root, 'linked.tgz'));
+    expect(() => preservePublishedArchives(root, join(root, 'out'))).toThrow('not a regular file');
+    expect(buildSource).toContain('if (!PUBLISHED_PACKAGES) throw');
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
