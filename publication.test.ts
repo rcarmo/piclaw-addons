@@ -57,7 +57,7 @@ test('same-source reusable validation is required and includes every existing va
 });
 
 test('all publication steps require success and main, never always or continue-on-error', () => {
-  for (const name of ['Require completed publication gates', 'Build site and package tarballs', 'Copy assets into docs', 'Deploy to GitHub Pages']) {
+  for (const name of ['Require completed publication gates', 'Checkout published archive baseline', 'Build site and package tarballs', 'Copy assets into docs', 'Deploy to GitHub Pages']) {
     expect(step(name).if).toBe(condition);
     expect(step(name)['continue-on-error']).toBeUndefined();
     for (const event of ['push', 'pull_request', 'workflow_dispatch']) {
@@ -95,6 +95,17 @@ test('source identity is checked and published; UX uses an immutable released co
   expect(steps[0].with['fetch-depth']).toBe(0); // Catalog dates require full add-on history.
   expect(step('Validate catalog and publication contracts').run).toContain('bun run check:catalog');
   expect(step('Validate catalog and publication contracts').run).toContain('bun test publication.test.ts');
+});
+
+test('publication uses the live published branch as its required read-only archive baseline', () => {
+  const baseline = step('Checkout published archive baseline');
+  expect(baseline.with).toEqual({ ref: 'gh-pages', path: '.published-site', 'persist-credentials': false });
+  expect(steps.indexOf(baseline)).toBeGreaterThan(steps.indexOf(step('Require completed publication gates')));
+  expect(steps.indexOf(baseline)).toBeLessThan(steps.indexOf(step('Build site and package tarballs')));
+  const buildStep = step('Build site and package tarballs');
+  expect(buildStep.env.PICLAW_PUBLISHED_PACKAGES_DIR).toBe('${{ github.workspace }}/.published-site/packages');
+  expect(buildStep.run).toContain('git -C .published-site rev-parse HEAD > publication-packages-source.txt');
+  expect(step('Copy assets into docs').run).toContain('cp publication-packages-source.txt docs/publication-packages-source.txt');
 });
 
 test('failure diagnostics and fixture cleanup survive failed UX without publishing', () => {

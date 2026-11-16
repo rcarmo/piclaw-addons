@@ -7,12 +7,14 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, copyFileSync } from "fs";
 import { join, dirname, normalize } from "path";
 import { marked } from "marked";
-import { packAddon } from './scripts/lib/pack-addon.js';
+import { packAddon, preservePublishedArchives, verifyPublishedArchives } from './scripts/lib/pack-addon.js';
 import { deprecatedArchives, downloadDeprecatedArchive } from './scripts/lib/deprecated-addons.ts';
 
 const ROOT    = dirname(Bun.main);
 const CATALOG = join(ROOT, "catalog.json");
 const OUT     = join(ROOT, "docs");  // GitHub Pages serves from /docs
+const PUBLISHED_PACKAGES = process.env.PICLAW_PUBLISHED_PACKAGES_DIR;
+if (!PUBLISHED_PACKAGES) throw new Error('PICLAW_PUBLISHED_PACKAGES_DIR must identify a separate checkout of published packages');
 
 const SITE_URL  = "https://rcarmo.github.io/piclaw-addons";
 const SITE_NAME = "piclaw-addons";
@@ -758,20 +760,33 @@ ${renderFooter(`<a href="/piclaw-addons/">piclaw-addons</a> &nbsp;·&nbsp;
 console.log(`✓ ${built} addon pages`);
 
 // ── Pack tarballs ─────────────────────────────────────────────────────────────
-mkdirSync(join(OUT, "packages"), { recursive: true });
+const packageOutput = join(OUT, 'packages');
+const published = preservePublishedArchives(PUBLISHED_PACKAGES, packageOutput);
 for (const addon of addons) {
   const addonDir = join(ROOT, addon.path);
   const baseName = addon.name.replace(/^@[^/]+\//, '');
   const outPath  = join(OUT, "packages", `${baseName}-${addon.version}.tgz`);
-  packAddon(addonDir, outPath);
-  console.log(`✓ packed ${addon.name}@${addon.version}`);
+  if (published.has(`${baseName}-${addon.version}.tgz`)) {
+    console.log(`✓ retained ${addon.name}@${addon.version}`);
+  } else {
+    packAddon(addonDir, outPath);
+    console.log(`✓ packed new ${addon.name}@${addon.version}`);
+  }
 }
 // Deprecated releases leave the catalogue but keep their archives, so
 // existing installations and lockfiles still resolve.
 for (const archive of deprecatedArchives(ROOT)) {
-  writeFileSync(join(OUT, "packages", archive.file), await downloadDeprecatedArchive(`${SITE_URL}/packages/${archive.file}`, archive.sha256));
+  const path = join(packageOutput, archive.file);
+  if (published.has(archive.file)) {
+    if (new Bun.CryptoHasher('sha256').update(readFileSync(path)).digest('hex') !== archive.sha256) {
+      throw new Error(`Deprecated archive checksum mismatch: ${archive.file}`);
+    }
+  } else {
+    writeFileSync(path, await downloadDeprecatedArchive(`${SITE_URL}/packages/${archive.file}`, archive.sha256));
+  }
   console.log(`✓ retained deprecated ${archive.file}`);
 }
+verifyPublishedArchives(PUBLISHED_PACKAGES, packageOutput, published);
 
 // ── Packages index page ───────────────────────────────────────────────────────
 const pkgsHtml = `<!DOCTYPE html>
