@@ -27,8 +27,10 @@ test('new package-local styling imports use exact browser asset filenames',()=>{
 test('Settings panes use the shared kit instead of inline styles and fixed colours',()=>{
  // Theme tokens own colour; kit classes own layout. Code Review's diff view keeps its own palette,
  // so only its exported Settings rules are checked.
+ // Deprecated packages are retained byte-for-byte for older installations.
+ const deprecated=new Set(Object.keys(JSON.parse(readFileSync(join(import.meta.dir,'deprecated-addons.json'),'utf8'))));
  const offenders:string[]=[];
- for(const slug of panes){
+ for(const slug of panes.filter(slug=>!deprecated.has(slug))){
   const dir=join(import.meta.dir,'addons',slug,'web');
   for(const name of readdirSync(dir).filter(n=>n.endsWith('.ts'))){
    let source=readFileSync(join(dir,name),'utf8');

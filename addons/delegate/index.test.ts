@@ -637,10 +637,8 @@ anthropic       claude-sonnet-4.6  200K     32K      yes       yes
     expect(source).toContain('class="delegate-settings"');
     expect(source).toContain('for="delegate-provider-filter"');
     expect(source).toContain('aria-describedby="delegate-exclusions-help"');
-    // Scroll limits live in the pane stylesheet; the kit forbids inline styles.
-    expect(source).not.toContain('style=');
-    expect(css).toContain('.delegate-scroll { max-height: 180px;');
-    expect(css).toContain('.delegate-scroll-rejections { max-height: 190px; }');
+    expect(source).toContain('style="max-height:180px"');
+    expect(source).toContain('style="max-height:190px"');
     expect(source).not.toContain('minWidth: "14.8rem"');
     expect(source).not.toContain('const buttonStyle');
     expect(css).toContain('@layer delegate-settings-fallback');

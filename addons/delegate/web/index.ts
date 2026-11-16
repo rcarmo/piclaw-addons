@@ -229,7 +229,7 @@ function DelegateSettings() {
       <p class="settings-addon-help" id="delegate-exclusions-help">
         Hard model exclusions, one per line or comma-separated. Supports exact ids, substrings, or <code>*</code> wildcards. Matching models are blocked from automatic selection, fallback, and explicit model selection. Effective provider exclusions: ${effectiveExclusions.providers?.join(", ") || "none"}.
       </p>
-      <textarea id="delegate-exclusions" class="settings-addon-control settings-addon-mono" rows="3" aria-describedby="delegate-exclusions-help" value=${excludedModelsText} disabled=${saving} placeholder="gpt-4o\n*/experimental-*" onInput=${(e) => setExcludedModelsText(e.target.value)} />
+      <textarea id="delegate-exclusions" class="settings-addon-control" aria-describedby="delegate-exclusions-help" style="min-height:74px;font-family:var(--font-mono, monospace)" value=${excludedModelsText} disabled=${saving} placeholder="gpt-4o\n*/experimental-*" onInput=${(e) => setExcludedModelsText(e.target.value)} />
       </div>
       <div class="settings-addon-actions">
         <button type="button" disabled=${saving} onClick=${saveExcludedModels}>Save exclusions</button>
@@ -241,7 +241,7 @@ function DelegateSettings() {
       <p class="settings-addon-help">
         Delegate can launch only these ${candidates.length} models, whether selected automatically, requested explicitly by an agent, or used as a fallback. Each model is from an approved provider, matches the ordered model policy, exists in the child CLI catalog, and does not match an exclusion.
       </p>
-      <div class="delegate-scroll">
+      <div class="delegate-scroll" style="max-height:180px">
         ${candidates.slice(0, 80).map((candidate) => html`
           <div key=${candidate.id} title=${candidate.classificationReason} class="delegate-candidate">
             <span class="settings-addon-help">T${candidate.tier}</span>
@@ -259,7 +259,7 @@ function DelegateSettings() {
       <p class="settings-addon-help">
         Runtime-only models are known to Piclaw but not executable by the child CLI. Rejected CLI models cannot be used by Delegate because their provider is unapproved, the model is excluded, or the model is unclassified.
       </p>
-      <div class="delegate-scroll delegate-scroll-rejections">
+      <div class="delegate-scroll" style="max-height:190px">
         ${runtimeOnlyModels.length === 0 && rejectedModels.length === 0 && html`<p class="settings-addon-help">No catalog differences or rejected models.</p>`}
         ${runtimeOnlyModels.slice(0, 50).map((model) => html`
           <div key=${`runtime:${model.fullId}`} class="delegate-rejection settings-addon-help">

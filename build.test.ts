@@ -54,7 +54,7 @@ test("only the selected core add-ons carry the core tag", () => {
     const manifest = JSON.parse(readFileSync(join(repoRoot, path), "utf8"));
     return manifest.piclaw?.tags?.includes("core") ? [path.split("/")[1]] : [];
   });
-  expect(coreSlugs).toEqual(["code-review", "delegate", "goal", "observability", "restic"]);
+  expect(coreSlugs).toEqual(["code-review", "goal", "observability", "restic"]);
   const dashboard = JSON.parse(readFileSync(join(repoRoot, 'addons/session-dashboard/package.json'), 'utf8'));
   expect(dashboard.deprecated).toBeUndefined();
   expect(deprecated["session-dashboard"]?.reason).toContain('Workbench Sessions');
@@ -69,14 +69,15 @@ test("only the selected core add-ons carry the core tag", () => {
 
 test("deprecated add-ons keep their exact published sources and versioned archives", () => {
   const deprecated = readDeprecatedAddons(repoRoot);
-  expect(Object.keys(deprecated).sort()).toEqual(["plan-sidebar", "session-dashboard"]);
+  expect(Object.keys(deprecated).sort()).toEqual(["delegate", "plan-sidebar", "session-dashboard"]);
+  expect(deprecated.delegate).toMatchObject({version:"0.2.22",sourceSha256:addonSourceDigest(join(repoRoot,"addons/delegate"))});
   expect(deprecated["plan-sidebar"]).toMatchObject({version:"0.1.28",sourceSha256:addonSourceDigest(join(repoRoot,"addons/plan-sidebar"))});
   const dashboard = join(repoRoot, "addons/session-dashboard");
   expect(deprecated["session-dashboard"]).toMatchObject({ version: "0.2.6", sourceSha256: addonSourceDigest(dashboard) });
   // The manifest bytes installed sites already hold and Piclaw pins for 0.2.6.
   const manifest = readFileSync(join(dashboard, "package.json"));
   expect(new Bun.CryptoHasher("sha256").update(manifest).digest("hex")).toBe("9daa053e17a8b56713de452b300de7df86c036c9100ad2857d52a6f3c1a7b964");
-  expect(deprecatedArchives(repoRoot)).toEqual([{ dir: dashboard, file: "piclaw-addon-session-dashboard-0.2.6.tgz", sha256: deprecated["session-dashboard"]!.archiveSha256 }, {dir:join(repoRoot,"addons/plan-sidebar"),file:"piclaw-addon-plan-sidebar-0.1.28.tgz",sha256:deprecated["plan-sidebar"]!.archiveSha256}]);
+  expect(deprecatedArchives(repoRoot)).toEqual([{ dir: dashboard, file: "piclaw-addon-session-dashboard-0.2.6.tgz", sha256: deprecated["session-dashboard"]!.archiveSha256 }, {dir:join(repoRoot,"addons/plan-sidebar"),file:"piclaw-addon-plan-sidebar-0.1.28.tgz",sha256:deprecated["plan-sidebar"]!.archiveSha256}, {dir:join(repoRoot,"addons/delegate"),file:"piclaw-addon-delegate-0.2.22.tgz",sha256:deprecated.delegate!.archiveSha256}]);
   expect(buildSource).toContain("for (const archive of deprecatedArchives(ROOT))");
   const root = mkdtempSync(join(tmpdir(), "deprecated-archive-"));
   try {
