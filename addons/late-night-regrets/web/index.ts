@@ -77,9 +77,7 @@ export function RegretsSettings() {
       setSaving(false);
     }
   };
-  if (!config) return message
-    ? html`<p class="settings-addon-error" role="alert">${message}</p>`
-    : html`<p class="settings-addon-status" role="status">Loading…</p>`;
+  if (!config) return html`<p class=${message ? "settings-addon-error" : "settings-addon-status"} role="status">${message || "Loading…"}</p>`;
   return html`<section
     data-settings-addon="late-night-regrets"
     class="settings-addon-section"
@@ -157,9 +155,7 @@ export function RegretsSettings() {
       tasks must use the new reflection prompt; saving these settings does not
       create or reschedule tasks.
     </p>
-    ${message ? (/fail/i.test(message)
-      ? html`<p class="settings-addon-error" role="alert">${message}</p>`
-      : html`<p class="settings-addon-status" role="status">${message}</p>`) : null}
+    <p class=${/fail/i.test(message) ? "settings-addon-error" : "settings-addon-status"} role="status">${message}</p>
   </section>`;
 }
 let registered = false;
