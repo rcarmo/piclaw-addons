@@ -1,9 +1,10 @@
 import { afterAll, expect, test } from 'bun:test';
 import { readFileSync, readdirSync, existsSync, mkdirSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
-import { availableSkins, settingsBrowserEnabled, settingsPaneFixture } from './scripts/lib/settings-pane-browser.js';
+import { availableSkins, coreOwnsPane, settingsBrowserEnabled, settingsPaneFixture } from './scripts/lib/settings-pane-browser.js';
 
 export const panes = ['cheapskate','code-review','delegate','goal','imap','late-night-regrets','linkr','observability','portainer','proxmox','remote-peer','restic','sample-addon','telegram','vent','whatsapp'];
+const hostedPanes = panes.filter(slug=>!coreOwnsPane(slug));
 const textControls='input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]):not([type="range"]):not([type="color"]),textarea,select';
 const browserTest=settingsBrowserEnabled?test:test.skip;
 const fixtures=new Map<string,Awaited<ReturnType<typeof settingsPaneFixture>>>();
@@ -104,7 +105,7 @@ async function open(slug:string,skin:string,width:number,theme:'light'|'dark'='l
  if(slug==='remote-peer')await content.getByText('Optional endpoint ticket',{exact:true}).click();
  return {...f,content,requests};
 }
-for(const slug of panes)for(const skin of availableSkins(['classic','visual','legacy']))for(const width of [1366,820,520,390])for(const theme of ['light','dark'] as const){
+for(const slug of hostedPanes)for(const skin of availableSkins(['classic','visual','legacy']))for(const width of [1366,820,520,390])for(const theme of ['light','dark'] as const){
  browserTest(`${slug} ${skin}/${width}/${theme}: all text controls match core shape and remain labelled/bounded`,async()=>{
   const f=await open(slug,skin,width,theme);try{
    const measurements=await f.content.locator(textControls).evaluateAll((nodes:HTMLElement[])=>nodes.filter(el=>el.getBoundingClientRect().height>0).map(el=>{
@@ -196,7 +197,7 @@ for(const slug of ['portainer','proxmox','observability'])browserTest(`${slug} p
  }finally{await f.page.close();}
 });
 
-for(const slug of panes)for(const skin of availableSkins(['classic','visual']))browserTest(`${slug} ${skin}: text focus/disabled/readonly/invalid states follow host without writes`,async()=>{
+for(const slug of hostedPanes)for(const skin of availableSkins(['classic','visual']))browserTest(`${slug} ${skin}: text focus/disabled/readonly/invalid states follow host without writes`,async()=>{
  const f=await open(slug,skin,820);try{
   const field=f.content.locator('input.settings-addon-control:not([type=checkbox]):not([type=radio]),textarea.settings-addon-control').first();
   await field.waitFor();

@@ -17,6 +17,12 @@ export function availableSkins<T extends string>(skins: readonly T[]): T[] {
   return skins.filter((skin) => skin !== "visual" || visualSkinAvailable);
 }
 
+/** Core took over some former add-on panes (Delegate in piclaw #2028); their retained packages are not hosted there. */
+export function coreOwnsPane(slug: string): boolean {
+  return settingsBrowserEnabled
+    && existsSync(join(process.env.PICLAW_SETTINGS_CORE_SOURCE!, `runtime/web/src/components/settings/${slug}-settings.ts`));
+}
+
 export async function settingsPaneFixture(entry: string, options: { realHost?: boolean } = {}) {
   const core = process.env.PICLAW_SETTINGS_CORE_SOURCE!;
   if (!settingsBrowserEnabled || !core.startsWith("/")) throw new Error("Explicit disposable companion core required");
