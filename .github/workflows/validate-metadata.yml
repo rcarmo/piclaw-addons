@@ -95,7 +95,7 @@ jobs:
   late-night-regrets:
     needs: routes
     if: needs.routes.outputs.regrets == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Includes Ubuntu browser dependencies; individual test deadlines stay unchanged.
     timeout-minutes: 20
     env:
