@@ -102,6 +102,8 @@ jobs:
     env:
       PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
     steps:
+      - name: Install Bun extraction prerequisite
+        run: apt-get update && apt-get install -y --no-install-recommends unzip
       - uses: actions/checkout@v7
       - name: Resolve Bun version
         id: bun-version
