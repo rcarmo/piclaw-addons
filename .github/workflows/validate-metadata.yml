@@ -96,7 +96,8 @@ jobs:
     needs: routes
     if: needs.routes.outputs.regrets == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Includes Ubuntu browser dependencies; individual test deadlines stay unchanged.
+    timeout-minutes: 20
     env:
       PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.cache/ms-playwright
     steps:
