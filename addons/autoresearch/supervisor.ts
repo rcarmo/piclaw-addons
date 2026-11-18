@@ -11,6 +11,8 @@
  * pi config directory at launch time.
  */
 
+import { toolCallSummary } from "./compat/tool-call-summary.js";
+import { callSummaries } from "./summary.js";
 import { spawnSync, execSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync, symlinkSync, rmSync, statSync } from "node:fs";
 import { join, resolve, dirname, basename } from "node:path";
@@ -1242,6 +1244,7 @@ export const autoresearchSupervisor: ExtensionFactory = (pi: ExtensionAPI) => {
   }));
 
   pi.registerTool({
+    ...toolCallSummary(callSummaries["start_autoresearch"]),
     name: "start_autoresearch",
     label: "start_autoresearch",
     description: "Launch an autonomous experiment loop. Spawns a headless pi sub-agent in a tmux session with the pi-autoresearch extension. The sub-agent optimizes the target metric autonomously.",
@@ -1282,6 +1285,7 @@ export const autoresearchSupervisor: ExtensionFactory = (pi: ExtensionAPI) => {
   });
 
   pi.registerTool({
+    ...toolCallSummary(callSummaries["stop_autoresearch"]),
     name: "stop_autoresearch",
     label: "stop_autoresearch",
     description: "Stop the running autoresearch experiment. Sends SIGINT, generates a markdown report, and cleans up.",
@@ -1293,6 +1297,7 @@ export const autoresearchSupervisor: ExtensionFactory = (pi: ExtensionAPI) => {
   });
 
   pi.registerTool({
+    ...toolCallSummary(callSummaries["autoresearch_status"]),
     name: "autoresearch_status",
     label: "autoresearch_status",
     description: "Check the status of the running autoresearch experiment. Shows run count, best metric, confidence, and whether the sub-agent is still alive.",

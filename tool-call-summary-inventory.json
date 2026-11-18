@@ -1,0 +1,1096 @@
+{
+  "repository": "rcarmo/piclaw-addons",
+  "addons": [
+    {
+      "addon": "ast-grep-tool",
+      "tools": [
+        "code_rewrite",
+        "code_search"
+      ],
+      "sources": [
+        "addons/ast-grep-tool/index.ts"
+      ],
+      "version": "0.1.8",
+      "retired": false
+    },
+    {
+      "addon": "autoresearch",
+      "tools": [
+        "autoresearch_status",
+        "start_autoresearch",
+        "stop_autoresearch"
+      ],
+      "sources": [
+        "addons/autoresearch/supervisor.ts"
+      ],
+      "version": "0.1.5",
+      "retired": false
+    },
+    {
+      "addon": "cheapskate",
+      "tools": [
+        "cheapskate"
+      ],
+      "sources": [
+        "addons/cheapskate/index.ts"
+      ],
+      "version": "0.5.4",
+      "retired": false
+    },
+    {
+      "addon": "code-review",
+      "tools": [
+        "code_review"
+      ],
+      "sources": [
+        "addons/code-review/tool.ts"
+      ],
+      "version": "0.1.13",
+      "retired": false
+    },
+    {
+      "addon": "code-validator",
+      "tools": [
+        "diagnostics"
+      ],
+      "sources": [
+        "addons/code-validator/index.ts"
+      ],
+      "version": "0.1.4",
+      "retired": false
+    },
+    {
+      "addon": "codex-conversion",
+      "tools": [
+        "apply_patch",
+        "exec_command",
+        "image_generation",
+        "view_image",
+        "web_search",
+        "write_stdin"
+      ],
+      "sources": [
+        "addons/codex-conversion/src/native-process.ts",
+        "addons/codex-conversion/src/tools/apply-patch-tool.ts",
+        "addons/codex-conversion/src/tools/exec-command-tool.ts",
+        "addons/codex-conversion/src/tools/image-generation-tool.ts",
+        "addons/codex-conversion/src/tools/view-image-tool.ts",
+        "addons/codex-conversion/src/tools/web-search-tool.ts",
+        "addons/codex-conversion/src/tools/write-stdin-tool.ts"
+      ],
+      "version": "0.2.3",
+      "retired": false
+    },
+    {
+      "addon": "delegate",
+      "tools": [
+        "delegate"
+      ],
+      "sources": [
+        "addons/delegate/delegate.ts"
+      ],
+      "version": "0.2.22",
+      "retired": true
+    },
+    {
+      "addon": "dev-tools",
+      "tools": [
+        "git_history",
+        "json_query"
+      ],
+      "sources": [
+        "addons/dev-tools/index.ts"
+      ],
+      "version": "0.1.5",
+      "retired": false
+    },
+    {
+      "addon": "diagram-tools",
+      "tools": [],
+      "sources": [],
+      "version": "0.1.1",
+      "retired": false
+    },
+    {
+      "addon": "drawio-editor",
+      "tools": [
+        "open_drawio_editor"
+      ],
+      "sources": [
+        "addons/drawio-editor/tool.ts"
+      ],
+      "version": "31.4.5",
+      "retired": false
+    },
+    {
+      "addon": "editable-table",
+      "tools": [
+        "editable_table"
+      ],
+      "sources": [
+        "addons/editable-table/tool.ts"
+      ],
+      "version": "0.1.5",
+      "retired": false
+    },
+    {
+      "addon": "eml-viewer",
+      "tools": [],
+      "sources": [],
+      "version": "0.2.2",
+      "retired": false
+    },
+    {
+      "addon": "export-timeline-pdf",
+      "tools": [],
+      "sources": [],
+      "version": "0.1.2",
+      "retired": false
+    },
+    {
+      "addon": "ghostty-terminal",
+      "tools": [],
+      "sources": [],
+      "version": "0.1.0",
+      "retired": false
+    },
+    {
+      "addon": "git-query-tools",
+      "tools": [
+        "git_history",
+        "json_query"
+      ],
+      "sources": [
+        "addons/git-query-tools/supervisor.ts"
+      ],
+      "version": "0.1.6",
+      "retired": false
+    },
+    {
+      "addon": "goal",
+      "tools": [
+        "create_goal",
+        "get_goal",
+        "goal_complete",
+        "goal_stop",
+        "update_goal"
+      ],
+      "sources": [
+        "addons/goal/index.ts"
+      ],
+      "version": "0.1.52",
+      "retired": false
+    },
+    {
+      "addon": "image-processing",
+      "tools": [
+        "image_process"
+      ],
+      "sources": [
+        "addons/image-processing/index.ts"
+      ],
+      "version": "0.1.5",
+      "retired": false
+    },
+    {
+      "addon": "imap",
+      "tools": [
+        "imap"
+      ],
+      "sources": [
+        "addons/imap/index.ts"
+      ],
+      "version": "0.1.15",
+      "retired": false
+    },
+    {
+      "addon": "kanban-board-widget",
+      "tools": [],
+      "sources": [],
+      "version": "0.1.1",
+      "retired": false
+    },
+    {
+      "addon": "kanban-editor",
+      "tools": [],
+      "sources": [],
+      "version": "0.1.3",
+      "retired": false
+    },
+    {
+      "addon": "late-night-regrets",
+      "tools": [
+        "regrets_review"
+      ],
+      "sources": [
+        "addons/late-night-regrets/native.ts"
+      ],
+      "version": "0.3.4",
+      "retired": false
+    },
+    {
+      "addon": "linkr",
+      "tools": [
+        "linkr"
+      ],
+      "sources": [
+        "addons/linkr/extension.ts"
+      ],
+      "version": "0.1.3",
+      "retired": false
+    },
+    {
+      "addon": "lite-term",
+      "tools": [],
+      "sources": [],
+      "version": "0.1.2",
+      "retired": false
+    },
+    {
+      "addon": "m365",
+      "tools": [
+        "m365_calendar",
+        "m365_calendar_svg",
+        "m365_document_link_metadata",
+        "m365_graph_query",
+        "m365_mail",
+        "m365_onedrive",
+        "m365_onedrive_share_local_file",
+        "m365_people",
+        "m365_profile",
+        "m365_spo_browse",
+        "m365_spo_download",
+        "m365_spo_move",
+        "m365_spo_move_many",
+        "m365_spo_search",
+        "m365_spo_sync",
+        "m365_spo_upload",
+        "m365_teams_chats",
+        "m365_teams_messages",
+        "m365_teams_send",
+        "m365_teams_send_file_card",
+        "m365_teams_send_link_card",
+        "m365_teams_send_markdown_card",
+        "m365_teams_send_rich_text",
+        "m365_teams_upload_file_card",
+        "m365_todo",
+        "m365_todo_lists",
+        "m365_todo_step",
+        "m365_todo_task"
+      ],
+      "sources": [
+        "addons/m365/index.ts",
+        "addons/m365/todo.ts"
+      ],
+      "version": "0.1.4",
+      "retired": false
+    },
+    {
+      "addon": "mindmap",
+      "tools": [],
+      "sources": [],
+      "version": "0.1.5",
+      "retired": false
+    },
+    {
+      "addon": "observability",
+      "tools": [],
+      "sources": [],
+      "version": "0.1.26",
+      "retired": false
+    },
+    {
+      "addon": "office-tools",
+      "tools": [
+        "office_read",
+        "office_write"
+      ],
+      "sources": [
+        "addons/office-tools/index.ts"
+      ],
+      "version": "0.1.7",
+      "retired": false
+    },
+    {
+      "addon": "office-viewer",
+      "tools": [
+        "open_office_viewer"
+      ],
+      "sources": [
+        "addons/office-viewer/index.ts"
+      ],
+      "version": "0.1.4",
+      "retired": false
+    },
+    {
+      "addon": "plan-sidebar",
+      "tools": [
+        "plan"
+      ],
+      "sources": [
+        "addons/plan-sidebar/index.ts"
+      ],
+      "version": "0.1.28",
+      "retired": true
+    },
+    {
+      "addon": "portainer",
+      "tools": [
+        "portainer"
+      ],
+      "sources": [
+        "addons/portainer/extension.ts"
+      ],
+      "version": "0.1.13",
+      "retired": false
+    },
+    {
+      "addon": "proxmox",
+      "tools": [
+        "proxmox"
+      ],
+      "sources": [
+        "addons/proxmox/extension.ts"
+      ],
+      "version": "0.1.14",
+      "retired": false
+    },
+    {
+      "addon": "remote-peer",
+      "tools": [
+        "remote_peer"
+      ],
+      "sources": [
+        "addons/remote-peer/index.ts",
+        "addons/remote-peer/native.ts"
+      ],
+      "version": "0.3.10",
+      "retired": false
+    },
+    {
+      "addon": "restic",
+      "tools": [
+        "restic"
+      ],
+      "sources": [
+        "addons/restic/index.ts"
+      ],
+      "version": "0.1.6",
+      "retired": false
+    },
+    {
+      "addon": "sample-addon",
+      "tools": [
+        "sample_test"
+      ],
+      "sources": [
+        "addons/sample-addon/index.ts"
+      ],
+      "version": "0.1.13",
+      "retired": false
+    },
+    {
+      "addon": "session-dashboard",
+      "tools": [],
+      "sources": [],
+      "version": "0.2.6",
+      "retired": true
+    },
+    {
+      "addon": "session-tree",
+      "tools": [],
+      "sources": [],
+      "version": "0.2.0",
+      "retired": false
+    },
+    {
+      "addon": "settings-dialog-screenshot",
+      "tools": [],
+      "sources": [],
+      "version": "0.1.0",
+      "retired": false
+    },
+    {
+      "addon": "skill-model-effort",
+      "tools": [],
+      "sources": [],
+      "version": "0.1.4",
+      "retired": false
+    },
+    {
+      "addon": "smart-compaction",
+      "tools": [],
+      "sources": [],
+      "version": "0.1.4",
+      "retired": false
+    },
+    {
+      "addon": "stealth-browser",
+      "tools": [
+        "stealth_browser"
+      ],
+      "sources": [
+        "addons/stealth-browser/index.ts"
+      ],
+      "version": "0.1.3",
+      "retired": false
+    },
+    {
+      "addon": "telegram",
+      "tools": [],
+      "sources": [],
+      "version": "0.3.2",
+      "retired": false
+    },
+    {
+      "addon": "vent",
+      "tools": [
+        "vent"
+      ],
+      "sources": [
+        "addons/vent/index.ts"
+      ],
+      "version": "0.1.6",
+      "retired": false
+    },
+    {
+      "addon": "voice-pipeline",
+      "tools": [
+        "ava"
+      ],
+      "sources": [
+        "addons/voice-pipeline/index.ts"
+      ],
+      "version": "0.2.3",
+      "retired": false
+    },
+    {
+      "addon": "web-viewer",
+      "tools": [],
+      "sources": [],
+      "version": "0.1.2",
+      "retired": false
+    },
+    {
+      "addon": "whatsapp",
+      "tools": [],
+      "sources": [],
+      "version": "0.1.5",
+      "retired": false
+    },
+    {
+      "addon": "win-ui",
+      "tools": [
+        "win_click",
+        "win_desktop_screenshot",
+        "win_find_elements",
+        "win_kill",
+        "win_list_monitors",
+        "win_list_windows",
+        "win_monitor_screenshot",
+        "win_region_screenshot",
+        "win_screenshot",
+        "win_tree",
+        "win_type"
+      ],
+      "sources": [
+        "addons/win-ui/index.ts"
+      ],
+      "version": "0.1.2",
+      "retired": false
+    },
+    {
+      "addon": "writer-fonts",
+      "tools": [],
+      "sources": [],
+      "version": "0.2.0",
+      "retired": false
+    },
+    {
+      "addon": "yolo-vibe",
+      "tools": [],
+      "sources": [],
+      "version": "0.1.8",
+      "retired": false
+    },
+    {
+      "addon": "yolochat",
+      "tools": [],
+      "sources": [],
+      "version": "0.1.0",
+      "retired": false
+    }
+  ],
+  "apis": {
+    "proxmox": {
+      "actions": [
+        "get",
+        "set",
+        "clear",
+        "discover",
+        "contract",
+        "capabilities",
+        "workflow_help",
+        "request_help",
+        "recommend",
+        "request",
+        "workflow"
+      ],
+      "workflows": [
+        "cluster.status",
+        "vm.resolve_node",
+        "vm.status",
+        "vm.inspect",
+        "vm.create",
+        "vm.start",
+        "vm.stop",
+        "vm.resume",
+        "vm.restart",
+        "vm.ip",
+        "vm.migrate",
+        "vm.iso.attach",
+        "vm.iso.detach",
+        "vm.disk.resize",
+        "vm.disk.detach",
+        "vm.disk.remove",
+        "lxc.resolve_node",
+        "lxc.status",
+        "lxc.inspect",
+        "lxc.create",
+        "lxc.start",
+        "lxc.stop",
+        "lxc.restart",
+        "lxc.ip",
+        "node.list",
+        "node.inspect",
+        "node.log",
+        "node.reboot",
+        "node.shutdown",
+        "storage.list",
+        "storage.inspect",
+        "storage.content.list",
+        "storage.create",
+        "storage.download_url",
+        "backup.list",
+        "backup.create",
+        "backup.restore",
+        "task.list",
+        "task.status",
+        "task.log",
+        "task.wait",
+        "vm.wait_state",
+        "vm.snapshot.list",
+        "vm.snapshot.create",
+        "vm.snapshot.rollback",
+        "vm.snapshot.delete",
+        "vm.clone",
+        "vm.template.create",
+        "vm.agent.exec",
+        "vm.agent.osinfo",
+        "vm.agent.fsinfo",
+        "vm.agent.users",
+        "metrics.node",
+        "metrics.vm",
+        "metrics.storage"
+      ]
+    },
+    "portainer": {
+      "actions": [
+        "get",
+        "set",
+        "clear",
+        "discover",
+        "contract",
+        "capabilities",
+        "workflow_help",
+        "request_help",
+        "recommend",
+        "request",
+        "workflow"
+      ],
+      "workflows": [
+        "endpoint.list",
+        "endpoint.resolve",
+        "endpoint.inspect",
+        "endpoint.ping",
+        "endpoint.docker_info",
+        "endpoint.docker_version",
+        "endpoint.system_df",
+        "stack.list",
+        "stack.resolve",
+        "stack.file",
+        "stack.create_standalone",
+        "stack.update",
+        "stack.pull_and_update",
+        "stack.delete",
+        "container.list",
+        "container.resolve",
+        "container.inspect",
+        "container.compose",
+        "container.start",
+        "container.stop",
+        "container.restart",
+        "container.logs",
+        "container.mounts",
+        "container.exec",
+        "container.upgrade",
+        "container.upgrade_many",
+        "container.delete",
+        "image.list",
+        "image.inspect",
+        "image.pull",
+        "image.delete",
+        "image.prune",
+        "image.update_check",
+        "network.list",
+        "network.inspect",
+        "network.create",
+        "network.delete",
+        "volume.list",
+        "volume.inspect",
+        "volume.create",
+        "volume.delete",
+        "volume.prune"
+      ]
+    }
+  },
+  "operations": {
+    "imap": {
+      "field": "action",
+      "values": [
+        "list_accounts",
+        "get_account",
+        "save_account",
+        "delete_account",
+        "set_default_account",
+        "list_folders",
+        "search",
+        "fetch",
+        "move",
+        "copy",
+        "flag",
+        "create_draft",
+        "file_message",
+        "create_folder",
+        "delete_folder"
+      ]
+    },
+    "restic": {
+      "field": "action",
+      "values": [
+        "get_config",
+        "set_config",
+        "status"
+      ]
+    },
+    "cheapskate": {
+      "field": "action",
+      "values": [
+        "status",
+        "list",
+        "usage",
+        "rotate"
+      ]
+    },
+    "remote_peer": {
+      "field": "action",
+      "values": [
+        "status",
+        "identity",
+        "ticket",
+        "pair",
+        "accept",
+        "deny",
+        "revoke",
+        "forget",
+        "rotate",
+        "alias",
+        "policy",
+        "remote_permissions",
+        "advertise",
+        "unadvertise",
+        "session_targets",
+        "session_advertise",
+        "session_unadvertise",
+        "ping",
+        "retry",
+        "work_send",
+        "work_review"
+      ]
+    },
+    "code_review": {
+      "field": "action",
+      "values": [
+        "dispatches",
+        "dispatch",
+        "thread",
+        "threads",
+        "reply",
+        "edit",
+        "deleteMessage",
+        "resolve",
+        "work"
+      ]
+    },
+    "stealth_browser": {
+      "field": "action",
+      "values": [
+        "goto",
+        "click",
+        "type",
+        "scroll",
+        "screenshot",
+        "evaluate",
+        "text",
+        "fetch",
+        "cookies",
+        "status",
+        "close"
+      ]
+    },
+    "ava": {
+      "field": "command",
+      "values": [
+        "announce",
+        "play",
+        "pause",
+        "stop",
+        "mute",
+        "unmute",
+        "volume",
+        "scene",
+        "wake",
+        "sensors",
+        "entities",
+        "snapshot",
+        "subtitle"
+      ]
+    },
+    "git_history": {
+      "field": "mode",
+      "values": [
+        "log",
+        "content_search",
+        "message_search",
+        "blame"
+      ]
+    },
+    "image_process": {
+      "field": "action",
+      "values": [
+        "resize",
+        "crop",
+        "convert",
+        "optimize",
+        "trim",
+        "rotate",
+        "flip",
+        "blur",
+        "sharpen",
+        "composite",
+        "greyscale",
+        "modulate",
+        "contrast",
+        "gamma",
+        "tint",
+        "normalize",
+        "negate",
+        "clahe",
+        "threshold",
+        "median",
+        "extend",
+        "extract_channel",
+        "remove_alpha",
+        "unflatten",
+        "text",
+        "svg_render",
+        "affine",
+        "tile",
+        "metadata",
+        "frames",
+        "spritesheet_to_gif",
+        "info"
+      ]
+    },
+    "m365_profile": {
+      "field": "action",
+      "values": [
+        "profile",
+        "manager",
+        "calendar_today",
+        "calendar_upcoming"
+      ]
+    },
+    "m365_mail": {
+      "field": "action",
+      "values": [
+        "list",
+        "search",
+        "read",
+        "draft",
+        "reply",
+        "forward",
+        "delete",
+        "move",
+        "flag",
+        "mark_read",
+        "mark_unread",
+        "folders",
+        "batch_delete",
+        "batch_move",
+        "batch_archive",
+        "batch_flag"
+      ]
+    },
+    "m365_onedrive": {
+      "field": "action",
+      "values": [
+        "list",
+        "search",
+        "info",
+        "mkdir",
+        "delete"
+      ]
+    },
+    "m365_calendar": {
+      "field": "action",
+      "values": [
+        "list",
+        "create",
+        "update",
+        "delete",
+        "rsvp",
+        "availability"
+      ]
+    },
+    "m365_todo": {
+      "field": "action",
+      "values": [
+        "list"
+      ]
+    },
+    "m365_todo_lists": {
+      "field": "action",
+      "values": [
+        "list",
+        "get",
+        "create",
+        "rename",
+        "delete"
+      ]
+    },
+    "m365_todo_task": {
+      "field": "action",
+      "values": [
+        "get",
+        "create",
+        "update",
+        "complete",
+        "reopen",
+        "delete"
+      ]
+    },
+    "m365_todo_step": {
+      "field": "action",
+      "values": [
+        "list",
+        "create",
+        "update",
+        "delete"
+      ]
+    },
+    "linkr": {
+      "field": "action",
+      "values": [
+        "help",
+        "capabilities",
+        "profile.list",
+        "profile.select",
+        "status",
+        "snapshot",
+        "key.tap",
+        "key.combo",
+        "key.repeat",
+        "text",
+        "mouse.move",
+        "mouse.click",
+        "mouse.drag",
+        "mouse.scroll",
+        "input.batch",
+        "input.release",
+        "job.start",
+        "job.status",
+        "job.cancel",
+        "reboot.plan",
+        "firmware.entry.plan",
+        "power.status",
+        "power.press",
+        "power.reset",
+        "power.cycle",
+        "media.list",
+        "media.mount",
+        "media.eject",
+        "device.reboot"
+      ]
+    }
+  },
+  "baseCommit": "d534f90e8507db71cdb736afdbd0539c8fa4f802",
+  "activeCatalogueSize": 46,
+  "executionBodyHashes": {
+    "addons/ast-grep-tool/index.ts": [
+      "cdf64ba9274eb6e5d6a976421ff426f515c299c44a35bbcde8a5cd68f539dd93",
+      "a2916cdca11733493192efd6c4ac2f668234498cd8c2111f961d94504712059a"
+    ],
+    "addons/autoresearch/supervisor.ts": [
+      "7c4c374b9b9907b2897005bcd9198248ac63dded963abd0227f2defa3ecf206a",
+      "f52ba40aed888be0ef8bc1969e677598a31e88fca9b372f53bee3e6b0bd1b0a2",
+      "4831babeb6826319b867c424e16b3f5d065bc2c0b052d10b0085354dda0f04de"
+    ],
+    "addons/cheapskate/index.ts": [
+      "c11cff806701b9f3cf867e9d91e289606a249dca54d544572f1c3d87acbd41c9"
+    ],
+    "addons/code-review/tool.ts": [
+      "a112845367b0eb946580eb239f1458ce0238927d9c716ae1a880bebe8c7babd4"
+    ],
+    "addons/code-validator/index.ts": [
+      "f2c3a7e5f79d56e56a597717b485a0ae91c67cba8ead436dc3b294341bd03977"
+    ],
+    "addons/codex-conversion/src/native-process.ts": [
+      "e306c8c4888b53a86f1b061d50142c5aed2e2a43f6406cae42c6b7c9764f276a",
+      "a15ceb61ff868fb4c32868a73c5dd0e1d706a2347b85d98ad9a3e2c30824dba6"
+    ],
+    "addons/codex-conversion/src/tools/apply-patch-tool.ts": [
+      "97cf28af688fd77a7ff8d6d2d4c532e04a54b1143dc7a83fd8f86dcbe1a73e83"
+    ],
+    "addons/codex-conversion/src/tools/exec-command-tool.ts": [
+      "64fdf1d77105a9ac32cd2349f970f93222a6b5232fd17ac2b351f388912cabc5"
+    ],
+    "addons/codex-conversion/src/tools/image-generation-tool.ts": [
+      "ade5a24e8f9543e5913e5d7b9a468da1b6d6605b6398fec715c941feabe9005d"
+    ],
+    "addons/codex-conversion/src/tools/view-image-tool.ts": [
+      "95f23ee8395da54e05a56ef606178d3d27a03285563720bcc11d295921f4481a"
+    ],
+    "addons/codex-conversion/src/tools/web-search-tool.ts": [
+      "48812d0875af06765337b211183f4774abfdf93b617c24c4c5c91a4b167b7603"
+    ],
+    "addons/codex-conversion/src/tools/write-stdin-tool.ts": [
+      "35f0481c411894b143bf8daadafa2c3f79f9eb8a2c282726081a787e35255aab"
+    ],
+    "addons/dev-tools/index.ts": [
+      "3ab9d3858c82960a87b749b744be3e021ef791bc321030042af6e7b054bc6312",
+      "6b3dd8a8448db3a1b1b1bedadaa034182b136c038f7c5b56b6047efd8f83aab5"
+    ],
+    "addons/drawio-editor/tool.ts": [
+      "2fe2c61513feb1a1db75eccea0f6e109ef2593cf29f35fdc8086590c84d92467"
+    ],
+    "addons/editable-table/tool.ts": [
+      "663e9bfbe981491f01128b27ffb7016553478e45ae152ae9a14053fdb2ddd2e6"
+    ],
+    "addons/git-query-tools/supervisor.ts": [
+      "7d8f64715689859b5407b7ac266b261052e17e52f0bf58ab6eccca83b7f07638",
+      "7d106096be2b6d14a54312f160b395941c158c1aacf2060397160a5c48e2c06e"
+    ],
+    "addons/goal/index.ts": [
+      "094461c393e740851b020e435968759e88153e93f9f1f69922e449cf676b1791",
+      "92ed06ef2cd2f6b87af953da758aaa6ab264d7f8dad3ea707b04ac027806e3c4",
+      "0de3a539a9efe29341ea4dd2aa7e2d502022147eddb67e7e3124f86f22990889",
+      "ab20dcbff85b5cc6bca684c0c9642a27695d64bf1b4830d4277ef6baab8112ea",
+      "fe4c5ac76710830d2a59b6882566f3eb54707df5cc854be8e175ed8c862a5ba3",
+      "1797dc2178e7d8a7c151a6e2172556bbf913dffe26f95e995c2c65318d81a391"
+    ],
+    "addons/image-processing/index.ts": [
+      "14b6808b1a35a7a757d9a2d1682c6528af1f2136ba9d8f3a048827907ab9e68b"
+    ],
+    "addons/imap/index.ts": [
+      "64858f485bb924efea8c226f42c7d1e1527a9da609878e0f24347619732e0fc8"
+    ],
+    "addons/late-night-regrets/native.ts": [
+      "68b44f708ceb5ca8755b63b076c2dba95800d2f9760f3cf8493aeefbbb099d4b"
+    ],
+    "addons/linkr/extension.ts": [
+      "b75555a65b3626a6fcc4567928d82b76d4227be164e1363de56611ca39d7361b",
+      "8d4e4364ecd1cfe4fa7c9faa5a2fcd6cc1a75be987a3b9ec357e60dd386aad2b"
+    ],
+    "addons/m365/index.ts": [
+      "a5e8434763df28f535aa750e6c9825ee37cda5ae7d33359d57f0e58eec89eef1",
+      "e5c279782ac02300352732785da740b9c32401ed715180ee81b7142f086c3e4e",
+      "2f016facc49b12f475f8014ec4888e37d44e7b7939b588db6288a85c3bfdbf12",
+      "570fd234e97d6b23145465d16192f26039d25573211952f0c37c997458c61c74",
+      "84a52c2136a4722e37d098593dde1b30bd11768387e289242106c7efea86d5ea",
+      "41c54c17aa633c5145476df6825337c4eab7c30d164860051780f93767f13714",
+      "f79e5efcc9e7837fc30aaefa2adef0cbef031bbd774c4102321eaa919fa34a21",
+      "9b8069b74c430a7848eb6d19b47e16065c00945eae55348ceda7d601535783f1",
+      "97b58ea029893105ae2d0afc8260baf44a52413b7ce6d6b9d530ca6cc6d87ca8",
+      "a6b551b39c422c5cfd2549606c00a47b81814b3fddd8a11488fafe48cf00244d",
+      "493e0f2855171b799871c4e05f549af0d31c7a45e7e7ed5995f8e15d28705e53",
+      "489ef5d90105fb9e34ac20e72fb2e16653e752870e84f22b5ccaf82d5ec626b6",
+      "4332ca7124d509fa2402f06a59802eff3e0a8bb1ea154c71ec68da789fb28a9d",
+      "2956a743fac8a4170f054f993b827eb11328b64791cb9675fa12fbb2f3fe0a89",
+      "0c95ae49e98f836d22807beb6157586b31b290e6d99aace9ae5a5167da1fa834",
+      "c0f9f674571a5552b6410ae224f975106afe0869f5d517df1bec5db63a4312aa",
+      "2d4eb5c044e4aa9c9110524e2ef259a44f62d1541771667069572feed152cb20",
+      "a20504a606d4ebe2e588cde1e27f078f0f9f4ce355ee4995b961d3709a3565e8",
+      "2d6a93e60986efbcc2f7f665d2641492831639f956cbff839f0d3eba2fe74e9e",
+      "084436ee97ca6d93238b5a8c3250ae9d1e5f46d0549625552d128bfb799bfa8c",
+      "eb75066ed4a018bc452eeb250c6beb4135ee291a72581045a96bbd171ae4fa86",
+      "42f88b8c2d4e1d01d31a29e88d29bea984284408e253f40d8b89db84e276409b",
+      "5998222af0fff8157d7d81a2ea9622e553e8afa309ad5f3637dd7bea641bee00",
+      "591f5e4baf6d5431522d1c167d40c97f3423dfbb4ec58cb7137b317aa47af38a"
+    ],
+    "addons/m365/todo.ts": [
+      "bfa6380ccc9d96b2eaf9edef9d215298eaa1659b4f5140ebeee0f174ed0744ef"
+    ],
+    "addons/office-tools/index.ts": [
+      "160d7839970ec0eea45900a407e2be02fa339d8fababc307054e2bb359878fd6",
+      "31c1d1b5569277fdc49a0b6712c3fb762afca6b2b5ee8e0150610757bf981c65"
+    ],
+    "addons/office-viewer/index.ts": [
+      "1e0ad017ff7b5ac4d6a06434f7f8efd9578a8efdd3be37ad49ca522f73373b50"
+    ],
+    "addons/portainer/extension.ts": [
+      "12a6727f9f0e399e60907db65ca56a56e422b1fcd9bb98ee2a5633abada6cddc",
+      "4ab96b838fb66a3c9a0e31ae61360a0b28b99e773ac7ba594c23e72552297a1c",
+      "a0fdb5faaee3a17e027acfa7ae9c6894b4f963531731b3fcb7d00bafd5eb9d19"
+    ],
+    "addons/proxmox/extension.ts": [
+      "69a0912c187f9201077da9ae68d3dd4a5bfbe2d1595a9f735a93b8e47d3d089f",
+      "4ab96b838fb66a3c9a0e31ae61360a0b28b99e773ac7ba594c23e72552297a1c",
+      "a0fdb5faaee3a17e027acfa7ae9c6894b4f963531731b3fcb7d00bafd5eb9d19"
+    ],
+    "addons/remote-peer/index.ts": [
+      "2fb29209824bf05024211f10f9f919fcf3c8f9c2b9cf93687f7e568b1f916999"
+    ],
+    "addons/remote-peer/native.ts": [
+      "1ee9ae1f09885d51831c68bed909dee5b728aff2b1340f603f48dbfade11f416"
+    ],
+    "addons/restic/index.ts": [
+      "e6ffd7e8d89618b49bbd2585709e28692648082c3657721d148bca8d17965326"
+    ],
+    "addons/sample-addon/index.ts": [
+      "0c523b07f51f853967d2f70a527be2597ccae7bcd995b33592384c5eda63bdab"
+    ],
+    "addons/stealth-browser/index.ts": [
+      "a3ac0a5390cbd36d9388d3e23b02766e40d0a84d1d2f9e822c76f99e019eb5cb"
+    ],
+    "addons/vent/index.ts": [
+      "0cca44d75d35ba02c8e9c902f69c0c841c24c1de78f01bcf0960b9515fcae9eb"
+    ],
+    "addons/voice-pipeline/index.ts": [
+      "d0fffc1dd7802e5759800ac5abe364f589ccd2e57ba606c07cc21d95b0a21251"
+    ],
+    "addons/win-ui/index.ts": [
+      "68b5547f6ef39e8cfa6f9b738a7858f204984d1b8b4f0e9a2300e28af9253d91",
+      "c889e37101fcb94dfba801ff731551491f2186dc466aca7528cb677eea8e9af5",
+      "310ffa22c8427ef7d5f691cbcc2fb6db548ce6e5e222b529da83cc19f1cd58e5",
+      "a8710a8b9a876fc4c1588fc78ea4bbefa8e19b5bb369da576e4f15dd1262d0a1",
+      "336ec3efc0244c5dca73c67fbc2557c417f7f46fbdff0f0b9c6b44b0dbfe866a",
+      "588e2ad1eed007e51c0c59ad62c77011eb1138415750a04a4819fc82a1f1dab9",
+      "328d4741222ec4798ae7548acb0e9a040a42c6a523df8d9688a4c485cd083bee",
+      "003a084c9b24561ab75e87252279cb09a8835a57bf4fb2e9a30925a3f5634048",
+      "b213ce28553789337fb9500d0695596a10011488e88108d79097992435cd7da8",
+      "e855cd2584d710a5d89bd590f2029e9db1523754d798e48c821648caa3cfcf1b",
+      "07f7f7317f05852c5a433d8d7ad6d09b708aa0c84e56d8aec8c9feb903dd82c9"
+    ]
+  }
+}

@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-restic",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Settings-managed Restic backups with consistent SQLite staging and scoped retention.",
   "type": "module",
   "main": "index.ts",
@@ -21,7 +21,9 @@
     "web",
     "assets",
     "README.md",
-    "RECOVERY.md"
+    "RECOVERY.md",
+    "summary.ts",
+    "compat/tool-call-summary.ts"
   ],
   "piclaw": {
     "type": "extension",

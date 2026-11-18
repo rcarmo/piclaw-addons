@@ -1,3 +1,6 @@
+import { PORTAINER_WORKFLOW_CAPABILITIES, type WorkflowCapabilitySpec } from './workflow-capabilities.js';
+import { toolCallSummary } from "./compat/tool-call-summary.js";
+import { callSummaries } from "./summary.js";
 import { assertInvocationCurrent, currentInvocation, withInvocation, type PortainerInvocationOptions } from "./invocation.js";
 import type { ExtensionAPI, ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import { StringEnum } from "@earendil-works/pi-ai";
@@ -457,18 +460,7 @@ const PortainerToolSchema = Type.Object({
   names: Type.Optional(Type.Array(Type.String(), { description: "Container names for bulk workflows like container.upgrade_many." })),
 });
 
-type WorkflowCapabilitySpec = {
-  category: string;
-  summary: string;
-  required_fields: string[];
-  optional_fields?: string[];
-  mutating?: boolean;
-  destructive?: boolean;
-  recommended_for?: string[];
-  see_also?: string[];
-  guidance?: string[];
-  example_fields?: Record<string, unknown>;
-};
+
 
 type WorkflowFamilySummary = {
   name: string;
@@ -487,50 +479,7 @@ const PORTAINER_WORKFLOW_FAMILY_SUMMARIES: Record<string, string> = {
   volume: "Docker volume inventory and lifecycle workflows.",
 };
 
-const PORTAINER_WORKFLOW_CAPABILITIES: Record<string, WorkflowCapabilitySpec> = {
-  "endpoint.list": { category: "endpoint", summary: "List Portainer endpoints.", required_fields: [] },
-  "endpoint.resolve": { category: "endpoint", summary: "Resolve an endpoint by ID or name.", required_fields: [], optional_fields: ["endpoint_id", "name"], recommended_for: ["finding an endpoint ID before inspect or mutate flows"] },
-  "endpoint.inspect": { category: "endpoint", summary: "Inspect one endpoint.", required_fields: ["endpoint_id"] },
-  "endpoint.ping": { category: "endpoint", summary: "Ping a Docker endpoint.", required_fields: ["endpoint_id"] },
-  "endpoint.docker_info": { category: "endpoint", summary: "Read Docker daemon info.", required_fields: ["endpoint_id"] },
-  "endpoint.docker_version": { category: "endpoint", summary: "Read Docker version info.", required_fields: ["endpoint_id"] },
-  "endpoint.system_df": { category: "endpoint", summary: "Read Docker disk-usage summary.", required_fields: ["endpoint_id"], recommended_for: ["checking host storage pressure before cleanup or upgrades"] },
-  "stack.list": { category: "stack", summary: "List stacks, optionally for one endpoint.", required_fields: [], optional_fields: ["endpoint_id"] },
-  "stack.resolve": { category: "stack", summary: "Resolve a stack by ID or name.", required_fields: [], optional_fields: ["endpoint_id", "stack_id", "stack_name", "name"], recommended_for: ["finding a stack ID before file, update, or delete work"] },
-  "stack.file": { category: "stack", summary: "Read stack compose content.", required_fields: [], optional_fields: ["endpoint_id", "stack_id", "stack_name", "name"] },
-  "stack.create_standalone": { category: "stack", summary: "Create a standalone stack from compose content.", required_fields: ["endpoint_id", "stack_name", "stack_file_content"], mutating: true },
-  "stack.update": { category: "stack", summary: "Update a stack with supplied compose content.", required_fields: ["endpoint_id", "stack_id", "stack_file_content"], mutating: true },
-  "stack.pull_and_update": { category: "stack", summary: "Resolve a stack, re-read its compose, and update with pull enabled.", required_fields: [], optional_fields: ["endpoint_id", "stack_id", "stack_name", "name"], mutating: true, recommended_for: ["refreshing stack-managed workloads", "safe stack image refreshes"], guidance: ["Prefer this over container.upgrade for stack-managed workloads."] },
-  "stack.delete": { category: "stack", summary: "Delete a stack.", required_fields: ["endpoint_id", "stack_id"], mutating: true, destructive: true },
-  "container.list": { category: "container", summary: "List containers for an endpoint.", required_fields: ["endpoint_id"], optional_fields: ["unmanaged"] },
-  "container.resolve": { category: "container", summary: "Resolve a container by ID or name.", required_fields: ["endpoint_id"], optional_fields: ["container_id", "name"], recommended_for: ["finding a precise container ID before inspect, delete, or upgrade flows"] },
-  "container.inspect": { category: "container", summary: "Inspect a container.", required_fields: ["endpoint_id"], optional_fields: ["container_id", "name"] },
-  "container.compose": { category: "container", summary: "Export a container as practical compose YAML.", required_fields: ["endpoint_id"], optional_fields: ["container_id", "name"] },
-  "container.start": { category: "container", summary: "Start a container.", required_fields: ["endpoint_id"], optional_fields: ["container_id", "name"], mutating: true },
-  "container.stop": { category: "container", summary: "Stop a container.", required_fields: ["endpoint_id"], optional_fields: ["container_id", "name", "timeout_sec"], mutating: true },
-  "container.restart": { category: "container", summary: "Restart a container.", required_fields: ["endpoint_id"], optional_fields: ["container_id", "name", "timeout_sec"], mutating: true },
-  "container.logs": { category: "container", summary: "Read bounded container logs.", required_fields: ["endpoint_id"], optional_fields: ["container_id", "name", "tail", "timestamps"] },
-  "container.mounts": { category: "container", summary: "Inspect container mount attachments.", required_fields: ["endpoint_id"], optional_fields: ["container_id", "name"] },
-  "container.exec": { category: "container", summary: "Run a bounded non-interactive exec command.", required_fields: ["endpoint_id", "command"], optional_fields: ["container_id", "name", "command_args", "shell_family"], mutating: true, recommended_for: ["one-off diagnostics inside a container without opening a terminal"], guidance: ["Keep commands short and non-interactive; streaming attach is not supported here.", "Use shell_family=powershell for Windows containers and shell_family=posix for Linux/Unix containers."] },
-  "container.upgrade": { category: "container", summary: "Upgrade one standalone container in place with rollback on start failure.", required_fields: ["endpoint_id"], optional_fields: ["container_id", "name", "image", "timeout_sec", "force"], mutating: true, recommended_for: ["refreshing standalone containers"], guidance: ["Prefer stack.pull_and_update for stack-managed workloads."] },
-  "container.upgrade_many": { category: "container", summary: "Upgrade multiple standalone containers using the single-container upgrade flow.", required_fields: ["endpoint_id", "names"], optional_fields: ["image", "timeout_sec", "force"], mutating: true, recommended_for: ["batch refreshing standalone containers"], guidance: ["Prefer stack.pull_and_update for stack-managed workloads."] },
-  "container.delete": { category: "container", summary: "Delete a container.", required_fields: ["endpoint_id"], optional_fields: ["container_id", "name", "force"], mutating: true, destructive: true },
-  "image.list": { category: "image", summary: "List endpoint images.", required_fields: ["endpoint_id"] },
-  "image.inspect": { category: "image", summary: "Inspect one image.", required_fields: ["endpoint_id", "image"] },
-  "image.pull": { category: "image", summary: "Pull an image.", required_fields: ["endpoint_id", "image"], mutating: true },
-  "image.delete": { category: "image", summary: "Delete an image.", required_fields: ["endpoint_id", "image"], optional_fields: ["force"], mutating: true, destructive: true },
-  "image.prune": { category: "image", summary: "Prune images.", required_fields: ["endpoint_id"], optional_fields: ["all_unused"], mutating: true, destructive: true },
-  "image.update_check": { category: "image", summary: "Compare local and remote image digests.", required_fields: ["endpoint_id", "image"], recommended_for: ["update planning", "drift checks before pull or upgrade"] },
-  "network.list": { category: "network", summary: "List Docker networks.", required_fields: ["endpoint_id"] },
-  "network.inspect": { category: "network", summary: "Inspect a Docker network.", required_fields: ["endpoint_id"], optional_fields: ["network_id", "name"] },
-  "network.create": { category: "network", summary: "Create a Docker network.", required_fields: ["endpoint_id", "name"], optional_fields: ["driver", "internal", "attachable", "enable_ipv6", "labels", "options"], mutating: true },
-  "network.delete": { category: "network", summary: "Delete a Docker network.", required_fields: ["endpoint_id"], optional_fields: ["network_id", "name"], mutating: true, destructive: true },
-  "volume.list": { category: "volume", summary: "List Docker volumes.", required_fields: ["endpoint_id"] },
-  "volume.inspect": { category: "volume", summary: "Inspect a Docker volume.", required_fields: ["endpoint_id"], optional_fields: ["volume_name", "name"] },
-  "volume.create": { category: "volume", summary: "Create a Docker volume.", required_fields: ["endpoint_id"], optional_fields: ["volume_name", "name", "driver", "labels", "options"], mutating: true },
-  "volume.delete": { category: "volume", summary: "Delete a Docker volume.", required_fields: ["endpoint_id"], optional_fields: ["volume_name", "name", "force"], mutating: true, destructive: true },
-  "volume.prune": { category: "volume", summary: "Prune unused Docker volumes.", required_fields: ["endpoint_id"], mutating: true, destructive: true },
-};
+
 
 function resolveRuntimePortainerWorkflowName(value: string): PortainerWorkflowName {
   return value as PortainerWorkflowName;
@@ -547,7 +496,7 @@ function normalizeCategoryFilter(value: string | undefined): string | undefined 
 
 function getPortainerWorkflowEntries(category?: string): Array<{ name: string } & WorkflowCapabilitySpec> {
   const entries = Object.entries(PORTAINER_WORKFLOW_CAPABILITIES)
-    .map(([name, spec]) => ({ name, ...spec }))
+    .map(([name, { callSummary: _callSummary, ...spec }]) => ({ name, ...spec }))
     .sort((a, b) => a.name.localeCompare(b.name));
   if (!category) return entries;
   const filtered = entries.filter((entry) => entry.category === category);
@@ -889,8 +838,9 @@ function buildPortainerCapabilitiesPayload(options?: { category?: string; includ
 function getPortainerWorkflowHelp(value: string | undefined, options?: { include_examples?: boolean }): { canonical_workflow: string; runtime_workflow: PortainerWorkflowName; spec: WorkflowCapabilitySpec; recommended_for: string[]; see_also: string[]; guidance: string[]; examples?: Array<Record<string, unknown>> } {
   const raw = typeof value === "string" ? value.trim() : "";
   if (!raw) throw new Error("Provide workflow for action=workflow_help.");
-  const spec = PORTAINER_WORKFLOW_CAPABILITIES[raw];
-  if (!spec) throw new Error(`Unknown Portainer workflow: ${raw}`);
+  const capability = PORTAINER_WORKFLOW_CAPABILITIES[raw];
+  if (!capability) throw new Error(`Unknown Portainer workflow: ${raw}`);
+  const { callSummary: _callSummary, ...spec } = capability;
   const recommendedFor = uniqueStrings([...(spec.recommended_for || []), ...getPortainerDefaultRecommendedFor(spec.category)]);
   const seeAlso = uniqueStrings([...(spec.see_also || []), ...getPortainerDefaultSeeAlso(raw, spec.category)]).filter((entry) => entry !== raw).slice(0, 5);
   const guidance = getPortainerDefaultGuidance(raw, spec);
@@ -1005,6 +955,7 @@ export function getPortainerPrompt(): string { return PORTAINER_TOOL_HINT; }
 
 function createPortainerDefinition() {
   return {
+    ...toolCallSummary(callSummaries["portainer"]),
     name: "portainer",
     label: "portainer",
     description: "Get, set, or clear the session-scoped Portainer API profile, perform ad-hoc API requests, or run common Portainer workflows.",

@@ -4,6 +4,8 @@
  * Ported from cjnova/oc-tool-in-a-box OpenCode tools.
  * Drop into .pi/extensions/ and /reload.
  */
+import { toolCallSummary } from "./compat/tool-call-summary.js";
+import { callSummaries } from "./summary.js";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { resolve, relative, isAbsolute, extname } from "node:path";
@@ -307,6 +309,7 @@ export default function (pi: ExtensionAPI) {
   }
 
   pi.registerTool({
+    ...toolCallSummary(callSummaries["git_history"]),
     name: "git_history",
     label: "Git History",
     description: "Inspect git history: commits, code-history searches, commit-message searches, and blame. Prefer over raw git commands for structured history queries with truncation. Returns JSON envelope.",
@@ -384,6 +387,7 @@ export default function (pi: ExtensionAPI) {
   const TOOL_JQ = "json-query";
 
   pi.registerTool({
+    ...toolCallSummary(callSummaries["json_query"]),
     name: "json_query",
     label: "JSON Query",
     description: "Extract, filter, and reshape JSON data with jq expressions. Prefer over shell-based filtering for clearer validation. Returns JSON envelope.",

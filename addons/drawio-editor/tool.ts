@@ -1,3 +1,5 @@
+import { toolCallSummary } from "./compat/tool-call-summary.js";
+import { callSummaries } from "./summary.js";
 import { closeSync, constants, existsSync, fstatSync, lstatSync, mkdirSync, openSync, realpathSync, statSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 
@@ -64,6 +66,7 @@ export function createDrawioEditorTool(options?: DrawioToolOptions) {
   const assertCurrent = authority?.assertCurrent.bind(authority);
   const openWorkspaceFile = authority?.openWorkspaceFile?.bind(authority);
   return {
+    ...toolCallSummary(callSummaries["open_drawio_editor"]),
     name: "open_drawio_editor",
     label: "Open Draw.io Editor",
     description: "Open or create a .drawio diagram file in the web UI draw.io pane when available. Returns a fallback URL when direct pane opening is unavailable.",

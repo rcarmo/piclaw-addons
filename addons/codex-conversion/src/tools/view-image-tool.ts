@@ -1,3 +1,5 @@
+import { toolCallSummary } from "../../compat/tool-call-summary.js";
+import { callSummaries } from "../../summary.js";
 import { stat } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
 import {
@@ -141,6 +143,7 @@ export function createViewImageTool(options: CreateViewImageToolOptions = {}): T
 	const createReaders = options.createReaders ?? createDefaultViewImageReaders;
 
 	return {
+		...toolCallSummary(callSummaries["view_image"]),
 		name: "view_image",
 		label: "view_image",
 		description:

@@ -1,3 +1,5 @@
+import { toolCallSummary } from "./compat/tool-call-summary.js";
+import { callSummaries } from "./summary.js";
 import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { basename } from "node:path";
 import { Type } from "typebox";
@@ -1323,6 +1325,7 @@ export function registerGoalTools(
 ): void {
   const mutate = write ?? (<T>(body: () => T): T => body());
   pi.registerTool({
+    ...toolCallSummary(callSummaries["get_goal"]),
     name: "get_goal",
     label: "get_goal",
     description: "Get the current goal for this thread, including status, budgets, token and elapsed-time usage, and remaining token budget.",
@@ -1336,6 +1339,7 @@ export function registerGoalTools(
   });
 
   pi.registerTool({
+    ...toolCallSummary(callSummaries["create_goal"]),
     name: "create_goal",
     label: "create_goal",
     description: "Create a goal only when explicitly requested by the user or system/developer instructions; do not infer goals from ordinary tasks. Set token_budget only when an explicit token budget is requested. Fails if a goal exists; use update_goal only for status.",
@@ -1353,6 +1357,7 @@ export function registerGoalTools(
   });
 
   pi.registerTool({
+    ...toolCallSummary(callSummaries["goal_complete"]),
     name: "goal_complete",
     label: "goal_complete",
     description: "Mark the active goal complete. Use only when the entire objective is actually done and concrete evidence proves completion, then provide a concise final reply to the user.",
@@ -1400,6 +1405,7 @@ export function registerGoalTools(
   });
 
   pi.registerTool({
+    ...toolCallSummary(callSummaries["goal_stop"]),
     name: "goal_stop",
     label: "goal_stop",
     description: "Stop the active autonomous goal loop without marking it complete. Use when completion is unverified, progress is stuck, user input is required, or external state blocks the goal.",
@@ -1438,6 +1444,7 @@ export function registerGoalTools(
   });
 
   pi.registerTool({
+    ...toolCallSummary(callSummaries["update_goal"]),
     name: "update_goal",
     label: "update_goal",
     description: "Update the existing goal. Codex-compatible terminal path: use status complete when the objective has actually been achieved and no required work remains; include summary/evidence. Use status blocked only when the strict repeated-blocker audit is satisfied. Do not mark a goal complete merely because its budget is nearly exhausted or because you are stopping work.",

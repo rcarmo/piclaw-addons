@@ -6,6 +6,8 @@ Repository development and package generation require Bun 1.4.0 or newer. The ve
 
 > **For agents:** see [AGENTS.md](AGENTS.md) for how to add, modify, and test addons.
 
+Tool-exposing add-ons own their timeline summary formatting and text through the [`callSummary` contract](documentation/tool-call-summaries.md). Core supplies common presentation and fallback.
+
 ---
 
 ## Installing add-ons

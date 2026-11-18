@@ -1,4 +1,6 @@
 /** Native contract: ports are invocation-local, never ambient SDK contexts. */
+import { toolCallSummary } from "./compat/tool-call-summary.js";
+import { callSummaries } from "./summary.js";
 import { resolve, relative, isAbsolute, join } from "node:path";
 import { Type } from "typebox";
 import { DEFAULT_CONFIG, normaliseConfig, type RegretsConfig } from "./config.js";
@@ -25,6 +27,7 @@ export const regretsResources = Object.freeze({
   skillPaths: [join(import.meta.dir, "skills/late-night-regrets/SKILL.md")],
 });
 export const regretsToolDeclaration = {
+  ...toolCallSummary(callSummaries["regrets_review"]),
   name: "regrets_review", label: "regrets_review",
   description: "Build a budgeted recent human-exchange packet for nightly contextual reflection. Optional configured decision model annotates it; never writes notes or treats classifications as lessons.",
   parameters: Type.Object({}),

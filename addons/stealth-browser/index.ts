@@ -8,6 +8,8 @@
  * Complements the existing cdp_browser tool which connects to user-launched
  * browsers. This tool manages its own headless Chromium lifecycle.
  */
+import { toolCallSummary } from "./compat/tool-call-summary.js";
+import { callSummaries } from "./summary.js";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { StringEnum } from "@earendil-works/pi-ai";
 import { Type } from "typebox";
@@ -268,6 +270,7 @@ function textResult(text: string) {
 
 export default function register(pi: ExtensionAPI) {
   pi.registerTool({
+    ...toolCallSummary(callSummaries["stealth_browser"]),
     name: "stealth_browser",
     label: "Stealth Browser",
     description:

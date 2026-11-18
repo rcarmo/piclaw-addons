@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-office-tools",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Office document read/write tools for Piclaw (docx, xlsx, pptx, odt, md→pdf)",
   "type": "module",
   "main": "index.ts",

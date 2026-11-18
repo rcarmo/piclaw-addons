@@ -1,3 +1,5 @@
+import { toolCallSummary } from "./compat/tool-call-summary.js";
+import { callSummaries } from "./summary.js";
 import { createHash } from "node:crypto";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -35,6 +37,7 @@ export async function createRemotePeerNativeHostPorts(options: Omit<PeerServiceO
 
 export function createRemotePeerTool(options: RemotePeerInvocationOptions) {
   return {
+    ...toolCallSummary(callSummaries["remote_peer"]),
     name: "remote_peer", label: "Remote Peer",
     description: "Manage Iroh client-ID pairing, permissions, local discovery status and delivery retries. Use chat for ordinary peer conversations.",
     parameters: remotePeerParameters,

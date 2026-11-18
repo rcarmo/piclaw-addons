@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.earendil-compat.json",
+  "include": [
+    "lib/compat/tool-call-summary.ts",
+    "addons/*/summary.ts",
+    "addons/*/compat/tool-call-summary.ts",
+    "addons/*/workflow-capabilities.ts",
+    "tool-call-summaries.test.ts"
+  ],
+  "exclude": ["node_modules"]
+}

@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-editable-table",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Editable Markdown table widget for the web UI — opens a themed spreadsheet-style grid and inserts the edited Markdown table back into chat",
   "type": "module",
   "main": "index.ts",
@@ -55,6 +55,8 @@
     "shared.ts",
     "web",
     "skills",
-    "README.md"
+    "README.md",
+    "summary.ts",
+    "compat/tool-call-summary.ts"
   ]
 }

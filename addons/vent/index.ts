@@ -6,6 +6,8 @@
  * License: MIT (see vendor/pi-vent/LICENSE)
  */
 
+import { toolCallSummary } from "./compat/tool-call-summary.js";
+import { callSummaries } from "./summary.js";
 import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -210,6 +212,7 @@ export default function ventExtension(pi: ExtensionAPI): void {
   }));
 
   pi.registerTool({
+    ...toolCallSummary(callSummaries["vent"]),
     name: "vent",
     label: "vent",
     description: "Append major-issue feedback to the configured vent log file in the current workspace.",

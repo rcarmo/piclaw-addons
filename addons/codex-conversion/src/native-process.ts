@@ -1,3 +1,5 @@
+import { toolCallSummary } from "../compat/tool-call-summary.js";
+import { callSummaries } from "../summary.js";
 import { Type } from "typebox";
 import { createExecSessionManager, type ExecSessionManagerOptions, type ExecCommandInput, type WriteStdinInput } from "./tools/exec-session-manager.ts";
 import { formatUnifiedExecResult } from "./tools/unified-exec-format.ts";
@@ -39,7 +41,9 @@ export type NativeProcessPool = ReturnType<typeof createNativeProcessPool>;
 const execSchema = Type.Object({ cmd: Type.String(), workdir: Type.Optional(Type.String()), shell: Type.Optional(Type.String()), tty: Type.Optional(Type.Boolean()), login: Type.Optional(Type.Boolean()), yield_time_ms: Type.Optional(Type.Number()), max_output_tokens: Type.Optional(Type.Number()) });
 const writeSchema = Type.Object({ session_id: Type.Number(), chars: Type.Optional(Type.String()), yield_time_ms: Type.Optional(Type.Number()), max_output_tokens: Type.Optional(Type.Number()) });
 export function createNativeExecCommandTool(pool: NativeProcessPool, p: ProcessInvocation) {
-  return { name: "exec_command", label: "exec_command", description: "Run a command", parameters: execSchema,
+  return {
+  ...toolCallSummary(callSummaries["exec_command"]),
+   name: "exec_command", label: "exec_command", description: "Run a command", parameters: execSchema,
     async execute(_id: string, input: ExecCommandInput) {
       if (typeof input?.cmd !== "string") throw Error("exec_command requires cmd");
       const result = await pool.exec(p, input);
@@ -47,7 +51,9 @@ export function createNativeExecCommandTool(pool: NativeProcessPool, p: ProcessI
     } };
 }
 export function createNativeWriteStdinTool(pool: NativeProcessPool, p: ProcessInvocation) {
-  return { name: "write_stdin", label: "write_stdin", description: "Write to or poll a process", parameters: writeSchema,
+  return {
+  ...toolCallSummary(callSummaries["write_stdin"]),
+   name: "write_stdin", label: "write_stdin", description: "Write to or poll a process", parameters: writeSchema,
     async execute(_id: string, input: WriteStdinInput) {
       if (!Number.isSafeInteger(input?.session_id)) throw Error("write_stdin requires session_id");
       const result = await pool.write(p, input);

@@ -11,6 +11,8 @@
  * - password in keychain at imap/<name>/password
  */
 
+import { toolCallSummary } from "./compat/tool-call-summary.js";
+import { callSummaries } from "./summary.js";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { ImapClient, buildSearchCriteria, type ImapConfig } from "./imap-client.ts";
@@ -256,6 +258,7 @@ export default function imapExtension(pi: ExtensionAPI) {
 
 export function createImapTool(options: ImapToolOptions) {
   return {
+    ...toolCallSummary(callSummaries["imap"]),
     name: "imap",
     label: "IMAP Email",
     description: "Manage email via IMAP and administer IMAP accounts stored in SQLite KV + keychain.",

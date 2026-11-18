@@ -1,3 +1,5 @@
+import { toolCallSummary } from "./compat/tool-call-summary.js";
+import { callSummaries } from "./summary.js";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { join } from "node:path";
@@ -353,6 +355,7 @@ export async function dispatch(p: Params, owner: string, signal?: AbortSignal) {
 registerConfigApi();
 export default function extension(pi: ExtensionAPI) {
   pi.registerTool({
+    ...toolCallSummary(callSummaries["linkr"]),
     name: "linkr",
     label: "Linkr",
     description:

@@ -1,3 +1,5 @@
+import { toolCallSummary } from "../../compat/tool-call-summary.js";
+import { callSummaries } from "../../summary.js";
 import type { ExtensionAPI, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { Container, Text } from "@earendil-works/pi-tui";
@@ -21,6 +23,7 @@ export function createImageGenerationTool(): ToolDefinition<typeof IMAGE_GENERAT
 	const description =
 		"Generate an image. Native openai-codex image_generation outputs are saved under `.pi/openai-codex-images/` and mirrored to `.pi/openai-codex-images/latest.png`. Use `view_image` only when pixel-level inspection is necessary.";
 	return {
+		...toolCallSummary(callSummaries["image_generation"]),
 		name: "image_generation",
 		label: "image_generation",
 		description,

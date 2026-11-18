@@ -1,3 +1,6 @@
+import { PROXMOX_WORKFLOW_CAPABILITIES, type WorkflowCapabilitySpec } from './workflow-capabilities.js';
+import { toolCallSummary } from "./compat/tool-call-summary.js";
+import { callSummaries } from "./summary.js";
 import { assertInvocationCurrent, currentInvocation, withInvocation, type ProxmoxInvocationOptions } from "./invocation.js";
 import type { ExtensionAPI, ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import { StringEnum } from "@earendil-works/pi-ai";
@@ -511,18 +514,7 @@ const ProxmoxToolSchema = Type.Object({
   lines: Type.Optional(Type.Integer({ minimum: 1, description: "Line count for node.log." })),
 });
 
-type WorkflowCapabilitySpec = {
-  category: string;
-  summary: string;
-  required_fields: string[];
-  optional_fields?: string[];
-  mutating?: boolean;
-  destructive?: boolean;
-  recommended_for?: string[];
-  see_also?: string[];
-  guidance?: string[];
-  example_fields?: Record<string, unknown>;
-};
+
 
 type WorkflowFamilySummary = {
   name: string;
@@ -544,63 +536,7 @@ const PROXMOX_WORKFLOW_FAMILY_SUMMARIES: Record<string, string> = {
   vm: "QEMU VM lifecycle, provisioning, media, disk, snapshot, migration, clone, and template workflows.",
 };
 
-const PROXMOX_WORKFLOW_CAPABILITIES: Record<string, WorkflowCapabilitySpec> = {
-  "cluster.status": { category: "cluster", summary: "List cluster status entries.", required_fields: [] },
-  "node.list": { category: "node", summary: "List Proxmox nodes.", required_fields: [] },
-  "node.inspect": { category: "node", summary: "Inspect a node status payload.", required_fields: ["node"] },
-  "node.log": { category: "node", summary: "Read recent node syslog entries.", required_fields: ["node"], optional_fields: ["lines", "limit"], recommended_for: ["reading recent node logs", "debugging host-side Proxmox issues"] },
-  "node.reboot": { category: "node", summary: "Request a node reboot.", required_fields: ["node"], mutating: true, destructive: true, recommended_for: ["planned node maintenance windows"], guidance: ["This is disruptive. Expect the node to become temporarily unavailable after the request is accepted."] },
-  "node.shutdown": { category: "node", summary: "Request a node shutdown.", required_fields: ["node"], mutating: true, destructive: true, recommended_for: ["planned node shutdowns"], guidance: ["This is disruptive. Ensure workloads are evacuated or stopped first."] },
-  "storage.list": { category: "storage", summary: "List storages globally or for one node.", required_fields: [], optional_fields: ["node"] },
-  "storage.inspect": { category: "storage", summary: "Inspect one storage status payload.", required_fields: ["node", "storage"] },
-  "storage.content.list": { category: "storage", summary: "List content inside a storage.", required_fields: ["node", "storage"], recommended_for: ["finding ISOs, backups, or snippets on a storage"] },
-  "storage.create": { category: "storage", summary: "Create a cluster storage definition using a storage type plus backend-specific config.", required_fields: ["storage", "storage_type"], optional_fields: ["config"], mutating: true, recommended_for: ["adding new Proxmox storage definitions"], guidance: ["Use config to pass backend-specific fields such as path, server, export, pool, vgname, nodes, or content."] },
-  "storage.download_url": { category: "storage", summary: "Download a public URL directly into storage as ISO, template, or import content.", required_fields: ["node", "storage", "download_url", "filename"], optional_fields: ["content", "checksum", "checksum_algorithm", "compression", "verify_certificates", "timeout_ms", "poll_ms"], mutating: true, recommended_for: ["pulling ISO media directly into storage", "fetching public templates without agent-side upload"] },
-  "backup.list": { category: "backup", summary: "List backup artifacts in a storage.", required_fields: ["node", "storage"], recommended_for: ["verifying backup inventory before restore or cleanup"] },
-  "backup.create": { category: "backup", summary: "Create a vzdump backup for a VM.", required_fields: ["node", "vmid", "storage"], optional_fields: ["mode", "compress", "timeout_ms", "poll_ms"], mutating: true, recommended_for: ["pre-maintenance backups", "one-off VM protection before risky changes"], guidance: ["Consider backup.list or storage.content.list to verify the target storage before and after the backup."] },
-  "backup.restore": { category: "backup", summary: "Restore a VM from a backup volid/archive.", required_fields: ["node", "storage", "backup_volid", "vmid"], optional_fields: ["target_storage", "timeout_ms", "poll_ms"], mutating: true, destructive: true, recommended_for: ["restoring a VM from backup", "recovering workloads onto a target node"], guidance: ["Use backup.list first to find the archive/volid you want to restore.", "Provide target_storage when the restore destination should differ from the source backup storage."] },
-  "vm.resolve_node": { category: "vm", summary: "Resolve the node hosting a QEMU VM.", required_fields: ["vmid"], recommended_for: ["finding the current node before raw API work"] },
-  "vm.status": { category: "vm", summary: "Read QEMU VM runtime status.", required_fields: ["vmid"], optional_fields: ["node"] },
-  "vm.inspect": { category: "vm", summary: "Read QEMU VM status plus config.", required_fields: ["vmid"], optional_fields: ["node"] },
-  "vm.create": { category: "vm", summary: "Create a new QEMU VM using common fields plus optional Proxmox config overrides.", required_fields: ["node", "vmid"], optional_fields: ["name", "memory", "cores", "sockets", "ostype", "net0", "slot", "iso_volume", "config", "timeout_ms", "poll_ms"], mutating: true, recommended_for: ["provisioning a new VM", "creating a VM with installer media already attached"], guidance: ["Use config for advanced Proxmox create fields such as scsi0, virtio0, agent, machine, bios, or additional NICs."] },
-  "vm.start": { category: "vm", summary: "Start a QEMU VM and wait for running state.", required_fields: ["vmid"], optional_fields: ["node", "timeout_ms", "poll_ms"], mutating: true },
-  "vm.stop": { category: "vm", summary: "Stop a QEMU VM, optionally forcing the stop.", required_fields: ["vmid"], optional_fields: ["node", "force", "timeout_ms", "poll_ms"], mutating: true, destructive: true },
-  "vm.resume": { category: "vm", summary: "Resume a suspended QEMU VM or start it if needed.", required_fields: ["vmid"], optional_fields: ["node", "timeout_ms", "poll_ms"], mutating: true },
-  "vm.restart": { category: "vm", summary: "Restart a QEMU VM.", required_fields: ["vmid"], optional_fields: ["node", "timeout_ms", "poll_ms"], mutating: true },
-  "vm.ip": { category: "vm", summary: "Read VM IPs through the QEMU guest agent.", required_fields: ["vmid"], optional_fields: ["node"] },
-  "vm.migrate": { category: "vm", summary: "Migrate a QEMU VM to another node.", required_fields: ["vmid", "target_node"], optional_fields: ["node", "target_storage", "online", "with_local_disks", "timeout_ms", "poll_ms"], mutating: true, recommended_for: ["planned node evacuation", "moving workloads during maintenance windows"] },
-  "vm.iso.attach": { category: "vm", summary: "Attach an existing ISO volid to a VM cdrom slot.", required_fields: ["vmid", "iso_volume"], optional_fields: ["node", "slot", "timeout_ms", "poll_ms"], mutating: true, recommended_for: ["mounting installer media on an existing VM"] },
-  "vm.iso.detach": { category: "vm", summary: "Detach an ISO/cdrom slot from a VM.", required_fields: ["vmid"], optional_fields: ["node", "slot", "timeout_ms", "poll_ms"], mutating: true },
-  "vm.disk.resize": { category: "vm", summary: "Extend a VM disk volume.", required_fields: ["vmid", "disk", "size"], optional_fields: ["node"], mutating: true, recommended_for: ["growing VM disks without moving them"] },
-  "vm.disk.detach": { category: "vm", summary: "Detach a VM disk from the VM config without physically deleting the backing volume.", required_fields: ["vmid", "disk"], optional_fields: ["node", "timeout_ms", "poll_ms"], mutating: true, destructive: true },
-  "vm.disk.remove": { category: "vm", summary: "Physically remove a VM disk volume through the unlink endpoint.", required_fields: ["vmid", "disk"], optional_fields: ["node", "force", "timeout_ms", "poll_ms"], mutating: true, destructive: true, recommended_for: ["permanently deleting detached or attached VM disks"] },
-  "vm.wait_state": { category: "vm", summary: "Wait for a VM to reach a target status/qmpstatus.", required_fields: ["vmid", "target"], optional_fields: ["node", "timeout_ms", "poll_ms"] },
-  "vm.snapshot.list": { category: "vm", summary: "List VM snapshots.", required_fields: ["vmid"], optional_fields: ["node"] },
-  "vm.snapshot.create": { category: "vm", summary: "Create a VM snapshot.", required_fields: ["vmid", "snapshot_name"], optional_fields: ["node", "description", "timeout_ms", "poll_ms"], mutating: true },
-  "vm.snapshot.rollback": { category: "vm", summary: "Rollback a VM snapshot.", required_fields: ["vmid", "snapshot_name"], optional_fields: ["node", "timeout_ms", "poll_ms"], mutating: true, destructive: true },
-  "vm.snapshot.delete": { category: "vm", summary: "Delete a VM snapshot.", required_fields: ["vmid", "snapshot_name"], optional_fields: ["node", "timeout_ms", "poll_ms"], mutating: true, destructive: true },
-  "vm.clone": { category: "vm", summary: "Clone a VM to a new VMID.", required_fields: ["vmid", "newid"], optional_fields: ["node", "new_name", "target_node", "target_storage", "full", "description", "timeout_ms", "poll_ms"], mutating: true, recommended_for: ["creating a mutable copy before risky changes", "provisioning from an existing VM"] },
-  "vm.template.create": { category: "vm", summary: "Mark a VM as a template.", required_fields: ["vmid"], optional_fields: ["node", "timeout_ms", "poll_ms"], mutating: true, recommended_for: ["golden image preparation", "template conversion before clone-based provisioning"], guidance: ["Convert to a template only when you no longer need to boot the source as a normal mutable VM."] },
-  "vm.agent.exec": { category: "guest-agent", summary: "Execute a bounded command through the QEMU guest agent.", required_fields: ["vmid", "command"], optional_fields: ["node", "command_args", "input_data", "shell_family", "timeout_ms", "poll_ms"], mutating: true, recommended_for: ["bounded in-guest checks without SSH", "one-off guest diagnostics"], guidance: ["Keep commands short and non-interactive; this workflow is not a streaming shell.", "Use shell_family=powershell for Windows guests and shell_family=posix for Linux/Unix guests."] },
-  "vm.agent.osinfo": { category: "guest-agent", summary: "Read guest OS information.", required_fields: ["vmid"], optional_fields: ["node"] },
-  "vm.agent.fsinfo": { category: "guest-agent", summary: "Read guest filesystem information.", required_fields: ["vmid"], optional_fields: ["node"] },
-  "vm.agent.users": { category: "guest-agent", summary: "Read logged-in guest users.", required_fields: ["vmid"], optional_fields: ["node"] },
-  "lxc.resolve_node": { category: "lxc", summary: "Resolve the node hosting an LXC container.", required_fields: ["vmid"], recommended_for: ["finding the current node before raw API work"] },
-  "lxc.status": { category: "lxc", summary: "Read LXC runtime status.", required_fields: ["vmid"], optional_fields: ["node"] },
-  "lxc.inspect": { category: "lxc", summary: "Read LXC status plus config.", required_fields: ["vmid"], optional_fields: ["node"] },
-  "lxc.create": { category: "lxc", summary: "Create a new LXC container using common fields plus optional Proxmox config overrides.", required_fields: ["node", "vmid"], optional_fields: ["hostname", "memory", "cores", "net0", "ostemplate", "rootfs", "password", "ssh_public_keys", "unprivileged", "config", "timeout_ms", "poll_ms"], mutating: true, recommended_for: ["provisioning a new LXC container"], guidance: ["Use config for advanced Proxmox CT create fields such as features, mp0, swap, nameserver, or startup."] },
-  "lxc.start": { category: "lxc", summary: "Start an LXC container.", required_fields: ["vmid"], optional_fields: ["node", "timeout_ms", "poll_ms"], mutating: true },
-  "lxc.stop": { category: "lxc", summary: "Stop an LXC container.", required_fields: ["vmid"], optional_fields: ["node", "force", "timeout_ms", "poll_ms"], mutating: true, destructive: true },
-  "lxc.restart": { category: "lxc", summary: "Restart an LXC container.", required_fields: ["vmid"], optional_fields: ["node", "timeout_ms", "poll_ms"], mutating: true },
-  "lxc.ip": { category: "lxc", summary: "Read LXC interface IPs.", required_fields: ["vmid"], optional_fields: ["node"] },
-  "task.list": { category: "task", summary: "List tasks for a node, optionally filtered by VMID.", required_fields: ["node"], optional_fields: ["vmid", "limit"], recommended_for: ["finding recent task UPIDs before inspecting logs or waiting"] },
-  "task.status": { category: "task", summary: "Inspect one task status payload.", required_fields: ["node", "upid"] },
-  "task.log": { category: "task", summary: "Read the task log entries for a UPID.", required_fields: ["node", "upid"] },
-  "task.wait": { category: "task", summary: "Wait for a UPID to stop.", required_fields: ["node", "upid"], optional_fields: ["timeout_ms", "poll_ms"] },
-  "metrics.node": { category: "metrics", summary: "Read node RRD metrics.", required_fields: ["node"], optional_fields: ["timeframe", "cf", "metric", "metrics"], recommended_for: ["node charting", "capacity and load inspection"] },
-  "metrics.vm": { category: "metrics", summary: "Read VM RRD metrics.", required_fields: ["vmid"], optional_fields: ["node", "timeframe", "cf", "metric", "metrics"], recommended_for: ["VM charting", "guest performance inspection"] },
-  "metrics.storage": { category: "metrics", summary: "Read storage RRD metrics.", required_fields: ["node", "storage"], optional_fields: ["timeframe", "cf", "metric", "metrics"], recommended_for: ["storage utilization charting", "capacity inspection"] },
-};
+
 
 function resolveRuntimeProxmoxWorkflowName(value: string): ProxmoxWorkflowName {
   return value as ProxmoxWorkflowName;
@@ -617,7 +553,7 @@ function normalizeCategoryFilter(value: string | undefined): string | undefined 
 
 function getProxmoxWorkflowEntries(category?: string): Array<{ name: string } & WorkflowCapabilitySpec> {
   const entries = Object.entries(PROXMOX_WORKFLOW_CAPABILITIES)
-    .map(([name, spec]) => ({ name, ...spec }))
+    .map(([name, { callSummary: _callSummary, ...spec }]) => ({ name, ...spec }))
     .sort((a, b) => a.name.localeCompare(b.name));
   if (!category) return entries;
   const filtered = entries.filter((entry) => entry.category === category);
@@ -1016,8 +952,9 @@ function buildProxmoxCapabilitiesPayload(options?: { category?: string; include_
 function getProxmoxWorkflowHelp(value: string | undefined, options?: { include_examples?: boolean }): { canonical_workflow: string; runtime_workflow: ProxmoxWorkflowName; spec: WorkflowCapabilitySpec; recommended_for: string[]; see_also: string[]; guidance: string[]; examples?: Array<Record<string, unknown>> } {
   const raw = typeof value === "string" ? value.trim() : "";
   if (!raw) throw new Error("Provide workflow for action=workflow_help.");
-  const spec = PROXMOX_WORKFLOW_CAPABILITIES[raw];
-  if (!spec) throw new Error(`Unknown Proxmox workflow: ${raw}`);
+  const capability = PROXMOX_WORKFLOW_CAPABILITIES[raw];
+  if (!capability) throw new Error(`Unknown Proxmox workflow: ${raw}`);
+  const { callSummary: _callSummary, ...spec } = capability;
   const recommendedFor = uniqueStrings([...(spec.recommended_for || []), ...getProxmoxDefaultRecommendedFor(spec.category)]);
   const seeAlso = uniqueStrings([...(spec.see_also || []), ...getProxmoxDefaultSeeAlso(raw, spec.category)]).filter((entry) => entry !== raw).slice(0, 5);
   const guidance = getProxmoxDefaultGuidance(raw, spec);
@@ -1145,6 +1082,7 @@ export function getProxmoxPrompt(): string { return PROXMOX_TOOL_HINT; }
 
 function createProxmoxDefinition() {
   return {
+    ...toolCallSummary(callSummaries["proxmox"]),
     name: "proxmox",
     label: "proxmox",
     description: "Get, set, or clear the session-scoped Proxmox API profile, perform ad-hoc API requests, or run common Proxmox workflows.",

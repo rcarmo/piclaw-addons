@@ -1,3 +1,5 @@
+import { toolCallSummary } from "./compat/tool-call-summary.js";
+import { callSummaries } from "./summary.js";
 import type { ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { normalizeMarkdownTable, parseMarkdownTable } from "./shared.js";
@@ -25,6 +27,7 @@ function textResult(text: string, details: Record<string, unknown> = {}) {
 
 export function createEditableTableTool(port?: EditableTableWidgetPort): ToolDefinition<typeof EditableTableSchema> {
   return {
+    ...toolCallSummary(callSummaries["editable_table"]),
     name: "editable_table",
     label: "editable_table",
     description: "Open a themed spreadsheet-style widget for editing a Markdown table in the web UI.",

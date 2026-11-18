@@ -21,6 +21,8 @@
  *   then shape a concise response for the model/user
  */
 
+import { toolCallSummary } from "./compat/tool-call-summary.js";
+import { callSummaries } from "./summary.js";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { registerTodoTools, fileJournal } from "./todo.ts";
@@ -278,6 +280,7 @@ export default function (pi: ExtensionAPI) {
 	// ═══════════════════════════════════════════════════════════════════════
 
 	pi.registerTool({
+	...toolCallSummary(callSummaries["m365_teams_chats"]),
 	name: "m365_teams_chats",
 	label: "M365 Teams Chats",
 	description: "List Teams chat conversations (DMs, group chats, meetings).",
@@ -301,6 +304,7 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.registerTool({
+	...toolCallSummary(callSummaries["m365_teams_messages"]),
 	name: "m365_teams_messages",
 	label: "M365 Teams Messages",
 	description: "Read messages from a Teams chat thread.",
@@ -346,6 +350,7 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.registerTool({
+	...toolCallSummary(callSummaries["m365_teams_send"]),
 	name: "m365_teams_send",
 	label: "M365 Teams Send",
 	description: "Send a message to a Teams chat thread, optionally with a file attachment card.",
@@ -396,6 +401,7 @@ export default function (pi: ExtensionAPI) {
 	 * - `m365_teams_send_file_card` is the convenience dispatcher that accepts either a local file path or an existing URL
 	 */
 	pi.registerTool({
+	...toolCallSummary(callSummaries["m365_teams_send_rich_text"]),
 	name: "m365_teams_send_rich_text",
 	label: "M365 Teams Send Rich Text",
 	description: "Send a richly formatted Teams chat message by converting Markdown to Teams-safe HTML.",
@@ -434,6 +440,7 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.registerTool({
+	...toolCallSummary(callSummaries["m365_teams_send_markdown_card"]),
 	name: "m365_teams_send_markdown_card",
 	label: "M365 Teams Send Markdown Card",
 	description: "Upload Markdown to OneDrive Attachments and send it as a Teams reference attachment card.",
@@ -486,6 +493,7 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.registerTool({
+	...toolCallSummary(callSummaries["m365_teams_upload_file_card"]),
 	name: "m365_teams_upload_file_card",
 	label: "M365 Teams Upload File Card",
 	description: "Upload a local file to OneDrive (strict content dedupe) and send it to Teams as a preview card with a read-only link.",
@@ -539,6 +547,7 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.registerTool({
+	...toolCallSummary(callSummaries["m365_teams_send_link_card"]),
 	name: "m365_teams_send_link_card",
 	label: "M365 Teams Send Link Card",
 	description: "Send a SharePoint/Teams/OneDrive document as a Teams preview card using its existing link (no upload). Always enforces read-only sharing.",
@@ -589,6 +598,7 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.registerTool({
+	...toolCallSummary(callSummaries["m365_teams_send_file_card"]),
 	name: "m365_teams_send_file_card",
 	label: "M365 Teams Send File Card",
 	description: "Send a Teams file card from either a local file path or an existing SharePoint/Teams/OneDrive URL.",
@@ -688,6 +698,7 @@ export default function (pi: ExtensionAPI) {
 
 
 	pi.registerTool({
+		...toolCallSummary(callSummaries["m365_graph_query"]),
 		name: "m365_graph_query",
 		label: "M365 Graph Query",
 		description:
@@ -713,6 +724,7 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.registerTool({
+		...toolCallSummary(callSummaries["m365_profile"]),
 		name: "m365_profile",
 		label: "M365 Profile",
 		description: "Get current user profile, manager, or calendar events.",
@@ -750,6 +762,7 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.registerTool({
+		...toolCallSummary(callSummaries["m365_mail"]),
 		name: "m365_mail",
 		label: "M365 Mail",
 		description:
@@ -1146,6 +1159,7 @@ export default function (pi: ExtensionAPI) {
 
 	// ── People search & resolve ──
 	pi.registerTool({
+		...toolCallSummary(callSummaries["m365_people"]),
 		name: "m365_people",
 		label: "M365 People Search",
 		description:
@@ -1215,6 +1229,7 @@ export default function (pi: ExtensionAPI) {
 
 	// ── OneDrive quick operations ──
 	pi.registerTool({
+		...toolCallSummary(callSummaries["m365_onedrive"]),
 		name: "m365_onedrive",
 		label: "M365 OneDrive",
 		description:
@@ -1345,6 +1360,7 @@ export default function (pi: ExtensionAPI) {
 	// ═══════════════════════════════════════════════════════════════════════
 
 	pi.registerTool({
+		...toolCallSummary(callSummaries["m365_spo_search"]),
 		name: "m365_spo_search",
 		label: "M365 SharePoint Search",
 		description:
@@ -1374,6 +1390,7 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.registerTool({
+		...toolCallSummary(callSummaries["m365_spo_browse"]),
 		name: "m365_spo_browse",
 		label: "M365 OneDrive Browse",
 		description: "List files in a OneDrive/SharePoint folder.",
@@ -1399,6 +1416,7 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.registerTool({
+		...toolCallSummary(callSummaries["m365_spo_download"]),
 		name: "m365_spo_download",
 		label: "M365 File Download",
 		description: "Download a file from SharePoint/OneDrive to local disk.",
@@ -1415,6 +1433,7 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.registerTool({
+		...toolCallSummary(callSummaries["m365_document_link_metadata"]),
 		name: "m365_document_link_metadata",
 		label: "M365 Document Link Metadata",
 		description: "Resolve a SharePoint or Teams document link and return filename, preview image URL, and document URL.",
@@ -1434,6 +1453,7 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.registerTool({
+		...toolCallSummary(callSummaries["m365_onedrive_share_local_file"]),
 		name: "m365_onedrive_share_local_file",
 		label: "M365 OneDrive Share Local File",
 		description: "Upload a local file to your OneDrive Attachments folder and return a read-only share link.",
@@ -1476,6 +1496,7 @@ export default function (pi: ExtensionAPI) {
 	// ═══════════════════════════════════════════════════════════════════════
 
 	pi.registerTool({
+		...toolCallSummary(callSummaries["m365_spo_upload"]),
 		name: "m365_spo_upload",
 		label: "M365 SharePoint/OneDrive Upload",
 		description:
@@ -1575,6 +1596,7 @@ export default function (pi: ExtensionAPI) {
 	// ═══════════════════════════════════════════════════════════════════════
 
 	pi.registerTool({
+		...toolCallSummary(callSummaries["m365_spo_sync"]),
 		name: "m365_spo_sync",
 		label: "M365 SharePoint/OneDrive Sync",
 		description:
@@ -1757,6 +1779,7 @@ export default function (pi: ExtensionAPI) {
 	// ═══════════════════════════════════════════════════════════════════════
 
 	pi.registerTool({
+		...toolCallSummary(callSummaries["m365_calendar"]),
 		name: "m365_calendar",
 		label: "M365 Calendar",
 		description:
@@ -2040,6 +2063,7 @@ export default function (pi: ExtensionAPI) {
 
 	// ── Calendar Day SVG (inline renderer) ──────────────────────────
 	pi.registerTool({
+		...toolCallSummary(callSummaries["m365_calendar_svg"]),
 		name: "m365_calendar_svg",
 		label: "M365 Calendar Day SVG",
 		description:
@@ -2288,6 +2312,7 @@ export default function (pi: ExtensionAPI) {
 	}
 
 	pi.registerTool({
+		...toolCallSummary(callSummaries["m365_spo_move"]),
 		name: "m365_spo_move",
 		label: "M365 Move/Rename File",
 		description:
@@ -2329,6 +2354,7 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.registerTool({
+		...toolCallSummary(callSummaries["m365_spo_move_many"]),
 		name: "m365_spo_move_many",
 		label: "M365 Move/Rename Many",
 		description:
