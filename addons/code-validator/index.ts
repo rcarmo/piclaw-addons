@@ -6,6 +6,8 @@
  *
  * Drop into .pi/extensions/ and /reload.
  */
+import { toolCallSummary } from "./compat/tool-call-summary.js";
+import { callSummaries } from "./summary.js";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { resolve, extname } from "node:path";
@@ -171,6 +173,7 @@ function safePath(file: string): { resolved: string; error?: string } {
 
 export default function (pi: ExtensionAPI) {
   pi.registerTool({
+    ...toolCallSummary(callSummaries["diagnostics"]),
     name: "diagnostics",
     label: "Diagnostics",
     description:

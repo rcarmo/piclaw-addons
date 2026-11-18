@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-win-ui",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Windows desktop automation tools via Win32 UI Automation and screenshots",
   "type": "module",
   "main": "index.ts",

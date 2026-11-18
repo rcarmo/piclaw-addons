@@ -1,3 +1,5 @@
+import { toolCallSummary } from "./compat/tool-call-summary.js";
+import { callSummaries } from "./summary.js";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -42,6 +44,7 @@ export default function remotePeer(pi: ExtensionAPI) {
     skillPaths: [join(baseDir, "skills/remote-peer/SKILL.md")],
   }));
   pi.registerTool({
+    ...toolCallSummary(callSummaries["remote_peer"]),
     name: "remote_peer",
     label: "Remote Peer",
     description:

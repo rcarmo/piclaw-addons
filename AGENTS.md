@@ -171,6 +171,14 @@ pi.on("resources_discover", () => ({
 | Widgets | `ctx.ui.setWidget(key, content, options)` |
 | Toasts | `ctx.ui.notify(message, type)` |
 
+### Tool call summaries
+
+Every active tool must declare an add-on-owned, pure synchronous `callSummary(args)` provider. Keep formatting and safe-field selection in the package’s `summary.ts`, then attach it with the self-contained `toolCallSummary()` spread helper. Use the same metadata in legacy and native factories. Do not rely on a Core tool-name dictionary or a global status-hint registration for timeline captions.
+
+The callback receives readonly argument data, has no execution/session context, and returns detail text only. Never read services, configuration or keychain, start async work, mutate arguments, or serialise bodies/credentials/typed text. Core provides generic text validation, clipping and fallback.
+
+See [the full contract](documentation/tool-call-summaries.md). Run `bun run sync:tool-summary-helpers --write`, `bun run typecheck:tool-summaries` and `bun test tool-call-summaries.test.ts`. Bump changed package versions and include formatter/helper files in standalone package allowlists. Retired packages stay byte-identical.
+
 ### Tool parameters
 
 Use `@sinclair/typebox`. Represent closed string choices as `Type.String({ enum: [...] })`; avoid literal unions because some provider schema dialects reject them:

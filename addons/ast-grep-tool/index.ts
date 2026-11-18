@@ -5,6 +5,8 @@
  *   code_search  — find code by AST pattern with metavariables
  *   code_rewrite — structural find-and-replace
  */
+import { toolCallSummary } from "./compat/tool-call-summary.js";
+import { callSummaries } from "./summary.js";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { spawn } from "node:child_process";
@@ -110,6 +112,7 @@ export default async function register(api: ExtensionAPI) {
   const astGrepBin = await findAstGrepBinary();
 
   api.registerTool({
+    ...toolCallSummary(callSummaries["code_search"]),
     name: "code_search",
     label: "Code Search",
     description: [
@@ -198,6 +201,7 @@ export default async function register(api: ExtensionAPI) {
   });
 
   api.registerTool({
+    ...toolCallSummary(callSummaries["code_rewrite"]),
     name: "code_rewrite",
     label: "Code Rewrite",
     description: [

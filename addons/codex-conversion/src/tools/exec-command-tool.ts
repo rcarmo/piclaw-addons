@@ -1,3 +1,5 @@
+import { toolCallSummary } from "../../compat/tool-call-summary.js";
+import { callSummaries } from "../../summary.js";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { Container, Text } from "@earendil-works/pi-tui";
@@ -134,6 +136,7 @@ const renderExecCommandResultWithOptionalContext: any = (
 
 export function registerExecCommandTool(pi: ExtensionAPI, tracker: ExecCommandTracker, sessions: ExecSessionManager): void {
 	pi.registerTool({
+		...toolCallSummary(callSummaries["exec_command"]),
 		name: "exec_command",
 		label: "exec_command",
 		description: "Runs a command in a PTY, returning output or a session ID for ongoing interaction.",

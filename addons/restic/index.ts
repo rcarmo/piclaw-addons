@@ -1,3 +1,5 @@
+import { toolCallSummary } from "./compat/tool-call-summary.js";
+import { callSummaries } from "./summary.js";
 import { resticRuntime } from './runtime-state.ts';
 
 const string = { type: 'string' };
@@ -32,6 +34,7 @@ const configSchema = {
 /** Use the startup-owned service; native callers supply their invocation fence. */
 export function createResticTool(assertCurrent?: () => void) {
   return {
+    ...toolCallSummary(callSummaries["restic"]),
     name: 'restic',
     label: 'Restic configuration',
     description: 'Read or configure this instance’s Restic backup add-on. Pass config:null for get_config/status. Use get_config, edit the returned full config, then set_config. Keychain reference names only; use the keychain tool separately for secrets. Shares Settings validation, locks, prior-backup and legacy-scheduler checks. Enabling a schedule permits future automatic backups; retention remains explicit-preview only. No immediate backup, restore, prune, binary install, credential retrieval or external scheduler management is exposed here.',

@@ -14,6 +14,8 @@
  * and __piclaw_registerToolStatusHintProvider for tool progress hints.
  */
 
+import { toolCallSummary } from "./compat/tool-call-summary.js";
+import { callSummaries } from "./summary.js";
 import { resolve, extname, dirname, relative as pathRelative, isAbsolute } from "node:path";
 import { existsSync, realpathSync, statSync } from "node:fs";
 
@@ -159,6 +161,7 @@ export default function officeViewer(pi: any) {
 
   // Register the open_office_viewer tool.
   pi.registerTool({
+    ...toolCallSummary(callSummaries["open_office_viewer"]),
     name: "open_office_viewer",
     label: "Open Office Viewer",
     description:

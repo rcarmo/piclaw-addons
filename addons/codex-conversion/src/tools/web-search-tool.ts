@@ -1,3 +1,5 @@
+import { toolCallSummary } from "../../compat/tool-call-summary.js";
+import { callSummaries } from "../../summary.js";
 import type { ExtensionAPI, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { Container, Text } from "@earendil-works/pi-tui";
@@ -19,6 +21,7 @@ function createEmptyResultComponent(): Container { return new Container(); }
 
 export function createWebSearchTool(): ToolDefinition<typeof WEB_SEARCH_PARAMETERS> {
 	return {
+		...toolCallSummary(callSummaries["web_search"]),
 		name: "web_search",
 		label: "web_search",
 		description:

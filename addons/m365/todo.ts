@@ -3,6 +3,8 @@
  * @kind mixed
  * @role module
  */
+import { toolCallSummary } from "./compat/tool-call-summary.js";
+import { callSummaries } from "./summary.js";
 import { createHash } from "node:crypto";
 import {
   mkdirSync,
@@ -568,6 +570,7 @@ export function registerTodoTools(
     ) => Promise<any>,
   ) =>
     pi.registerTool({
+      ...toolCallSummary(callSummaries[name]),
       name,
       label,
       description,

@@ -12,6 +12,8 @@
  * so secrets can be kept in the keychain rather than plaintext env files.
  */
 
+import { toolCallSummary } from "./compat/tool-call-summary.js";
+import { callSummaries } from "./summary.js";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type, type Static } from "typebox";
 import { loadConfig, type VoiceConfig } from "./config.ts";
@@ -125,6 +127,7 @@ export default function (pi: ExtensionAPI) {
 
   // ── ava tool ────────────────────────────────────────────────────────────────
   pi.registerTool({
+    ...toolCallSummary(callSummaries["ava"]),
     name: "ava",
     label: "Ava (ThinkSmart)",
     description: "Control the ThinkSmart View: media playback, notification scenes, mic mute, volume, sensors, camera, wake, subtitles.",

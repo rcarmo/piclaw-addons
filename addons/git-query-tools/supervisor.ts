@@ -5,6 +5,8 @@
  * validation, and execute handlers.
  */
 
+import { toolCallSummary } from "./compat/tool-call-summary.js";
+import { callSummaries } from "./summary.js";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { extname, relative } from "node:path";
@@ -107,6 +109,7 @@ export default function (pi: ExtensionAPI) {
 
   /* git_history */
   pi.registerTool({
+    ...toolCallSummary(callSummaries["git_history"]),
     name: "git_history",
     label: "Git History",
     description:
@@ -186,6 +189,7 @@ export default function (pi: ExtensionAPI) {
 
   /* json_query */
   pi.registerTool({
+    ...toolCallSummary(callSummaries["json_query"]),
     name: "json_query",
     label: "JSON Query",
     description:

@@ -1,3 +1,5 @@
+import { toolCallSummary } from "../../compat/tool-call-summary.js";
+import { callSummaries } from "../../summary.js";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { Container, Text } from "@earendil-works/pi-tui";
@@ -106,6 +108,7 @@ function createEmptyResultComponent(): Container {
 
 export function registerWriteStdinTool(pi: ExtensionAPI, sessions: ExecSessionManager): void {
 	pi.registerTool({
+		...toolCallSummary(callSummaries["write_stdin"]),
 		name: "write_stdin",
 		label: "write_stdin",
 		description: "Writes characters to an existing unified exec session and returns recent output.",

@@ -1,9 +1,12 @@
+import { toolCallSummary } from "./compat/tool-call-summary.js";
+import { callSummaries } from "./summary.js";
 import { getRuntime, requireContext } from "./host.js";
 import { reviewAction, runCodeReviewRead, runCodeReviewMutation } from "./runtime.js";
 import type { ReviewService } from "./dispatch.js";
 import type { ReviewIdentity } from "./contracts.js";
 
 export const codeReviewToolDeclaration = {
+  ...toolCallSummary(callSummaries["code_review"]),
   name: "code_review",
   label: "Code Review",
   description:

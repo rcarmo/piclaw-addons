@@ -149,6 +149,8 @@
  * export is a no-op. Safe to include in cross-platform piclaw installs.
  */
 
+import { toolCallSummary } from "./compat/tool-call-summary.js";
+import { callSummaries } from "./summary.js";
 import type { AgentToolResult, ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { writeFileSync } from "fs";
@@ -767,6 +769,7 @@ export default function register(pi: ExtensionAPI) {
   if (process.platform !== "win32") return;
   ensureInit();
   pi.registerTool({
+    ...toolCallSummary(callSummaries["win_list_windows"]),
     name: "win_list_windows",
     label: "List Windows",
     description: "Enumerate visible windows with titles, class names, PIDs, and bounding rectangles.",
@@ -782,6 +785,7 @@ export default function register(pi: ExtensionAPI) {
   });
 
   pi.registerTool({
+    ...toolCallSummary(callSummaries["win_screenshot"]),
     name: "win_screenshot",
     label: "Window Screenshot",
     description: "Capture a window to a BMP file by title substring. Works through the lock screen via PrintWindow. Use .png extension for automatic PNG conversion.",
@@ -801,6 +805,7 @@ export default function register(pi: ExtensionAPI) {
   });
 
   pi.registerTool({
+    ...toolCallSummary(callSummaries["win_desktop_screenshot"]),
     name: "win_desktop_screenshot",
     label: "Desktop Screenshot",
     description: "Capture the full interactive virtual desktop across all monitors to a BMP or PNG file using pure Win32 GDI.",
@@ -819,6 +824,7 @@ export default function register(pi: ExtensionAPI) {
   });
 
   pi.registerTool({
+    ...toolCallSummary(callSummaries["win_list_monitors"]),
     name: "win_list_monitors",
     label: "List Monitors",
     description: "Enumerate attached monitors with index, device name, primary flag, and monitor/work-area rectangles.",
@@ -834,6 +840,7 @@ export default function register(pi: ExtensionAPI) {
   });
 
   pi.registerTool({
+    ...toolCallSummary(callSummaries["win_monitor_screenshot"]),
     name: "win_monitor_screenshot",
     label: "Monitor Screenshot",
     description: "Capture one monitor by index or device name to a BMP or PNG file using pure Win32 GDI.",
@@ -867,6 +874,7 @@ export default function register(pi: ExtensionAPI) {
   });
 
   pi.registerTool({
+    ...toolCallSummary(callSummaries["win_region_screenshot"]),
     name: "win_region_screenshot",
     label: "Region Screenshot",
     description: "Capture an arbitrary desktop region to a BMP or PNG file using pure Win32 GDI. Supports negative coordinates on multi-monitor layouts.",
@@ -889,6 +897,7 @@ export default function register(pi: ExtensionAPI) {
   });
 
   pi.registerTool({
+    ...toolCallSummary(callSummaries["win_find_elements"]),
     name: "win_find_elements",
     label: "Find UI Elements",
     description: "Find interactive UI elements by name inside any window. Uses IAccessible (MSAA) — sees non-HWND controls like buttons, tabs, links inside Edge, VS Code, etc. No PowerShell needed.",
@@ -910,6 +919,7 @@ export default function register(pi: ExtensionAPI) {
   });
 
   pi.registerTool({
+    ...toolCallSummary(callSummaries["win_click"]),
     name: "win_click",
     label: "Click",
     description: "Click at screen coordinates, or find a UI element by name in a window and click its center.",
@@ -971,6 +981,7 @@ export default function register(pi: ExtensionAPI) {
   });
 
   pi.registerTool({
+    ...toolCallSummary(callSummaries["win_type"]),
     name: "win_type",
     label: "Type Text",
     description: "Send keystrokes to the focused window. Provide text for typing or a virtual key code for special keys.",
@@ -1024,6 +1035,7 @@ export default function register(pi: ExtensionAPI) {
   });
 
   pi.registerTool({
+    ...toolCallSummary(callSummaries["win_tree"]),
     name: "win_tree",
     label: "Accessibility Tree",
     description: "Dump the IAccessible tree for a window — shows all interactive elements (buttons, links, tabs, text) with their roles. Useful for discovering what can be clicked.",
@@ -1068,6 +1080,7 @@ export default function register(pi: ExtensionAPI) {
 
   // ── win_kill ──────────────────────────────────────────────────────────
   pi.registerTool({
+    ...toolCallSummary(callSummaries["win_kill"]),
     name: "win_kill",
     label: "Kill Window/Process",
     description: "Close a window by title (WM_CLOSE). With force=true, terminates the owning process. Use to clean up stale Edge instances, dialogs, etc.",

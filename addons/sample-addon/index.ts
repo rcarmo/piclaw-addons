@@ -10,6 +10,8 @@
  * Use this as a starting point for new add-ons.
  */
 
+import { toolCallSummary } from "./compat/tool-call-summary.js";
+import { callSummaries } from "./summary.js";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { createExtensionStorage, type ExtensionStorage } from "./compat/extension-kv.js";
 
@@ -81,6 +83,7 @@ export default function sampleAddon(pi: ExtensionAPI): void {
   // ── Tool: returns the greeting from config ─────────────────────
 
   pi.registerTool({
+    ...toolCallSummary(callSummaries["sample_test"]),
     name: "sample_test",
     label: "sample_test",
     description: "Returns the sample addon's configured greeting and whether a secret is present.",

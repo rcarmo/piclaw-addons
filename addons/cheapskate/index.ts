@@ -1,3 +1,5 @@
+import { toolCallSummary } from "./compat/tool-call-summary.js";
+import { callSummaries } from "./summary.js";
 import type { ExtensionAPI, ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 
@@ -80,6 +82,7 @@ const cheapskate: ExtensionFactory = (pi: ExtensionAPI) => {
   });
 
   pi.registerTool({
+    ...toolCallSummary(callSummaries["cheapskate"]),
     name: "cheapskate",
     label: "cheapskate",
     description: "Inspect or rotate the catalogue-backed zero-cost model router.",

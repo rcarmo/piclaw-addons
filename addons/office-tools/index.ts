@@ -1,3 +1,5 @@
+import { toolCallSummary } from "./compat/tool-call-summary.js";
+import { callSummaries } from "./summary.js";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { createRequire } from "node:module";
@@ -949,6 +951,7 @@ export async function executeOfficeWrite(
 
 export default function register(pi: ExtensionAPI) {
   pi.registerTool({
+    ...toolCallSummary(callSummaries["office_read"]),
     name: "office_read",
     label: "Read Office Document",
     description:
@@ -962,6 +965,7 @@ export default function register(pi: ExtensionAPI) {
   });
 
   pi.registerTool({
+    ...toolCallSummary(callSummaries["office_write"]),
     name: "office_write",
     label: "Write Office Document",
     description:

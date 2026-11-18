@@ -1,5 +1,7 @@
 /// <reference path="./gifenc.d.ts" />
 
+import { toolCallSummary } from "./compat/tool-call-summary.js";
+import { callSummaries } from "./summary.js";
 import { Type, type Static } from "typebox";
 import type {
   AgentToolResult,
@@ -723,6 +725,7 @@ const imageProcessing: ExtensionFactory = (pi: ExtensionAPI) => {
   }));
 
   pi.registerTool({
+    ...toolCallSummary(callSummaries["image_process"]),
     name: "image_process",
     label: "image_process",
     description:

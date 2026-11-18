@@ -1,3 +1,5 @@
+import { toolCallSummary } from "../../compat/tool-call-summary.js";
+import { callSummaries } from "../../summary.js";
 import { Type } from "typebox";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Container, Text } from "@earendil-works/pi-tui";
@@ -218,6 +220,7 @@ const renderApplyPatchCallWithOptionalContext: any = (
 
 export function registerApplyPatchTool(pi: ExtensionAPI): void {
 	pi.registerTool({
+		...toolCallSummary(callSummaries["apply_patch"]),
 		name: "apply_patch",
 		label: "apply_patch",
 		description: "Use `apply_patch` to edit files. Send the full patch in `input`.",
