@@ -7,6 +7,9 @@ test('Regrets browser qualification allows provisioning time without dropping ei
   expect(job).toBeDefined();
   expect(job).toContain('runs-on: ubuntu-24.04');
   expect(job).toContain('timeout-minutes: 20');
-  expect(job).toContain('bunx playwright install --with-deps chromium webkit');
+  expect(job).toContain('mcr.microsoft.com/playwright:v1.65.0-noble@sha256:9beb546099e11f52d62e505537914870e01a67e0e6b00ae41da4775324e73dbe');
+  expect(job).toContain('PLAYWRIGHT_BROWSERS_PATH: /ms-playwright');
+  expect(job).toContain('bunx playwright install chromium webkit');
+  expect(job).not.toContain('playwright install --with-deps');
   expect(job).toContain('bun test addons/late-night-regrets');
 });

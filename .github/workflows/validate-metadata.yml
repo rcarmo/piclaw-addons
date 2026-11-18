@@ -96,10 +96,11 @@ jobs:
     needs: routes
     if: needs.routes.outputs.regrets == 'true'
     runs-on: ubuntu-24.04
-    # Includes Ubuntu browser dependencies; individual test deadlines stay unchanged.
+    # Browser libraries come from the version-matched image, not a slow apt mirror.
+    container: mcr.microsoft.com/playwright:v1.65.0-noble@sha256:9beb546099e11f52d62e505537914870e01a67e0e6b00ae41da4775324e73dbe
     timeout-minutes: 20
     env:
-      PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.cache/ms-playwright
+      PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
     steps:
       - uses: actions/checkout@v7
       - name: Resolve Bun version
@@ -109,7 +110,7 @@ jobs:
         with:
           bun-version: ${{ steps.bun-version.outputs.version }}
       - run: bun install --frozen-lockfile
-      - run: bunx playwright install --with-deps chromium webkit
+      - run: bunx playwright install chromium webkit
       - run: bun test addons/late-night-regrets
 
   code-review:
