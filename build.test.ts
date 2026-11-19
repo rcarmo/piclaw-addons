@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, rmSync, symlinkSync } from "node:fs";
+import { copyFileSync, existsSync, readFileSync, writeFileSync, mkdirSync, mkdtempSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { packAddon, preservePublishedArchives, verifyPublishedArchives } from "./scripts/lib/pack-addon.js";
 import { addonSourceDigest, deprecatedArchives, readDeprecatedAddons, downloadDeprecatedArchive } from "./scripts/lib/deprecated-addons.ts";
@@ -44,6 +44,32 @@ test("public tarballs honour production files and preserve legacy exclusions", (
     expect(entries()).toContain('./index.ts');
     expect(entries().some((entry) => entry.includes('node_modules') || entry.includes('.tmp'))).toBe(false);
     expect(() => packAddon(pkg, join(root, 'missing', 'no.tgz'))).toThrow('Packing fixture-addon failed');
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test('Pages includes the Draw.io vendor archive without running manifest hooks or editing source', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'drawio-pages-package-'));
+  try {
+    const pkg = join(root, 'addon'), out = join(root, 'drawio.tgz');
+    mkdirSync(join(pkg, 'scripts'), { recursive: true });
+    mkdirSync(join(pkg, 'vendor'));
+    copyFileSync(join(repoRoot, 'addons/drawio-editor/scripts/pack-vendor.ts'), join(pkg, 'scripts/pack-vendor.ts'));
+    const manifest = { name: '@rcarmo/piclaw-addon-drawio-editor', version: '31.4.5',
+      files: ['vendor.tar.gz'], scripts: { prepack: 'exit 47' } };
+    writeFileSync(join(pkg, 'package.json'), JSON.stringify(manifest));
+    expect(() => packAddon(pkg, out)).toThrow('Draw.io vendor is missing index.html');
+    expect(existsSync(out)).toBe(false);
+    writeFileSync(join(pkg, 'vendor/index.html'), '<title>fixture vendor</title>');
+    packAddon(pkg, out);
+    const packed = Bun.spawnSync(['tar', '-xOzf', out, 'package/vendor.tar.gz'], { stdout: 'pipe', stderr: 'pipe' });
+    expect(packed.exitCode, packed.stderr.toString()).toBe(0);
+    const files = await new Bun.Archive(packed.stdout).files();
+    expect(await files.get('index.html')?.text()).toBe('<title>fixture vendor</title>');
+    expect(existsSync(join(pkg, 'vendor.tar.gz'))).toBe(false);
+    writeFileSync(join(pkg, 'package.json'), JSON.stringify({ ...manifest, files: ['vendor/index.html'] }));
+    const incomplete = join(root, 'incomplete.tgz');
+    expect(() => packAddon(pkg, incomplete)).toThrow('Packed Draw.io is missing package/vendor.tar.gz');
+    expect(existsSync(incomplete)).toBe(false);
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
