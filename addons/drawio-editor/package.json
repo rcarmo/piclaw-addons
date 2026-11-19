@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-drawio-editor",
-  "version": "31.4.5",
+  "version": "31.4.6",
   "description": "Self-hosted draw.io diagram editor with workspace file integration",
   "type": "module",
   "main": "index.ts",

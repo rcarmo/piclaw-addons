@@ -59,7 +59,7 @@ afterEach(() => {
 
 describe("draw.io 31.4.2 vendor integrity", () => {
   test("aligns add-on, metadata, runtime and bundled JavaScript versions", () => {
-    expect(packageManifest.version).toBe("31.4.5");
+    expect(packageManifest.version).toBe("31.4.6");
     expect(packageManifest.piclaw.vendorVersion).toBe("31.4.2");
     expect(DRAWIO_VERSION).toBe("v31.4.2");
     expect(vendorMetadata.package_version).toBe(DRAWIO_VERSION);
