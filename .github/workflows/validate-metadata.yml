@@ -84,6 +84,12 @@ jobs:
           bun run typecheck:observability
           bun test --isolate addons/observability
 
+      - name: Prepare standalone dependency fixtures
+        run: |
+          fixture_root=$(mktemp -d "$RUNNER_TEMP/standalone-imports.XXXXXX")
+          bun run scripts/prepare-standalone-imports.ts "$fixture_root"
+          echo "PICLAW_STANDALONE_FIXTURES=$fixture_root" >> "$GITHUB_ENV"
+
       - name: Test standalone add-on imports
         run: bun test standalone-import.test.ts
       - name: Test Iroh-only Remote Peer on isolated loopback

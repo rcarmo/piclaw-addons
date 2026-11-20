@@ -24,7 +24,7 @@ bun install --frozen-lockfile
 bun run check:catalog
 bun run typecheck:earendil-compat
 bun run test:earendil-compat
-bun test standalone-import.test.ts
+# Prepare a disposable dependency root, then follow “Standalone import test” below.
 bun pm pack --dry-run
 
 # 5. Commit on a feature branch and open a pull request
@@ -252,11 +252,15 @@ Unit tests must retain the repository and test-directory `bunfig.toml` preloads.
 
 ### Standalone import test
 
+After the frozen root install, acquire the standalone dependency graphs in a separate preparation step. Use a fresh directory owned by this test run:
+
 ```bash
-bun test standalone-import.test.ts
+fixture_root=$(mktemp -d "${TMPDIR:-/tmp}/standalone-imports.XXXXXX")
+bun run scripts/prepare-standalone-imports.ts "$fixture_root"
+PICLAW_STANDALONE_FIXTURES="$fixture_root" bun test standalone-import.test.ts
 ```
 
-Validates standalone imports for the add-ons listed in `standalone-import.test.ts`.
+Preparation uses the test consumer's host pins and records the resolved lock hash for each graph. The test copies current candidate sources and imports them outside the repository. It rejects missing or stale fixtures instead of resolving dependencies inside the test. The Restic-only check needs no standalone dependency installation. Remove the owned fixture when done; do not point preparation at an existing profile or reuse it after dependency changes.
 
 ### Compatibility checks
 

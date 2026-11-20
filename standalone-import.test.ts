@@ -1,227 +1,72 @@
-import { afterEach, expect, test } from "bun:test";
-import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { basename, join } from "node:path";
-import { pathToFileURL } from "node:url";
+import { afterEach, expect, test } from 'bun:test';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { basename, join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { preparedStandaloneModules, standaloneImportPlan, standaloneSlugs, type StandaloneSlug } from './scripts/prepare-standalone-imports.ts';
 
-const repoDir = import.meta.dir;
 const tempDirs: string[] = [];
-
 afterEach(() => {
-  for (const dir of tempDirs.splice(0)) {
-    rmSync(dir, { recursive: true, force: true });
-  }
+  for (const dir of tempDirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
-
-async function importStandaloneAddon(slug: "restic" | "autoresearch" | "cheapskate" | "code-review" | "codex-conversion" | "delegate" | "drawio-editor" | "editable-table" | "goal" | "image-processing" | "imap" | "kanban-editor" | "lite-term" | "m365" | "mindmap" | "observability" | "office-tools" | "office-viewer" | "plan-sidebar" | "portainer" | "proxmox" | "remote-peer" | "session-dashboard" | "session-tree" | "skill-model-effort" | "smart-compaction" | "vent" | "voice-pipeline" | "win-ui" | "yolo-vibe") {
-  const tempRoot = mkdtempSync(join(tmpdir(), `piclaw-addon-${slug}-`));
-  tempDirs.push(tempRoot);
-
-  const packageDir = join(tempRoot, `piclaw-addon-${slug}`);
-  cpSync(join(repoDir, "addons", slug), packageDir, {
-    recursive: true,
-    filter: (source) => basename(source) !== "node_modules",
-  });
-  expect(existsSync(join(packageDir, "node_modules"))).toBe(false);
-
-  const manifestPath = join(packageDir, "package.json");
-  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-  if (manifest.dependencies && Object.keys(manifest.dependencies).length > 0) {
-    const rootManifest = JSON.parse(readFileSync(join(repoDir, "package.json"), "utf8"));
-    manifest.devDependencies ||= {};
-    for (const peerName of Object.keys(manifest.peerDependencies ?? {})) {
-      const pinned = rootManifest.devDependencies?.[peerName];
-      if (typeof pinned === "string") manifest.devDependencies[peerName] = pinned;
-    }
-    const piVersion = rootManifest.devDependencies?.["@earendil-works/pi-coding-agent"];
-    if (typeof piVersion === "string") {
-      manifest.overrides ||= {};
-      for (const name of ["chord", "pi-agent-core", "pi-ai", "pi-coding-agent", "pi-codemode", "pi-mcp", "pi-tui"]) manifest.overrides[`@earendil-works/${name}`] = piVersion;
-    }
-    writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
-    const installed = Bun.spawnSync(["bun", "install", "--prefer-offline"], {
-      cwd: packageDir,
-      timeout: 30_000,
-      env: { ...process.env, BUN_INSTALL_CACHE_DIR: join(repoDir, ".tmp", "standalone-bun-cache") },
-      stdout: "pipe",
-      stderr: "pipe",
-    });
-    if (installed.exitCode !== 0) {
-      throw new Error(`Failed to install runtime dependencies for ${slug}: ${installed.stderr.toString()}`);
-    }
-  } else {
-    symlinkSync(join(repoDir, "node_modules"), join(tempRoot, "node_modules"), "dir");
-  }
-  return import(pathToFileURL(join(packageDir, manifest.main || "index.ts")).href);
+function fixtureDir(prefix: string) {
+  const dir = mkdtempSync(join(tmpdir(), prefix));
+  tempDirs.push(dir);
+  return dir;
 }
 
-test("standalone piclaw-addon-autoresearch imports outside the monorepo root", async () => {
-  const mod = await importStandaloneAddon("autoresearch");
-  expect(typeof mod.default).toBe("function");
-});
+async function importStandaloneAddon(slug: StandaloneSlug) {
+  const plan = standaloneImportPlan(slug);
+  const modules = plan.input ? preparedStandaloneModules(process.env.PICLAW_STANDALONE_FIXTURES, slug, plan.input) : null;
+  const tempRoot = fixtureDir(`piclaw-addon-${slug}-`);
+  const packageDir = join(tempRoot, `piclaw-addon-${slug}`);
+  cpSync(plan.source, packageDir, { recursive: true, filter: source => basename(source) !== 'node_modules' });
+  expect(existsSync(join(packageDir, 'node_modules'))).toBe(false);
+  if (modules) symlinkSync(modules, join(packageDir, 'node_modules'), 'dir');
+  else symlinkSync(join(import.meta.dir, 'node_modules'), join(tempRoot, 'node_modules'), 'dir');
+  return import(pathToFileURL(join(packageDir, plan.main)).href);
+}
 
-test("standalone piclaw-addon-cheapskate imports outside the monorepo root", async () => {
-  const mod = await importStandaloneAddon("cheapskate");
-  expect(typeof mod.default).toBe("function");
-});
+const timeouts: Partial<Record<StandaloneSlug, number>> = {
+  restic: 30_000, 'code-review': 120_000, 'codex-conversion': 300_000, 'image-processing': 120_000,
+  observability: 120_000, 'office-tools': 120_000, 'remote-peer': 120_000,
+};
+for (const slug of standaloneSlugs) {
+  const title = slug === 'linkr' ? 'linkr addon imports outside the monorepo' :
+    `standalone piclaw-addon-${slug} imports outside the monorepo root`;
+  test(title, async () => {
+    const mod = await importStandaloneAddon(slug);
+    if (slug === 'restic') return; // Its former case also tested import only.
+    expect(typeof mod.default).toBe('function');
+    if (slug === 'session-dashboard') expect(typeof mod.queryRecentSessions).toBe('function');
+    if (slug === 'linkr') expect(mod.skillNames.length).toBe(7);
+    if (slug !== 'office-tools') return;
 
-test("standalone piclaw-addon-restic imports outside the monorepo root", async () => {
-  await importStandaloneAddon("restic");
-}, 30000);
+    const workspace = fixtureDir('piclaw-office-tools-roundtrip-');
+    const markdown = '# Inventory\n\n| Item | Count |\n| --- | ---: |\n| Widget | 3 |';
+    const xlsxWrite = await mod.executeOfficeWrite({ path: 'inventory.xlsx', markdown }, undefined, { cwd: workspace });
+    expect(xlsxWrite.details).toMatchObject({ ok: true, format: '.xlsx' });
+    const xlsxRead = await mod.executeOfficeRead({ path: 'inventory.xlsx' }, { cwd: workspace });
+    expect(xlsxRead.details).toMatchObject({ ok: true, format: '.xlsx' });
+    expect(xlsxRead.content[0]?.text).toContain('Widget');
 
-test("standalone piclaw-addon-code-review imports outside the monorepo root", async () => {
-  const mod = await importStandaloneAddon("code-review");
-  expect(typeof mod.default).toBe("function");
-}, 120_000);
+    const docxWrite = await mod.executeOfficeWrite({ path: 'inventory.docx', markdown }, undefined, { cwd: workspace });
+    expect(docxWrite.details).toMatchObject({ ok: true, format: '.docx' });
+    const docxRead = await mod.executeOfficeRead({ path: 'inventory.docx' }, { cwd: workspace });
+    expect(docxRead.details).toMatchObject({ ok: true, format: '.docx' });
+    expect(docxRead.content[0]?.text).toContain('Inventory');
+  }, timeouts[slug]);
+}
 
-test("standalone piclaw-addon-codex-conversion imports outside the monorepo root", async () => {
-  const mod = await importStandaloneAddon("codex-conversion");
-  expect(typeof mod.default).toBe("function");
-}, 300_000);
-
-test("standalone piclaw-addon-delegate imports outside the monorepo root", async () => {
-  const mod = await importStandaloneAddon("delegate");
-  expect(typeof mod.default).toBe("function");
-});
-
-test("standalone piclaw-addon-drawio-editor imports outside the monorepo root", async () => {
-  const mod = await importStandaloneAddon("drawio-editor");
-  expect(typeof mod.default).toBe("function");
-});
-
-test("standalone piclaw-addon-editable-table imports outside the monorepo root", async () => {
-  const mod = await importStandaloneAddon("editable-table");
-  expect(typeof mod.default).toBe("function");
-});
-
-test("standalone piclaw-addon-goal imports outside the monorepo root", async () => {
-  const mod = await importStandaloneAddon("goal");
-  expect(typeof mod.default).toBe("function");
-});
-
-test("standalone piclaw-addon-image-processing imports outside the monorepo root", async () => {
-  const mod = await importStandaloneAddon("image-processing");
-  expect(typeof mod.default).toBe("function");
-}, 120_000);
-
-test("standalone piclaw-addon-imap imports outside the monorepo root", async () => {
-  const mod = await importStandaloneAddon("imap");
-  expect(typeof mod.default).toBe("function");
-});
-
-test("standalone piclaw-addon-kanban-editor imports outside the monorepo root", async () => {
-  const mod = await importStandaloneAddon("kanban-editor");
-  expect(typeof mod.default).toBe("function");
-});
-
-test("standalone piclaw-addon-lite-term imports outside the monorepo root", async () => {
-  const mod = await importStandaloneAddon("lite-term");
-  expect(typeof mod.default).toBe("function");
-});
-
-test("standalone piclaw-addon-m365 imports outside the monorepo root", async () => {
-  const mod = await importStandaloneAddon("m365");
-  expect(typeof mod.default).toBe("function");
-});
-
-test("standalone piclaw-addon-mindmap imports outside the monorepo root", async () => {
-  const mod = await importStandaloneAddon("mindmap");
-  expect(typeof mod.default).toBe("function");
-});
-
-test("standalone piclaw-addon-observability imports outside the monorepo root", async () => {
-  const mod = await importStandaloneAddon("observability");
-  expect(typeof mod.default).toBe("function");
-}, 120_000);
-
-test("standalone piclaw-addon-office-tools imports outside the monorepo root", async () => {
-  const mod = await importStandaloneAddon("office-tools");
-  expect(typeof mod.default).toBe("function");
-  const workspace = mkdtempSync(join(tmpdir(), "piclaw-office-tools-roundtrip-"));
-  tempDirs.push(workspace);
-  const markdown = "# Inventory\n\n| Item | Count |\n| --- | ---: |\n| Widget | 3 |";
-
-  const xlsxWrite = await mod.executeOfficeWrite({ path: "inventory.xlsx", markdown }, undefined, { cwd: workspace });
-  expect(xlsxWrite.details).toMatchObject({ ok: true, format: ".xlsx" });
-  const xlsxRead = await mod.executeOfficeRead({ path: "inventory.xlsx" }, { cwd: workspace });
-  expect(xlsxRead.details).toMatchObject({ ok: true, format: ".xlsx" });
-  expect(xlsxRead.content[0]?.text).toContain("Widget");
-
-  const docxWrite = await mod.executeOfficeWrite({ path: "inventory.docx", markdown }, undefined, { cwd: workspace });
-  expect(docxWrite.details).toMatchObject({ ok: true, format: ".docx" });
-  const docxRead = await mod.executeOfficeRead({ path: "inventory.docx" }, { cwd: workspace });
-  expect(docxRead.details).toMatchObject({ ok: true, format: ".docx" });
-  expect(docxRead.content[0]?.text).toContain("Inventory");
-}, 120_000);
-
-test("standalone piclaw-addon-office-viewer imports outside the monorepo root", async () => {
-  const mod = await importStandaloneAddon("office-viewer");
-  expect(typeof mod.default).toBe("function");
-});
-
-test("standalone piclaw-addon-plan-sidebar imports outside the monorepo root", async () => {
-  const mod = await importStandaloneAddon("plan-sidebar");
-  expect(typeof mod.default).toBe("function");
-});
-
-test("standalone piclaw-addon-portainer imports outside the monorepo root", async () => {
-  const mod = await importStandaloneAddon("portainer");
-  expect(typeof mod.default).toBe("function");
-});
-
-test("standalone piclaw-addon-proxmox imports outside the monorepo root", async () => {
-  const mod = await importStandaloneAddon("proxmox");
-  expect(typeof mod.default).toBe("function");
-});
-
-test("standalone piclaw-addon-remote-peer imports outside the monorepo root", async () => {
-  const mod = await importStandaloneAddon("remote-peer");
-  expect(typeof mod.default).toBe("function");
-}, 120_000);
-
-test("standalone piclaw-addon-session-dashboard imports outside the monorepo root", async () => {
-  const mod = await importStandaloneAddon("session-dashboard");
-  expect(typeof mod.default).toBe("function");
-  expect(typeof mod.queryRecentSessions).toBe("function");
-});
-
-test("standalone piclaw-addon-session-tree imports outside the monorepo root", async () => {
-  const mod = await importStandaloneAddon("session-tree");
-  expect(typeof mod.default).toBe("function");
-});
-
-test("standalone piclaw-addon-skill-model-effort imports outside the monorepo root", async () => {
-  const mod = await importStandaloneAddon("skill-model-effort");
-  expect(typeof mod.default).toBe("function");
-});
-
-test("standalone piclaw-addon-smart-compaction imports outside the monorepo root", async () => {
-  const mod = await importStandaloneAddon("smart-compaction");
-  expect(typeof mod.default).toBe("function");
-});
-
-test("standalone piclaw-addon-vent imports outside the monorepo root", async () => {
-  const mod = await importStandaloneAddon("vent");
-  expect(typeof mod.default).toBe("function");
-});
-
-test("standalone piclaw-addon-voice-pipeline imports outside the monorepo root", async () => {
-  const mod = await importStandaloneAddon("voice-pipeline");
-  expect(typeof mod.default).toBe("function");
-});
-
-test("standalone piclaw-addon-win-ui imports outside the monorepo root", async () => {
-  const mod = await importStandaloneAddon("win-ui");
-  expect(typeof mod.default).toBe("function");
-});
-
-test("standalone piclaw-addon-yolo-vibe imports outside the monorepo root", async () => {
-  const mod = await importStandaloneAddon("yolo-vibe");
-  expect(typeof mod.default).toBe("function");
-});
-
-test("linkr addon imports outside the monorepo", async () => {
-  const mod = await importStandaloneAddon("linkr");
-  expect(typeof mod.default).toBe("function");
-  expect(mod.skillNames.length).toBe(7);
+test('standalone dependencies fail closed when preparation is absent or stale', () => {
+  const root = fixtureDir('standalone-prep-negative-');
+  const slug = 'codex-conversion';
+  const input = standaloneImportPlan(slug).input!;
+  expect(() => preparedStandaloneModules(undefined, slug, input)).toThrow('missing or stale');
+  expect(() => preparedStandaloneModules(root, slug, input)).toThrow('missing or stale');
+  const dir = join(root, slug);
+  mkdirSync(join(dir, 'node_modules'), { recursive: true });
+  writeFileSync(join(dir, 'bun.lock'), 'synthetic changed lock');
+  writeFileSync(join(dir, 'ready.json'), JSON.stringify({ input, lock: 'not-the-lock-hash' }));
+  expect(() => preparedStandaloneModules(root, slug, input)).toThrow('missing or stale');
 });
