@@ -26,12 +26,13 @@ import {
 
 const addonDir = import.meta.dir;
 let codexConversionPromise: Promise<(pi: any) => void> | undefined;
+let bashParserInitCount = 0;
 
 function loadCodexConversion(): Promise<(pi: any) => void> {
   mock.module("web-tree-sitter", () => ({
     Language: { load: async () => ({}) },
     Parser: class {
-      static async init() {}
+      static async init() { bashParserInitCount += 1; }
       parse() { return undefined; }
       setLanguage() {}
     },
@@ -72,6 +73,7 @@ function createContext(mode: "tui" | "rpc" | "json" | "print", selectedModel: an
 test("package keeps upstream attribution and runtime dependencies", () => {
   const manifest = JSON.parse(readFileSync(join(addonDir, "package.json"), "utf8"));
   expect(manifest.name).toBe("@rcarmo/piclaw-addon-codex-conversion");
+  expect(manifest.version).toBe("0.2.4");
   expect(manifest.pi.extensions).toEqual(["src/index.ts"]);
   expect(manifest.peerDependencies["@earendil-works/pi-coding-agent"]).toBe("*");
   expect(manifest.peerDependencies["@earendil-works/pi-ai"]).toBe("*");
@@ -84,6 +86,43 @@ test("package keeps upstream attribution and runtime dependencies", () => {
   expect(manifest.dependencies["web-tree-sitter"]).toBeTruthy();
   expect(readFileSync(join(addonDir, "LICENSE.upstream"), "utf8")).toContain("MIT License");
   expect(readFileSync(join(addonDir, "README.md"), "utf8")).toContain("IgorWarzocha/pi-codex-conversion");
+});
+
+test("cold addon load defers Bash WASM and joins initialization at legacy shell display", async () => {
+  bashParserInitCount = 0;
+  const codexConversion = await loadCodexConversion();
+  const bash = await import("./src/shell/bash.ts");
+  expect(bash.hasBashAstSupport()).toBe(false);
+  expect(bashParserInitCount).toBe(0);
+
+  const handlers = new Map<string, Function[]>();
+  const pi = {
+    on(event: string, handler: Function) { handlers.set(event, [...handlers.get(event) ?? [], handler]); },
+    registerProvider() {}, registerTool() {}, registerMessageRenderer() {}, sendMessage() {},
+  } as any;
+  codexConversion(pi);
+
+  expect(bashParserInitCount).toBe(0);
+  for (const handler of handlers.get("tool_execution_start") ?? []) {
+    await handler({ toolName: "read", toolCallId: "cold-read", args: { path: "README.md" } });
+    await handler({ toolName: "exec_command", toolCallId: "plain-shell", args: { cmd: "cat README.md" } });
+  }
+  expect(bashParserInitCount).toBe(0);
+
+  for (const handler of handlers.get("tool_execution_start") ?? []) {
+    await handler({ toolName: "exec_command", toolCallId: "first-shell", args: { cmd: "bash -lc 'cat README.md'" } });
+  }
+  // This suite mocks the parser and may not install its language package.
+  // bash-wasm.test.ts separately proves actual parser readiness and summaries.
+  expect(bashParserInitCount).toBe(1);
+
+  for (const handler of handlers.get("tool_execution_start") ?? []) {
+    await handler({ toolName: "exec_command", toolCallId: "second-shell", args: { cmd: "bash -lc 'ls'" } });
+  }
+  expect(bashParserInitCount).toBe(1);
+
+  for (const handler of handlers.get("session_shutdown") ?? []) await handler();
+  expect(bashParserInitCount).toBe(1);
 });
 
 test("source imports current package names and keeps one provider observer overlay", () => {
