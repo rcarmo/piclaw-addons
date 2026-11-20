@@ -9,7 +9,6 @@ import drawioEditor, {
   MINIMAL_DRAWIO_EXPORT_ACTIONS,
   MINIMAL_DRAWIO_FILE_MENU_ACTIONS,
   buildEmbeddedDrawioAppUrl,
-  ensureDrawioVendorDir,
   getDrawioVendorDirCandidates,
   handleRoute,
   isBinaryDrawioSaveTarget,
@@ -59,7 +58,7 @@ afterEach(() => {
 
 describe("draw.io 31.4.2 vendor integrity", () => {
   test("aligns add-on, metadata, runtime and bundled JavaScript versions", () => {
-    expect(packageManifest.version).toBe("31.4.6");
+    expect(packageManifest.version).toBe("31.4.7");
     expect(packageManifest.piclaw.vendorVersion).toBe("31.4.2");
     expect(DRAWIO_VERSION).toBe("v31.4.2");
     expect(vendorMetadata.package_version).toBe(DRAWIO_VERSION);
@@ -78,25 +77,12 @@ describe("draw.io 31.4.2 vendor integrity", () => {
     ]) expect(statSync(join(addonDir, "vendor", path)).isFile(), path).toBe(true);
     expect(packageManifest.scripts.postinstall).toBeUndefined();
     expect(packageManifest.scripts["vendor:update"]).toBe("bun run scripts/vendor-drawio.ts");
-    expect(packageManifest.scripts.prepack).toBe("bun run scripts/pack-vendor.ts");
-    expect(packageManifest.files).toContain("vendor.tar.gz");
+    expect(packageManifest.scripts.prepack).toBeUndefined();
+    expect(packageManifest.files).toContain("vendor");
+    expect(packageManifest.files).not.toContain("vendor.tar.gz");
   });
 
-  test("extracts a packed vendor archive into a persistent cache", async () => {
-    const root = tempWorkspace();
-    const baseDir = join(root, "addon");
-    const cacheDir = join(root, "cache");
-    mkdirSync(baseDir, { recursive: true });
-    await Bun.Archive.write(join(baseDir, "vendor.tar.gz"), {
-      "index.html": "<!doctype html>",
-      "js/app.min.js": "app",
-    }, { compress: "gzip" });
 
-    const resolved = await ensureDrawioVendorDir(baseDir, join(root, "cwd"), cacheDir);
-    expect(resolved).toBe(cacheDir);
-    expect(readFileSync(join(cacheDir, "index.html"), "utf8")).toBe("<!doctype html>");
-    expect(await ensureDrawioVendorDir(baseDir, join(root, "cwd"), cacheDir)).toBe(cacheDir);
-  });
 });
 
 describe("draw.io wrapper and route contract", () => {

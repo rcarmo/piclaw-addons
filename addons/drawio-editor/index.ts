@@ -15,10 +15,9 @@
  */
 
 import { resolve, extname, dirname, sep } from "node:path";
-import { randomUUID } from "node:crypto";
 import { createDrawioEditorTool, DEFAULT_DRAWIO_XML, resolveWorkspacePath as resolveToolWorkspacePath } from "./tool";
 export { createDrawioEditorTool } from "./tool";
-import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, realpathSync, statSync, writeFileSync } from "node:fs";
 // Tool status hint registration - uses globalThis if available
 interface ToolStatusHintProvider {
   id: string;
@@ -67,84 +66,6 @@ export function getDrawioVendorCacheDir(workspace = process.env.PICLAW_DATA?.tri
   return resolve(workspace, "cache", "drawio", DRAWIO_VERSION);
 }
 
-export class DrawioVendorCleanupError extends Error {
-  constructor(cause: unknown) {
-    super("Draw.io vendor cleanup uncertain", { cause });
-    this.name = "DrawioVendorCleanupError";
-  }
-}
-
-const vendorExtractionPromises = new Map<string, Promise<string>>();
-
-export async function ensureDrawioVendorDir(
-  baseDir = EXT_DIR,
-  cwd = process.cwd(),
-  cacheDir = getDrawioVendorCacheDir(),
-): Promise<string> {
-  // Legacy callers must never join a native owner's preparation grant.
-  if (nativeVendorSelected) throw new Error("Draw.io vendor requires startup preparation");
-  return extractDrawioVendorDir(baseDir, cwd, cacheDir, () => {});
-}
-
-async function extractDrawioVendorDir(
-  baseDir: string,
-  cwd: string,
-  cacheDir: string,
-  guard: () => void,
-): Promise<string> {
-  guard();
-  const looseDir = resolveDrawioVendorDir(baseDir, cwd);
-  if (existsSync(resolve(looseDir, "index.html"))) return looseDir;
-
-  const archivePath = resolve(baseDir, "vendor.tar.gz");
-  if (!existsSync(archivePath)) return looseDir;
-  if (existsSync(resolve(cacheDir, "index.html"))) return cacheDir;
-
-  const existing = vendorExtractionPromises.get(cacheDir);
-  if (existing) return existing;
-
-  const extraction = (async () => {
-    const parent = dirname(cacheDir);
-    // Dedicated, unguessable caller-owned namespace: cleanup remains permitted
-    // after revocation, but no published/shared path may be mutated then.
-    const temporary = `${cacheDir}.tmp-${randomUUID()}`;
-    guard();
-    mkdirSync(parent, { recursive: true });
-    try {
-      const archive = new Bun.Archive(await Bun.file(archivePath).arrayBuffer());
-      guard();
-      // Bun performs internal async writes. Revocation cannot fence each entry;
-      // only this owned staging directory may receive those pending writes.
-      await archive.extract(temporary);
-      guard();
-      if (!existsSync(resolve(temporary, "index.html"))) {
-        throw new Error(`Draw.io vendor archive is missing index.html: ${archivePath}`);
-      }
-      if (existsSync(cacheDir) && !existsSync(resolve(cacheDir, "index.html"))) {
-        guard();
-        try { rmSync(cacheDir, { recursive: true, force: true }); }
-        catch (cause) { throw new DrawioVendorCleanupError(cause); }
-      }
-      try {
-        guard();
-        renameSync(temporary, cacheDir);
-      } catch (error) {
-        if (!existsSync(resolve(cacheDir, "index.html"))) throw error;
-      }
-      return cacheDir;
-    } finally {
-      try { rmSync(temporary, { recursive: true, force: true }); }
-      catch (cause) { throw new DrawioVendorCleanupError(cause); }
-    }
-  })();
-  vendorExtractionPromises.set(cacheDir, extraction);
-  try {
-    return await extraction;
-  } finally {
-    vendorExtractionPromises.delete(cacheDir);
-  }
-}
-
 export interface DrawioVendorHostOptions {
   assertCurrent(): void;
   baseDir?: string;
@@ -168,14 +89,12 @@ let nativeVendorSelected = false;
  * The owner must await close() before releasing its lifetime authority.
  */
 export function bindDrawioVendorHost(options: DrawioVendorHostOptions): DrawioVendorHost {
-  if (currentVendorHost || vendorExtractionPromises.size) {
+  if (currentVendorHost) {
     throw new Error("Draw.io vendor preparation is already owned");
   }
   // Capture both callback and receiver before any await or caller mutation.
   const capturedAssert = options.assertCurrent.bind(options);
   const baseDir = options.baseDir ?? EXT_DIR;
-  const cwd = options.cwd ?? process.cwd();
-  const cacheDir = options.cacheDir ?? getDrawioVendorCacheDir();
   capturedAssert();
   let closed = false;
   let directory: string | undefined;
@@ -190,27 +109,22 @@ export function bindDrawioVendorHost(options: DrawioVendorHostOptions): DrawioVe
     prepare() {
       try { host.assertCurrent(); } catch (error) { return Promise.reject(error); }
       return host.readyPromise ??= (async () => {
-        const prepared = await extractDrawioVendorDir(baseDir, cwd, cacheDir, host.assertCurrent);
-        host.assertCurrent();
-        if (!statSync(resolve(prepared, "index.html")).isFile()) {
-          throw new Error("Draw.io vendor index is unavailable");
+        // Installed static files only. Startup uses metadata; no asset bytes are
+        // read until the browser requests an individual file.
+        const vendor = resolve(baseDir, "vendor");
+        const index = resolve(vendor, "index.html");
+        if (!statSync(index, { throwIfNoEntry: false })?.isFile() || realpathSync(index) !== index) {
+          throw new Error("Draw.io requires the installed vendor files");
         }
         host.assertCurrent();
-        directory = realpathSync(prepared);
+        directory = vendor;
       })();
     },
     close() {
       closed = true;
-      return closing ??= (async () => {
-        directory = undefined;
-        try { await host.readyPromise; }
-        catch (error) {
-          // Failed cleanup seals the owner until operator reconciliation. A
-          // cached rejected close must never grant a replacement owner.
-          if (error instanceof DrawioVendorCleanupError) throw error;
-        }
-        if (currentVendorHost === host) currentVendorHost = undefined;
-      })();
+      directory = undefined;
+      if (currentVendorHost === host) currentVendorHost = undefined;
+      return closing ??= Promise.resolve();
     },
   };
   nativeVendorSelected = true;
@@ -231,8 +145,6 @@ export async function prepareDrawioVendor(options: DrawioVendorHostOptions): Pro
     throw error;
   }
 }
-
-const VENDOR_DIR = resolveDrawioVendorDir();
 
 const EXPORT_EXTENSIONS: Record<string, string> = {
   "image/svg+xml": ".svg",
@@ -1030,10 +942,10 @@ export function handleRoute(req: Request, pathname: string): Response | Promise<
     return new Response("Forbidden", { status: 403 });
   }
 
-  return serveVendorFile(relative);
+  return serveVendorFile(relative, req.method === "HEAD");
 }
 
-async function serveVendorFile(relative: string): Promise<Response> {
+function serveVendorFile(relative: string, head: boolean): Response {
   const host = currentVendorHost;
   let vendorDir: string;
   if (nativeVendorSelected) {
@@ -1045,7 +957,7 @@ async function serveVendorFile(relative: string): Promise<Response> {
       return new Response("Draw.io vendor unavailable", { status: 503 });
     }
   } else {
-    vendorDir = await ensureDrawioVendorDir();
+    vendorDir = resolveDrawioVendorDir();
   }
   const filePath = resolve(vendorDir, relative);
 
@@ -1078,7 +990,7 @@ async function serveVendorFile(relative: string): Promise<Response> {
     try { if (!host) throw new Error("Closed"); host.assertCurrent(); }
     catch { return new Response("Draw.io vendor unavailable", { status: 503 }); }
   }
-  return new Response(Bun.file(realPath), {
+  return new Response(head ? null : Bun.file(realPath), {
     headers: {
       "Content-Type": getMimeType(realPath),
       "Content-Length": String(st.size),
@@ -1105,7 +1017,7 @@ export default function drawioEditor(pi: any) {
   if (typeof registerRoute === "function") {
     const registration = registerRoute(ROUTE_PREFIX, handleRoute, EXT_DIR);
     if (registration === "created") {
-      console.log(`[drawio-editor] Route registered: /drawio/* → ${VENDOR_DIR}`);
+      console.log(`[drawio-editor] Route registered: /drawio/* → ${resolve(EXT_DIR, "vendor")}`);
     }
   } else {
     console.warn("[drawio-editor] WARNING: __piclaw_registerRoute not available.");

@@ -1,8 +1,8 @@
 # piclaw-addon-drawio-editor
 
-Self-hosted draw.io diagram editor extension for piclaw. Add-on `31.4.4` contains draw.io `v31.4.2`; add-on fixes do not change the pinned vendor version.
+Self-hosted draw.io diagram editor extension for Piclaw. Add-on `31.4.7` ships the pinned draw.io `v31.4.2` client as static files. Installation expands the package; Core does not read or extract an editor bundle at startup. The browser assets are served when requested.
 
-Requires Piclaw `>=1.8.0`.
+Use a Piclaw release that admits the exact add-on version.
 
 ## Install
 

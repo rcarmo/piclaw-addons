@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { copyFileSync, existsSync, readFileSync, writeFileSync, mkdirSync, mkdtempSync, rmSync, symlinkSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, mkdtempSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { packAddon, preservePublishedArchives, verifyPublishedArchives } from "./scripts/lib/pack-addon.js";
 import { addonSourceDigest, deprecatedArchives, readDeprecatedAddons, downloadDeprecatedArchive } from "./scripts/lib/deprecated-addons.ts";
@@ -47,29 +47,32 @@ test("public tarballs honour production files and preserve legacy exclusions", (
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
-test('Pages includes the Draw.io vendor archive without running manifest hooks or editing source', async () => {
+test('Pages installs Draw.io vendor files directly and rejects an incomplete or nested payload', () => {
   const root = mkdtempSync(join(tmpdir(), 'drawio-pages-package-'));
   try {
     const pkg = join(root, 'addon'), out = join(root, 'drawio.tgz');
-    mkdirSync(join(pkg, 'scripts'), { recursive: true });
-    mkdirSync(join(pkg, 'vendor'));
-    copyFileSync(join(repoRoot, 'addons/drawio-editor/scripts/pack-vendor.ts'), join(pkg, 'scripts/pack-vendor.ts'));
-    const manifest = { name: '@rcarmo/piclaw-addon-drawio-editor', version: '31.4.5',
-      files: ['vendor.tar.gz'], scripts: { prepack: 'exit 47' } };
-    writeFileSync(join(pkg, 'package.json'), JSON.stringify(manifest));
-    expect(() => packAddon(pkg, out)).toThrow('Draw.io vendor is missing index.html');
+    mkdirSync(join(pkg, 'vendor/js'), { recursive: true });
+    const manifest = { name: '@rcarmo/piclaw-addon-drawio-editor', version: '31.4.7',
+      files: ['vendor'], scripts: { prepack: 'exit 47' } };
+    const writeManifest = (files: string[]) => writeFileSync(join(pkg, 'package.json'), JSON.stringify({ ...manifest, files }));
+    writeManifest(manifest.files);
+    expect(() => packAddon(pkg, out)).toThrow('Draw.io vendor is missing vendor/index.html');
     expect(existsSync(out)).toBe(false);
-    writeFileSync(join(pkg, 'vendor/index.html'), '<title>fixture vendor</title>');
+    const assets = ['vendor/index.html', 'vendor/js/app.min.js', 'vendor/js/PreConfig.js', 'vendor/js/PostConfig.js'];
+    for (const asset of assets) writeFileSync(join(pkg, asset), asset);
     packAddon(pkg, out);
-    const packed = Bun.spawnSync(['tar', '-xOzf', out, 'package/vendor.tar.gz'], { stdout: 'pipe', stderr: 'pipe' });
+    const packed = Bun.spawnSync(['tar', '-tzf', out]);
     expect(packed.exitCode, packed.stderr.toString()).toBe(0);
-    const files = await new Bun.Archive(packed.stdout).files();
-    expect(await files.get('index.html')?.text()).toBe('<title>fixture vendor</title>');
-    expect(existsSync(join(pkg, 'vendor.tar.gz'))).toBe(false);
-    writeFileSync(join(pkg, 'package.json'), JSON.stringify({ ...manifest, files: ['vendor/index.html'] }));
-    const incomplete = join(root, 'incomplete.tgz');
-    expect(() => packAddon(pkg, incomplete)).toThrow('Packed Draw.io is missing package/vendor.tar.gz');
-    expect(existsSync(incomplete)).toBe(false);
+    for (const asset of assets) expect(packed.stdout.toString().split('\n')).toContain(`package/${asset}`);
+    expect(packed.stdout.toString()).not.toContain('vendor.tar.gz');
+    const invalid = join(root, 'incomplete.tgz');
+    writeManifest(['vendor/index.html']);
+    expect(() => packAddon(pkg, invalid)).toThrow('without a nested archive');
+    expect(existsSync(invalid)).toBe(false);
+    writeFileSync(join(pkg, 'vendor.tar.gz'), 'unwanted nested archive');
+    writeManifest(['vendor', 'vendor.tar.gz']);
+    expect(() => packAddon(pkg, invalid)).toThrow('without a nested archive');
+    expect(existsSync(invalid)).toBe(false);
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
