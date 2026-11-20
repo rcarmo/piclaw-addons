@@ -1,6 +1,6 @@
 {
   "name": "@rcarmo/piclaw-addon-codex-conversion",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Provider-aware Codex and Copilot prompt and tool profiles for Piclaw",
   "type": "module",
   "main": "src/index.ts",

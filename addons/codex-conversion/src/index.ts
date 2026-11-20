@@ -28,6 +28,8 @@ import {
 	WEB_SEARCH_SESSION_NOTE_TYPE,
 } from "./tools/web-search-tool.ts";
 import { registerWriteStdinTool } from "./tools/write-stdin-tool.ts";
+import { extractBashCommand, prepareBashParser } from "./shell/bash.ts";
+import { shellSplit } from "./shell/tokenize.ts";
 
 interface AdapterState {
 	profile: AdapterProfile;
@@ -99,6 +101,8 @@ export default function codexConversion(pi: ExtensionAPI) {
 		}
 		const command = getCommandArg(event.args);
 		if (!command) return;
+		// Only legacy shell summaries need this parser, not tool registration or provider work.
+		if (extractBashCommand(shellSplit(command))) await prepareBashParser();
 		tracker.recordStart(event.toolCallId, command);
 	});
 
