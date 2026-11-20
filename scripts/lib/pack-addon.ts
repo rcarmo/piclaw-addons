@@ -47,20 +47,23 @@ export function packAddon(addonDir: string, outPath: string): void {
       return result.stdout.toString();
     }
     const drawio = manifest.name === '@rcarmo/piclaw-addon-drawio-editor';
-    // Pages deliberately skips manifest lifecycle hooks. Prepare Draw.io's
-    // committed vendor payload with its named builder in the disposable stage.
-    if (drawio) {
-      const index = statSync(join(staged, 'vendor/index.html'), { throwIfNoEntry: false });
-      if (!index?.isFile() || index.size === 0) throw Error('Draw.io vendor is missing index.html');
-      run([process.execPath, 'run', 'scripts/pack-vendor.ts']);
+    // The new Draw.io distribution installs static files directly. Previously
+    // published nested-archive versions are retained by the publication build.
+    const vendorFiles = ['vendor/index.html', 'vendor/js/app.min.js', 'vendor/js/PreConfig.js', 'vendor/js/PostConfig.js'];
+    if (drawio) for (const file of vendorFiles) {
+      const asset = statSync(join(staged, file), { throwIfNoEntry: false });
+      if (!asset?.isFile() || asset.size === 0) throw Error(`Draw.io vendor is missing ${file}`);
     }
     const command = Array.isArray(manifest.files)
       ? [process.execPath, 'pm', 'pack', '--filename', output, '--ignore-scripts', '--quiet']
       : ['tar', '--sort=name', '--mtime=@0', '--owner=0', '--group=0', '--numeric-owner', '-czf', output, '-C', staged, '.'];
     run(command);
-    if (drawio && !run(['tar', '-tzf', output]).split('\n').includes('package/vendor.tar.gz')) {
-      rmSync(output);
-      throw Error('Packed Draw.io is missing package/vendor.tar.gz');
+    if (drawio) {
+      const entries = new Set(run(['tar', '-tzf', output]).split('\n'));
+      if (entries.has('package/vendor.tar.gz') || vendorFiles.some(file => !entries.has(`package/${file}`))) {
+        rmSync(output);
+        throw Error('Packed Draw.io must include the loose vendor files without a nested archive');
+      }
     }
   } finally { rmSync(temporary, { recursive: true, force: true }); }
 }
