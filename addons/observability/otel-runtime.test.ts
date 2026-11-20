@@ -10,13 +10,40 @@ const provider = new BasicTracerProvider({ resource: resourceFromAttributes({ 's
 trace.setGlobalTracerProvider(provider);
 afterAll(async () => { await provider.shutdown(); trace.disable(); });
 
-test('standalone Azure graph uses the same supported API and resource generation', () => {
-  const api = require('@opentelemetry/api/package.json');
-  const resource = require('@opentelemetry/resources/package.json');
-  const sdk = require('@opentelemetry/sdk-trace-base/package.json');
+test('standalone Azure distro, exporter and SDK share a compatible tracing API', () => {
+  const apiName = '@opentelemetry/api';
+  const resources = '@opentelemetry/resources';
+  const traceSdk = '@opentelemetry/sdk-trace-base';
+  const nodeSdk = '@opentelemetry/sdk-node';
+  const distroName = '@azure/monitor-opentelemetry';
+  const exporterName = '@azure/monitor-opentelemetry-exporter';
+  const from = (parent: NodeRequire, name: string) => createRequire(parent.resolve(name));
+  const distro = from(require, distroName);
+  const exporter = from(distro, exporterName);
+  const sdk = from(distro, nodeSdk);
+  const api = require(`${apiName}/package.json`);
   expect(api.version).toMatch(/^1\.9\./);
-  expect(resource.version).toMatch(/^2\./);
-  expect(sdk.peerDependencies['@opentelemetry/api']).toContain('<1.10.0');
+  expect(require(`${resources}/package.json`).version).toMatch(/^2\./);
+
+  // Resolve each edge from the importing package; SDK Node can legitimately
+  // carry its own older 2.x resource and tracer while sharing the same API.
+  for (const [parent, name] of [
+    [require, distroName], [distro, exporterName], [distro, nodeSdk],
+    [distro, traceSdk], [exporter, traceSdk], [sdk, traceSdk],
+    [distro, resources], [exporter, resources], [sdk, resources],
+  ] as const) {
+    const pkg = parent(`${name}/package.json`);
+    const resolveDependency = from(parent, name);
+    expect(resolveDependency.resolve(apiName), name).toBe(require.resolve(apiName));
+    const apiRange = pkg.peerDependencies?.[apiName] ?? pkg.dependencies?.[apiName];
+    expect(typeof apiRange, `${name} API declaration`).toBe('string');
+    expect(Bun.semver.satisfies(api.version, apiRange), `${name}@${pkg.version} API peer`).toBe(true);
+    const resourceRange = pkg.dependencies?.[resources];
+    if (resourceRange) {
+      const version = resolveDependency(`${resources}/package.json`).version;
+      expect(Bun.semver.satisfies(version, resourceRange), `${name}@${pkg.version} resources`).toBe(true);
+    }
+  }
 });
 
 test('tool dependency spans retain the supplied real OpenTelemetry parent', async () => {

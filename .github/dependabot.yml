@@ -71,6 +71,13 @@ updates:
         update-types:
           - "minor"
           - "patch"
+    # Azure Monitor's current distro/exporter uses SDK 2.x and API <1.10.
+    # Remove these holds together after a supported Azure release adopts SDK 3.x.
+    ignore:
+      - dependency-name: "@opentelemetry/api"
+        versions: [">=1.10.0"]
+      - dependency-name: "@opentelemetry/resources"
+        versions: [">=3.0.0"]
 
   - package-ecosystem: "bun"
     directory: "/addons/stealth-browser"
