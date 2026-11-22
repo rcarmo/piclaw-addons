@@ -72,18 +72,17 @@ export function hasPiCliModel(requestedModel: string, availableModels: PiCliMode
  * separate `node` binary being available inside the runtime container.
  */
 export function buildAutoresearchSubagentCommand(params: BuildAutoresearchSubagentCommandParams): string {
-  const escapedPrompt = params.prompt.replace(/"/g, '\\"');
-  const modelArgs = params.model ? `--model ${JSON.stringify(params.model)}` : "";
-  const continueFlag = params.hasExistingData ? "--continue" : "";
-  const piInvocation = params.hasExistingData
-    ? `"/autoresearch resume the experiment loop — read autoresearch.md for context"`
-    : `"/skill:autoresearch-create ${escapedPrompt}"`;
-
-  const bunPath = params.bunPath || process.execPath || "bun";
-  const piScriptPath = params.piScriptPath || resolvePiScriptPath();
-
-  return [
-    `cd ${JSON.stringify(params.workDir)}`,
-    `exec ${JSON.stringify(bunPath)} ${JSON.stringify(piScriptPath)} ${modelArgs} ${continueFlag} --extension ${JSON.stringify(params.extPath)} --skill ${JSON.stringify(params.skillPath)} --session-dir ${JSON.stringify(params.sessionDir)} ${piInvocation}`.replace(/\s+/g, " ").trim(),
-  ].join(" && ");
+  const quote = (value: string) => "'" + value.replace(/'/g, "'\\''") + "'";
+  const prompt = params.hasExistingData
+    ? "/autoresearch resume the experiment loop — read autoresearch.md for context"
+    : `/skill:autoresearch-create ${params.prompt}`;
+  const args = [
+    quote(params.bunPath || process.execPath || "bun"),
+    quote(params.piScriptPath || resolvePiScriptPath()),
+    ...(params.model ? ["--model", quote(params.model)] : []),
+    ...(params.hasExistingData ? ["--continue"] : []),
+    "--extension", quote(params.extPath), "--skill", quote(params.skillPath),
+    "--session-dir", quote(params.sessionDir), quote(prompt),
+  ];
+  return `cd -- ${quote(params.workDir)} && exec ${args.join(" ")}`;
 }

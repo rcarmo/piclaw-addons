@@ -20,12 +20,12 @@ describe("autoresearch launcher", () => {
       piScriptPath: "/usr/local/lib/bun/bin/pi",
     });
 
-    expect(command).toContain('cd "/tmp/project" &&');
-    expect(command).toContain('exec "/usr/local/lib/bun/bin/bun" "/usr/local/lib/bun/bin/pi" --model "openai-codex/gpt-5.4"');
-    expect(command).toContain('--extension "/vendor/ext.ts"');
-    expect(command).toContain('--skill "/vendor/skill"');
-    expect(command).toContain('--session-dir "/tmp/session"');
-    expect(command).toContain('"/skill:autoresearch-create extract queued follow-ups"');
+    expect(command).toContain("cd -- '/tmp/project' &&");
+    expect(command).toContain("exec '/usr/local/lib/bun/bin/bun' '/usr/local/lib/bun/bin/pi' --model 'openai-codex/gpt-5.4'");
+    expect(command).toContain("--extension '/vendor/ext.ts'");
+    expect(command).toContain("--skill '/vendor/skill'");
+    expect(command).toContain("--session-dir '/tmp/session'");
+    expect(command).toContain("'/skill:autoresearch-create extract queued follow-ups'");
     expect(command).not.toContain("exec pi ");
   });
 
@@ -42,9 +42,17 @@ describe("autoresearch launcher", () => {
       piScriptPath: "/pi",
     });
 
-    expect(command).toContain('exec "/bun" "/pi" --continue');
-    expect(command).toContain('"/autoresearch resume the experiment loop — read autoresearch.md for context"');
-    expect(command).not.toContain('/skill:autoresearch-create');
+    expect(command).toContain("exec '/bun' '/pi' --continue");
+    expect(command).toContain("'/autoresearch resume the experiment loop — read autoresearch.md for context'");
+    expect(command).not.toContain("/skill:autoresearch-create");
+  });
+
+  test("keeps an apostrophe, shell metacharacter and whitespace literal in the prompt", () => {
+    const command = buildAutoresearchSubagentCommand({
+      workDir: "/tmp/project", model: "fixture/direct", extPath: "/ext.ts", skillPath: "/skill", sessionDir: "/session",
+      prompt: "Keep  the team's $budget label", hasExistingData: false, bunPath: "/bun", piScriptPath: "/pi",
+    });
+    expect(command.endsWith("'/skill:autoresearch-create Keep  the team'\\''s $budget label'")).toBe(true);
   });
 
   test("parsePiCliModelsOutput parses provider/id rows from pi --list-models output", () => {

@@ -221,9 +221,15 @@ test('all standalone archives contain their pure provider and helper closure', a
   } finally { rmSync(temporary, { recursive: true, force: true }); }
 }, 120000);
 
-test('all pre-existing execution declarations remain byte-identical to the audited baseline', async () => {
+test('execution declarations match the original audit or an exact, documented successor', async () => {
   const { createHash } = await import('node:crypto');
-  for (const [file, expected] of Object.entries(inventory.executionBodyHashes)) {
+  const updates: Readonly<Record<string, { purpose: string; sha256: string[] }>> = inventory.executionBodyUpdates;
+  for (const [file, update] of Object.entries(updates)) {
+    expect(Object.hasOwn(inventory.executionBodyHashes, file), file).toBe(true);
+    expect(update.purpose.trim(), file).not.toBe('');
+  }
+  for (const [file, baseline] of Object.entries(inventory.executionBodyHashes)) {
+    const expected = updates[file]?.sha256 ?? baseline;
     const source = readFileSync(join(root, file), 'utf8');
     const ast: any = parse(source, { sourceType: 'module', plugins: ['typescript'] });
     const declarations: { at: number; sha256: string }[] = [];
