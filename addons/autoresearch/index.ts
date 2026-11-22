@@ -4,4 +4,5 @@
  * Provides start_autoresearch, stop_autoresearch, and autoresearch_status tools.
  */
 export { autoresearchSupervisor as default } from "./supervisor.js";
-export { autoresearchSupervisor } from "./supervisor.js";
+export { autoresearchSupervisor, autoresearchPrompt, bindNativeAutoresearchObserver, createAutoresearchToolDefinitions } from "./supervisor.js";
+export type { NativeAutoresearchInvocation } from "./supervisor.js";

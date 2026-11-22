@@ -4,6 +4,8 @@ import { resolve } from "node:path";
 
 import {
   autoresearchSupervisor,
+  bindNativeAutoresearchObserver,
+  createAutoresearchToolDefinitions,
   describeAutoresearchTerminalReason,
   resolveAutoresearchIdleOutcome,
   resolveAutoresearchProcessExitState,
@@ -149,6 +151,45 @@ test('catalogue discovery registers Autoresearch tools without scheduling proces
     expect(timer).not.toHaveBeenCalled();
     expect(fixture.handlers.some(({ event }) => event === 'session_start')).toBe(true);
   } finally { timer.mockRestore(); }
+});
+
+test('native tools require current chat authority before effects and do not use a legacy session context', async () => {
+  let allowed = true;
+  const assertCurrent = () => { if (!allowed) throw Error('Native owner revoked'); };
+  const broadcast = () => { throw Error('No status update should be broadcast'); };
+  const options = {chatJid:'web:owned',assertCurrent,post:async () => { throw Error('Unexpected surface publication'); }};
+  const [start, stop, status] = createAutoresearchToolDefinitions(broadcast, options);
+  expect([start.name,stop.name,status.name]).toEqual(['start_autoresearch','stop_autoresearch','autoresearch_status']);
+  expect((await status.execute('status',{},undefined,undefined,undefined as never)).details).toMatchObject({active:false});
+  const poll = bindNativeAutoresearchObserver(broadcast, assertCurrent);
+  try {
+    expect(() => bindNativeAutoresearchObserver(broadcast, assertCurrent)).toThrow('already bound');
+    allowed = false;
+    const project_dir = '/nonexistent/fixture';
+    await expect(start.execute('start',{project_dir,prompt:'Fixture'},undefined,undefined,undefined as never)).rejects.toThrow('Native owner revoked');
+    await expect(stop.execute('stop',{},undefined,undefined,undefined as never)).rejects.toThrow('Native owner revoked');
+    await expect(status.execute('status',{},undefined,undefined,undefined as never)).rejects.toThrow('Native owner revoked');
+    expect(() => poll.reattach()).toThrow('Native owner revoked');
+  } finally { poll.dispose(); }
+});
+
+test('a native picker uses its injected post port and checks action authority after the acknowledgement', async () => {
+  const { postAutoresearchLaunch } = await import('./launch-surface.js');
+  let posted: any;
+  const launches: unknown[] = [];
+  const launch = { project_dir: '/workspace/project', prompt: 'Synthetic run', chat_jid: 'web:exact' };
+  const post = async (input: unknown) => { posted = input; return 21; };
+  const start = async (input: unknown) => { launches.push(input); return 'Synthetic result'; };
+  expect(await postAutoresearchLaunch(launch, [{label:'test/model'}], null, start, undefined, post)).toBe(21);
+  expect(posted.chatJid).toBe('web:exact');
+  let current = true;
+  const assertCurrent = () => { if (!current) throw Error('Surface authority changed'); };
+  const context = {chatJid:'web:exact',values:{model:['test/model'],sandbox:true},assertCurrent};
+  await expect(posted.actions.launch({...context,sendMessage:async()=>{current=false;}})).rejects.toThrow('Surface authority changed');
+  expect(launches).toEqual([]);
+  current = true;
+  await posted.actions.launch({...context,sendMessage:async()=>{}});
+  expect(launches).toEqual([{...launch,model:'test/model',sandbox:true}]);
 });
 
 test('the Express picker captures one experiment and does not launch before its owned action', async () => {
