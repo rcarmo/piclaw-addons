@@ -20,6 +20,7 @@ import { Type } from "typebox";
 import type { AgentToolResult, ExtensionAPI, ExtensionFactory } from "@earendil-works/pi-coding-agent";
 const WORKSPACE_DIR = process.env.PICLAW_WORKSPACE || "/workspace";
 import { createMedia, postMessagesToolMessage } from "./compat.js";
+import { postAutoresearchLaunch } from "./launch-surface.js";
 
 const log = { info: console.log, warn: console.warn, error: console.error, debug: console.debug };
 function debugSuppressedError(logger: typeof log, msg: string, e: unknown, meta?: Record<string, unknown>) {
@@ -623,16 +624,6 @@ const StopSchema = Type.Object({
 
 const StatusSchema = Type.Object({});
 
-// ── Pending launch (for model picker card flow) ─────────────────
-
-interface PendingLaunch {
-  project_dir: string;
-  prompt: string;
-  max_iterations?: number;
-  variables?: string[];
-  chat_jid?: string;
-}
-
 interface AutoresearchSessionMetadata {
   chat_jid?: string;
   display_name?: string;
@@ -641,23 +632,11 @@ interface AutoresearchSessionMetadata {
   variables?: string[];
 }
 
-let pendingLaunch: PendingLaunch | null = null;
-
 /** Resolve the chat JID to use for live autoresearch status updates. */
 function resolveStatusChatJid(explicitChatJid?: string): string {
   if (explicitChatJid?.trim()) return explicitChatJid.trim();
   if (process.env.PICLAW_CHAT_JID?.trim()) return process.env.PICLAW_CHAT_JID.trim();
   return "web:default";
-}
-
-export function getPendingLaunch(): PendingLaunch | null {
-  return pendingLaunch;
-}
-
-export function consumePendingLaunch(): PendingLaunch | null {
-  const launch = pendingLaunch;
-  pendingLaunch = null;
-  return launch;
 }
 
 function sessionMetadataPath(workDir: string): string {
@@ -685,59 +664,6 @@ function readSessionMetadata(workDir: string): AutoresearchSessionMetadata | nul
   } catch {
     return null;
   }
-}
-
-function formatContextWindowLabel(value: number | null | undefined): string {
-  if (!Number.isFinite(value) || (value ?? 0) <= 0) return "unknown ctx";
-  const num = Number(value);
-  if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(num % 1_000_000 === 0 ? 0 : 1)}M ctx`;
-  if (num >= 1_000) return `${(num / 1_000).toFixed(num % 1_000 === 0 ? 0 : 1)}k ctx`;
-  return `${num} ctx`;
-}
-
-function buildModelPickerCard(
-  models: Array<{ label: string; provider: string; id: string; contextWindow?: number }>,
-  currentModel: string | null,
-  launch: PendingLaunch,
-): Record<string, unknown> {
-  const choices = models.map((m) => ({ title: `${m.label} • ${formatContextWindowLabel(m.contextWindow)}`, value: m.label }));
-  const defaultValue = currentModel && choices.find((c) => c.value === currentModel)
-    ? currentModel
-    : choices[0]?.value || "";
-
-  const variableLabels = Array.isArray(launch?.variables)
-    ? launch.variables.map((item) => String(item || '').trim()).filter(Boolean)
-    : [];
-  const facts = [
-    { title: 'Project', value: launch?.project_dir || '—' },
-    { title: 'Runs', value: launch?.max_iterations ? `Up to ${launch.max_iterations}` : 'Open-ended' },
-    { title: 'Variables', value: variableLabels.length ? variableLabels.join(', ') : 'Auto-detect during run' },
-  ];
-
-  return {
-    type: "adaptive_card",
-    card_id: `autoresearch-model-pick-${Date.now()}`,
-    schema_version: "1.5",
-    state: "active",
-    fallback_text: "Configure and launch the autoresearch experiment.",
-    payload: {
-      type: "AdaptiveCard",
-      version: "1.5",
-      body: [
-        { type: "TextBlock", text: "🔬 Autoresearch — Launch Experiment", weight: "Bolder", size: "Medium" },
-        { type: "TextBlock", text: launch?.prompt || 'No summary provided.', wrap: true, spacing: 'Small' },
-        { type: 'FactSet', facts },
-        { type: "TextBlock", text: "Model", weight: "Bolder", spacing: "Medium" },
-        { type: "Input.ChoiceSet", id: "model", style: "compact", choices, value: defaultValue },
-        { type: "TextBlock", text: "Isolation", weight: "Bolder", spacing: "Medium" },
-        { type: "Input.Toggle", id: "sandbox", title: "Run in a copied sandbox (safer, uses more disk)", value: "true" },
-        { type: "TextBlock", text: "When off, runs in a fresh git worktree on a new branch in the same repo. Requires an existing git repository.", wrap: true, isSubtle: true, size: "Small" },
-      ],
-      actions: [
-        { type: "Action.Submit", title: "Launch Experiment →", data: { intent: "autoresearch-launch" } },
-      ],
-    },
-  };
 }
 
 // ── Tool implementations ────────────────────────────────────────
@@ -1213,10 +1139,10 @@ const HINT = [
 ].join("\n");
 
 /**
- * Card-action entry point for launching an experiment from a model picker card.
+ * Launch an experiment from its source-bound model picker.
  * Returns a human-readable result message.
  */
-export async function startAutoresearchFromCard(
+async function startAutoresearchFromSurface(
   params: { project_dir: string; prompt: string; model?: string; max_iterations?: number; sandbox?: boolean; variables?: string[]; chat_jid?: string },
 ): Promise<string> {
   const noop = () => {};
@@ -1251,7 +1177,7 @@ export const autoresearchSupervisor: ExtensionFactory = (pi: ExtensionAPI) => {
     promptSnippet: "start_autoresearch: launch an autonomous experiment loop in a tmux sub-agent.",
     parameters: StartSchema,
     async execute(_toolCallId, params, _signal, _update, ctx) {
-      // If no model specified, show a model picker card sourced from the actual
+      // If no model specified, show an A2UI model picker sourced from the actual
       // sub-agent CLI model list, not the current runtime registry.
       if (!params.model) {
         const models = listPiCliModels();
@@ -1261,23 +1187,15 @@ export const autoresearchSupervisor: ExtensionFactory = (pi: ExtensionAPI) => {
 
         const currentModel = ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : null;
         const pickerChatJid = resolveStatusChatJid();
-        pendingLaunch = {
-          project_dir: params.project_dir,
-          prompt: params.prompt,
-          max_iterations: params.max_iterations,
-          variables: Array.isArray(params.variables) ? params.variables : undefined,
-          chat_jid: pickerChatJid,
-        };
-        const card = buildModelPickerCard(models, currentModel, pendingLaunch);
-        postMessagesToolMessage({
-          action: "post",
-          type: "agent",
-          chat_jid: pickerChatJid,
-          content: "Select a model for the autoresearch experiment.",
-          content_blocks: [card],
-        }, pickerChatJid);
-
-        return buildResult("Model picker posted. Select a model and click Launch to start the experiment.", { pending: true });
+        try {
+          await postAutoresearchLaunch({
+            project_dir: params.project_dir, prompt: params.prompt, max_iterations: params.max_iterations,
+            variables: Array.isArray(params.variables) ? params.variables : undefined, chat_jid: pickerChatJid,
+          }, models, currentModel, startAutoresearchFromSurface, _signal);
+          return buildResult("Model picker posted. Select a model and click Launch to start the experiment.", { pending: true });
+        } catch {
+          return buildResult("Could not post the A2UI model picker. Specify an available model explicitly to start the experiment.");
+        }
       }
 
       return startAutoresearch(params, broadcastEvent, resolveStatusChatJid(), ctx as AutoresearchUiContext | undefined);

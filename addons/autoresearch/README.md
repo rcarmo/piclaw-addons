@@ -17,7 +17,7 @@ Required fields:
 
 Optional fields include `model`, `max_iterations`, `sandbox`, and template variables. `sandbox` defaults to true. If false, the supervisor creates a separate Git worktree and branch; it does not run experiments directly in the original checkout.
 
-When no model is supplied, the add-on reads child `pi --list-models` and posts a model-picker Adaptive Card before starting.
+When no model is supplied, the add-on reads child `pi --list-models` and posts an A2UI model picker before starting. On a host without the A2UI add-on API, specify `model` explicitly.
 
 ### `autoresearch_status`
 

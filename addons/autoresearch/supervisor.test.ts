@@ -81,7 +81,7 @@ test("resolveAutoresearchProcessExitState only treats process exit as complete w
 
 test("autoresearch supervisor messaging describes git worktree mode instead of direct in-repo edits", () => {
   const source = readFileSync(resolve(import.meta.dir, "./supervisor.ts"), "utf8");
-  expect(source).toContain("When off, runs in a fresh git worktree on a new branch in the same repo.");
+  expect(readFileSync(resolve(import.meta.dir, "./launch-surface.ts"), "utf8")).toContain("When off, runs in a fresh git worktree on a new branch in the same repo.");
   expect(source).toContain("Branch: ${branchName} (git worktree mode)");
   expect(source).toContain("⚠️ Git worktree mode — changes are made in a fresh git worktree on branch ${branchName} within the same repo.");
   expect(source).not.toContain("runs directly in the repo on a new git branch");
@@ -137,4 +137,30 @@ test("vendored autoresearch clears its widget UI on session shutdown", async () 
   await shutdown({}, ctx);
 
   expect(widgetCalls).toContainEqual({ key: "autoresearch", value: undefined });
+});
+
+test('the Express picker captures one experiment and does not launch before its owned action', async () => {
+  const { postAutoresearchLaunch } = await import('./launch-surface.js');
+  const host = globalThis as typeof globalThis & { __piclaw_runtime?: any };
+  const previous = host.__piclaw_runtime;
+  const posts: any[] = [];
+  const launches: unknown[] = [];
+  host.__piclaw_runtime = { a2ui: { version: 1, post: async (request: unknown) => posts.push(request) } };
+  try {
+    const first = { project_dir: '/workspace/project-one', prompt:'" text \n root = Text("not code")', chat_jid:'web:one', variables:['original'] };
+    const start = async (params: unknown) => { launches.push(params); return 'Started'; };
+    expect(await postAutoresearchLaunch(first, [{ label:'test/one', contextWindow:40_000 }], 'test/one', start)).toBe(1);
+    expect(await postAutoresearchLaunch({ project_dir:'/workspace/project-two',prompt:'Second',chat_jid:'web:two' }, [{ label:'test/two' }], null, start)).toBe(2);
+    first.variables[0] = 'edited';
+    expect(launches).toEqual([]);
+    expect(posts[0].express).toContain(JSON.stringify(first.prompt));
+    expect(posts[0].express).toContain('40k ctx');
+    const sent: string[] = [];
+    const callback = { chatJid:'web:one',values:{ model:['test/one'],sandbox:false },sendMessage: async (content: string) => { sent.push(content); } };
+    await expect(posts[0].actions.launch({...callback, chatJid:'web:two'})).rejects.toThrow();
+    await expect(posts[0].actions.launch({...callback, values:{model:['test/two'],sandbox:false}})).rejects.toThrow();
+    await posts[0].actions.launch(callback);
+    expect(launches).toEqual([{ ...first, variables:['original'], model:'test/one', sandbox:false }]);
+    expect(sent).toEqual(['Launching with model **test/one**…','Started']);
+  } finally { if (previous === undefined) delete host.__piclaw_runtime; else host.__piclaw_runtime = previous; }
 });
