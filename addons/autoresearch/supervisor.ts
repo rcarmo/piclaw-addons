@@ -1226,100 +1226,101 @@ export const autoresearchSupervisor: ExtensionFactory = (pi: ExtensionAPI) => {
     },
   });
 
-  // On piclaw restart, try to re-detect a running tmux session
-  const reattachExisting = () => {
-    let tmuxSession: string | null = null;
-    let experimentId: string | null = null;
-    try {
-      const result = spawnSync("tmux", ["list-sessions", "-F", "#{session_name}"], { encoding: "utf8" });
-      if (result.status !== 0) return;
-      const sessions = result.stdout.trim().split("\n").filter((s) => s.startsWith(TMUX_SESSION_PREFIX));
-      if (sessions.length === 0) return;
-
-      // Re-attach to the first found autoresearch session
-      const discoveredTmuxSession = sessions[0];
-      const discoveredExperimentId = discoveredTmuxSession.slice(TMUX_SESSION_PREFIX.length);
-      tmuxSession = discoveredTmuxSession;
-      experimentId = discoveredExperimentId;
-
-      // Read the tmux pane's cwd to find the working dir (sandbox)
-      const cwdResult = spawnSync("tmux", ["display-message", "-t", discoveredTmuxSession, "-p", "#{pane_current_path}"], { encoding: "utf8" });
-      const projectDir = cwdResult.stdout?.trim() || "";
-      if (!projectDir || !existsSync(projectDir)) return;
-
-      // Look for JSONL in the working dir (which is the sandbox)
-      const jsonlPath = join(projectDir, "autoresearch.jsonl");
-      if (!existsSync(jsonlPath)) return;
-      const metadata = readSessionMetadata(projectDir);
-      activeExperiment = {
-        id: discoveredExperimentId,
-        tmuxSession: discoveredTmuxSession,
-        projectDir,
-        jsonlPath,
-        model: typeof metadata?.model === "string" && metadata.model.trim() ? metadata.model.trim() : null,
-        maxIterations: (() => {
-          if (typeof metadata?.max_iterations === "number") return metadata.max_iterations;
-          try {
-            const c = JSON.parse(readFileSync(join(projectDir, "autoresearch.config.json"), "utf-8"));
-            return typeof c.maxIterations === "number" ? c.maxIterations : null;
-          } catch {
-            return null;
-          }
-        })(),
-        startedAt: new Date().toISOString(),
-        pollInterval: null,
-        lastJsonlOffset: existsSync(jsonlPath) ? readFileSync(jsonlPath, "utf-8").length : 0,
-        lastActivityAt: Date.now(),
-        chatJid: typeof metadata?.chat_jid === "string" && metadata.chat_jid.trim() ? metadata.chat_jid.trim() : resolveStatusChatJid(),
-        displayName: typeof metadata?.display_name === "string" && metadata.display_name.trim() ? metadata.display_name.trim() : (basename(projectDir) || discoveredExperimentId || "Experiment"),
-      };
-
-      // Resume polling
-      activeExperiment.pollInterval = setInterval(() => {
-        if (!activeExperiment) return;
-        if (!tmuxSessionExists(activeExperiment.tmuxSession)) {
-          stopPolling();
-          const summary = existsSync(activeExperiment.jsonlPath)
-            ? buildExperimentSummary(parseJsonlFile(activeExperiment.jsonlPath))
-            : buildActiveExperimentSummary(activeExperiment);
-          emitAutoresearchStatus(
-            broadcastEvent,
-            activeExperiment,
-            resolveAutoresearchProcessExitState(summary, activeExperiment.maxIterations),
-            summary,
-            "process_exited",
-          );
-          activeExperiment = null;
-          return;
-        }
-        const { entries, newOffset } = readNewJsonlLines(activeExperiment.jsonlPath, activeExperiment.lastJsonlOffset);
-        if (entries.length === 0) return;
-        activeExperiment.lastJsonlOffset = newOffset;
-        for (const _entry of entries) {
-          emitAutoresearchStatus(broadcastEvent, activeExperiment, "running", buildActiveExperimentSummary(activeExperiment));
-        }
-      }, 2000);
-
-      // Publish an immediate live-status snapshot with the current state.
-      const summary = existsSync(jsonlPath)
-        ? buildExperimentSummary(parseJsonlFile(jsonlPath))
-        : buildActiveExperimentSummary(activeExperiment);
-      emitAutoresearchStatus(broadcastEvent, activeExperiment, "running", summary);
-
-      log.info("Re-attached to running autoresearch experiment", {
-        experimentId,
-        tmuxSession,
-      });
-    } catch (error) {
-      log.warn("Failed to re-attach to existing autoresearch session", {
-        operation: "autoresearch_supervisor.reattach_existing",
-        experimentId,
-        tmuxSession,
-        err: error,
-      });
-    }
-  };
-
-  // Run reattachment on next tick (after extension registration completes)
-  setTimeout(reattachExisting, 1000);
+  // Catalogue discovery is declarative. Probe for an existing process only
+  // after the legacy session starts; the native host owns its startup hook.
+  pi.on("session_start", () => { reattachExistingAutoresearch(broadcastEvent); });
 };
+
+function reattachExistingAutoresearch(broadcastEvent: (type: string, data: unknown) => void): void {
+  if (activeExperiment) return;
+  let tmuxSession: string | null = null;
+  let experimentId: string | null = null;
+  try {
+    const result = spawnSync("tmux", ["list-sessions", "-F", "#{session_name}"], { encoding: "utf8" });
+    if (result.status !== 0) return;
+    const sessions = result.stdout.trim().split("\n").filter((s) => s.startsWith(TMUX_SESSION_PREFIX));
+    if (sessions.length === 0) return;
+
+    // Re-attach to the first found autoresearch session
+    const discoveredTmuxSession = sessions[0];
+    const discoveredExperimentId = discoveredTmuxSession.slice(TMUX_SESSION_PREFIX.length);
+    tmuxSession = discoveredTmuxSession;
+    experimentId = discoveredExperimentId;
+
+    // Read the tmux pane's cwd to find the working dir (sandbox)
+    const cwdResult = spawnSync("tmux", ["display-message", "-t", discoveredTmuxSession, "-p", "#{pane_current_path}"], { encoding: "utf8" });
+    const projectDir = cwdResult.stdout?.trim() || "";
+    if (!projectDir || !existsSync(projectDir)) return;
+
+    // Look for JSONL in the working dir (which is the sandbox)
+    const jsonlPath = join(projectDir, "autoresearch.jsonl");
+    if (!existsSync(jsonlPath)) return;
+    const metadata = readSessionMetadata(projectDir);
+    activeExperiment = {
+      id: discoveredExperimentId,
+      tmuxSession: discoveredTmuxSession,
+      projectDir,
+      jsonlPath,
+      model: typeof metadata?.model === "string" && metadata.model.trim() ? metadata.model.trim() : null,
+      maxIterations: (() => {
+        if (typeof metadata?.max_iterations === "number") return metadata.max_iterations;
+        try {
+          const c = JSON.parse(readFileSync(join(projectDir, "autoresearch.config.json"), "utf-8"));
+          return typeof c.maxIterations === "number" ? c.maxIterations : null;
+        } catch {
+          return null;
+        }
+      })(),
+      startedAt: new Date().toISOString(),
+      pollInterval: null,
+      lastJsonlOffset: existsSync(jsonlPath) ? readFileSync(jsonlPath, "utf-8").length : 0,
+      lastActivityAt: Date.now(),
+      chatJid: typeof metadata?.chat_jid === "string" && metadata.chat_jid.trim() ? metadata.chat_jid.trim() : resolveStatusChatJid(),
+      displayName: typeof metadata?.display_name === "string" && metadata.display_name.trim() ? metadata.display_name.trim() : (basename(projectDir) || discoveredExperimentId || "Experiment"),
+    };
+
+    // Resume polling
+    activeExperiment.pollInterval = setInterval(() => {
+      if (!activeExperiment) return;
+      if (!tmuxSessionExists(activeExperiment.tmuxSession)) {
+        stopPolling();
+        const summary = existsSync(activeExperiment.jsonlPath)
+          ? buildExperimentSummary(parseJsonlFile(activeExperiment.jsonlPath))
+          : buildActiveExperimentSummary(activeExperiment);
+        emitAutoresearchStatus(
+          broadcastEvent,
+          activeExperiment,
+          resolveAutoresearchProcessExitState(summary, activeExperiment.maxIterations),
+          summary,
+          "process_exited",
+        );
+        activeExperiment = null;
+        return;
+      }
+      const { entries, newOffset } = readNewJsonlLines(activeExperiment.jsonlPath, activeExperiment.lastJsonlOffset);
+      if (entries.length === 0) return;
+      activeExperiment.lastJsonlOffset = newOffset;
+      for (const _entry of entries) {
+        emitAutoresearchStatus(broadcastEvent, activeExperiment, "running", buildActiveExperimentSummary(activeExperiment));
+      }
+    }, 2000);
+
+    // Publish an immediate live-status snapshot with the current state.
+    const summary = existsSync(jsonlPath)
+      ? buildExperimentSummary(parseJsonlFile(jsonlPath))
+      : buildActiveExperimentSummary(activeExperiment);
+    emitAutoresearchStatus(broadcastEvent, activeExperiment, "running", summary);
+
+    log.info("Re-attached to running autoresearch experiment", {
+      experimentId,
+      tmuxSession,
+    });
+  } catch (error) {
+    log.warn("Failed to re-attach to existing autoresearch session", {
+      operation: "autoresearch_supervisor.reattach_existing",
+      experimentId,
+      tmuxSession,
+      err: error,
+    });
+  }
+}

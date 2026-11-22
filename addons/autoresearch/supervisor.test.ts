@@ -1,8 +1,9 @@
-import { expect, test } from "bun:test";
+import { expect, spyOn, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import {
+  autoresearchSupervisor,
   describeAutoresearchTerminalReason,
   resolveAutoresearchIdleOutcome,
   resolveAutoresearchProcessExitState,
@@ -137,6 +138,17 @@ test("vendored autoresearch clears its widget UI on session shutdown", async () 
   await shutdown({}, ctx);
 
   expect(widgetCalls).toContainEqual({ key: "autoresearch", value: undefined });
+});
+
+test('catalogue discovery registers Autoresearch tools without scheduling process I/O', () => {
+  const fixture = createFakeExtensionApi();
+  const timer = spyOn(globalThis, 'setTimeout').mockImplementation((() => 0) as never);
+  try {
+    autoresearchSupervisor(fixture.api as never);
+    expect([...fixture.tools.keys()]).toEqual(['start_autoresearch', 'stop_autoresearch', 'autoresearch_status']);
+    expect(timer).not.toHaveBeenCalled();
+    expect(fixture.handlers.some(({ event }) => event === 'session_start')).toBe(true);
+  } finally { timer.mockRestore(); }
 });
 
 test('the Express picker captures one experiment and does not launch before its owned action', async () => {
