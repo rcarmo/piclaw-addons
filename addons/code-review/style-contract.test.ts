@@ -4,6 +4,8 @@ import { actionStyles, styles } from "./web/styles.ts";
 const normalize = (css: string) => css.replace(/\s+/g, " ").trim();
 
 // Package-local contract assertions; standalone tests must not read another checkout.
+// The published add-on still supports Piclaw >=3.2.3. Keep the older host's
+// stepper exclusion and the current Classic geometry overrides in this contract.
 const sharedScopedActionSnapshot = [
   "padding: 6px 14px !important;",
   "border-radius: 6px !important;",

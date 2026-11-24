@@ -65,6 +65,8 @@ An initial broad run failed because the isolated worktree lacked Observability's
 runtime dependencies. Installing its declared dependencies resolved that fixture
 setup issue; the subsequent broad run passed. No dependency manifest changes.
 
+Current browser checks target Classic and the standalone legacy fixture. The Visual results above are historical. The deprecated Delegate package is frozen byte-for-byte; select only its Classic and legacy cases when testing it against the current fixture.
+
 ```sh
 bun install --frozen-lockfile
 bun install --cwd addons/observability --omit peer --ignore-scripts
@@ -73,6 +75,9 @@ bun test --max-concurrency=1
 PICLAW_E2E_DISPOSABLE=1 PICLAW_SETTINGS_CORE_SOURCE=/absolute/path/to/piclaw \
 PLAYWRIGHT_BROWSERS_PATH=/absolute/path/to/ms-playwright \
   bun test --timeout 15000 settings-inputs.test.ts
+PICLAW_E2E_DISPOSABLE=1 PICLAW_SETTINGS_CORE_SOURCE=/absolute/path/to/piclaw \
+PLAYWRIGHT_BROWSERS_PATH=/absolute/path/to/ms-playwright \
+  bun test --test-name-pattern='Delegate (classic|legacy):' addons/delegate/settings-browser.test.ts
 ```
 
 Browser fixtures use actual Settings hosts, exact-path unbundled add-on assets,

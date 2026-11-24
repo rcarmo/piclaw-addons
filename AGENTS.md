@@ -342,6 +342,7 @@ Add `owner` and `contributors` to your new entry in `catalog.json` — these fie
 - `lib/compat/` is for in-repo development only — published packages must vendor any shims they need
 - Browser-side settings panes must use the **direct backend add-on config API** (`/agent/addons/api/<addon>/<action>`) and secrets should still go through `/agent/keychain`
 - Runtime-side settings/config handlers should register via `globalThis.__piclaw_registerAddonConfigApi(...)` at module load time so the web pane does not depend on slash commands
+- Test Settings panes against current Classic. Keep a standalone legacy-host fixture when the package supports older hosts; do not import the retired Visual frontend in current-core fixtures.
 - Slash-command config bridges are legacy fallback only; do not add new settings-pane code that relies on `/addon-config-get` / `/addon-config-set`
 - Settings-pane add-ons should include at least one committed README screenshot captured from the microVM test instance when the UI meaningfully changes
 - For screenshot capture runs, use the microVM as a clean fixture: prefer overlayfs, expose the target add-on only, keep `cheapskate` out of the actual screenshot, then reinstall or restore `cheapskate` afterward

@@ -7,15 +7,7 @@ import { dirname, extname, join, resolve } from "node:path";
 export const settingsBrowserEnabled = process.env.PICLAW_E2E_DISPOSABLE === "1"
   && !!process.env.PICLAW_SETTINGS_CORE_SOURCE;
 
-const visualSettingsPanel = "runtime/web/static/visual/frontend/src/panels/SettingsPanel.tsx";
-/** Core removed the Visual shell (piclaw #1990); older companion cores still ship it. */
-const visualSkinAvailable = settingsBrowserEnabled
-  && existsSync(join(process.env.PICLAW_SETTINGS_CORE_SOURCE!, visualSettingsPanel));
-
-/** Filters a skin matrix down to the shells the companion core actually provides. */
-export function availableSkins<T extends string>(skins: readonly T[]): T[] {
-  return skins.filter((skin) => skin !== "visual" || visualSkinAvailable);
-}
+export type SettingsFixtureSkin = "classic" | "legacy";
 
 /** Core took over some former add-on panes (Delegate in piclaw #2028); their retained packages are not hosted there. */
 export function coreOwnsPane(slug: string): boolean {
@@ -53,16 +45,7 @@ export async function settingsPaneFixture(entry: string, options: { realHost?: b
         await import('/addon/index.ts');
         requestOpenSettingsDialog({section:registry.getRegisteredSettingsPanes()[0].id});
         vendor.render(vendor.h(SettingsDialogContent,{onClose:()=>{}}),root);
-${visualSkinAvailable ? `      } else if (${options.realHost === true && visualSkinAvailable} && skin==='visual') {
-        const registry=await import(${JSON.stringify(join(core, "runtime/web/static/visual/frontend/src/panels/settings/pane-registry.ts"))});
-        const {SettingsPanel}=await import(${JSON.stringify(join(core, "runtime/web/static/visual/frontend/src/panels/SettingsPanel.tsx"))});
-        globalThis.__piclawPreactHtm={html:htm.bind(h),...hooks};
-        globalThis.__piclawSettingsPaneRegistry={...registry,registerSettingsPane:registry.registerAddonSettingsPane};
-        globalThis.__piclaw_web=globalThis.__piclawSettingsPaneRegistry;
-        await import('/addon/index.ts');
-        localStorage.setItem('piclaw-settings-category',registry.getRegisteredPanes().find(p=>p.source==='addon').id);
-        render(h(SettingsPanel),root);
-` : ""}      } else {
+      } else {
         globalThis.__piclawPreactHtm={html:htm.bind(h),...hooks};
         globalThis.__piclawSettingsPaneRegistry={registerSettingsPane:({component})=>render(h(component),root),notifySettingsPanesChanged:()=>{}};
         globalThis.__piclaw_web=globalThis.__piclawSettingsPaneRegistry;
@@ -97,16 +80,17 @@ ${visualSkinAvailable ? `      } else if (${options.realHost === true && visualS
       }
       if (url.pathname !== "/") return new Response("Unexpected fixture request", { status: 404 });
       const skin = url.searchParams.get("skin");
-      const modern = skin === "classic" || skin === "visual";
-      const cls = modern && !options.realHost ? `${skin === "classic" ? "settings-content" : "settings-panel__content"} settings-addon-pane` : "";
+      const classic = skin === "classic";
+      const cls = classic && !options.realHost ? "settings-content settings-addon-pane" : "";
       return new Response(`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
-        ${modern ? `<link rel="stylesheet" href="/static/${skin}/css/styles.css">` : ""}
-        <style>:root{--bg-primary:#fff;--bg-secondary:#f7f9fa;--text-primary:#18212a;--text-secondary:#54606c;--border-color:#b7bfc7;--accent-color:#2783b8;--danger-color:#b3261e}@media(prefers-color-scheme:dark){:root{--bg-primary:#17212a;--bg-secondary:#202b36;--text-primary:#edf3f7;--text-secondary:#b3c1ce;--border-color:#526273}}body{margin:0;overflow:auto;font:15px system-ui}#app{box-sizing:border-box;width:100%;${options.realHost && modern ? "height:100vh" : "max-width:850px;height:auto;min-height:0;padding:12px;overflow:visible"}}</style>
+        ${classic ? '<link rel="stylesheet" href="/static/classic/css/styles.css">' : ""}
+        <style>:root{--bg-primary:#fff;--bg-secondary:#f7f9fa;--text-primary:#18212a;--text-secondary:#54606c;--border-color:#b7bfc7;--accent-color:#2783b8;--danger-color:#b3261e}@media(prefers-color-scheme:dark){:root{--bg-primary:#17212a;--bg-secondary:#202b36;--text-primary:#edf3f7;--text-secondary:#b3c1ce;--border-color:#526273}}body{margin:0;overflow:auto;font:15px system-ui}#app{box-sizing:border-box;width:100%;${options.realHost && classic ? "height:100vh" : "max-width:850px;height:auto;min-height:0;padding:12px;overflow:visible"}}</style>
         </head><body><main id="app" class="${cls}"></main><script type="module" src="/ui.js"></script></body></html>`, { headers: { "content-type": "text/html" } });
     } });
     browser = await chromium.launch({ headless: true });
     return {
       async page(skin: string, width = 390, colorScheme: "light" | "dark" = "light") {
+        if (skin !== "classic" && skin !== "legacy") throw new Error(`Unsupported Settings fixture host: ${skin}`);
         const page = await browser.newPage({ viewport: { width, height: 900 }, colorScheme });
         page.setDefaultTimeout(5000);
         const errors: string[] = [];

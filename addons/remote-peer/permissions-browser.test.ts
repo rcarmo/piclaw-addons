@@ -1,13 +1,13 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { mkdirSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
-import { availableSkins, settingsBrowserEnabled, settingsPaneFixture } from "../../scripts/lib/settings-pane-browser.js";
+import { settingsBrowserEnabled, settingsPaneFixture, type SettingsFixtureSkin } from "../../scripts/lib/settings-pane-browser.js";
 const browserTest = settingsBrowserEnabled ? test : test.skip;
 let fixture: Awaited<ReturnType<typeof settingsPaneFixture>>;
 beforeAll(async () => { if (settingsBrowserEnabled) fixture = await settingsPaneFixture(new URL("./web/index.ts", import.meta.url).pathname, { realHost: true }); }, 30000);
 afterAll(async () => { await fixture?.close(); });
 
-async function setup(skin: string, width: number, options: { long?: boolean; sessions?: boolean; colorScheme?: 'light' | 'dark' } = {}) {
+async function setup(skin: SettingsFixtureSkin, width: number, options: { long?: boolean; sessions?: boolean; colorScheme?: 'light' | 'dark' } = {}) {
   const f = await fixture.page(skin, width, options.colorScheme ?? 'light');
   const peer = (id: string, alias: string) => ({ id, alias, name: alias, clientId: "PCL1-" + id, status: "paired", epoch: "epoch", scope: "named-agents", agents: ["research", "hidden"], modes: ["queue", "auto"], files: false });
   const data: any = { config: { enabled: true, instanceName: "Test", relays: [], relayMode: "disabled", mdnsEnabled: false, addressLookup: false }, identity: { clientId: "PCL1-local" }, transport: { active: true }, discovery: { active: false }, peers: [peer("first", "Lab"), peer("second", "Other")], advertised: [{ alias: "research", local_agent: "research" }], candidates: [], messages: [], work: [], localAgents: [] };
@@ -78,7 +78,7 @@ async function setup(skin: string, width: number, options: { long?: boolean; ses
   return { ...f, card, data, writes, failure };
 }
 
-for (const skin of availableSkins(["classic", "visual", "legacy"])) for (const width of [1366, 820, 520, 390]) {
+for (const skin of ["classic", "legacy"] as const) for (const width of [1366, 820, 520, 390]) {
   browserTest(`Remote Peer ${skin}/${width} incoming file-only Apply/Cancel/Revert and outgoing ownership`, async () => {
     const f = await setup(skin, width), { page, card } = f;
     try {
@@ -91,7 +91,7 @@ for (const skin of availableSkins(["classic", "visual", "legacy"])) for (const w
           const s = getComputedStyle(el), r = el.getBoundingClientRect(), parent = el.parentElement!.getBoundingClientRect();
           return { radius: s.borderRadius, padding: s.padding, border: s.borderTopWidth, fits: r.right <= parent.right + 1 && r.left >= parent.left - 1 };
         });
-        expect(geometry).toEqual({ radius: skin === "visual" ? "3px" : "6px", padding: skin === "visual" ? "5px 10px" : "6px 10px", border: "1px", fits: true });
+        expect(geometry).toEqual({ radius: "6px", padding: "6px 10px", border: "1px", fits: true });
       }
       expect(await page.locator(".remote-peer-settings").evaluate((el: HTMLElement) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
       await card.getByRole("button", { name: "Edit incoming permissions" }).click();
@@ -218,7 +218,7 @@ for (const race of ["narrow", "re-pair"]) browserTest(`Apply rejects ${race} bet
   } finally { await page.close(); }
 }, 15000);
 
-for (const skin of availableSkins(["classic", "visual", "legacy"])) browserTest(`Remote Peer ${skin} explicit session grants, consent, revocation and outgoing status`, async () => {
+for (const skin of ["classic", "legacy"] as const) browserTest(`Remote Peer ${skin} explicit session grants, consent, revocation and outgoing status`, async () => {
   const f = await setup(skin, 390, { sessions: true }), { page, card } = f;
   try {
     await card.getByRole("button", { name: "Edit incoming permissions" }).click();
@@ -263,8 +263,8 @@ for (const skin of availableSkins(["classic", "visual", "legacy"])) browserTest(
   } finally { await page.close(); }
 }, 20000);
 
-for (const skin of availableSkins(["classic", "visual"])) browserTest(`Remote Peer ${skin} keyboard session consent and file-only preservation`, async () => {
-  const f = await setup(skin, 390, { sessions: true }), { page, card } = f;
+browserTest("Remote Peer Classic keyboard session consent and file-only preservation", async () => {
+  const f = await setup("classic", 390, { sessions: true }), { page, card } = f;
   try {
     f.data.peers[0].scope = "inbox-only"; f.data.peers[0].modes = ["queue"];
     await page.reload();
@@ -314,7 +314,7 @@ browserTest("Session grant drafts retain failed edits and detect concurrent revo
   } finally { await page.close(); }
 }, 15000);
 
-for (const skin of availableSkins(["classic", "visual", "legacy"])) browserTest(`Remote Peer ${skin} explicit idle advertisement and old-host unavailable`, async () => {
+for (const skin of ["classic", "legacy"] as const) browserTest(`Remote Peer ${skin} explicit idle advertisement and old-host unavailable`, async () => {
   const f = await setup(skin, 390, { sessions: true }), { page } = f;
   try {
     const region = page.getByRole("region", { name: "Session advertisements" });
@@ -347,7 +347,7 @@ for (const skin of availableSkins(["classic", "visual", "legacy"])) browserTest(
   } finally { await page.close(); }
 }, 20000);
 
-for (const skin of availableSkins(["classic", "visual", "legacy"])) for (const timing of ["poll", "write"]) browserTest(`Remote Peer ${skin} rejects stale no-grants session consent at ${timing} and requires fresh selection`, async () => {
+for (const skin of ["classic", "legacy"] as const) for (const timing of ["poll", "write"]) browserTest(`Remote Peer ${skin} rejects stale no-grants session consent at ${timing} and requires fresh selection`, async () => {
   const f = await setup(skin, 390, { sessions: true }), { page, card } = f;
   try {
     f.data.peers[0].scope = "inbox-only"; f.data.peers[0].modes = ["queue"];
@@ -394,7 +394,7 @@ for (const skin of availableSkins(["classic", "visual", "legacy"])) for (const t
   } finally { await page.close(); }
 }, 20000);
 
-for (const skin of availableSkins(["classic", "visual", "legacy"])) for (const lifecycle of ["hide-and-readvertise", "readvertise"]) browserTest(`Remote Peer ${skin} ${lifecycle} invalidates typed consent for the same lifetime`, async () => {
+for (const skin of ["classic", "legacy"] as const) for (const lifecycle of ["hide-and-readvertise", "readvertise"]) browserTest(`Remote Peer ${skin} ${lifecycle} invalidates typed consent for the same lifetime`, async () => {
   const f = await setup(skin, 390, { sessions: true }), { page, card } = f;
   try {
     f.data.peers[0].scope = "inbox-only"; f.data.peers[0].modes = ["queue"];
@@ -448,9 +448,9 @@ for (const skin of availableSkins(["classic", "visual", "legacy"])) for (const l
   } finally { await page.close(); }
 }, 20000);
 
-for (const skin of availableSkins(['classic','visual'])) for (const colorScheme of ['light','dark'] as const) for (const width of [1366,820,390]) {
-  browserTest(`Remote Peer ${skin}/${colorScheme}/${width} long content fits the actual Settings pane`, async()=>{
-    const f=await setup(skin,width,{long:true,colorScheme});
+for (const colorScheme of ['light','dark'] as const) for (const width of [1366,820,390]) {
+  browserTest(`Remote Peer Classic/${colorScheme}/${width} long content fits the actual Settings pane`, async()=>{
+    const f=await setup('classic',width,{long:true,colorScheme});
     try {
       const root=f.page.locator('.remote-peer-settings');
       expect(await root.locator(':scope > .remote-peer-section').count()).toBe(8);
@@ -471,12 +471,12 @@ for (const skin of availableSkins(['classic','visual'])) for (const colorScheme 
       });
       expect(field.w).toBeGreaterThan(field.parent*0.9);
       const fonts=await root.evaluate((el:HTMLElement)=>({base:getComputedStyle(el).fontSize,heading:getComputedStyle(el.querySelector('h4')!).fontSize}));
-      expect(fonts).toEqual({base:'13px',heading:skin === 'visual' ? '13px' : '14px'});
+      expect(fonts).toEqual({base:'13px',heading:'14px'});
       const evidence=process.env.PICLAW_REMOTE_PEER_SCREENSHOT_DIR;
       if(evidence && [1366,390].includes(width)) {
         if(!isAbsolute(evidence))throw Error('Screenshot directory must be absolute');
         mkdirSync(evidence,{recursive:true});
-        await root.screenshot({path:join(evidence,`settings-${skin}-${colorScheme}-${width}.png`)});
+        await root.screenshot({path:join(evidence,`settings-classic-${colorScheme}-${width}.png`)});
       }
       expect(f.writes).toEqual([]);expect(f.failure.remoteCalls).toBe(0);expect(f.errors).toEqual([]);
     }finally{await f.page.close();}

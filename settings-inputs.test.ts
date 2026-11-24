@@ -1,7 +1,7 @@
 import { afterAll, expect, test } from 'bun:test';
 import { readFileSync, readdirSync, existsSync, mkdirSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
-import { availableSkins, coreOwnsPane, settingsBrowserEnabled, settingsPaneFixture } from './scripts/lib/settings-pane-browser.js';
+import { coreOwnsPane, settingsBrowserEnabled, settingsPaneFixture, type SettingsFixtureSkin } from './scripts/lib/settings-pane-browser.js';
 
 export const panes = ['cheapskate','code-review','delegate','goal','imap','late-night-regrets','linkr','observability','portainer','proxmox','remote-peer','restic','sample-addon','telegram','vent','whatsapp'];
 const hostedPanes = panes.filter(slug=>!coreOwnsPane(slug));
@@ -74,7 +74,7 @@ function dataFor(slug:string):any {
  case 'restic':return {config:{enabled:false,repository:{backend:'local',path:'/mnt/fixture/restic',expectedMount:'/mnt/fixture'},passwordRef:'restic/fixture-password',retention:{enabled:false,hourly:0,daily:7,weekly:4,monthly:6},binary:'managed',excludes:[],schedule:{enabled:false,hours:[2],minute:0,timezone:'UTC'}},paths:null,binary:null};
  }
 }
-async function open(slug:string,skin:string,width:number,theme:'light'|'dark'='light'){
+async function open(slug:string,skin:SettingsFixtureSkin,width:number,theme:'light'|'dark'='light'){
  if(!fixtures.has(slug)){
   for(const f of fixtures.values())await f.close();fixtures.clear();
   fixtures.set(slug,await settingsPaneFixture(join(import.meta.dir,`addons/${slug}/web/index.ts`),{realHost:true}));
@@ -105,7 +105,7 @@ async function open(slug:string,skin:string,width:number,theme:'light'|'dark'='l
  if(slug==='remote-peer')await content.getByText('Optional endpoint ticket',{exact:true}).click();
  return {...f,content,requests};
 }
-for(const slug of hostedPanes)for(const skin of availableSkins(['classic','visual','legacy']))for(const width of [1366,820,520,390])for(const theme of ['light','dark'] as const){
+for(const slug of hostedPanes)for(const skin of ['classic','legacy'] as const)for(const width of [1366,820,520,390])for(const theme of ['light','dark'] as const){
  browserTest(`${slug} ${skin}/${width}/${theme}: all text controls match core shape and remain labelled/bounded`,async()=>{
   const f=await open(slug,skin,width,theme);try{
    const measurements=await f.content.locator(textControls).evaluateAll((nodes:HTMLElement[])=>nodes.filter(el=>el.getBoundingClientRect().height>0).map(el=>{
@@ -117,8 +117,8 @@ for(const slug of hostedPanes)for(const skin of availableSkins(['classic','visua
    for(const m of measurements){
     expect(m.classes,JSON.stringify(m)).toContain('settings-addon-control');
     expect(m.name,JSON.stringify(m)).toBeTruthy();
-    expect(m.radius,JSON.stringify(m)).toBe(skin==='visual'?'3px':skin==='legacy'&&slug==='sample-addon'?'4px':'6px');
-    expect(m.padding,JSON.stringify(m)).toBe(skin==='visual'?'5px 10px':skin==='legacy'&&slug==='sample-addon'?'4px 8px':'6px 10px');
+    expect(m.radius,JSON.stringify(m)).toBe(skin==='legacy'&&slug==='sample-addon'?'4px':'6px');
+    expect(m.padding,JSON.stringify(m)).toBe(skin==='legacy'&&slug==='sample-addon'?'4px 8px':'6px 10px');
     expect(m.border).toBe('1px');expect(m.box).toBe('border-box');expect(m.within,JSON.stringify(m)).toBe(true);
    }
    expect(await f.content.evaluate((el:HTMLElement)=>el.scrollWidth<=el.clientWidth+1)).toBe(true);
@@ -130,7 +130,7 @@ for(const slug of hostedPanes)for(const skin of availableSkins(['classic','visua
    if(skin!=='legacy'){
     // Compare against an unmodified core General input in this actual Settings host.
     await f.page.evaluate(()=>window.dispatchEvent(new CustomEvent('piclaw:open-settings',{detail:{section:'general'}})));
-    const ref=f.page.locator(skin==='classic'?'.settings-content input[type=text]':'.settings-panel__content input[type=text]').first();
+    const ref=f.page.locator('.settings-content input[type=text]').first();
     await ref.waitFor();
     const reference=await ref.evaluate((el:HTMLElement)=>{const s=getComputedStyle(el);return {padding:s.padding,radius:s.borderRadius,border:s.borderTopWidth,fontSize:s.fontSize,background:s.backgroundColor,color:s.color};});
     for(const m of measurements){expect(m.padding).toBe(reference.padding);expect(m.radius).toBe(reference.radius);expect(m.border).toBe(reference.border);expect(m.fontSize,JSON.stringify(m)).toBe(reference.fontSize);expect(m.background).toBe(reference.background);expect(m.color).toBe(reference.color);}
@@ -197,8 +197,8 @@ for(const slug of ['portainer','proxmox','observability'])browserTest(`${slug} p
  }finally{await f.page.close();}
 });
 
-for(const slug of hostedPanes)for(const skin of availableSkins(['classic','visual']))browserTest(`${slug} ${skin}: text focus/disabled/readonly/invalid states follow host without writes`,async()=>{
- const f=await open(slug,skin,820);try{
+for(const slug of hostedPanes)browserTest(`${slug} classic: text focus/disabled/readonly/invalid states follow host without writes`,async()=>{
+ const f=await open(slug,'classic',820);try{
   const field=f.content.locator('input.settings-addon-control:not([type=checkbox]):not([type=radio]),textarea.settings-addon-control').first();
   await field.waitFor();
   await field.focus();
