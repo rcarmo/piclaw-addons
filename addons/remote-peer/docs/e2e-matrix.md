@@ -13,7 +13,7 @@ Local validation on Bun 1.4.2:
 
 These cases validate Settings behaviour against the local API schema. They do not exercise real peer transport or establish backend admission safety. No live host, external network, credentials, installed service, deployment or package changes were used for this UI validation.
 
-Reproduce from the repository root:
+Run the current Classic and legacy-fixture suite from the repository root (the Visual results above are historical):
 
 ```sh
 bun test addons/remote-peer/web.test.ts

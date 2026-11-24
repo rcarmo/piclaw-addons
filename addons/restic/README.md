@@ -138,7 +138,7 @@ Opt-in disposable tests (use a qualified `PICLAW_RESTIC_TEST_BINARY`):
   upstream download/install/capability/integrity checks into temporary state.
 
 - `PICLAW_E2E_DISPOSABLE=1 PICLAW_SETTINGS_CORE_SOURCE=/path/to/piclaw`: actual
-  Classic/Visual host light/dark, desktop/phone persistence and actions.
+  Classic Settings host light/dark, desktop/phone persistence and actions.
 - `PICLAW_RESTIC_SFTP=1 PICLAW_E2E_DISPOSABLE=1`: ephemeral loopback OpenSSH server
   and strict host-key rejection; requires sudo for that test-owned daemon only.
 - `PICLAW_RESTIC_S3=1 PICLAW_E2E_DISPOSABLE=1`: RustFS in a disposable Docker
