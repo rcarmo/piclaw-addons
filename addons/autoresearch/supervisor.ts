@@ -14,12 +14,13 @@
 import { toolCallSummary } from "./compat/tool-call-summary.js";
 import { callSummaries } from "./summary.js";
 import { spawnSync, execSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync, symlinkSync, rmSync, statSync } from "node:fs";
-import { join, resolve, dirname, basename } from "node:path";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, symlinkSync, rmSync, statSync, realpathSync } from "node:fs";
+import { join, resolve, dirname, basename, relative, isAbsolute, sep } from "node:path";
 import { Type } from "typebox";
-import type { AgentToolResult, ExtensionAPI, ExtensionFactory } from "@earendil-works/pi-coding-agent";
+import type { AgentToolResult, ExtensionAPI, ExtensionFactory, ToolDefinition } from "@earendil-works/pi-coding-agent";
 const WORKSPACE_DIR = process.env.PICLAW_WORKSPACE || "/workspace";
 import { createMedia, postMessagesToolMessage } from "./compat.js";
+import { postAutoresearchLaunch, type AutoresearchLaunchPost } from "./launch-surface.js";
 
 const log = { info: console.log, warn: console.warn, error: console.error, debug: console.debug };
 function debugSuppressedError(logger: typeof log, msg: string, e: unknown, meta?: Record<string, unknown>) {
@@ -58,6 +59,7 @@ interface ActiveExperiment {
 }
 
 let activeExperiment: ActiveExperiment | null = null;
+let nativeObserver: { assertCurrent(): void } | undefined;
 const autoresearchWidgetsByChat = new Map<string, ExtensionStatusWidgetPayload>();
 
 interface AutoresearchReportRef {
@@ -611,9 +613,9 @@ function generateReport(projectDir: string, jsonlPath: string): string {
 const StartSchema = Type.Object({
   project_dir: Type.String({ description: "Absolute path to the project directory where experiments will run." }),
   prompt: Type.String({ description: "Initial prompt for the autoresearch agent (e.g. 'optimize test runtime')." }),
-  model: Type.Optional(Type.String({ description: "Model to use (provider/id format). Defaults to current model." })),
+  model: Type.Optional(Type.String({ description: "Model to use (provider/id format). Omit to show the model picker." })),
   max_iterations: Type.Optional(Type.Integer({ description: "Maximum experiments before auto-stopping.", minimum: 1 })),
-  sandbox: Type.Optional(Type.Boolean({ description: "Copy project to a sandbox directory (default true). Set false for large repos — runs directly on a new git branch." })),
+  sandbox: Type.Optional(Type.Boolean({ description: "Copy project to a sandbox directory (default true). Set false for large repos — uses a separate git worktree on a new branch." })),
   variables: Type.Optional(Type.Array(Type.String(), { description: "Optional list of tracked variables/metrics to highlight in the launch UI." })),
 });
 
@@ -623,16 +625,6 @@ const StopSchema = Type.Object({
 
 const StatusSchema = Type.Object({});
 
-// ── Pending launch (for model picker card flow) ─────────────────
-
-interface PendingLaunch {
-  project_dir: string;
-  prompt: string;
-  max_iterations?: number;
-  variables?: string[];
-  chat_jid?: string;
-}
-
 interface AutoresearchSessionMetadata {
   chat_jid?: string;
   display_name?: string;
@@ -641,23 +633,11 @@ interface AutoresearchSessionMetadata {
   variables?: string[];
 }
 
-let pendingLaunch: PendingLaunch | null = null;
-
 /** Resolve the chat JID to use for live autoresearch status updates. */
 function resolveStatusChatJid(explicitChatJid?: string): string {
   if (explicitChatJid?.trim()) return explicitChatJid.trim();
   if (process.env.PICLAW_CHAT_JID?.trim()) return process.env.PICLAW_CHAT_JID.trim();
   return "web:default";
-}
-
-export function getPendingLaunch(): PendingLaunch | null {
-  return pendingLaunch;
-}
-
-export function consumePendingLaunch(): PendingLaunch | null {
-  const launch = pendingLaunch;
-  pendingLaunch = null;
-  return launch;
 }
 
 function sessionMetadataPath(workDir: string): string {
@@ -685,59 +665,6 @@ function readSessionMetadata(workDir: string): AutoresearchSessionMetadata | nul
   } catch {
     return null;
   }
-}
-
-function formatContextWindowLabel(value: number | null | undefined): string {
-  if (!Number.isFinite(value) || (value ?? 0) <= 0) return "unknown ctx";
-  const num = Number(value);
-  if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(num % 1_000_000 === 0 ? 0 : 1)}M ctx`;
-  if (num >= 1_000) return `${(num / 1_000).toFixed(num % 1_000 === 0 ? 0 : 1)}k ctx`;
-  return `${num} ctx`;
-}
-
-function buildModelPickerCard(
-  models: Array<{ label: string; provider: string; id: string; contextWindow?: number }>,
-  currentModel: string | null,
-  launch: PendingLaunch,
-): Record<string, unknown> {
-  const choices = models.map((m) => ({ title: `${m.label} • ${formatContextWindowLabel(m.contextWindow)}`, value: m.label }));
-  const defaultValue = currentModel && choices.find((c) => c.value === currentModel)
-    ? currentModel
-    : choices[0]?.value || "";
-
-  const variableLabels = Array.isArray(launch?.variables)
-    ? launch.variables.map((item) => String(item || '').trim()).filter(Boolean)
-    : [];
-  const facts = [
-    { title: 'Project', value: launch?.project_dir || '—' },
-    { title: 'Runs', value: launch?.max_iterations ? `Up to ${launch.max_iterations}` : 'Open-ended' },
-    { title: 'Variables', value: variableLabels.length ? variableLabels.join(', ') : 'Auto-detect during run' },
-  ];
-
-  return {
-    type: "adaptive_card",
-    card_id: `autoresearch-model-pick-${Date.now()}`,
-    schema_version: "1.5",
-    state: "active",
-    fallback_text: "Configure and launch the autoresearch experiment.",
-    payload: {
-      type: "AdaptiveCard",
-      version: "1.5",
-      body: [
-        { type: "TextBlock", text: "🔬 Autoresearch — Launch Experiment", weight: "Bolder", size: "Medium" },
-        { type: "TextBlock", text: launch?.prompt || 'No summary provided.', wrap: true, spacing: 'Small' },
-        { type: 'FactSet', facts },
-        { type: "TextBlock", text: "Model", weight: "Bolder", spacing: "Medium" },
-        { type: "Input.ChoiceSet", id: "model", style: "compact", choices, value: defaultValue },
-        { type: "TextBlock", text: "Isolation", weight: "Bolder", spacing: "Medium" },
-        { type: "Input.Toggle", id: "sandbox", title: "Run in a copied sandbox (safer, uses more disk)", value: "true" },
-        { type: "TextBlock", text: "When off, runs in a fresh git worktree on a new branch in the same repo. Requires an existing git repository.", wrap: true, isSubtle: true, size: "Small" },
-      ],
-      actions: [
-        { type: "Action.Submit", title: "Launch Experiment →", data: { intent: "autoresearch-launch" } },
-      ],
-    },
-  };
 }
 
 // ── Tool implementations ────────────────────────────────────────
@@ -781,7 +708,9 @@ async function startAutoresearch(
   broadcastEvent: (type: string, data: unknown) => void,
   chatJid?: string,
   uiCtx?: AutoresearchUiContext,
+  assertCurrent?: () => void,
 ): Promise<AgentToolResult<Record<string, unknown>>> {
+  assertCurrent?.();
   const resolvedChatJid = chatJid || resolveStatusChatJid();
   const failStart = (message: string, details: Record<string, unknown> = {}) => {
     clearAutoresearchStatusPanel(broadcastEvent, resolvedChatJid);
@@ -805,7 +734,7 @@ async function startAutoresearch(
       );
     }
 
-    const projectDir = resolve(params.project_dir);
+    const projectDir = assertCurrent ? nativeProjectDir(params.project_dir) : resolve(params.project_dir);
     if (!existsSync(projectDir)) return buildResult(`❌ Project directory does not exist: ${projectDir}`);
 
     updateAutoresearchUiProgress(uiCtx, `Autoresearch: preparing ${basename(projectDir) || projectDir}…`);
@@ -832,11 +761,8 @@ async function startAutoresearch(
       });
     } else {
       mkdirSync(sessionDir, { recursive: true });
-      try {
-        execSync(`cp -a ${JSON.stringify(projectDir + "/")} ${JSON.stringify(sandboxDir)}`, { stdio: "ignore" });
-      } catch (err) {
-        return failStart(`❌ Failed to copy project to sandbox: ${err instanceof Error ? err.message : String(err)}`);
-      }
+      const copy = spawnSync("cp", ["-a", "--", projectDir, sandboxDir], { stdio: "ignore" });
+      if (copy.status !== 0) return failStart("❌ Failed to copy project to sandbox.");
       clearAutoresearchSessionFiles(sandboxDir);
     }
     workDir = sandboxDir;
@@ -909,6 +835,7 @@ async function startAutoresearch(
     hasExistingData,
   });
 
+  assertCurrent?.();
   const tmuxResult = spawnSync("tmux", [
     "new-session", "-d",
     "-s", tmuxSession,
@@ -937,9 +864,11 @@ async function startAutoresearch(
     displayName,
   };
 
-  // Start JSONL polling
+  // Polling outlives the model call, so use the application lifetime fence.
+  const experiment = activeExperiment;
+  const observer = nativeObserver;
   activeExperiment.pollInterval = setInterval(() => {
-    if (!activeExperiment) return;
+    if (activeExperiment !== experiment || !observerCurrent(observer)) return;
 
     // Check if tmux session is still alive
     if (!tmuxSessionExists(activeExperiment.tmuxSession)) {
@@ -981,7 +910,9 @@ async function startAutoresearch(
         stopPolling();
         finalizeAutoresearchRun(activeExperiment, outcome.state, { reason: outcome.reason, generateReport: true });
         spawnSync("tmux", ["send-keys", "-t", tmux, "C-c", ""], { stdio: "ignore" });
-        setTimeout(() => spawnSync("tmux", ["kill-session", "-t", tmux], { stdio: "ignore" }), 2000);
+        setTimeout(() => {
+          if (observerCurrent(observer)) spawnSync("tmux", ["kill-session", "-t", tmux], { stdio: "ignore" });
+        }, 2000);
         log.info("Autoresearch experiment finished after idle detection", {
           experimentId: expId,
           runCount,
@@ -1066,7 +997,9 @@ function finalizeAutoresearchRun(
 async function stopAutoresearch(
   params: { generate_report?: boolean; chat_jid?: string },
   uiCtx?: AutoresearchUiContext,
+  assertCurrent?: () => void,
 ): Promise<AgentToolResult<Record<string, unknown>>> {
+  assertCurrent?.();
   if (!activeExperiment) {
     return buildResult("No experiment is currently running.", { active: false });
   }
@@ -1077,17 +1010,19 @@ async function stopAutoresearch(
   const exp = activeExperiment;
   startAutoresearchUiProgress(uiCtx, `Autoresearch: stopping ${exp.id}…`);
   try {
-    stopPolling();
-
     // Send SIGINT to the tmux session
     if (tmuxSessionExists(exp.tmuxSession)) {
       spawnSync("tmux", ["send-keys", "-t", exp.tmuxSession, "C-c", ""], { stdio: "ignore" });
       // Wait briefly for graceful shutdown
       await new Promise((r) => setTimeout(r, 2000));
+      assertCurrent?.();
+      if (activeExperiment !== exp) return buildResult("The experiment has already ended.", { active: false });
       // Kill the session
       spawnSync("tmux", ["kill-session", "-t", exp.tmuxSession], { stdio: "ignore" });
     }
 
+    assertCurrent?.();
+    stopPolling();
     const parts = [`Experiment ${exp.id} stopped.`];
 
     const { summary, reportPath, report } = finalizeAutoresearchRun(exp, "stopped", {
@@ -1128,11 +1063,14 @@ async function stopAutoresearch(
 export async function stopAutoresearchFromWeb(
   params: { generate_report?: boolean; chat_jid?: string } = {},
 ): Promise<AgentToolResult<Record<string, unknown>>> {
-  return stopAutoresearch(params);
+  const observer = nativeObserver;
+  if (observer && !params.chat_jid) throw Error("Autoresearch widget chat is required");
+  return stopAutoresearch(params, undefined, observer?.assertCurrent);
 }
 
-async function autoresearchStatus(): Promise<AgentToolResult<Record<string, unknown>>> {
-  if (!activeExperiment) {
+async function autoresearchStatus(chatJid?: string, assertCurrent?: () => void): Promise<AgentToolResult<Record<string, unknown>>> {
+  assertCurrent?.();
+  if (!activeExperiment || (chatJid && activeExperiment.chatJid !== chatJid)) {
     return buildResult("No experiment is currently running.", { active: false });
   }
 
@@ -1204,7 +1142,7 @@ async function autoresearchStatus(): Promise<AgentToolResult<Record<string, unkn
 
 // ── Extension factory ───────────────────────────────────────────
 
-const HINT = [
+export const autoresearchPrompt = [
   "## Autoresearch sub-agent",
   "Use start_autoresearch to launch an autonomous experiment loop in a tmux sub-agent.",
   "Use stop_autoresearch to stop it and generate a report.",
@@ -1212,79 +1150,56 @@ const HINT = [
   "The sub-agent runs pi with the upstream pi-autoresearch extension. You can also view the TUI dashboard by opening the tmux session in the terminal pane.",
 ].join("\n");
 
-/**
- * Card-action entry point for launching an experiment from a model picker card.
- * Returns a human-readable result message.
- */
-export async function startAutoresearchFromCard(
-  params: { project_dir: string; prompt: string; model?: string; max_iterations?: number; sandbox?: boolean; variables?: string[]; chat_jid?: string },
-): Promise<string> {
-  const noop = () => {};
-  const result = await startAutoresearch(params, noop, resolveStatusChatJid(params.chat_jid));
-  return result.content[0]?.type === "text" ? (result.content[0] as { text: string }).text : "Launched.";
+type Broadcast = (type: string, data: unknown) => void;
+
+export type NativeAutoresearchInvocation = {
+  chatJid: string;
+  assertCurrent(): void;
+  currentModel?: string | null;
+  post: AutoresearchLaunchPost;
+};
+
+function nativeProjectDir(path: string): string {
+  const root = realpathSync(WORKSPACE_DIR);
+  const project = realpathSync(resolve(root, path));
+  const within = relative(root, project);
+  if (isAbsolute(within) || within === ".." || within.startsWith(`..${sep}`) || !statSync(project).isDirectory()) {
+    throw Error("Autoresearch project must be a directory within the workspace");
+  }
+  return project;
 }
 
-export const autoresearchSupervisor: ExtensionFactory = (pi: ExtensionAPI) => {
-  // Broadcast helper — will be wired to web channel SSE if available
-  let broadcastEvent: (type: string, data: unknown) => void = () => {};
-
-  // Try to detect piclaw's broadcastEvent from the runtime
-  try {
-    const global = globalThis as { __PICLAW_BROADCAST_EVENT__?: (type: string, data: unknown) => void };
-    if (typeof global.__PICLAW_BROADCAST_EVENT__ === "function") {
-      broadcastEvent = global.__PICLAW_BROADCAST_EVENT__;
-      autoresearchWidgetBroadcast = global.__PICLAW_BROADCAST_EVENT__;
-    }
-  } catch (error) {
-    debugSuppressedError(log, "Autoresearch supervisor could not inspect the runtime broadcast hook; continuing without live widget broadcasts.", error);
-  }
-
-  pi.on("before_agent_start", async (event) => ({
-    systemPrompt: `${event.systemPrompt}\n\n${HINT}`,
-  }));
-
-  pi.registerTool({
+/** Side-effect-free declarations. Native execution receives explicit invocation authority. */
+export function createAutoresearchToolDefinitions(broadcast: Broadcast, native?: NativeAutoresearchInvocation) {
+  const start: ToolDefinition<typeof StartSchema, Record<string, unknown>> = {
     ...toolCallSummary(callSummaries["start_autoresearch"]),
     name: "start_autoresearch",
     label: "start_autoresearch",
     description: "Launch an autonomous experiment loop. Spawns a headless pi sub-agent in a tmux session with the pi-autoresearch extension. The sub-agent optimizes the target metric autonomously.",
     promptSnippet: "start_autoresearch: launch an autonomous experiment loop in a tmux sub-agent.",
     parameters: StartSchema,
-    async execute(_toolCallId, params, _signal, _update, ctx) {
-      // If no model specified, show a model picker card sourced from the actual
-      // sub-agent CLI model list, not the current runtime registry.
-      if (!params.model) {
-        const models = listPiCliModels();
-        if (models.length === 0) {
-          return buildResult("❌ No models available to the autoresearch sub-agent. Check `pi --list-models`.");
-        }
-
-        const currentModel = ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : null;
-        const pickerChatJid = resolveStatusChatJid();
-        pendingLaunch = {
-          project_dir: params.project_dir,
-          prompt: params.prompt,
-          max_iterations: params.max_iterations,
-          variables: Array.isArray(params.variables) ? params.variables : undefined,
-          chat_jid: pickerChatJid,
-        };
-        const card = buildModelPickerCard(models, currentModel, pendingLaunch);
-        postMessagesToolMessage({
-          action: "post",
-          type: "agent",
-          chat_jid: pickerChatJid,
-          content: "Select a model for the autoresearch experiment.",
-          content_blocks: [card],
-        }, pickerChatJid);
-
+    async execute(_toolCallId, params, signal, _update, ctx) {
+      native?.assertCurrent();
+      const chatJid = native?.chatJid ?? resolveStatusChatJid();
+      const project_dir = native ? nativeProjectDir(params.project_dir) : params.project_dir;
+      const input = { ...params, project_dir };
+      if (params.model) return startAutoresearch(input, broadcast, chatJid, native ? undefined : ctx as AutoresearchUiContext, native?.assertCurrent);
+      const models = listPiCliModels();
+      if (!models.length) return buildResult("❌ No models available to the autoresearch sub-agent. Check `pi --list-models`.");
+      const current = native ? native.currentModel ?? null : ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : null;
+      try {
+        await postAutoresearchLaunch({ ...input, chat_jid: chatJid }, models, current, async (selected, assertAction) => {
+          const result = await startAutoresearch(selected, broadcast, chatJid, undefined, assertAction);
+          return result.content[0]?.type === "text" ? result.content[0].text : "Launched.";
+        }, signal, native?.post);
         return buildResult("Model picker posted. Select a model and click Launch to start the experiment.", { pending: true });
+      } catch {
+        native?.assertCurrent();
+        return buildResult("Could not post the A2UI model picker. Specify an available model explicitly to start the experiment.");
       }
-
-      return startAutoresearch(params, broadcastEvent, resolveStatusChatJid(), ctx as AutoresearchUiContext | undefined);
     },
-  });
-
-  pi.registerTool({
+  };
+  const stop: ToolDefinition<typeof StopSchema, Record<string, unknown>> = {
     ...toolCallSummary(callSummaries["stop_autoresearch"]),
     name: "stop_autoresearch",
     label: "stop_autoresearch",
@@ -1292,116 +1207,156 @@ export const autoresearchSupervisor: ExtensionFactory = (pi: ExtensionAPI) => {
     promptSnippet: "stop_autoresearch: stop the experiment and generate a report.",
     parameters: StopSchema,
     async execute(_toolCallId, params, _signal, _update, ctx) {
-      return stopAutoresearch(params, ctx as AutoresearchUiContext | undefined);
+      return stopAutoresearch({ ...params, ...(native ? { chat_jid: native.chatJid } : {}) },
+        native ? undefined : ctx as AutoresearchUiContext, native?.assertCurrent);
     },
-  });
-
-  pi.registerTool({
+  };
+  const status: ToolDefinition<typeof StatusSchema, Record<string, unknown>> = {
     ...toolCallSummary(callSummaries["autoresearch_status"]),
     name: "autoresearch_status",
     label: "autoresearch_status",
     description: "Check the status of the running autoresearch experiment. Shows run count, best metric, confidence, and whether the sub-agent is still alive.",
     promptSnippet: "autoresearch_status: check experiment progress.",
     parameters: StatusSchema,
-    async execute() {
-      return autoresearchStatus();
-    },
-  });
-
-  // On piclaw restart, try to re-detect a running tmux session
-  const reattachExisting = () => {
-    let tmuxSession: string | null = null;
-    let experimentId: string | null = null;
-    try {
-      const result = spawnSync("tmux", ["list-sessions", "-F", "#{session_name}"], { encoding: "utf8" });
-      if (result.status !== 0) return;
-      const sessions = result.stdout.trim().split("\n").filter((s) => s.startsWith(TMUX_SESSION_PREFIX));
-      if (sessions.length === 0) return;
-
-      // Re-attach to the first found autoresearch session
-      const discoveredTmuxSession = sessions[0];
-      const discoveredExperimentId = discoveredTmuxSession.slice(TMUX_SESSION_PREFIX.length);
-      tmuxSession = discoveredTmuxSession;
-      experimentId = discoveredExperimentId;
-
-      // Read the tmux pane's cwd to find the working dir (sandbox)
-      const cwdResult = spawnSync("tmux", ["display-message", "-t", discoveredTmuxSession, "-p", "#{pane_current_path}"], { encoding: "utf8" });
-      const projectDir = cwdResult.stdout?.trim() || "";
-      if (!projectDir || !existsSync(projectDir)) return;
-
-      // Look for JSONL in the working dir (which is the sandbox)
-      const jsonlPath = join(projectDir, "autoresearch.jsonl");
-      if (!existsSync(jsonlPath)) return;
-      const metadata = readSessionMetadata(projectDir);
-      activeExperiment = {
-        id: discoveredExperimentId,
-        tmuxSession: discoveredTmuxSession,
-        projectDir,
-        jsonlPath,
-        model: typeof metadata?.model === "string" && metadata.model.trim() ? metadata.model.trim() : null,
-        maxIterations: (() => {
-          if (typeof metadata?.max_iterations === "number") return metadata.max_iterations;
-          try {
-            const c = JSON.parse(readFileSync(join(projectDir, "autoresearch.config.json"), "utf-8"));
-            return typeof c.maxIterations === "number" ? c.maxIterations : null;
-          } catch {
-            return null;
-          }
-        })(),
-        startedAt: new Date().toISOString(),
-        pollInterval: null,
-        lastJsonlOffset: existsSync(jsonlPath) ? readFileSync(jsonlPath, "utf-8").length : 0,
-        lastActivityAt: Date.now(),
-        chatJid: typeof metadata?.chat_jid === "string" && metadata.chat_jid.trim() ? metadata.chat_jid.trim() : resolveStatusChatJid(),
-        displayName: typeof metadata?.display_name === "string" && metadata.display_name.trim() ? metadata.display_name.trim() : (basename(projectDir) || discoveredExperimentId || "Experiment"),
-      };
-
-      // Resume polling
-      activeExperiment.pollInterval = setInterval(() => {
-        if (!activeExperiment) return;
-        if (!tmuxSessionExists(activeExperiment.tmuxSession)) {
-          stopPolling();
-          const summary = existsSync(activeExperiment.jsonlPath)
-            ? buildExperimentSummary(parseJsonlFile(activeExperiment.jsonlPath))
-            : buildActiveExperimentSummary(activeExperiment);
-          emitAutoresearchStatus(
-            broadcastEvent,
-            activeExperiment,
-            resolveAutoresearchProcessExitState(summary, activeExperiment.maxIterations),
-            summary,
-            "process_exited",
-          );
-          activeExperiment = null;
-          return;
-        }
-        const { entries, newOffset } = readNewJsonlLines(activeExperiment.jsonlPath, activeExperiment.lastJsonlOffset);
-        if (entries.length === 0) return;
-        activeExperiment.lastJsonlOffset = newOffset;
-        for (const _entry of entries) {
-          emitAutoresearchStatus(broadcastEvent, activeExperiment, "running", buildActiveExperimentSummary(activeExperiment));
-        }
-      }, 2000);
-
-      // Publish an immediate live-status snapshot with the current state.
-      const summary = existsSync(jsonlPath)
-        ? buildExperimentSummary(parseJsonlFile(jsonlPath))
-        : buildActiveExperimentSummary(activeExperiment);
-      emitAutoresearchStatus(broadcastEvent, activeExperiment, "running", summary);
-
-      log.info("Re-attached to running autoresearch experiment", {
-        experimentId,
-        tmuxSession,
-      });
-    } catch (error) {
-      log.warn("Failed to re-attach to existing autoresearch session", {
-        operation: "autoresearch_supervisor.reattach_existing",
-        experimentId,
-        tmuxSession,
-        err: error,
-      });
-    }
+    async execute() { return autoresearchStatus(native?.chatJid, native?.assertCurrent); },
   };
+  return [start, stop, status] as const;
+}
 
-  // Run reattachment on next tick (after extension registration completes)
-  setTimeout(reattachExisting, 1000);
+export const autoresearchSupervisor: ExtensionFactory = (pi: ExtensionAPI) => {
+  const global = globalThis as { __PICLAW_BROADCAST_EVENT__?: Broadcast };
+  const broadcastEvent: Broadcast = (type, data) => global.__PICLAW_BROADCAST_EVENT__?.(type, data);
+  pi.on("before_agent_start", async (event) => ({ systemPrompt: `${event.systemPrompt}\n\n${autoresearchPrompt}` }));
+  const [start, stop, status] = createAutoresearchToolDefinitions(broadcastEvent);
+  pi.registerTool(start);
+  pi.registerTool(stop);
+  pi.registerTool(status);
+  // Catalogue discovery is declarative. Probe for an existing process only
+  // after the legacy session starts; the native host owns its startup hook.
+  pi.on("session_start", () => { autoresearchWidgetBroadcast = broadcastEvent; reattachExistingAutoresearch(broadcastEvent); });
 };
+
+function observerCurrent(observer: typeof nativeObserver): boolean {
+  if (!observer) return true;
+  try { observer.assertCurrent(); return true; }
+  catch { return false; }
+}
+
+/** Bind process observation after native startup, not during catalogue discovery. */
+export function bindNativeAutoresearchObserver(broadcast: Broadcast, assertOwner: () => void) {
+  assertOwner();
+  if (nativeObserver) throw Error("Autoresearch observation is already bound");
+  const observer = { assertCurrent() {
+    assertOwner();
+    if (nativeObserver !== observer) throw Error("Autoresearch observation ended");
+  } };
+  nativeObserver = observer;
+  autoresearchWidgetBroadcast = broadcast;
+  return {
+    reattach() { observer.assertCurrent(); reattachExistingAutoresearch(broadcast, observer); },
+    dispose() {
+      if (nativeObserver !== observer) return;
+      nativeObserver = undefined;
+      stopPolling();
+      activeExperiment = null;
+      autoresearchWidgetsByChat.clear();
+      autoresearchWidgetBroadcast = () => {};
+    },
+  };
+}
+
+function reattachExistingAutoresearch(broadcastEvent: Broadcast, observer?: typeof nativeObserver): void {
+  if (activeExperiment) return;
+  let tmuxSession: string | null = null;
+  let experimentId: string | null = null;
+  try {
+    const result = spawnSync("tmux", ["list-sessions", "-F", "#{session_name}"], { encoding: "utf8" });
+    if (result.status !== 0) return;
+    const sessions = result.stdout.trim().split("\n").filter((s) => s.startsWith(TMUX_SESSION_PREFIX));
+    if (sessions.length === 0) return;
+
+    // Re-attach to the first found autoresearch session
+    const discoveredTmuxSession = sessions[0];
+    const discoveredExperimentId = discoveredTmuxSession.slice(TMUX_SESSION_PREFIX.length);
+    tmuxSession = discoveredTmuxSession;
+    experimentId = discoveredExperimentId;
+
+    // Read the tmux pane's cwd to find the working dir (sandbox)
+    const cwdResult = spawnSync("tmux", ["display-message", "-t", discoveredTmuxSession, "-p", "#{pane_current_path}"], { encoding: "utf8" });
+    const projectDir = cwdResult.stdout?.trim() || "";
+    if (!projectDir || !existsSync(projectDir)) return;
+
+    // Look for JSONL in the working dir (which is the sandbox)
+    const jsonlPath = join(projectDir, "autoresearch.jsonl");
+    if (!existsSync(jsonlPath)) return;
+    const metadata = readSessionMetadata(projectDir);
+    if (observer && (!metadata?.chat_jid?.startsWith('web:') || !realpathSync(projectDir).startsWith(realpathSync(SESSIONS_DIR) + sep))) return;
+    activeExperiment = {
+      id: discoveredExperimentId,
+      tmuxSession: discoveredTmuxSession,
+      projectDir,
+      jsonlPath,
+      model: typeof metadata?.model === "string" && metadata.model.trim() ? metadata.model.trim() : null,
+      maxIterations: (() => {
+        if (typeof metadata?.max_iterations === "number") return metadata.max_iterations;
+        try {
+          const c = JSON.parse(readFileSync(join(projectDir, "autoresearch.config.json"), "utf-8"));
+          return typeof c.maxIterations === "number" ? c.maxIterations : null;
+        } catch {
+          return null;
+        }
+      })(),
+      startedAt: new Date().toISOString(),
+      pollInterval: null,
+      lastJsonlOffset: existsSync(jsonlPath) ? readFileSync(jsonlPath, "utf-8").length : 0,
+      lastActivityAt: Date.now(),
+      chatJid: typeof metadata?.chat_jid === "string" && metadata.chat_jid.trim() ? metadata.chat_jid.trim() : resolveStatusChatJid(),
+      displayName: typeof metadata?.display_name === "string" && metadata.display_name.trim() ? metadata.display_name.trim() : (basename(projectDir) || discoveredExperimentId || "Experiment"),
+    };
+
+    // Resume polling the same reattached experiment under the application fence.
+    const experiment = activeExperiment;
+    activeExperiment.pollInterval = setInterval(() => {
+      if (activeExperiment !== experiment || !observerCurrent(observer)) return;
+      if (!tmuxSessionExists(activeExperiment.tmuxSession)) {
+        stopPolling();
+        const summary = existsSync(activeExperiment.jsonlPath)
+          ? buildExperimentSummary(parseJsonlFile(activeExperiment.jsonlPath))
+          : buildActiveExperimentSummary(activeExperiment);
+        emitAutoresearchStatus(
+          broadcastEvent,
+          activeExperiment,
+          resolveAutoresearchProcessExitState(summary, activeExperiment.maxIterations),
+          summary,
+          "process_exited",
+        );
+        activeExperiment = null;
+        return;
+      }
+      const { entries, newOffset } = readNewJsonlLines(activeExperiment.jsonlPath, activeExperiment.lastJsonlOffset);
+      if (entries.length === 0) return;
+      activeExperiment.lastJsonlOffset = newOffset;
+      for (const _entry of entries) {
+        emitAutoresearchStatus(broadcastEvent, activeExperiment, "running", buildActiveExperimentSummary(activeExperiment));
+      }
+    }, 2000);
+
+    // Publish an immediate live-status snapshot with the current state.
+    const summary = existsSync(jsonlPath)
+      ? buildExperimentSummary(parseJsonlFile(jsonlPath))
+      : buildActiveExperimentSummary(activeExperiment);
+    emitAutoresearchStatus(broadcastEvent, activeExperiment, "running", summary);
+
+    log.info("Re-attached to running autoresearch experiment", {
+      experimentId,
+      tmuxSession,
+    });
+  } catch (error) {
+    log.warn("Failed to re-attach to existing autoresearch session", {
+      operation: "autoresearch_supervisor.reattach_existing",
+      experimentId,
+      tmuxSession,
+      err: error,
+    });
+  }
+}

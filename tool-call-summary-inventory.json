@@ -936,6 +936,16 @@
   },
   "baseCommit": "d534f90e8507db71cdb736afdbd0539c8fa4f802",
   "activeCatalogueSize": 46,
+  "executionBodyUpdates": {
+    "addons/autoresearch/supervisor.ts": {
+      "purpose": "Share declarations between the legacy extension and native invocation-owned start, stop and status tools, with a source-bound A2UI launch.",
+      "sha256": [
+        "b570cf0c3abf3927dd051d0fcd83b4d2d9007414b86063af1913ee4d5f22c6d3",
+        "a845664fbab7cbdc6152bfa38bd8c9612fbe8348017d5dab0cccdd41855f33b7",
+        "81eef0b8e885af783f1b69807e494a4b9a9922e8ae7f0032845bc46c0d9a36c5"
+      ]
+    }
+  },
   "executionBodyHashes": {
     "addons/ast-grep-tool/index.ts": [
       "cdf64ba9274eb6e5d6a976421ff426f515c299c44a35bbcde8a5cd68f539dd93",
