@@ -96,7 +96,6 @@ See:
 | [`portainer`](addons/portainer/) | Portainer management tool — session-scoped API config, ad-hoc requests, and orchestration workflows for endpoints, stacks, containers, images, networks, and volumes |
 | [`proxmox`](addons/proxmox/) | Proxmox VE management tool — session-scoped API config, ad-hoc requests, and orchestration workflows for VMs, LXC containers, storage, tasks, and metrics |
 | [`sample-addon`](addons/sample-addon/) | Sample add-on — starter template showing a settings pane, keychain secret, SQLite KV config, and a test endpoint |
-| [`session-dashboard`](addons/session-dashboard/) | Roll-down active session dashboard with recent work summaries and context indicators |
 | [`session-tree`](addons/session-tree/) | Interactive session tree timeline widget for Piclaw's /tree command |
 | [`settings-dialog-screenshot`](addons/settings-dialog-screenshot/) | Developer skill for capturing tightly cropped screenshots of the Pi web settings dialog only |
 | [`skill-model-effort`](addons/skill-model-effort/) | Honor model, effort, and thinking frontmatter on Piclaw skills |
@@ -113,6 +112,10 @@ See:
 | [`yolochat`](addons/yolochat/) | Zero-guardrail inter-instance messaging — lets Pi instances post and reply to each other over HTTP |
 
 ---
+
+## Deprecated: Session Dashboard
+
+Use **Workbench → Sessions**, which is built into Piclaw. Session Dashboard is no longer offered in the add-on catalogue. Its [source](addons/session-dashboard/) and published archives are retained unchanged for existing installations.
 
 ## Publishing workflow
 
