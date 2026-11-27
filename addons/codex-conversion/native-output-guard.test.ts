@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { createNativeCodexOutput } from './src/native-provider.ts';
 const sse = `data: ${JSON.stringify({type:'response.created',response:{id:'resp'}})}\n\ndata: ${JSON.stringify({type:'response.output_item.done',item:{type:'image_generation_call',id:'call',result:Buffer.from('image').toString('base64')}})}\n\n`;
 const webSse = `data: ${JSON.stringify({type:'response.created',response:{id:'resp'}})}\n\ndata: ${JSON.stringify({type:'response.output_item.done',item:{type:'web_search_call',id:'search',action:{query:'weather'},results:[{title:'Result',url:'https://example.test'}]}})}\n\n`;
+const twoWebSearchSse = `data: ${JSON.stringify({type:'response.created',response:{id:'resp'}})}\n\ndata: ${JSON.stringify({type:'response.output_item.done',item:{type:'web_search_call',id:'search-1',action:{query:'first'}}})}\n\ndata: ${JSON.stringify({type:'response.output_item.done',item:{type:'web_search_call',id:'search-2',action:{query:'second'}}})}\n\n`;
 test('native SSE image writes actual file and latest only while current', async () => {
  const cwd=await mkdtemp(join(tmpdir(),'codex-guard-')); await mkdir(join(cwd,'.git'));
  try {
@@ -109,4 +110,71 @@ test('owned capture shares publication retry and pending activity identity', asy
  expect(attempts[0]).toBe(attempts[1]);
  expect(published).toEqual([attempts[0]]);
  expect(response.bodyUsed).toBe(true);
+});
+
+test('concurrent finish calls share one FIFO publication drain', async()=>{
+ const operation={id:'finish-singleflight',sessionId:'session',cwd:tmpdir(),model:{provider:'openai-codex',id:'test',api:'openai-codex-responses'},signal:new AbortController().signal,assertCurrent(){}};
+ let releaseFirst!:()=>void;let markStarted!:()=>void;
+ const firstHeld=new Promise<void>(resolve=>{releaseFirst=resolve;});
+ const firstStarted=new Promise<void>(resolve=>{markStarted=resolve;});
+ const attempts:any[]=[];const published:any[]=[];
+ const output=await createNativeCodexOutput(operation,async(_op,item)=>{
+  attempts.push(item);
+  if(attempts.length===1){markStarted();await firstHeld;}
+  published.push(item);
+ });
+ await output.capture(new Response(twoWebSearchSse));
+ const first=output.finish();const second=output.finish();
+ await firstStarted;
+ releaseFirst();
+ await Promise.all([first,second]);
+ expect(attempts.map(item=>item.search.callId)).toEqual(['search-1','search-2']);
+ expect(published.map(item=>item.search.callId)).toEqual(['search-1','search-2']);
+ expect(new Set(attempts).size).toBe(2);
+ expect(output.phase).toBe('sealed');
+ expect(()=>output.capture(new Response(webSse))).toThrow('Codex capture closed');
+ await output.finish();
+ expect(published).toHaveLength(2);
+});
+
+test('finish rechecks current authority after an earlier publication succeeds', async()=>{
+ let current=true;const revoked=new Error('revoked');let publications=0;
+ const operation={id:'finish-authority',sessionId:'session',cwd:tmpdir(),model:{provider:'openai-codex',id:'test',api:'openai-codex-responses'},signal:new AbortController().signal,assertCurrent(){if(!current)throw revoked;}};
+ const output=await createNativeCodexOutput(operation,async()=>{publications++;});
+ await output.captureOwned(new Response(webSse));
+ await output.finish();
+ expect(publications).toBe(1);
+ current=false;
+ const reason=await output.finish().then(()=>undefined,error=>error);
+ expect(reason).toBe(revoked);
+ expect(publications).toBe(1);
+});
+
+test('concurrent finish failure reaches all joiners and retries the identical FIFO head', async()=>{
+ const operation={id:'finish-singleflight-retry',sessionId:'session',cwd:tmpdir(),model:{provider:'openai-codex',id:'test',api:'openai-codex-responses'},signal:new AbortController().signal,assertCurrent(){}};
+ let rejectFirst!:(error:Error)=>void;let markStarted!:()=>void;
+ const firstHeld=new Promise<void>((_resolve,reject)=>{rejectFirst=reject;});
+ const firstStarted=new Promise<void>(resolve=>{markStarted=resolve;});
+ const attempts:any[]=[];const published:any[]=[];
+ const output=await createNativeCodexOutput(operation,async(_op,item)=>{
+  attempts.push(item);
+  if(attempts.length===1){markStarted();await firstHeld;}
+  published.push(item);
+ });
+ await output.capture(new Response(twoWebSearchSse));
+ const first=output.finish();const second=output.finish();
+ await firstStarted;
+ const outcomesPromise=Promise.allSettled([first,second]);
+ const transient=new Error('transient');
+ rejectFirst(transient);
+ const outcomes=await outcomesPromise;
+ expect(outcomes.every(outcome=>outcome.status==='rejected'&&outcome.reason===transient)).toBe(true);
+ expect(attempts).toHaveLength(1);
+ expect(published).toHaveLength(0);
+ expect(output.discardFailedCapture()).toBe(false);
+ await output.finish();
+ expect(attempts.map(item=>item.search.callId)).toEqual(['search-1','search-1','search-2']);
+ expect(attempts[0]).toBe(attempts[1]);
+ expect(published.map(item=>item.search.callId)).toEqual(['search-1','search-2']);
+ expect(output.phase).toBe('sealed');
 });

@@ -74,6 +74,7 @@ export async function createNativeCodexOutput(operation: CodexOperation, publish
   const beforeEffect = () => { operation.signal.throwIfAborted(); operation.assertCurrent(); };
   const pending: import('./providers/openai-codex-native-output-observer.ts').PendingActivity[] = [];
   let tail = Promise.resolve();
+  let finishFlight: Promise<void> | undefined;
   let closed = false;
   let failedCapture = false;
   let discarded = false;
@@ -103,16 +104,25 @@ export async function createNativeCodexOutput(operation: CodexOperation, publish
       operation.signal.throwIfAborted(); operation.assertCurrent();
       return scheduleCapture(response, prompt);
     },
-    async finish() {
+    finish() {
       closed = true;
-      await tail;
-      beforeEffect();
-      while (pending.length) {
-        beforeEffect();
-        await publish(operation, pending[0]!);
-        beforeEffect();
-        pending.shift();
-      }
+      if (finishFlight) return finishFlight;
+      const drain = (async () => {
+        try {
+          await tail;
+          beforeEffect();
+          while (pending.length) {
+            beforeEffect();
+            await publish(operation, pending[0]!);
+            beforeEffect();
+            pending.shift();
+          }
+        } finally {
+          finishFlight = undefined;
+        }
+      })();
+      finishFlight = drain;
+      return drain;
     },
   };
 }
