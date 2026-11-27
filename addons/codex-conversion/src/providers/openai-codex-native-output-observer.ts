@@ -272,25 +272,27 @@ export async function captureNativeOutputResponse(
 ): Promise<void> {
 	if (!response.ok) return;
 	beforeEffect?.();
-	const staged: Array<{ event: ResponsesEvent; responseId?: string }> = [];
+	const staged: Array<{ rawEvent: ResponsesEvent | null; responseId?: string }> = [];
 	let responseId: string | undefined;
 	await readResponsesSSE(response, (event) => {
-		if (staged[staged.length - 1]?.event === null) return;
+		if (staged[staged.length - 1]?.rawEvent === null) return;
 		if (event === null) {
-			staged.push({ event: event as ResponsesEvent, responseId });
+			staged.push({ rawEvent: event, responseId });
 			return;
 		}
 		if (event.type === "response.created" && typeof event.response?.id === "string") responseId = event.response.id;
 		if (event.type !== "response.output_item.done") return;
 		const item = event.item;
-		if ((item?.type === "image_generation_call" && typeof item.id === "string" && typeof item.result === "string") || extractWebSearch(item)) {
-			staged.push({ event, responseId });
+		if ((item?.type === "image_generation_call" && typeof item.id === "string" && typeof item.result === "string") || (item?.type === "web_search_call" && typeof item.id === "string")) {
+			staged.push({ rawEvent: event, responseId });
 		}
 	});
 
 	// A failed body or revoked operation must not produce any capture effects.
 	beforeEffect?.();
-	for (const { event, responseId } of staged) {
+	for (const { rawEvent, responseId } of staged) {
+		// Replay JSON null as the original native property-read failure, after EOF.
+		const event = rawEvent!;
 		if (event.type !== "response.output_item.done") continue;
 		const item = event.item;
 		if (item?.type === "image_generation_call" && typeof item.id === "string" && typeof item.result === "string") {
