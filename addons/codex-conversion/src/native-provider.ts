@@ -77,6 +77,13 @@ export async function createNativeCodexOutput(operation: CodexOperation, publish
   let closed = false;
   let failedCapture = false;
   let discarded = false;
+  const scheduleCapture = (response: Response, prompt?: string) => {
+    tail = tail.then(() => captureNativeOutputResponse(response, operation.cwd, prompt, activity => { beforeEffect(); pending.push(activity); }, beforeEffect));
+    tail = tail.catch(error => { failedCapture = true; throw error; });
+    // Keep the returned rejection observable without an unhandled internal tail.
+    void tail.catch(() => {});
+    return tail;
+  };
   return {
     get phase() { return discarded ? "discarded" : failedCapture ? "capture-failed" : closed ? "sealed" : "capturing"; },
     discardFailedCapture() {
@@ -88,11 +95,13 @@ export async function createNativeCodexOutput(operation: CodexOperation, publish
       if (closed) throw new Error('Codex capture closed');
       operation.signal.throwIfAborted(); operation.assertCurrent();
       const clone = response.clone();
-      tail = tail.then(() => captureNativeOutputResponse(clone, operation.cwd, prompt, activity => { beforeEffect(); pending.push(activity); }, beforeEffect));
-      tail = tail.catch(error => { failedCapture = true; throw error; });
-      // Keep the returned rejection observable without an unhandled internal tail.
-      void tail.catch(() => {});
-      return tail;
+      return scheduleCapture(clone, prompt);
+    },
+    /** Capture a response whose dedicated observer stream is owned by this operation. */
+    captureOwned(response: Response, prompt?: string) {
+      if (closed) throw new Error('Codex capture closed');
+      operation.signal.throwIfAborted(); operation.assertCurrent();
+      return scheduleCapture(response, prompt);
     },
     async finish() {
       closed = true;
