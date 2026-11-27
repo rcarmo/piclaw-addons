@@ -73,7 +73,7 @@ function createContext(mode: "tui" | "rpc" | "json" | "print", selectedModel: an
 test("package keeps upstream attribution and runtime dependencies", () => {
   const manifest = JSON.parse(readFileSync(join(addonDir, "package.json"), "utf8"));
   expect(manifest.name).toBe("@rcarmo/piclaw-addon-codex-conversion");
-  expect(manifest.version).toBe("0.2.4");
+  expect(manifest.version).toBe("0.2.5");
   expect(manifest.pi.extensions).toEqual(["src/index.ts"]);
   expect(manifest.peerDependencies["@earendil-works/pi-coding-agent"]).toBe("*");
   expect(manifest.peerDependencies["@earendil-works/pi-ai"]).toBe("*");
