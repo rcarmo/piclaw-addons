@@ -109,7 +109,7 @@
     {
       "slug": "codex-conversion",
       "name": "@rcarmo/piclaw-addon-codex-conversion",
-      "version": "0.2.4",
+      "version": "0.2.5",
       "type": "extension",
       "description": "Provider-aware Codex and Copilot prompt and tool profiles for Piclaw",
       "path": "addons/codex-conversion",
@@ -124,9 +124,9 @@
       "skills": [],
       "install": {
         "kind": "tarball",
-        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-codex-conversion-0.2.4.tgz"
+        "spec": "https://rcarmo.github.io/piclaw-addons/packages/piclaw-addon-codex-conversion-0.2.5.tgz"
       },
-      "updatedAt": "2026-10-20"
+      "updatedAt": "2026-11-27"
     },
     {
       "slug": "dev-tools",

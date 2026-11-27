@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createNativeCodexOutput } from './src/native-provider.ts';
 const sse = `data: ${JSON.stringify({type:'response.created',response:{id:'resp'}})}\n\ndata: ${JSON.stringify({type:'response.output_item.done',item:{type:'image_generation_call',id:'call',result:Buffer.from('image').toString('base64')}})}\n\n`;
+const webSse = `data: ${JSON.stringify({type:'response.created',response:{id:'resp'}})}\n\ndata: ${JSON.stringify({type:'response.output_item.done',item:{type:'web_search_call',id:'search',action:{query:'weather'},results:[{title:'Result',url:'https://example.test'}]}})}\n\n`;
 test('native SSE image writes actual file and latest only while current', async () => {
  const cwd=await mkdtemp(join(tmpdir(),'codex-guard-')); await mkdir(join(cwd,'.git'));
  try {
@@ -63,4 +64,49 @@ test('publication retry retains the identical pending activity', async()=>{
   await output.finish();await output.finish();
   expect(attempts).toHaveLength(2);expect(attempts[0]).toBe(attempts[1]);expect(published).toHaveLength(1);
  }finally{await rm(cwd,{recursive:true,force:true});}
+});
+
+test('generic capture leaves caller reader ownership unchanged', async()=>{
+ const operation={id:'borrowed',sessionId:'session',cwd:tmpdir(),model:{provider:'openai-codex',id:'test',api:'openai-codex-responses'},signal:new AbortController().signal,assertCurrent(){}};
+ const activities:any[]=[];
+ const output=await createNativeCodexOutput(operation,async(_op,item)=>{activities.push(item);});
+ const response=new Response(webSse);
+ await output.capture(response);
+ expect(response.bodyUsed).toBe(false);
+ expect(await response.text()).toBe(webSse);
+ await output.finish();
+ expect(activities).toHaveLength(1);
+ expect(activities[0].kind).toBe('web-search');
+});
+
+test('owned capture consumes its dedicated response without cloning it', async()=>{
+ const operation={id:'owned',sessionId:'session',cwd:tmpdir(),model:{provider:'openai-codex',id:'test',api:'openai-codex-responses'},signal:new AbortController().signal,assertCurrent(){}};
+ const activities:any[]=[];
+ const output=await createNativeCodexOutput(operation,async(_op,item)=>{activities.push(item);});
+ const response=new Response(webSse);
+ let cloneCalls=0;
+ Object.defineProperty(response,'clone',{value(){cloneCalls++;throw Error('owned response must not be cloned');}});
+ const capture=output.captureOwned(response);
+ expect(response.bodyUsed).toBe(false);
+ await capture;
+ expect(response.bodyUsed).toBe(true);
+ expect(cloneCalls).toBe(0);
+ await output.finish();
+ expect(activities).toHaveLength(1);
+ expect(activities[0].search.callId).toBe('search');
+});
+
+test('owned capture shares publication retry and pending activity identity', async()=>{
+ const operation={id:'owned-retry',sessionId:'session',cwd:tmpdir(),model:{provider:'openai-codex',id:'test',api:'openai-codex-responses'},signal:new AbortController().signal,assertCurrent(){}};
+ const attempts:any[]=[];const published:any[]=[];
+ const output=await createNativeCodexOutput(operation,async(_op,item)=>{attempts.push(item);if(attempts.length===1)throw Error('transient');published.push(item);});
+ const response=new Response(webSse);
+ await output.captureOwned(response);
+ await expect(output.finish()).rejects.toThrow('transient');
+ expect(output.discardFailedCapture()).toBe(false);
+ await output.finish();
+ expect(attempts).toHaveLength(2);
+ expect(attempts[0]).toBe(attempts[1]);
+ expect(published).toEqual([attempts[0]]);
+ expect(response.bodyUsed).toBe(true);
 });

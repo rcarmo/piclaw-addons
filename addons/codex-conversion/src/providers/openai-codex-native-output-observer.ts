@@ -189,6 +189,16 @@ export function buildWebSearchSummaryText(searches: SurfacedWebSearch[]): string
 	return searches.length === 1 ? "Searched the web once" : `Searched the web ${searches.length} times`;
 }
 
+function parseResponsesEventData(data: string): ResponsesEvent | null | undefined {
+	if (!data || data === "[DONE]") return;
+	try {
+		return JSON.parse(data) as ResponsesEvent | null;
+	} catch {
+		// The provider stream owns protocol validation. Capture stays best-effort.
+		return undefined;
+	}
+}
+
 export function parseResponsesSSE(text: string): ResponsesEvent[] {
 	const normalized = text.replace(/\r\n/g, "\n");
 	const events: ResponsesEvent[] = [];
@@ -197,14 +207,60 @@ export function parseResponsesSSE(text: string): ResponsesEvent[] {
 			.filter((line) => line.startsWith("data:"))
 			.map((line) => line.slice(5).trimStart())
 			.join("\n");
-		if (!data || data === "[DONE]") continue;
-		try {
-			events.push(JSON.parse(data) as ResponsesEvent);
-		} catch {
-			// The provider stream owns protocol validation. Capture stays best-effort.
-		}
+		const event = parseResponsesEventData(data);
+		if (event !== undefined) events.push(event as ResponsesEvent);
 	}
 	return events;
+}
+
+async function readResponsesSSE(response: Response, onEvent: (event: ResponsesEvent | null) => void): Promise<void> {
+	if (response.bodyUsed) throw new TypeError("Response body is already used");
+	const body = response.body;
+	if (!body) return;
+	const decoder = new TextDecoder();
+	const reader = body.getReader();
+	const lineParts: string[] = [];
+	const dataLines: string[] = [];
+	const flushEvent = () => {
+		if (!dataLines.length) return;
+		const data = dataLines.join("\n");
+		dataLines.length = 0;
+		const event = parseResponsesEventData(data);
+		if (event !== undefined) onEvent(event);
+	};
+	const acceptLine = (line: string) => {
+		if (!line) flushEvent();
+		else if (line.startsWith("data:")) dataLines.push(line.slice(5).trimStart());
+	};
+	const acceptChunk = (text: string) => {
+		let start = 0;
+		for (let end = text.indexOf("\n"); end !== -1; end = text.indexOf("\n", start)) {
+			let line = text.slice(start, end);
+			if (lineParts.length) {
+				lineParts.push(line);
+				line = lineParts.join("");
+				lineParts.length = 0;
+			}
+			// Only CR immediately before LF is normalized, even across chunks.
+			acceptLine(line.endsWith("\r") ? line.slice(0, -1) : line);
+			start = end + 1;
+		}
+		// Join a split line only once, not on every chunk of a large image.
+		if (start < text.length) lineParts.push(text.slice(start));
+	};
+
+	try {
+		while (true) {
+			const { done, value } = await reader.read();
+			if (done) break;
+			acceptChunk(decoder.decode(value, { stream: true }));
+		}
+		acceptChunk(decoder.decode());
+		if (lineParts.length) acceptLine(lineParts.join(""));
+		flushEvent();
+	} finally {
+		reader.releaseLock();
+	}
 }
 
 export async function captureNativeOutputResponse(
@@ -216,11 +272,27 @@ export async function captureNativeOutputResponse(
 ): Promise<void> {
 	if (!response.ok) return;
 	beforeEffect?.();
-	const events = parseResponsesSSE(await response.text());
-	beforeEffect?.();
+	const staged: Array<{ rawEvent: ResponsesEvent | null; responseId?: string }> = [];
 	let responseId: string | undefined;
-	for (const event of events) {
+	await readResponsesSSE(response, (event) => {
+		if (staged[staged.length - 1]?.rawEvent === null) return;
+		if (event === null) {
+			staged.push({ rawEvent: event, responseId });
+			return;
+		}
 		if (event.type === "response.created" && typeof event.response?.id === "string") responseId = event.response.id;
+		if (event.type !== "response.output_item.done") return;
+		const item = event.item;
+		if ((item?.type === "image_generation_call" && typeof item.id === "string" && typeof item.result === "string") || (item?.type === "web_search_call" && typeof item.id === "string")) {
+			staged.push({ rawEvent: event, responseId });
+		}
+	});
+
+	// A failed body or revoked operation must not produce any capture effects.
+	beforeEffect?.();
+	for (const { rawEvent, responseId } of staged) {
+		// Replay JSON null as the original native property-read failure, after EOF.
+		const event = rawEvent!;
 		if (event.type !== "response.output_item.done") continue;
 		const item = event.item;
 		if (item?.type === "image_generation_call" && typeof item.id === "string" && typeof item.result === "string") {
